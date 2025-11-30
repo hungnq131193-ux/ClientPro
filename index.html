@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ClientPro v1.0.0 - GPS Integrated</title>
+    <title>ClientPro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -247,7 +247,56 @@
             <div id="ref-results" class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar"></div>
         </div>
     </div>
-
+<!-- DONATE MODAL -->
+<div id="donate-modal" class="fixed inset-0 z-[120] bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative border border-pink-500/30 modal-animate">
+        <button onclick="closeDonateModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        
+        <div class="flex flex-col items-center text-center">
+            <div class="w-12 h-12 rounded-2xl mb-3 flex items-center justify-center bg-pink-500/20 text-pink-400 border border-pink-500/40 shadow-lg">
+                <i data-lucide="heart" class="w-6 h-6"></i>
+            </div>
+            <h3 class="font-bold text-lg mb-1" style="color: var(--text-main)">Ủng hộ tác giả</h3>
+            <p class="text-xs mb-4 opacity-70" style="color: var(--text-sub)">
+                Nếu ClientPro giúp anh/chị tối ưu công việc, có thể mời Hưng một ly cà phê ☕ qua VietQR.
+            </p>
+            
+            <div class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-left text-xs mb-4">
+                <p class="mb-1"><span class="opacity-60">Ngân hàng:</span> <span class="font-semibold text-white">VietinBank</span></p>
+                <p class="mb-1"><span class="opacity-60">Tên nhận:</span> <span class="font-semibold text-white">NGUYEN QUOC HUNG</span></p>
+                <div class="flex items-center justify-between gap-2 mt-2">
+                    <div>
+                        <p class="opacity-60 mb-0.5">Số tài khoản</p>
+                        <p class="font-mono font-bold text-base tracking-wide text-white">8888 868 38888</p>
+                    </div>
+                    <button onclick="copyDonateAccount()" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold bg-white/5 hover:bg-white/10 border border-white/15 active:scale-95 transition">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        Copy STK
+                    </button>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-2xl p-3 shadow-inner">
+                <!-- QR VietQR auto tạo từ API img.vietqr.io -->
+                <img
+    id="donate-qr-img"
+    src="https://img.vietqr.io/image/vietinbank-888886838888-compact.jpg?accountName=NGUYEN%20QUOC%20HUNG&addInfo=Ung%20ho%20tac%20gia%20ClientPro"
+    alt="VietQR - VietinBank 888886838888"
+    class="w-56 h-56 object-contain mx-auto"
+/>
+            </div>
+            
+            <p class="text-[11px] mt-3 leading-relaxed opacity-70 px-2" style="color: var(--text-sub)">
+                Mở app ngân hàng & chọn <b>“Quét QR”</b>, thông tin
+                <b>VietinBank - 888886838888 - NGUYEN QUOC HUNG</b> sẽ được
+                tự điền chính xác, tránh nhầm lẫn.
+            </p>
+        </div>
+    </div>
+</div>
+<!-- END DONATE MODAL -->
     <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 transform -translate-y-40 opacity-0 pointer-events-none border border-white/20 z-[400]"><i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i><span id="toast-msg" class="font-medium text-sm whitespace-nowrap">Thông báo</span></div>
     
     <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button onclick="toggleCustSelectionMode()" class="p-2 rounded-full hover:bg-white/10 transition"><i data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count" class="text-lg font-bold" style="color: var(--accent)">0</span></span></div><div class="flex gap-3"><button onclick="backupSelectedCustomers()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="download" class="w-4 h-4"></i> Xuất</button><button onclick="deleteSelectedCustomers()" class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
@@ -271,15 +320,38 @@
             </div>
         </div>
         <button onclick="openSecuritySetup()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="shield" class="w-4 h-4"></i></div> Bảo mật & An toàn</button>
-        <button onclick="backupData()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-blue-500/20 text-blue-400"><i data-lucide="database" class="w-4 h-4"></i></div> Backup Dữ liệu</button>
-        <label class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 cursor-pointer border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-orange-500/20 text-orange-400"><i data-lucide="refresh-cw" class="w-4 h-4"></i></div> Khôi phục (Update)<input type="file" id="restore-input" accept=".json" class="hidden" onchange="restoreData(this)"></label>
-        <button onclick="resetAppData()" class="w-full text-left px-5 py-4 active:bg-red-500/10 flex items-center gap-3 text-sm font-bold text-red-400 transition-colors"><div class="p-1.5 rounded-lg bg-red-500/20"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div> Reset Ứng Dụng</button>
+    <button onclick="backupData()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-blue-500/20 text-blue-400"><i data-lucide="database" class="w-4 h-4"></i></div> Backup Dữ liệu</button>
+
+    <!-- 🌟 NÚT DONATE MỚI -->
+    <button onclick="openDonateModal()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);">
+        <div class="p-1.5 rounded-lg bg-pink-500/20 text-pink-400">
+            <i data-lucide="heart" class="w-4 h-4"></i>
+        </div>
+        Ủng hộ tác giả (Donate)
+    </button>
+    <!-- END NÚT DONATE -->
+
+    <label class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 cursor-pointer border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-orange-500/20 text-orange-400"><i data-lucide="refresh-cw" class="w-4 h-4"></i></div> Khôi phục (Update)<input type="file" id="restore-input" accept=".json" class="hidden" onchange="restoreData(this)"></label>
+    <button onclick="resetAppData()" class="w-full text-left px-5 py-4 active:bg-red-500/10 flex items-center gap-3 text-sm font-bold text-red-400 transition-colors"><div class="p-1.5 rounded-lg bg-red-500/20"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div> Reset Ứng Dụng</button>
         <div class="px-5 py-3 text-center"><span class="text-[10px] opacity-40" style="color: var(--text-sub)">Phát triển bởi Nguyễn Quốc Hưng - 2025</span></div>
     </div>
 
     <div id="screen-dashboard" class="app-container z-10 transition-transform duration-300">
         <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
-            <div class="flex justify-between items-center mb-4"><div class="flex items-center gap-3"><div class="text-white p-2.5 rounded-xl shadow-lg border border-white/10" style="background: var(--accent-gradient);"><i data-lucide="briefcase" class="w-6 h-6"></i></div><div><h1 class="font-bold text-xl tracking-tight leading-none mb-1" style="color: var(--text-main)">ClientPro</h1><span class="text-[10px] uppercase font-bold tracking-widest opacity-60" style="color: var(--text-sub)">Version 1.0.0</span></div></div><button onclick="toggleMenu()" class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95" style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"><i data-lucide="settings-2" class="w-6 h-6"></i></button></div>
+            <div class="flex justify-between items-center mb-4"><div class="flex items-center gap-3"><div class="text-white p-2.5 rounded-xl shadow-lg border border-white/10" style="background: var(--accent-gradient);"><i data-lucide="briefcase" class="w-6 h-6"></i></div><div><h1 class="font-bold text-xl tracking-tight leading-none mb-1" style="color: var(--text-main)">ClientPro</h1><span class="text-[10px] uppercase font-bold tracking-widest opacity-60" style="color: var(--text-sub)">Hungnq14</span></div></div><button onclick="toggleMenu()" class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95" style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"><i data-lucide="settings-2" class="w-6 h-6"></i></button></div>
+            <!-- WEATHER BADGE -->
+        <div class="flex justify-end mb-2 text-[11px] font-medium">
+            <button
+                onclick="refreshWeather()"
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-slate-200 hover:bg-white/10 active:scale-95 transition"
+            >
+                <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i>
+                <span id="current-weather" class="max-w-[160px] truncate">
+                    Đang tải thời tiết...
+                </span>
+            </button>
+        </div>
+        <!-- END WEATHER BADGE -->
             <div class="flex p-1 rounded-xl mb-3 bg-black/20 border border-white/5"><button onclick="switchListTab('pending')" id="list-tab-pending" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">KH đang Thẩm Định</button><button onclick="switchListTab('approved')" id="list-tab-approved" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">Khách hàng đã vay</button></div>
             <div class="flex gap-2"><div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50" style="color: var(--text-main)"></i><input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..." class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors" style="border-color: var(--border-panel); color: var(--text-main);"></div><button onclick="toggleCustSelectionMode()" id="btn-cust-select" class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub);"><i data-lucide="list-checks" class="w-5 h-5"></i></button></div>
         </header>
@@ -332,7 +404,37 @@
         const DB_NAME='QLKH_Pro_V4'; let db;
         const PIN_KEY = 'app_pin'; const SEC_KEY = 'app_sec_qa'; const THEME_KEY = 'app_theme';
         let currentPin = ''; let currentLightboxIndex = 0; let currentLightboxList = [];
-        
+        // --- WEATHER CONFIG (Open-Meteo: không cần API key) ---
+const WEATHER_STORAGE_KEY = 'app_weather_cache_v1';
+const WEATHER_CACHE_TTL = 15 * 60 * 1000; // 15 phút
+
+// map weathercode -> text tiếng Việt đơn giản
+const WEATHER_CODE_TEXT = {
+    0: 'Trời quang',
+    1: 'Gần như quang',
+    2: 'Có mây',
+    3: 'Nhiều mây',
+    45: 'Sương mù',
+    48: 'Sương mù',
+    51: 'Mưa phùn nhẹ',
+    53: 'Mưa phùn',
+    55: 'Mưa phùn to',
+    61: 'Mưa nhẹ',
+    63: 'Mưa vừa',
+    65: 'Mưa to',
+    71: 'Tuyết nhẹ',
+    80: 'Mưa rào',
+    81: 'Mưa rào vừa',
+    82: 'Mưa rào to',
+    95: 'Dông'
+};
+// --- END WEATHER CONFIG ---
+        // --- DONATE CONFIG ---
+const DONATE_BANK_ID = 'vietinbank'; // dùng theo chuẩn VietQR Quick Link 0
+const DONATE_ACCOUNT_NO = '888886838888';
+const DONATE_ACCOUNT_NAME = 'NGUYEN QUOC HUNG';
+const DONATE_DEFAULT_DESC = 'Ung ho tac gia ClientPro';
+// --- END DONATE CONFIG ---
         // --- MAP SYSTEM VARIABLES ---
         let map = null; let markers = [];
         const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -433,7 +535,9 @@
             const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
             window.addEventListener('resize', setAppHeight); setAppHeight();
             const savedTheme = localStorage.getItem(THEME_KEY) || 'theme-midnight';
-            setTheme(savedTheme); 
+            setTheme(savedTheme);
+// 🌤 Khởi động thời tiết
+initWeather();
             
             const req = indexedDB.open(DB_NAME, 3);
             req.onupgradeneeded = e => { 
@@ -863,6 +967,157 @@
             const r = new FileReader(); r.onload = e => { try { const d = JSON.parse(e.target.result); const tx = db.transaction(['customers', 'images'], 'readwrite'); d.customers.forEach(c => tx.objectStore('customers').put(c)); d.images.forEach(i => tx.objectStore('images').put(i)); tx.oncomplete = () => { getEl('loader').classList.add('hidden'); alert("Đã xong"); loadCustomers(); }; } catch(err) { getEl('loader').classList.add('hidden'); alert("Lỗi file"); } }; r.readAsText(f); 
         }
         function resetAppData() { if(confirm("XÓA SẠCH dữ liệu?")) { localStorage.clear(); indexedDB.deleteDatabase(DB_NAME).onsuccess = () => { alert("Đã reset."); window.location.reload(); }; } }
+        // =============== DONATE FEATURE ===============
+
+function buildDonateQRUrl() {
+    // Theo Quick Link VietQR: https://img.vietqr.io/image/<BANK_ID>-<ACCOUNT_NO>-<TEMPLATE>.jpg?accountName=...&addInfo=... 1
+    const base = `https://img.vietqr.io/image/${DONATE_BANK_ID}-${DONATE_ACCOUNT_NO}-compact2.jpg`;
+    const params = new URLSearchParams({
+        accountName: DONATE_ACCOUNT_NAME,
+        addInfo: DONATE_DEFAULT_DESC
+    });
+    return `${base}?${params.toString()}`;
+}
+
+function openDonateModal() {
+    const modal = getEl('donate-modal');
+    const img = getEl('donate-qr-img');
+    if (img && !img.src) {
+        img.src = buildDonateQRUrl(); // tạo QR VietQR “xịn” đúng STK + tên
+    }
+    modal.classList.remove('hidden');
+}
+
+function closeDonateModal() {
+    const modal = getEl('donate-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function copyDonateAccount() {
+    const acc = DONATE_ACCOUNT_NO;
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(acc)
+            .then(() => {
+                showToast('Đã copy số tài khoản VietinBank');
+            })
+            .catch(() => {
+                fallbackCopyDonate(acc);
+            });
+    } else {
+        fallbackCopyDonate(acc);
+    }
+}
+
+function fallbackCopyDonate(text) {
+    const input = document.createElement('input');
+    input.value = text;
+    document.body.appendChild(input);
+    input.select();
+    try {
+        document.execCommand('copy');
+        showToast('Đã copy số tài khoản');
+    } catch (e) {
+        alert('Không copy được, vui lòng nhập tay STK: ' + text);
+    }
+    document.body.removeChild(input);
+}
+
+// =========== END DONATE FEATURE ===========
+// ================== WEATHER (OPEN-METEO, NO KEY) ==================
+
+        function initWeather() {
+            // hiển thị nhanh từ cache nếu có
+            const cacheRaw = localStorage.getItem(WEATHER_STORAGE_KEY);
+            if (cacheRaw) {
+                try {
+                    const cache = JSON.parse(cacheRaw);
+                    if (Date.now() - cache.time < WEATHER_CACHE_TTL) {
+                        renderWeather(cache.data);
+                    }
+                } catch (e) {
+                    console.warn('Weather cache error', e);
+                }
+            }
+            // sau đó gọi GPS để cập nhật mới
+            refreshWeather();
+        }
+
+        function refreshWeather() {
+            if (!navigator.geolocation) {
+                setWeatherText('Thiết bị không hỗ trợ GPS');
+                return;
+            }
+
+            setWeatherText('Đang lấy vị trí...');
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    fetchWeather(lat, lon);
+                },
+                (err) => {
+                    console.warn('GPS weather error', err);
+                    setWeatherText('Không lấy được GPS');
+                },
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+            );
+        }
+
+        function setWeatherText(text) {
+            const el = getEl('current-weather');
+            if (el) el.textContent = text;
+        }
+
+        function fetchWeather(lat, lon) {
+            setWeatherText('Đang tải thời tiết...');
+
+            // Open-Meteo API: không cần API key
+            const url =
+                'https://api.open-meteo.com/v1/forecast' +
+                `?latitude=${lat}` +
+                `&longitude=${lon}` +
+                '&current_weather=true' +
+                '&timezone=auto';
+
+            fetch(url)
+                .then((res) => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then((data) => {
+                    try {
+                        localStorage.setItem(
+                            WEATHER_STORAGE_KEY,
+                            JSON.stringify({ time: Date.now(), data })
+                        );
+                    } catch (e) {
+                        console.warn('Weather cache save error', e);
+                    }
+                    renderWeather(data);
+                })
+                .catch((err) => {
+                    console.error('Weather fetch error', err);
+                    setWeatherText('Lỗi tải thời tiết');
+                });
+        }
+
+        function renderWeather(apiData) {
+            if (!apiData || !apiData.current_weather) {
+                setWeatherText('Không có dữ liệu');
+                return;
+            }
+
+            const cw = apiData.current_weather;
+            const temp = Math.round(cw.temperature); // °C
+            const code = cw.weathercode;
+            const desc = WEATHER_CODE_TEXT[code] || 'Thời tiết hiện tại';
+
+            setWeatherText(`${temp}°C • ${desc}`);
+        }
+
+        // ================== END WEATHER ==================
     </script>
 </body>
 </html>
