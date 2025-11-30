@@ -855,16 +855,27 @@ initWeather();
         function openFolder(id) { 
     currentCustomerId = id; 
     getEl('screen-folder').classList.remove('translate-x-full'); 
+    
+    // Gọi Database lấy thông tin khách
     db.transaction(['customers'], 'readonly').objectStore('customers').get(id).onsuccess = (e) => { 
         currentCustomerData = e.target.result; 
+        
+        // Fix lỗi data cũ chưa có status
         if(!currentCustomerData.status) currentCustomerData.status = 'pending'; 
+        
+        // Vẽ header (Tên, SĐT...)
         renderFolderHeader(currentCustomerData); 
         
-        // 👇👇👇 DÁN DÒNG NÀY VÀO ĐÂY 👇👇👇
-        renderDriveStatus(currentCustomerData.driveLink); 
-        // 👆👆👆 ----------------------- 👆👆👆
+        // 👇 QUAN TRỌNG: Hiển thị nút Drive (Khắc phục lỗi mất nút)
+        if (typeof renderDriveStatus === "function") {
+            renderDriveStatus(currentCustomerData.driveLink); 
+        }
 
-        switchTab('images'); // <--- Dòng cũ này giữ nguyên, dán lên trên nó
+        // Luôn chuyển về tab tài sản
+        switchTab('images'); 
+        
+        // Load danh sách tài sản (Khắc phục lỗi không hiện list tài sản)
+        renderAssets();
     }; 
 }
 
@@ -918,35 +929,41 @@ initWeather();
         }
 
         function openAssetGallery(id, name, idx) {
-    // 1. Logic tạo ID mới nếu chưa có
+    // Logic tạo ID nếu chưa có (cho data cũ)
     if (!id || id === 'undefined') {
         id = 'asset_' + Date.now();
-        currentCustomerData.assets[idx].id = id;
-        db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+        if(currentCustomerData.assets[idx]) {
+            currentCustomerData.assets[idx].id = id;
+            db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+        }
     }
     
     currentAssetId = id;
     
-    // 2. Hiển thị màn hình
+    // Hiển thị màn hình
     getEl('screen-asset-gallery').classList.remove('translate-x-full');
     getEl('gallery-asset-name').textContent = name;
     
-    // 3. Điền thông tin giá trị
+    // Lấy thông tin tài sản đang chọn
     const asset = currentCustomerData.assets[idx];
+    
     if (asset) {
         getEl('gallery-asset-val').textContent = asset.valuation || '--';
         getEl('gallery-asset-loan').textContent = asset.loanValue || '--';
         
-        // 👇👇👇 DÒNG MỚI THÊM VÀO Ở ĐÂY 👇👇👇
-        renderAssetDriveStatus(asset.driveLink);
-        // 👆👆👆 ----------------------- 👆👆👆
+        // 👇 QUAN TRỌNG: Kiểm tra link Drive của tài sản 👇
+        if (typeof renderAssetDriveStatus === "function") {
+            renderAssetDriveStatus(asset.driveLink);
+        }
+        // 👆 ------------------------------------------ 👆
     } else {
+        // Reset nếu lỗi
         getEl('gallery-asset-val').textContent = '--';
         getEl('gallery-asset-loan').textContent = '--';
-        renderAssetDriveStatus(null); // Reset nút nếu không tìm thấy
+        renderAssetDriveStatus(null);
     }
     
-    // 4. Load ảnh
+    // Vẫn gọi hàm load ảnh (để xem có ảnh nào chưa xóa không)
     loadAssetImages(id);
 }
 
@@ -1317,7 +1334,7 @@ function renderDriveStatus(url) {
     const area = getEl('drive-status-area');
     const btnUp = getEl('btn-upload-drive');
     
-    // Nếu ĐÃ CÓ Link -> Hiện nút Mở Drive
+    // TRƯỜNG HỢP 1: ĐÃ CÓ LINK -> Hiện nút Mở Drive
     if (url && url.length > 5) {
         area.classList.remove('hidden');
         area.innerHTML = `
@@ -1326,17 +1343,18 @@ function renderDriveStatus(url) {
             </a>
             <p class="text-[10px] text-center text-emerald-400/70 italic mb-2">Đã đồng bộ lên Cloud</p>
         `;
-        if(btnUp) btnUp.classList.add('hidden');
+        if(btnUp) btnUp.classList.add('hidden'); // Ẩn nút Upload
     } 
-    // Nếu CHƯA CÓ Link -> Hiện nút Tìm lại + Hiện nút Upload
+    // TRƯỜNG HỢP 2: CHƯA CÓ LINK -> Hiện nút Tìm lại & Nút Upload
     else {
-        area.classList.remove('hidden'); // Hiện area để chứa nút tìm kiếm
+        area.classList.remove('hidden'); 
+        // Nút tìm lại (nếu lỡ mất kết nối)
         area.innerHTML = `
-            <button onclick="reconnectDriveFolder()" class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
-                <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ trên Drive
+             <button onclick="reconnectDriveFolder()" class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
+                <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
             </button>
         `;
-        if(btnUp) btnUp.classList.remove('hidden');
+        if(btnUp) btnUp.classList.remove('hidden'); // Hiện lại nút Upload
     }
     lucide.createIcons();
 }
