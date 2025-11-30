@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ClientPro v1.1.0 - GPS Integrated</title>
+    <title>ClientPro v1.0.0 - GPS Integrated</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -257,7 +257,7 @@
     
     <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleMenu()"></div>
     <div id="settings-menu" class="fixed top-20 right-4 w-80 glass-panel rounded-2xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
-        <div class="px-5 py-4 border-b border-white/5"><h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3><p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro v1.1.0</p></div>
+        <div class="px-5 py-4 border-b border-white/5"><h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3><p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro v1.0.0</p></div>
         <div class="px-5 py-5 border-b border-white/5">
             <p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Giao diện</p>
             <div class="flex flex-wrap gap-3 justify-start">
@@ -279,7 +279,7 @@
 
     <div id="screen-dashboard" class="app-container z-10 transition-transform duration-300">
         <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
-            <div class="flex justify-between items-center mb-4"><div class="flex items-center gap-3"><div class="text-white p-2.5 rounded-xl shadow-lg border border-white/10" style="background: var(--accent-gradient);"><i data-lucide="briefcase" class="w-6 h-6"></i></div><div><h1 class="font-bold text-xl tracking-tight leading-none mb-1" style="color: var(--text-main)">ClientPro</h1><span class="text-[10px] uppercase font-bold tracking-widest opacity-60" style="color: var(--text-sub)">Version 1.1.0 - GPS Enabled</span></div></div><button onclick="toggleMenu()" class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95" style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"><i data-lucide="settings-2" class="w-6 h-6"></i></button></div>
+            <div class="flex justify-between items-center mb-4"><div class="flex items-center gap-3"><div class="text-white p-2.5 rounded-xl shadow-lg border border-white/10" style="background: var(--accent-gradient);"><i data-lucide="briefcase" class="w-6 h-6"></i></div><div><h1 class="font-bold text-xl tracking-tight leading-none mb-1" style="color: var(--text-main)">ClientPro</h1><span class="text-[10px] uppercase font-bold tracking-widest opacity-60" style="color: var(--text-sub)">Version 1.0.0</span></div></div><button onclick="toggleMenu()" class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95" style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"><i data-lucide="settings-2" class="w-6 h-6"></i></button></div>
             <div class="flex p-1 rounded-xl mb-3 bg-black/20 border border-white/5"><button onclick="switchListTab('pending')" id="list-tab-pending" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">KH đang Thẩm Định</button><button onclick="switchListTab('approved')" id="list-tab-approved" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">Khách hàng đã vay</button></div>
             <div class="flex gap-2"><div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50" style="color: var(--text-main)"></i><input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..." class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors" style="border-color: var(--border-panel); color: var(--text-main);"></div><button onclick="toggleCustSelectionMode()" id="btn-cust-select" class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub);"><i data-lucide="list-checks" class="w-5 h-5"></i></button></div>
         </header>
@@ -866,4 +866,3 @@
     </script>
 </body>
 </html>
-
