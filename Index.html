@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ClientPro v1.0.0 - GPS Integrated</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script>console.warn = function() {};</script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        :root { --app-height: 100dvh; }
+        
+        /* --- THEME ENGINE V5 --- */
+        body {
+            --bg-gradient: linear-gradient(145deg, #0f172a 0%, #1e293b 40%, #312e81 100%);
+            --bg-panel: rgba(15, 23, 42, 0.75); /* Tăng độ đậm nền, giảm phụ thuộc blur */
+            --border-panel: rgba(255, 255, 255, 0.12);
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent: #6366f1;
+            --accent-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            --header-bg: rgba(15, 23, 42, 0.95);
+            --input-bg: rgba(0, 0, 0, 0.3);
+            
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-main);
+            -webkit-tap-highlight-color: transparent;
+            -webkit-font-smoothing: antialiased;
+            overscroll-behavior-y: none;
+            height: var(--app-height);
+            width: 100vw;
+            overflow: hidden;
+            position: fixed;
+            transition: background 0.8s ease;
+        }
+
+        body::before {
+            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none; z-index: 0; mix-blend-mode: overlay;
+        }
+
+        /* THEMES */
+        body.theme-midnight { /* Default */ }
+        body.theme-sunset { --bg-gradient: linear-gradient(145deg, #2e1065 0%, #be185d 50%, #f59e0b 100%); --bg-panel: rgba(50, 20, 80, 0.75); --border-panel: rgba(251, 146, 60, 0.2); --accent: #fbbf24; --accent-gradient: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
+        body.theme-ocean { --bg-gradient: linear-gradient(145deg, #0c4a6e 0%, #075985 50%, #0284c7 100%); --bg-panel: rgba(12, 74, 110, 0.75); --border-panel: rgba(56, 189, 248, 0.15); --accent: #38bdf8; --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); }
+        body.theme-mint { --bg-gradient: linear-gradient(145deg, #064e3b 0%, #065f46 50%, #0d9488 100%); --bg-panel: rgba(6, 78, 59, 0.75); --border-panel: rgba(52, 211, 153, 0.15); --accent: #34d399; --accent-gradient: linear-gradient(135deg, #34d399 0%, #059669 100%); }
+        body.theme-royal { --bg-gradient: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%); --bg-panel: rgba(40, 40, 40, 0.85); --border-panel: rgba(255, 255, 255, 0.1); --accent: #d4af37; --accent-gradient: linear-gradient(135deg, #d4af37 0%, #c5a028 100%); }
+        body.theme-coffee { --bg-gradient: linear-gradient(145deg, #271c19 0%, #4a3b32 60%, #5d4037 100%); --bg-panel: rgba(40, 30, 25, 0.85); --border-panel: rgba(161, 136, 127, 0.15); --accent: #d7ccc8; --accent-gradient: linear-gradient(135deg, #d7ccc8 0%, #a1887f 100%); }
+        body.theme-amoled { --bg-gradient: linear-gradient(0deg, #000000 0%, #000000 100%); --bg-panel: #000000; --border-panel: #333333; --input-bg: #111; --text-main: #fff; --accent: #fff; --header-bg: #000; }
+
+        /* PERFORMANCE OPTIMIZED GLASS */
+        .glass-panel { 
+            background: var(--bg-panel); 
+            backdrop-filter: blur(20px) saturate(180%); 
+            -webkit-backdrop-filter: blur(20px) saturate(180%); 
+            border: 1px solid var(--border-panel); 
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); 
+            position: relative; 
+            z-index: 10;
+            /* GPU Acceleration Hints */
+            will-change: transform, opacity;
+            transform: translateZ(0); 
+        }
+        
+        .glass-header { 
+            background: var(--header-bg); 
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%); 
+            border-bottom: 1px solid var(--border-panel); 
+            z-index: 40; 
+            will-change: transform;
+        }
+
+        /* MOBILE OPTIMIZATION: Reduce Blur for High FPS */
+        @media (max-width: 768px) {
+            .glass-panel {
+                backdrop-filter: blur(12px) saturate(150%); /* Reduced from 20px */
+                -webkit-backdrop-filter: blur(12px) saturate(150%);
+            }
+            .glass-header {
+                backdrop-filter: blur(10px); /* Reduced */
+                -webkit-backdrop-filter: blur(10px);
+            }
+        }
+
+        @keyframes modalPop { 
+            0% { transform: scale(0.96) translateY(10px); opacity: 0; } 
+            100% { transform: scale(1) translateY(0); opacity: 1; } 
+        }
+        .modal-animate { 
+            animation: modalPop 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; 
+            will-change: transform, opacity;
+        }
+
+        .app-container { 
+            height: 100%; width: 100%; display: flex; flex-direction: column; 
+            overflow: hidden; position: absolute; top: 0; left: 0; 
+            backface-visibility: hidden;
+            transform: translate3d(0,0,0);
+        }
+        .scroll-area { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; padding-bottom: 140px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+        
+        input, select, textarea { color: var(--text-main) !important; background: var(--input-bg) !important; transition: all 0.2s ease; }
+        input:focus { border-color: var(--accent) !important; background: rgba(0,0,0,0.4) !important; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+        input::placeholder { color: var(--text-sub) !important; opacity: 0.5; }
+        
+        .img-grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; }
+        .img-wrapper { position: relative; width: 100%; padding-bottom: 100%; height: 0; overflow: hidden; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid var(--border-panel); background: rgba(255,255,255,0.03); transition: transform 0.2s; will-change: transform; }
+        .img-wrapper:active { transform: scale(0.96); }
+        .img-wrapper img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        #loader { backdrop-filter: blur(8px); background: rgba(0,0,0,0.6); z-index: 200; }
+        #toast { transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s; z-index: 400; will-change: transform, opacity; }
+        .toast-show { transform: translateX(-50%) translateY(0) !important; opacity: 1 !important; }
+        
+        .keypad-btn { width: 72px; height: 72px; border-radius: 50%; font-size: 26px; font-weight: 600; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; transition: background 0.2s; margin: 0 auto; color: white; backdrop-filter: blur(5px); }
+        .keypad-btn:active { background: rgba(255,255,255,0.2); transform: scale(0.95); }
+        .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--text-sub); transition: all 0.2s; }
+        .pin-dot.filled { background: var(--accent); border-color: var(--accent); transform: scale(1.1); }
+        .theme-btn { width: 42px; height: 42px; border-radius: 12px; border: 2px solid transparent; cursor: pointer; transition: transform 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .theme-btn.active { transform: scale(1.1); border-color: white; box-shadow: 0 0 12px rgba(255,255,255,0.4); }
+
+        .select-ring { width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; position: absolute; top: 6px; right: 6px; z-index: 20; }
+        .select-ring svg { opacity: 0; transform: scale(0.5); transition: all 0.2s; }
+        .selected .select-ring { background: var(--accent); border-color: var(--accent); }
+        .selected .select-ring svg { opacity: 1; transform: scale(1); }
+        .glass-panel.selected { border-color: var(--accent) !important; background: rgba(99, 102, 241, 0.1) !important; box-shadow: 0 0 0 1px var(--accent); }
+
+        /* --- MAP STYLES & OVERRIDES --- */
+        #map-container { width: 100%; height: 100%; z-index: 1; }
+        .leaflet-popup-content-wrapper { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(16px) saturate(180%); color: white; border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); padding: 0; }
+        .leaflet-popup-tip { background: rgba(15, 23, 42, 0.9); }
+        .leaflet-popup-content { margin: 0; width: 260px !important; }
+        .leaflet-container a.leaflet-popup-close-button { color: #fff; padding: 8px; font-size: 20px; }
+        .map-popup-card { padding: 12px; }
+        .map-popup-img { width: 100%; height: 120px; border-radius: 8px; object-fit: cover; margin-bottom: 8px; background: #222; }
+        .map-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; display: inline-block; margin-bottom: 4px; }
+        .map-tag.approved { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .map-tag.pending { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        
+        .marker-glow { width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); position: relative; }
+        .marker-glow::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; border-radius: 50%; animation: pulse 2s infinite; opacity: 0.5; z-index: -1; }
+        .marker-approved { background: #10b981; } .marker-approved::after { background: #10b981; box-shadow: 0 0 15px #10b981; }
+        .marker-pending { background: #f59e0b; } .marker-pending::after { background: #f59e0b; box-shadow: 0 0 15px #f59e0b; }
+        @keyframes pulse { 0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; } 100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; } }
+
+        .leaflet-control-layers { background: rgba(15, 23, 42, 0.9) !important; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2) !important; color: white !important; border-radius: 12px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; }
+        
+        /* Transition Classes */
+        .transition-transform { transition-property: transform; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+    </style>
+</head>
+<body class="theme-midnight">
+    <div id="screen-lock" class="fixed inset-0 z-[300] flex flex-col items-center justify-center p-6 hidden" style="background: var(--bg-gradient);">
+        <div class="mb-10 text-center relative z-10 animate-fade-in"><div class="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-2xl ring-4 ring-white/5" style="background: var(--accent-gradient);"><i data-lucide="lock" class="w-8 h-8 text-white"></i></div><h2 class="text-2xl font-bold mb-2 tracking-tight" style="color: var(--text-main);">ClientPro</h2><p class="text-sm font-medium opacity-70" style="color: var(--text-main);">Nhập mã PIN để truy cập</p></div>
+        <div class="flex gap-6 mb-12 relative z-10" id="pin-display"><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div></div>
+        <div class="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[300px] mb-8 relative z-10">
+            <button class="keypad-btn" onclick="enterPin(1)">1</button><button class="keypad-btn" onclick="enterPin(2)">2</button><button class="keypad-btn" onclick="enterPin(3)">3</button>
+            <button class="keypad-btn" onclick="enterPin(4)">4</button><button class="keypad-btn" onclick="enterPin(5)">5</button><button class="keypad-btn" onclick="enterPin(6)">6</button>
+            <button class="keypad-btn" onclick="enterPin(7)">7</button><button class="keypad-btn" onclick="enterPin(8)">8</button><button class="keypad-btn" onclick="enterPin(9)">9</button>
+            <button class="keypad-btn opacity-0 cursor-default"></button><button class="keypad-btn" onclick="enterPin(0)">0</button><button class="keypad-btn text-red-400 bg-red-500/10 border-red-500/20" onclick="clearPin()"><i data-lucide="delete" class="w-6 h-6"></i></button>
+        </div>
+        <button onclick="forgotPin()" class="text-xs font-bold py-3 px-6 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition relative z-10" style="color: var(--text-sub);">Quên mã PIN?</button>
+    </div>
+
+    <div id="setup-lock-modal" class="fixed inset-0 z-[310] bg-black/90 hidden flex items-center justify-center p-6 backdrop-blur-md">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-8 shadow-2xl relative border border-white/10 modal-animate"><button onclick="closeSetupModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-6 h-6"></i></button><h2 class="text-xl font-bold mb-6 text-center tracking-tight" style="color: var(--text-main)">Thiết lập Bảo Mật</h2><div class="space-y-6"><div><label class="block text-xs font-bold uppercase mb-2 tracking-wider opacity-70" style="color: var(--text-sub)">Mã PIN mới (4 số)</label><input type="tel" id="setup-pin" maxlength="4" class="w-full border text-center text-3xl font-bold rounded-xl p-4 tracking-[0.5em] outline-none" style="border-color: var(--border-panel);" placeholder="••••"></div><div><label class="block text-xs font-bold uppercase mb-2 tracking-wider opacity-70" style="color: var(--text-sub)">Mã nhân viên (Để khôi phục)</label><input type="text" id="setup-answer" class="w-full border rounded-xl p-4 outline-none font-bold" style="border-color: var(--border-panel);" placeholder="Nhập mã nhân viên..."></div><button onclick="saveSecuritySetup()" class="w-full text-white font-bold py-4 rounded-xl mt-2 shadow-lg active:scale-95 transition-transform uppercase tracking-wide" style="background: var(--accent-gradient)">Lưu & Kích hoạt</button></div></div>
+    </div>
+    
+    <div id="forgot-pin-modal" class="fixed inset-0 z-[320] bg-black/90 hidden flex items-center justify-center p-6 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-sm p-8 rounded-2xl border border-slate-700 modal-animate"><h3 class="text-xl font-bold mb-2" style="color: var(--text-main)">Khôi phục quyền truy cập</h3><p class="text-sm mb-6 opacity-70" style="color: var(--text-sub)">Nhập mã nhân viên của bạn để xác thực danh tính.</p><input type="text" id="recovery-answer" class="w-full border rounded-xl p-4 outline-none mb-6 font-bold" style="border-color: var(--border-panel);" placeholder="Mã số nhân viên..."><div class="flex gap-4"><button onclick="closeForgotModal()" class="flex-1 py-3 rounded-xl font-bold hover:bg-white/5" style="background: rgba(255,255,255,0.05); color: var(--text-sub)">Hủy</button><button onclick="checkRecovery()" class="flex-1 py-3 text-white rounded-xl font-bold shadow-lg" style="background: var(--accent-gradient)">Xác nhận</button></div></div>
+    </div>
+    
+    <div id="add-modal" class="fixed inset-0 z-40 bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative modal-animate"><button onclick="closeModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button><h3 class="font-bold text-lg mb-6" id="modal-title-cust" style="color: var(--text-main)">Thông tin khách hàng</h3><input type="hidden" id="edit-cust-id"><div class="space-y-5"><div><label class="text-xs font-bold uppercase block mb-1.5 opacity-70" style="color: var(--text-sub)">Tên khách hàng</label><input id="new-name" class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);"></div><div><label class="text-xs font-bold uppercase block mb-1.5 opacity-70" style="color: var(--text-sub)">Số điện thoại</label><input id="new-phone" type="tel" class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);"></div></div><div class="mt-8"><button onclick="saveCustomer()" class="w-full py-3.5 text-white font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform" id="btn-save-cust" style="background: var(--accent-gradient);">Lưu Hồ Sơ</button></div></div>
+    </div>
+    
+    <!-- ASSET MODAL UPDATED WITH GPS -->
+    <div id="asset-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl modal-animate overflow-y-auto max-h-[90vh] custom-scrollbar">
+            <h3 class="font-bold mb-4 flex justify-between items-center text-lg" style="color: var(--text-main)"><span id="modal-title-asset">Thêm TSBĐ</span><input type="hidden" id="edit-asset-index"></h3>
+            <div class="space-y-3">
+                <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Mô tả chính</label><input id="asset-name" placeholder="VD: Nhà cấp 4, hẻm xe hơi..." class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Định giá (VNĐ)</label><input id="asset-val" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vay Max (VNĐ)</label><input id="asset-loan" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Diện tích</label><input id="asset-area" type="number" placeholder="m²" class="w-full p-3 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Mặt tiền</label><input id="asset-width" type="number" placeholder="m" class="w-full p-3 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Xây dựng</label><input id="asset-year" type="number" placeholder="Năm" class="w-full p-3 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
+                </div>
+                <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Tài sản trên đất</label><input id="asset-onland" placeholder="VD: Nhà 2 tầng, Vườn cây..." class="w-full p-3.5 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
+                
+                <div>
+                    <label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vị trí / Tọa độ (Map)</label>
+                    <div class="flex gap-2">
+                        <input id="asset-link" placeholder="Nhấn nút bên phải để lấy tọa độ..." class="flex-1 p-3.5 rounded-xl text-sm border outline-none bg-black/20" style="border-color: var(--border-panel);">
+                        <button type="button" onclick="openGuideModal()" class="w-12 flex items-center justify-center bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20 active:bg-blue-500/20" title="Hướng dẫn lấy tọa độ"><i data-lucide="help-circle" class="w-5 h-5"></i></button>
+                        <!-- CHANGED: Replaced Paste button with GPS Button -->
+                        <button type="button" onclick="getCurrentGPS()" id="btn-gps" class="w-12 flex items-center justify-center bg-red-500/10 text-red-400 font-bold text-xs rounded-xl border border-red-500/20 active:bg-red-500/20 animate-pulse"><i data-lucide="map-pin" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-8">
+                <button onclick="closeAssetModal()" class="flex-1 py-3.5 rounded-xl font-medium transition-colors hover:bg-white/5" style="background: rgba(255,255,255,0.05); color: var(--text-sub)">Hủy</button>
+                <button onclick="saveAsset()" id="btn-save-asset" class="flex-1 py-3.5 text-white font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform" style="background: var(--accent-gradient);">Lưu</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="guide-modal" class="fixed inset-0 z-[60] bg-black/90 hidden flex items-center justify-center p-6 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl modal-animate relative">
+            <button onclick="closeGuideModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <h3 class="font-bold text-lg mb-4 text-emerald-400">Cách lấy Tọa độ chuẩn</h3>
+            <div class="space-y-4">
+                <div class="flex gap-4 items-start">
+                    <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0 font-bold text-sm">1</div>
+                    <p class="text-sm opacity-80 leading-relaxed">Nhấn vào nút <b class="text-red-400"><i data-lucide="map-pin" class="w-3 h-3 inline"></i> Đỏ</b> để tự động lấy vị trí hiện tại của bạn.</p>
+                </div>
+                <div class="flex gap-4 items-start">
+                    <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0 font-bold text-sm">2</div>
+                    <p class="text-sm opacity-80 leading-relaxed">Nếu không ở tại tài sản, hãy mở Google Maps, ghim vị trí và copy dãy số tọa độ.</p>
+                </div>
+            </div>
+            <a href="https://www.google.com/maps" target="_blank" class="block w-full text-center py-3 mt-6 bg-white/5 border border-white/10 rounded-xl font-bold hover:bg-white/10 transition text-sm">Mở Google Maps</a>
+        </div>
+    </div>
+
+    <div id="approve-modal" class="fixed inset-0 z-50 bg-black/90 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-emerald-500/20 modal-animate"><div class="text-center mb-4"><div class="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-3 text-emerald-400"><i data-lucide="check" class="w-6 h-6"></i></div><h3 class="font-bold text-lg text-white">Phê Duyệt Hồ Sơ</h3></div><input id="approve-limit" type="text" placeholder="Nhập hạn mức (VNĐ)" class="w-full bg-black/30 border-2 border-emerald-500/30 p-4 rounded-xl outline-none focus:border-emerald-500 text-xl font-bold text-emerald-400 font-mono text-center placeholder:text-emerald-500/30 placeholder:text-sm"><div class="flex gap-3 mt-6"><button onclick="closeApproveModal()" class="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl">Hủy</button><button onclick="confirmApproval()" class="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20">Xác nhận</button></div></div>
+    </div>
+    
+    <div id="ref-price-modal" class="fixed inset-0 z-[100] bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative border border-white/10 modal-animate">
+            <button onclick="closeRefModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <h3 class="font-bold text-lg mb-4 text-emerald-400 flex items-center gap-2"><i data-lucide="radar" class="w-5 h-5"></i> Tham khảo giá</h3>
+            <div id="ref-results" class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar"></div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 transform -translate-y-40 opacity-0 pointer-events-none border border-white/20 z-[400]"><i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i><span id="toast-msg" class="font-medium text-sm whitespace-nowrap">Thông báo</span></div>
+    
+    <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button onclick="toggleCustSelectionMode()" class="p-2 rounded-full hover:bg-white/10 transition"><i data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count" class="text-lg font-bold" style="color: var(--accent)">0</span></span></div><div class="flex gap-3"><button onclick="backupSelectedCustomers()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="download" class="w-4 h-4"></i> Xuất</button><button onclick="deleteSelectedCustomers()" class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
+    <div id="selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2" style="color: var(--text-main)">Đã chọn: <span id="selection-count" class="text-blue-400 font-bold text-lg">0</span> ảnh</div><div class="flex gap-3"><button onclick="shareSelectedImages()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="share-2" class="w-4 h-4"></i> Gửi</button><button onclick="deleteSelectedImages()" class="bg-red-600/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-600/20 text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
+    
+    <div id="loader" class="fixed inset-0 z-[500] flex flex-col items-center justify-center p-6 text-center"><div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4" style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div><p id="loader-text" class="text-xs font-bold tracking-widest uppercase opacity-70" style="color: var(--text-main)">Loading...</p></div>
+    
+    <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleMenu()"></div>
+    <div id="settings-menu" class="fixed top-20 right-4 w-80 glass-panel rounded-2xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
+        <div class="px-5 py-4 border-b border-white/5"><h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3><p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro v1.0.0</p></div>
+        <div class="px-5 py-5 border-b border-white/5">
+            <p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Giao diện</p>
+            <div class="flex flex-wrap gap-3 justify-start">
+                <button onclick="setTheme('theme-midnight')" class="theme-btn" style="background: linear-gradient(135deg, #0f172a, #312e81)" title="Midnight"></button>
+                <button onclick="setTheme('theme-sunset')" class="theme-btn" style="background: linear-gradient(135deg, #2e1065, #f59e0b)" title="Sunset"></button>
+                <button onclick="setTheme('theme-ocean')" class="theme-btn" style="background: linear-gradient(135deg, #0c4a6e, #0284c7)" title="Ocean"></button>
+                <button onclick="setTheme('theme-mint')" class="theme-btn" style="background: linear-gradient(135deg, #064e3b, #34d399)" title="Mint"></button>
+                <button onclick="setTheme('theme-royal')" class="theme-btn" style="background: linear-gradient(135deg, #2d2d2d, #d4af37)" title="Royal"></button>
+                <button onclick="setTheme('theme-coffee')" class="theme-btn" style="background: linear-gradient(135deg, #3e2723, #a1887f)" title="Coffee"></button>
+                <button onclick="setTheme('theme-amoled')" class="theme-btn bg-black border border-white/20" title="Amoled"></button>
+            </div>
+        </div>
+        <button onclick="openSecuritySetup()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="shield" class="w-4 h-4"></i></div> Bảo mật & An toàn</button>
+        <button onclick="backupData()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-blue-500/20 text-blue-400"><i data-lucide="database" class="w-4 h-4"></i></div> Backup Dữ liệu</button>
+        <label class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 cursor-pointer border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-orange-500/20 text-orange-400"><i data-lucide="refresh-cw" class="w-4 h-4"></i></div> Khôi phục (Update)<input type="file" id="restore-input" accept=".json" class="hidden" onchange="restoreData(this)"></label>
+        <button onclick="resetAppData()" class="w-full text-left px-5 py-4 active:bg-red-500/10 flex items-center gap-3 text-sm font-bold text-red-400 transition-colors"><div class="p-1.5 rounded-lg bg-red-500/20"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div> Reset Ứng Dụng</button>
+        <div class="px-5 py-3 text-center"><span class="text-[10px] opacity-40" style="color: var(--text-sub)">Phát triển bởi Nguyễn Quốc Hưng - 2025</span></div>
+    </div>
+
+    <div id="screen-dashboard" class="app-container z-10 transition-transform duration-300">
+        <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
+            <div class="flex justify-between items-center mb-4"><div class="flex items-center gap-3"><div class="text-white p-2.5 rounded-xl shadow-lg border border-white/10" style="background: var(--accent-gradient);"><i data-lucide="briefcase" class="w-6 h-6"></i></div><div><h1 class="font-bold text-xl tracking-tight leading-none mb-1" style="color: var(--text-main)">ClientPro</h1><span class="text-[10px] uppercase font-bold tracking-widest opacity-60" style="color: var(--text-sub)">Version 1.0.0</span></div></div><button onclick="toggleMenu()" class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95" style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"><i data-lucide="settings-2" class="w-6 h-6"></i></button></div>
+            <div class="flex p-1 rounded-xl mb-3 bg-black/20 border border-white/5"><button onclick="switchListTab('pending')" id="list-tab-pending" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">KH đang Thẩm Định</button><button onclick="switchListTab('approved')" id="list-tab-approved" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">Khách hàng đã vay</button></div>
+            <div class="flex gap-2"><div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50" style="color: var(--text-main)"></i><input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..." class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors" style="border-color: var(--border-panel); color: var(--text-main);"></div><button onclick="toggleCustSelectionMode()" id="btn-cust-select" class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub);"><i data-lucide="list-checks" class="w-5 h-5"></i></button></div>
+        </header>
+        <div class="scroll-area flex-1 p-4 space-y-3" id="customer-list"></div>
+        
+        <div class="absolute bottom-8 right-6 flex items-center gap-4 z-[100]">
+            <button onclick="toggleMap()" class="w-14 h-14 rounded-full shadow-2xl flex items-center justify-center font-bold text-white transition-transform active:scale-95 border border-white/20 glass-panel" style="background: rgba(16, 185, 129, 0.2); backdrop-filter: blur(20px);">
+                <i data-lucide="map" class="w-6 h-6 text-emerald-400"></i>
+            </button>
+            <button onclick="openModal()" class="h-14 pl-5 pr-6 text-white rounded-full shadow-2xl flex items-center justify-center font-bold gap-2 transition-transform active:scale-95 border border-white/20" style="background: var(--accent-gradient); box-shadow: 0 8px 20px -5px rgba(99, 102, 241, 0.5);">
+                <i data-lucide="plus" class="w-6 h-6"></i> <span class="text-sm">Thêm Mới</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="screen-map" class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black">
+        <div id="map-container"></div>
+        <button onclick="toggleMap()" class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
+        <button onclick="locateMe()" class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
+    </div>
+
+    <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300" style="background: var(--bg-gradient);">
+        <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="closeFolder()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition" style="color: var(--text-main)"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
+                <div class="flex gap-2">
+                    <button onclick="toggleSelectionMode()" id="btn-select-mode" class="px-4 py-1.5 rounded-full text-xs font-bold border flex items-center gap-2 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-main)"><i data-lucide="check-square" class="w-4 h-4"></i> Chọn</button>
+                    <button onclick="deleteCurrentCustomer()" class="p-2 text-red-400 bg-red-500/10 border border-red-500/30 rounded-full active:bg-red-500/30 transition-transform active:scale-90"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                </div>
+            </div>
+            <div class="flex flex-col items-center mb-6 relative"><button onclick="openEditCustomerModal()" class="absolute right-0 top-0 p-2.5 hover:text-white rounded-full border bg-white/5 backdrop-blur-sm transition hover:bg-white/10" style="color: var(--text-sub); border-color: var(--border-panel)"><i data-lucide="pencil" class="w-4 h-4"></i></button><div class="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold mb-3 shadow-xl border border-white/10" style="background: var(--accent-gradient); color: white;" id="folder-avatar">A</div><h2 id="folder-customer-name" class="font-bold text-xl text-center px-4 truncate w-full tracking-tight" style="color: var(--text-main)">Tên Khách Hàng</h2><div class="flex items-center gap-2.5 mt-3"><a id="btn-detail-call" href="#" class="px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 hover:bg-white/5 transition" style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main)"><i data-lucide="phone" class="w-3.5 h-3.5"></i> Gọi</a><a id="btn-detail-zalo" href="#" target="_blank" class="bg-blue-600/10 text-blue-400 px-4 py-2 rounded-lg text-xs font-bold border border-blue-500/20 flex items-center gap-2 hover:bg-blue-600/20 transition">Zalo</a><button onclick="toggleCustomerStatus()" id="detail-status-badge" class="px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform" style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-sub)"><span>Trạng thái</span></button></div></div>
+            <div class="flex border-b w-full" style="border-color: var(--border-panel)"><button onclick="switchTab('images')" id="tab-btn-images" class="flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-all">Hồ Sơ Ảnh</button><button onclick="switchTab('assets')" id="tab-btn-assets" class="flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-all">Tài Sản Bảo Đảm</button></div>
+        </div>
+        <div id="content-images" class="scroll-area flex-1 img-grid-container content-start"></div>
+        <div id="content-assets" class="hidden scroll-area flex-1 p-4 space-y-4"></div>
+        <div class="glass-panel border-t p-4 pb-8 flex gap-3 flex-none z-30" style="border-color: var(--border-panel)"><div id="actions-images" class="w-full flex gap-3"><button onclick="tryOpenCamera('profile')" class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform" style="background: var(--accent-gradient);"><i data-lucide="camera" class="w-5 h-5"></i> Chụp Ảnh</button><input type="file" id="native-camera-profile" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'profile')"><label class="flex-1 border py-3.5 rounded-xl font-bold flex justify-center gap-2 cursor-pointer bg-black/20 hover:bg-white/5 transition active:scale-[0.98]" style="border-color: var(--border-panel); color: var(--text-sub)"><i data-lucide="upload" class="w-5 h-5"></i> Tải lên<input type="file" id="upload-input" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'profile')"></label></div><div id="actions-assets" class="w-full hidden"><button onclick="openAssetModal()" class="w-full text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform" style="background: var(--accent-gradient);"><i data-lucide="plus-square" class="w-5 h-5"></i> Thêm TSBĐ Mới</button></div></div>
+    </div>
+
+    <div id="screen-asset-gallery" class="app-container z-30 transform translate-x-full transition-transform duration-300" style="background: var(--bg-gradient);">
+        <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full"><div class="flex items-center justify-between"><button onclick="closeAssetGallery()" class="p-2 -ml-2 rounded-full hover:bg-white/10" style="color: var(--text-main)"><i data-lucide="arrow-left" class="w-6 h-6"></i></button><div class="flex items-center gap-3"><h2 id="gallery-asset-name" class="font-bold text-sm uppercase truncate max-w-[160px]" style="color: var(--text-main)">Chi tiết TSBĐ</h2><button onclick="toggleSelectionMode()" id="btn-select-mode-asset" class="px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-2 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub)"><i data-lucide="check-square" class="w-4 h-4"></i> Chọn</button></div></div><div class="flex gap-2 mt-3 text-xs justify-center w-full font-mono" style="color: var(--text-sub)"><span id="gallery-asset-val" class="px-3 py-1.5 rounded-lg border bg-black/20" style="border-color: var(--border-panel)">--</span><span id="gallery-asset-loan" class="px-3 py-1.5 rounded-lg border bg-blue-900/20 text-blue-400 border-blue-500/30">--</span></div></div>
+        <div id="asset-gallery-grid" class="scroll-area flex-1 img-grid-container content-start"></div>
+        <div class="glass-panel border-t p-4 pb-8 flex gap-3 flex-none z-30" style="border-color: var(--border-panel)"><button onclick="tryOpenCamera('asset')" class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98]" style="background: var(--accent-gradient);"><i data-lucide="camera" class="w-5 h-5"></i> Chụp</button><input type="file" id="native-camera-asset" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'asset')"><label class="flex-1 border py-3.5 rounded-xl font-bold flex justify-center gap-2 cursor-pointer bg-black/20 active:scale-[0.98]" style="border-color: var(--border-panel); color: var(--text-sub)"><i data-lucide="upload" class="w-5 h-5"></i> Tải lên<input type="file" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'asset')"></label></div>
+    </div>
+
+    <div id="lightbox" class="fixed inset-0 z-[60] bg-black/95 hidden flex flex-col justify-center items-center touch-none backdrop-blur-xl"><button class="lightbox-nav left-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute" onclick="navigateLightbox(-1)"><i data-lucide="chevron-left" class="w-8 h-8 text-white"></i></button><img id="lightbox-img" class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform"><button class="lightbox-nav right-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute" onclick="navigateLightbox(1)"><i data-lucide="chevron-right" class="w-8 h-8 text-white"></i></button><button onclick="closeLightbox()" class="absolute top-6 right-6 text-white p-3 z-[70] bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20"><i data-lucide="x" class="w-6 h-6"></i></button><div class="absolute bottom-12 text-white text-xs font-bold bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 tracking-widest" id="lightbox-counter">1/1</div><div class="absolute bottom-12 right-6 flex gap-4"><button onclick="shareOpenedImage()" class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20"><i data-lucide="share-2" class="w-5 h-5"></i></button><button onclick="deleteOpenedImage()" class="p-3 bg-red-500/20 rounded-full text-red-400 hover:bg-red-500/30"><i data-lucide="trash-2" class="w-5 h-5"></i></button></div></div>
+    <div id="camera-modal" class="fixed inset-0 z-50 bg-black hidden flex-col"><video id="camera-feed" class="flex-1 w-full object-cover" autoplay playsinline webkit-playsinline muted></video><div class="absolute bottom-10 left-0 right-0 flex justify-center"><button onclick="capturePhoto()" class="w-20 h-20 bg-white rounded-full border-4 border-gray-300 shadow-2xl active:scale-95 transition-transform ring-4 ring-white/20"></button></div><button onclick="closeCamera()" class="absolute top-8 right-6 text-white p-2 bg-black/20 rounded-full backdrop-blur"><i data-lucide="x" class="w-8 h-8"></i></button><canvas id="camera-canvas" class="hidden"></canvas></div>
+
+    <script>
+        function getEl(id) { return document.getElementById(id); }
+        const DB_NAME='QLKH_Pro_V4'; let db;
+        const PIN_KEY = 'app_pin'; const SEC_KEY = 'app_sec_qa'; const THEME_KEY = 'app_theme';
+        let currentPin = ''; let currentLightboxIndex = 0; let currentLightboxList = [];
+        
+        // --- MAP SYSTEM VARIABLES ---
+        let map = null; let markers = [];
+        const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        const TILE_SAT = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
+        // --- GPS FEATURE V1.1 ---
+        function getCurrentGPS() {
+            if (!navigator.geolocation) {
+                showToast("Thiết bị không hỗ trợ GPS");
+                return;
+            }
+            getEl('loader').classList.remove('hidden');
+            getEl('loader-text').textContent = "Đang lấy tọa độ...";
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    // Tạo link chuẩn cho Google Maps (Search Query)
+                    const mapLink = `https://www.google.com/maps?q=${lat},${lng}`;
+                    
+                    const inputLink = getEl('asset-link');
+                    inputLink.value = mapLink;
+                    
+                    getEl('loader').classList.add('hidden');
+                    showToast("Đã lấy tọa độ thành công");
+                },
+                (error) => {
+                    getEl('loader').classList.add('hidden');
+                    let msg = "Lỗi GPS";
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED: msg = "Bạn đã chặn quyền GPS"; break;
+                        case error.POSITION_UNAVAILABLE: msg = "Không tìm thấy vị trí"; break;
+                        case error.TIMEOUT: msg = "Hết thời gian chờ"; break;
+                    }
+                    showToast(msg);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+
+        // --- SMART LOCATION PARSER V2 (Fix lệch) ---
+        function parseLatLngFromLink(input) {
+            if (!input) return null;
+            const str = input.trim();
+
+            const regexRaw = /^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/;
+            let match = str.match(regexRaw);
+            if (match) return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
+
+            match = str.match(/!3d(-?\d+(\.\d+)?)!4d(-?\d+(\.\d+)?)/);
+            if (match) return { lat: parseFloat(match[1]), lng: parseFloat(match[3]) };
+
+            match = str.match(/[?&]q=(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)/);
+            if (match) return { lat: parseFloat(match[1]), lng: parseFloat(match[3]) };
+
+            match = str.match(/@(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)/);
+            if (match) return { lat: parseFloat(match[1]), lng: parseFloat(match[3]) };
+
+            return null;
+        }
+
+        function distanceMeters(lat1, lng1, lat2, lng2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function parseMoneyToNumber(str) { if(!str) return 0; return parseInt(str.toString().replace(/\D/g, '')) || 0; }
+        
+        // --- AI ENHANCE STUB ---
+        async function enhanceDocumentWithAI(base64) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+                    canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0);
+                    try {
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height); const data = imageData.data;
+                        const contrast = 1.15; const brightness = 5;
+                        for (let i = 0; i < data.length; i += 4) {
+                            data[i] = (data[i] - 128) * contrast + 128 + brightness;
+                            data[i+1] = (data[i+1] - 128) * contrast + 128 + brightness;
+                            data[i+2] = (data[i+2] - 128) * contrast + 128 + brightness;
+                        }
+                        ctx.putImageData(imageData, 0, 0); resolve(canvas.toDataURL('image/jpeg', 0.9));
+                    } catch (e) { resolve(base64); }
+                }; img.onerror = () => resolve(base64); img.src = base64;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+            window.addEventListener('resize', setAppHeight); setAppHeight();
+            const savedTheme = localStorage.getItem(THEME_KEY) || 'theme-midnight';
+            setTheme(savedTheme); 
+            
+            const req = indexedDB.open(DB_NAME, 3);
+            req.onupgradeneeded = e => { 
+                db = e.target.result; 
+                if(!db.objectStoreNames.contains('customers')) db.createObjectStore('customers', {keyPath:'id'});
+                let imgStore;
+                if(!db.objectStoreNames.contains('images')) imgStore = db.createObjectStore('images', {keyPath:'id'});
+                else imgStore = e.target.transaction.objectStore('images');
+                if(!imgStore.indexNames.contains('customerId')) imgStore.createIndex('customerId', 'customerId', {unique: false});
+            };
+            req.onsuccess = e => { db = e.target.result; loadCustomers(); getEl('loader').classList.add('hidden'); checkSecurity(); };
+            getEl('search-input').addEventListener('input', e => loadCustomers(e.target.value));
+            setupSwipe();
+        });
+
+        // --- MAP FUNCTIONS ---
+        function toggleMap() {
+            const mapScreen = getEl('screen-map');
+            if (mapScreen.classList.contains('translate-x-full')) {
+                mapScreen.classList.remove('translate-x-full');
+                if (!map) initMap(); else renderMapMarkers();
+            } else {
+                mapScreen.classList.add('translate-x-full');
+            }
+        }
+
+        function initMap() {
+            map = L.map('map-container', { zoomControl: false }).setView([21.0285, 105.8542], 12); // Default Hanoi
+            
+            const darkLayer = L.tileLayer(TILE_DARK, { attribution: '', maxZoom: 19 });
+            const satLayer = L.tileLayer(TILE_SAT, { attribution: '', maxZoom: 19 });
+            
+            darkLayer.addTo(map);
+            L.control.layers({ "Bản đồ tối": darkLayer, "Vệ tinh": satLayer }, null, { position: 'topright' }).addTo(map);
+
+            renderMapMarkers();
+        }
+
+        async function renderMapMarkers() {
+            if (!db || !map) return;
+            // Clear existing markers
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            const tx = db.transaction(['customers', 'images'], 'readonly');
+            const custStore = tx.objectStore('customers');
+            const imgStore = tx.objectStore('images');
+
+            // Pre-fetch all images for thumbnails (optimized)
+            const allImages = await new Promise(r => { const req = imgStore.getAll(); req.onsuccess = e => r(e.target.result || []); req.onerror = () => r([]); });
+
+            custStore.getAll().onsuccess = (e) => {
+                const customers = e.target.result || [];
+                const bounds = [];
+
+                customers.forEach(cust => {
+                    if (!cust.assets) return;
+                    cust.assets.forEach(asset => {
+                        const loc = parseLatLngFromLink(asset.link);
+                        if (loc) {
+                            // Find thumbnail
+                            const img = allImages.find(i => i.assetId === asset.id) || allImages.find(i => i.customerId === cust.id);
+                            const thumb = img ? img.data : 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzU1NSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
+                            
+                            // Style based on status
+                            const isApproved = cust.status === 'approved';
+                            const markerClass = isApproved ? 'marker-approved' : 'marker-pending';
+                            const statusTag = isApproved ? '<span class="map-tag approved">Đã Duyệt</span>' : '<span class="map-tag pending">Thẩm định</span>';
+                            const valStr = asset.valuation ? `<div class="text-xs text-slate-300">Định giá: <b class="text-white">${asset.valuation}</b></div>` : '';
+
+                            const icon = L.divIcon({
+                                className: 'custom-div-icon',
+                                html: `<div class="marker-glow ${markerClass}"></div>`,
+                                iconSize: [20, 20],
+                                iconAnchor: [10, 10]
+                            });
+
+                            const marker = L.marker([loc.lat, loc.lng], { icon: icon }).addTo(map);
+                            const popupContent = `
+                                <div class="map-popup-card" onclick="openMapFolder('${cust.id}')">
+                                    <img src="${thumb}" class="map-popup-img">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            ${statusTag}
+                                            <div class="font-bold text-sm truncate w-40">${cust.name}</div>
+                                            <div class="text-[10px] text-slate-400 truncate w-40">${asset.name}</div>
+                                            ${valStr}
+                                        </div>
+                                        <div class="p-2 bg-indigo-500 rounded-lg text-white mt-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></div>
+                                    </div>
+                                    <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20">Chỉ đường</a>
+                                </div>
+                            `;
+                            marker.bindPopup(popupContent);
+                            markers.push(marker);
+                            bounds.push([loc.lat, loc.lng]);
+                        }
+                    });
+                });
+
+                if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
+            };
+        }
+
+        function openMapFolder(custId) {
+            toggleMap(); // Close map
+            openFolder(custId);
+        }
+
+        function locateMe() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const lat = pos.coords.latitude; const lng = pos.coords.longitude;
+                    map.setView([lat, lng], 15);
+                    L.marker([lat, lng], { 
+                        icon: L.divIcon({ html: '<div style="width:16px;height:16px;background:#3b82f6;border-radius:50%;border:2px solid white;box-shadow:0 0 10px #3b82f6;"></div>', className:'me-marker' }) 
+                    }).addTo(map);
+                }, () => showToast("Không lấy được vị trí"));
+            }
+        }
+
+        // --- EXISTING LOGIC ---
+        function setTheme(themeName) { document.body.className = themeName; localStorage.setItem(THEME_KEY, themeName); document.querySelectorAll('.theme-btn').forEach(btn => { if(btn.getAttribute('onclick').includes(themeName)) btn.classList.add('active'); else btn.classList.remove('active'); }); }
+        function checkSecurity() { const pin = localStorage.getItem(PIN_KEY); if (!pin) { getEl('setup-lock-modal').classList.remove('hidden'); getEl('setup-pin').value = ''; getEl('setup-answer').value = ''; } else { showLockScreen(); } }
+        function openSecuritySetup() { toggleMenu(); getEl('setup-lock-modal').classList.remove('hidden'); getEl('setup-pin').value = ''; getEl('setup-answer').value = localStorage.getItem(SEC_KEY) || ''; }
+        function closeSetupModal() { if (localStorage.getItem(PIN_KEY)) { getEl('setup-lock-modal').classList.add('hidden'); } else { alert("Bạn cần thiết lập bảo mật!"); } }
+        function saveSecuritySetup() { const pin = getEl('setup-pin').value; const ans = getEl('setup-answer').value; if (pin.length !== 4 || isNaN(pin)) return alert("Mã PIN phải là 4 số"); if (!ans) return alert("Nhập mã nhân viên"); localStorage.setItem(PIN_KEY, pin); localStorage.setItem(SEC_KEY, ans); getEl('setup-lock-modal').classList.add('hidden'); showToast("Đã lưu bảo mật"); }
+        function showLockScreen() { getEl('screen-lock').classList.remove('hidden'); currentPin = ''; updatePinDots(); }
+        function enterPin(num) { if (currentPin.length < 4) { currentPin += num; updatePinDots(); if (currentPin.length === 4) validatePin(); } }
+        function clearPin() { currentPin = ''; updatePinDots(); }
+        function updatePinDots() { const dots = document.querySelectorAll('.pin-dot'); dots.forEach((d, i) => { if (i < currentPin.length) d.classList.add('filled'); else d.classList.remove('filled'); }); }
+        function validatePin() { const savedPin = localStorage.getItem(PIN_KEY); if (currentPin === savedPin) { getEl('screen-lock').classList.add('hidden'); } else { setTimeout(() => { alert("Sai mã PIN"); clearPin(); }, 100); } }
+        function forgotPin() { getEl('forgot-pin-modal').classList.remove('hidden'); }
+        function closeForgotModal() { getEl('forgot-pin-modal').classList.add('hidden'); }
+        function checkRecovery() { const input = getEl('recovery-answer').value; const savedAns = localStorage.getItem(SEC_KEY); if (input === savedAns) { alert("Xác thực thành công. Tạo PIN mới."); closeForgotModal(); getEl('screen-lock').classList.add('hidden'); getEl('setup-lock-modal').classList.remove('hidden'); getEl('setup-pin').value = ''; getEl('setup-answer').value = input; } else { alert("Mã nhân viên không khớp!"); } }
+
+        function setupSwipe() {
+            const lb = getEl('lightbox'); let startX = 0; let endX = 0;
+            lb.addEventListener('touchstart', e => { startX = e.changedTouches[0].screenX; }, {passive: true});
+            lb.addEventListener('touchend', e => { endX = e.changedTouches[0].screenX; handleSwipe(); }, {passive: true});
+            function handleSwipe() { if (startX - endX > 50) navigateLightbox(1); if (endX - startX > 50) navigateLightbox(-1); }
+        }
+        function navigateLightbox(dir) {
+            if (currentLightboxList.length <= 1) return;
+            currentLightboxIndex += dir; if (currentLightboxIndex < 0) currentLightboxIndex = currentLightboxList.length - 1; if (currentLightboxIndex >= currentLightboxList.length) currentLightboxIndex = 0;
+            const imgEl = getEl('lightbox-img');
+            imgEl.style.transform = dir > 0 ? 'translateX(-20px)' : 'translateX(20px)'; imgEl.style.opacity = '0';
+            setTimeout(() => { imgEl.src = currentLightboxList[currentLightboxIndex].data; imgEl.style.transform = dir > 0 ? 'translateX(20px)' : 'translateX(-20px)'; setTimeout(() => { imgEl.style.transform = 'translateX(0)'; imgEl.style.opacity = '1'; currentImageId = currentLightboxList[currentLightboxIndex].id; currentImageBase64 = currentLightboxList[currentLightboxIndex].data; getEl('lightbox-counter').textContent = `${currentLightboxIndex + 1}/${currentLightboxList.length}`; }, 50); }, 150);
+        }
+        function openLightbox(src, id, idx, list) {
+            getEl('lightbox').classList.remove('hidden'); currentLightboxIndex = idx;
+            if(list && list.length > 0) currentLightboxList = list; else currentLightboxList = [{id: id, data: src}];
+            const imgEl = getEl('lightbox-img'); imgEl.src = src; currentImageId = id; currentImageBase64 = src; getEl('lightbox-counter').textContent = `${currentLightboxIndex + 1}/${currentLightboxList.length}`;
+        }
+        function closeLightbox() { getEl('lightbox').classList.add('hidden'); }
+
+        let currentCustomerId = null; let currentCustomerData = null; let currentAssetId = null;
+        let activeListTab = 'pending'; let isSelectionMode = false; let selectedImages = new Set();
+        let isCustSelectionMode = false; let selectedCustomers = new Set();
+        let captureMode = 'profile'; let stream = null; let currentImageId = null; let currentImageBase64 = null;
+
+        function getZaloLink(phone) { let p = phone.replace(/[\s\.]/g, ''); if (p.startsWith('0')) p = '84' + p.substring(1); return `https://zalo.me/${p}`; }
+        function showToast(msg) { const t=getEl('toast'); getEl('toast-msg').textContent=msg; t.classList.add('toast-show'); setTimeout(()=>t.classList.remove('toast-show'), 2000); }
+        function formatLink(link) { if(!link) return ''; if(link.startsWith('http')) return link; return 'https://' + link; }
+        
+        function toggleCustSelectionMode() {
+            isCustSelectionMode = !isCustSelectionMode; selectedCustomers.clear();
+            const bar = getEl('cust-selection-bar'); const btn = getEl('btn-cust-select');
+            if(isCustSelectionMode) { bar.classList.remove('translate-y-full'); bar.classList.add('translate-y-0'); btn.classList.add('btn-active'); } 
+            else { bar.classList.add('translate-y-full'); bar.classList.remove('translate-y-0'); btn.classList.remove('btn-active'); }
+            getEl('cust-selection-count').textContent = '0'; loadCustomers(getEl('search-input').value);
+        }
+        function toggleCustomerSelection(id, div) {
+            if(selectedCustomers.has(id)) { selectedCustomers.delete(id); div.classList.remove('selected'); } else { selectedCustomers.add(id); div.classList.add('selected'); }
+            getEl('cust-selection-count').textContent = selectedCustomers.size;
+        }
+        async function backupSelectedCustomers() {
+            if(selectedCustomers.size === 0) return alert("Chưa chọn KH");
+            getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Đóng gói...";
+            const custIds = Array.from(selectedCustomers); const exportData = { customers: [], images: [] };
+            const tx = db.transaction(['customers', 'images'], 'readonly'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
+            for(const id of custIds) { const cust = await new Promise(r => { const req = custStore.get(id); req.onsuccess = e => r(e.target.result); req.onerror = () => r(null); }); if(cust) exportData.customers.push(cust); }
+            const allImages = await new Promise(r => { const req = imgStore.getAll(); req.onsuccess = e => r(e.target.result || []); req.onerror = () => r([]); });
+            exportData.images = allImages.filter(img => custIds.includes(img.customerId));
+            const blob = new Blob([JSON.stringify({v:1.0, ...exportData})], {type:'application/json'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `QLKH_Export_${selectedCustomers.size}_KH.json`; a.click();
+            getEl('loader').classList.add('hidden'); toggleCustSelectionMode();
+        }
+        function deleteSelectedCustomers() {
+            if(selectedCustomers.size === 0) return; if(!confirm(`Xóa vĩnh viễn ${selectedCustomers.size} khách hàng?`)) return;
+            const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
+            selectedCustomers.forEach(custId => { custStore.delete(custId); imgStore.index('customerId').getAllKeys(custId).onsuccess = e => { e.target.result.forEach(imgId => imgStore.delete(imgId)); }; });
+            tx.oncomplete = () => { showToast("Đã xóa"); toggleCustSelectionMode(); };
+        }
+
+        function switchListTab(tab) {
+            activeListTab = tab; const tabPending = getEl('list-tab-pending'); const tabApproved = getEl('list-tab-approved');
+            if(tab === 'pending') { tabPending.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 bg-white/10 text-white shadow-md border border-white/10"; tabApproved.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 text-slate-400 hover:text-white"; } 
+            else { tabPending.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 text-slate-400 hover:text-white"; tabApproved.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 bg-emerald-500/10 text-emerald-400 shadow-md border border-emerald-500/20"; }
+            loadCustomers(getEl('search-input').value);
+        }
+        function loadCustomers(query = '') {
+            if (!db) return;
+            const tx = db.transaction(['customers'], 'readonly');
+            tx.objectStore('customers').getAll().onsuccess = (e) => {
+                let list = e.target.result || [];
+                list.forEach(c => { if(!c.assets) c.assets=[]; if(!c.status) c.status='pending'; });
+                list = list.filter(c => c.status === activeListTab);
+                if (query) { const q = query.toLowerCase(); list = list.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q)); }
+                list.sort((a, b) => b.createdAt - a.createdAt); renderList(list);
+            };
+        }
+        function renderList(list) {
+            const listEl = getEl('customer-list'); if(!listEl) return; listEl.innerHTML = '';
+            if (list.length === 0) { listEl.innerHTML = `<div class="text-center py-32 opacity-40 flex flex-col items-center"><i data-lucide="inbox" class="w-16 h-16 mb-4 stroke-1"></i><p class="text-xs font-bold uppercase tracking-wider">Danh sách trống</p></div>`; lucide.createIcons(); return; }
+            const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+            list.forEach(c => {
+                const isApproved = activeListTab === 'approved'; const el = document.createElement('div');
+                el.className = `glass-panel p-4 rounded-2xl shadow-lg flex items-center gap-4 border-l-[3px] transition-all duration-200 hover:bg-white/5 active:scale-[0.98] ${isApproved ? 'border-emerald-500' : 'border-indigo-500'} ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
+                el.onclick = (e) => { if(e.target.closest('.action-btn')) return; if(isCustSelectionMode) toggleCustomerSelection(c.id, el); else openFolder(c.id); };
+                const limitHtml = isApproved ? `<p class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded mt-1.5 w-fit border border-emerald-500/20 tracking-wider">HM: ${c.creditLimit || '0'}</p>` : `<p class="text-[10px] text-slate-400 mt-1 italic opacity-60">Đang thẩm định...</p>`;
+                const checkIcon = isCustSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
+                el.innerHTML = `${checkIcon}<div class="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 border border-white/5 shadow-inner transition-colors ${isApproved ? 'bg-emerald-500/10 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'}">${c.name.charAt(0).toUpperCase()}</div><div class="flex-1 min-w-0"><h3 class="font-bold text-white truncate text-base mb-0.5 leading-tight">${c.name}</h3><p class="text-xs text-slate-400 font-mono flex items-center gap-1.5"><i data-lucide="smartphone" class="w-3 h-3 opacity-70"></i> ${c.phone}</p>${limitHtml}</div><div class="flex gap-2.5"><a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn w-10 h-10 flex items-center justify-center bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20 active:bg-blue-600/20 transition-colors"><i data-lucide="message-circle" class="w-5 h-5"></i></a><a href="tel:${c.phone}" class="action-btn w-10 h-10 flex items-center justify-center bg-green-500/10 text-green-400 rounded-xl border border-green-500/20 active:bg-green-600/20 transition-colors"><i data-lucide="phone" class="w-5 h-5"></i></a></div>`;
+                listEl.appendChild(el);
+            }); lucide.createIcons();
+        }
+
+        function openModal() { getEl('add-modal').classList.remove('hidden'); getEl('new-name').value=''; getEl('new-phone').value=''; getEl('edit-cust-id').value = ''; getEl('modal-title-cust').textContent = "Khởi tạo hồ sơ"; getEl('btn-save-cust').textContent = "Tạo mới"; getEl('new-name').focus(); }
+        function openEditCustomerModal() { if(!currentCustomerData) return; getEl('add-modal').classList.remove('hidden'); getEl('new-name').value = currentCustomerData.name; getEl('new-phone').value = currentCustomerData.phone; getEl('edit-cust-id').value = currentCustomerData.id; getEl('modal-title-cust').textContent = "Cập nhật hồ sơ"; getEl('btn-save-cust').textContent = "Lưu thay đổi"; }
+        function closeModal() { getEl('add-modal').classList.add('hidden'); }
+        function saveCustomer() {
+            const name = getEl('new-name').value; const phone = getEl('new-phone').value; const editId = getEl('edit-cust-id').value;
+            if (!name) return alert("Thiếu tên");
+            const tx = db.transaction(['customers'], 'readwrite'); const store = tx.objectStore('customers');
+            if (editId) { currentCustomerData.name = name; currentCustomerData.phone = phone; store.put(currentCustomerData).onsuccess = () => { closeModal(); openFolder(editId); showToast("Đã cập nhật"); }; } 
+            else { const newItem = { id: 'cust_' + Date.now(), name, phone, assets: [], status: 'pending', createdAt: Date.now() }; store.add(newItem).onsuccess = () => { closeModal(); switchListTab('pending'); showToast("Đã tạo hồ sơ"); }; }
+        }
+        
+        function deleteCurrentCustomer() { 
+            if(!confirm("XÁC NHẬN: Xóa toàn bộ hồ sơ khách hàng này?")) return; 
+            try {
+                const tx = db.transaction(['images', 'customers'], 'readwrite'); const imgStore = tx.objectStore('images'); const custStore = tx.objectStore('customers');
+                if (imgStore.indexNames.contains('customerId')) { imgStore.index('customerId').getAllKeys(currentCustomerId).onsuccess = (e) => { e.target.result.forEach(key => imgStore.delete(key)); }; }
+                custStore.delete(currentCustomerId); tx.oncomplete = () => { closeFolder(); showToast("Đã xóa hồ sơ"); loadCustomers(); };
+            } catch (err) { window.location.reload(); }
+        }
+        
+        function deleteAsset(idx) { 
+            if(!confirm("Xóa tài sản này?")) return; currentCustomerData.assets.splice(idx,1); 
+            db.transaction(['customers'],'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { showToast("Đã xóa TSBĐ"); renderAssets(); }; 
+        }
+
+        function toggleCustomerStatus() { if (currentCustomerData.status === 'pending') { getEl('approve-modal').classList.remove('hidden'); getEl('approve-limit').value = ''; } else { if(confirm("Thu hồi trạng thái?")) { currentCustomerData.status = 'pending'; updateCustomerAndReload(); } } }
+        function closeApproveModal() { getEl('approve-modal').classList.add('hidden'); }
+        function confirmApproval() { const l = getEl('approve-limit').value; if(!l) return alert("Nhập hạn mức!"); currentCustomerData.status='approved'; currentCustomerData.creditLimit=l; closeApproveModal(); db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { showToast("Đã duyệt"); renderFolderHeader(currentCustomerData); loadCustomers(getEl('search-input').value); }; }
+        function updateCustomerAndReload() { db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { openFolder(currentCustomerData.id); loadCustomers(); }; }
+        
+        function renderFolderHeader(data) {
+            getEl('folder-customer-name').textContent = data.name; getEl('folder-avatar').textContent = data.name.charAt(0).toUpperCase(); getEl('btn-detail-call').href = `tel:${data.phone}`; getEl('btn-detail-zalo').href = getZaloLink(data.phone); 
+            const badge = getEl('detail-status-badge'); 
+            if(data.status === 'approved') { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10"; badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span>${data.creditLimit}</span>`; } 
+            else { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20"; badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`; } lucide.createIcons();
+        }
+
+        function openFolder(id) { currentCustomerId = id; getEl('screen-folder').classList.remove('translate-x-full'); db.transaction(['customers'], 'readonly').objectStore('customers').get(id).onsuccess = (e) => { currentCustomerData = e.target.result; if(!currentCustomerData.status) currentCustomerData.status = 'pending'; renderFolderHeader(currentCustomerData); switchTab('images'); }; }
+        function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'); currentCustomerId = null; loadCustomers(getEl('search-input').value); }
+        function switchTab(tabName) { 
+            const tabImages = getEl('tab-btn-images'); const tabAssets = getEl('tab-btn-assets'); 
+            if (tabName === 'images') { tabImages.className = "flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-all border-indigo-500 text-indigo-400 bg-white/5"; tabAssets.className = "flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-all border-transparent text-slate-500 hover:text-white"; getEl('content-images').classList.remove('hidden'); getEl('content-assets').classList.add('hidden'); getEl('actions-images').classList.remove('hidden'); getEl('actions-assets').classList.add('hidden'); loadProfileImages(); } 
+            else { tabImages.className = "flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-all border-transparent text-slate-500 hover:text-white"; tabAssets.className = "flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-all border-indigo-500 text-indigo-400 bg-white/5"; getEl('content-images').classList.add('hidden'); getEl('content-assets').classList.remove('hidden'); getEl('actions-images').classList.add('hidden'); getEl('actions-assets').classList.remove('hidden'); renderAssets(); } isSelectionMode = false; selectedImages.clear(); updateSelectionUI(); 
+        }
+
+        function referenceAssetPrice(assetIndex) {
+            const targetAsset = currentCustomerData.assets[assetIndex]; const targetLoc = parseLatLngFromLink(targetAsset.link);
+            if (!targetLoc) { showToast("TSBĐ chưa có tọa độ chuẩn."); return; }
+            getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Tham chiếu...";
+            const tx = db.transaction(['customers'], 'readonly');
+            tx.objectStore('customers').getAll().onsuccess = (e) => {
+                const customers = e.target.result || []; const candidates = [];
+                customers.forEach(cust => { if (!cust.assets) return; cust.assets.forEach(asset => { if (cust.id === currentCustomerData.id && asset.id === targetAsset.id) return; const loc = parseLatLngFromLink(asset.link); const val = parseMoneyToNumber(asset.valuation); if (loc && val > 0) { const dist = distanceMeters(targetLoc.lat, targetLoc.lng, loc.lat, loc.lng); candidates.push({ customerName: cust.name, assetName: asset.name, valuation: val, distance: dist }); } }); });
+                getEl('loader').classList.add('hidden'); getEl('loader-text').textContent = "Loading...";
+                if (candidates.length === 0) { showToast("Chưa có dữ liệu phù hợp"); return; }
+                candidates.sort((a, b) => a.distance - b.distance); showRefModal(candidates.slice(0, 10));
+            };
+        }
+
+        function showRefModal(results) {
+            const modal = getEl('ref-price-modal'); const container = getEl('ref-results'); container.innerHTML = '';
+            results.forEach((item, idx) => {
+                const distStr = item.distance < 1000 ? `${Math.round(item.distance)} m` : `${(item.distance/1000).toFixed(2)} km`; const valStr = item.valuation.toLocaleString('vi-VN') + ' tr₫';
+                const div = document.createElement('div'); div.className = "bg-white/5 border border-white/10 rounded-lg p-3";
+                div.innerHTML = `<div class="flex justify-between items-center mb-1"><span class="text-xs font-bold text-emerald-400">#${idx + 1} • Cách ${distStr}</span><span class="text-sm font-bold text-white">${valStr}</span></div><h4 class="text-sm font-medium text-slate-300 truncate">${item.assetName}</h4><p class="text-[10px] text-slate-500 mt-1 uppercase">KH: ${item.customerName}</p>`;
+                container.appendChild(div);
+            }); modal.classList.remove('hidden');
+        }
+        function closeRefModal() { getEl('ref-price-modal').classList.add('hidden'); }
+
+        function renderAssets() { 
+            const list = getEl('content-assets'); list.innerHTML = ''; const assets = currentCustomerData.assets || []; 
+            if (assets.length === 0) { list.innerHTML = `<div class="text-center py-20 text-slate-500"><i data-lucide="building" class="w-10 h-10 mx-auto mb-2 opacity-20"></i><p class="text-sm">Chưa có tài sản</p></div>`; lucide.createIcons(); return; } 
+            assets.forEach((asset, index) => { 
+                const el = document.createElement('div'); el.className = "glass-panel p-4 rounded-xl shadow-sm flex flex-col gap-3 transition-transform active:scale-[0.99] mb-4"; 
+                const mapLink = formatLink(asset.link); 
+                const mapBtn = mapLink ? `<a href="${mapLink}" target="_blank" class="flex-1 py-2.5 bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-slate-300 flex items-center justify-center gap-1 hover:bg-white/10 transition"><i data-lucide="map" class="w-3 h-3"></i> Bản đồ</a>` : `<span class="flex-1 py-2.5 bg-white/5 border border-white/10 rounded-lg text-xs text-slate-500 text-center cursor-not-allowed opacity-50">No Map</span>`;
+                const areaInfo = asset.area ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-indigo-500/20">${asset.area}m²</span>` : '';
+                const widthInfo = asset.width ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-indigo-500/20">MT:${asset.width}m</span>` : '';
+                const yearInfo = asset.year ? `<span class="bg-slate-500/20 text-slate-300 px-2 py-1 rounded text-[10px] font-bold border border-slate-500/20">${asset.year}</span>` : '';
+                const onlandInfo = asset.onland ? `<div class="text-xs text-slate-400 mt-1 italic"><i data-lucide="home" class="w-3 h-3 inline mr-1"></i>${asset.onland}</div>` : '';
+                el.innerHTML = `<div class="flex justify-between items-start mb-1"><div class="flex gap-3 items-center"><div class="p-2 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="map-pin" class="w-5 h-5"></i></div><div><h4 class="font-bold text-white text-sm line-clamp-1">${asset.name}</h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div></div><div class="flex gap-1"><button onclick="openEditAssetModal(${index})" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="deleteAsset(${index})" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div>${onlandInfo}<div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"><span>ĐG: <b class="text-emerald-400 text-sm">${asset.valuation||'-'}</b></span><span>Vay: <b class="text-blue-400 text-sm">${asset.loanValue||'-'}</b></span></div><div class="flex gap-2">${mapBtn}<button onclick="referenceAssetPrice(${index})" class="flex-1 py-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-emerald-500/20 transition"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo giá</button></div><button onclick="openAssetGallery('${asset.id}', '${asset.name}', ${index})" class="w-full py-2.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-500/20 mt-1 transition"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`; 
+                list.appendChild(el); 
+            }); lucide.createIcons(); 
+        }
+
+        function openAssetGallery(id, name, idx) { if(!id || id === 'undefined') { id = 'asset_'+Date.now(); currentCustomerData.assets[idx].id = id; db.transaction(['customers'],'readwrite').objectStore('customers').put(currentCustomerData); } currentAssetId = id; getEl('screen-asset-gallery').classList.remove('translate-x-full'); getEl('gallery-asset-name').textContent = name; const asset = currentCustomerData.assets[idx]; if (asset) { getEl('gallery-asset-val').textContent = asset.valuation || '--'; getEl('gallery-asset-loan').textContent = asset.loanValue || '--'; } else { getEl('gallery-asset-val').textContent = '--'; getEl('gallery-asset-loan').textContent = '--'; } loadAssetImages(id); }
+        function closeAssetGallery() { getEl('screen-asset-gallery').classList.add('translate-x-full'); currentAssetId = null; isSelectionMode = false; selectedImages.clear(); updateSelectionUI(); }
+        
+        function openAssetModal() { 
+            getEl('asset-modal').classList.remove('hidden'); getEl('edit-asset-index').value = ""; getEl('modal-title-asset').textContent = "Thêm TSBĐ"; getEl('btn-save-asset').textContent = "Thêm mới"; 
+            getEl('asset-name').value=''; getEl('asset-link').value=''; getEl('asset-val').value=''; getEl('asset-loan').value=''; getEl('asset-area').value=''; getEl('asset-width').value=''; getEl('asset-onland').value=''; getEl('asset-year').value=''; 
+        }
+        function openEditAssetModal(index) { 
+            getEl('asset-modal').classList.remove('hidden'); const asset = currentCustomerData.assets[index]; getEl('edit-asset-index').value = index; getEl('modal-title-asset').textContent = "Cập nhật TSBĐ"; getEl('btn-save-asset').textContent = "Lưu thay đổi"; 
+            getEl('asset-name').value = asset.name; getEl('asset-link').value = asset.link || ''; getEl('asset-val').value = asset.valuation || ''; getEl('asset-loan').value = asset.loanValue || '';
+            getEl('asset-area').value = asset.area || ''; getEl('asset-width').value = asset.width || ''; getEl('asset-onland').value = asset.onland || ''; getEl('asset-year').value = asset.year || '';
+        }
+        function closeAssetModal() { getEl('asset-modal').classList.add('hidden'); }
+        
+        function saveAsset() { 
+            const name = getEl('asset-name').value; let link = getEl('asset-link').value; const valuation = getEl('asset-val').value; const loan = getEl('asset-loan').value; 
+            const area = getEl('asset-area').value; const width = getEl('asset-width').value; const onland = getEl('asset-onland').value; const year = getEl('asset-year').value;
+            const index = getEl('edit-asset-index').value; 
+            
+            if (!name) return alert("Nhập mô tả tài sản"); 
+            // AUTO FORMAT LINK
+            const coords = parseLatLngFromLink(link);
+            if (coords && !link.includes('http')) { link = `https://www.google.com/maps?q=${coords.lat},${coords.lng}`; }
+
+            if (!currentCustomerData.assets) currentCustomerData.assets = []; 
+            const assetObj = { name, link, valuation, loanValue: loan, area, width, onland, year };
+            if (index !== "") { const i = parseInt(index); assetObj.id = currentCustomerData.assets[i].id; assetObj.createdAt = currentCustomerData.assets[i].createdAt; currentCustomerData.assets[i] = assetObj; } 
+            else { assetObj.id = 'asset_' + Date.now(); assetObj.createdAt = Date.now(); currentCustomerData.assets.push(assetObj); } 
+            db.transaction(['customers'],'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { closeAssetModal(); renderAssets(); showToast("Đã lưu TSBĐ"); }; 
+        }
+
+        // --- NEW GUIDE MODAL LOGIC ---
+        function openGuideModal() { getEl('guide-modal').classList.remove('hidden'); }
+        function closeGuideModal() { getEl('guide-modal').classList.add('hidden'); }
+
+        function toggleSelectionMode() { isSelectionMode = !isSelectionMode; selectedImages.clear(); updateSelectionUI(); if(!getEl('screen-asset-gallery').classList.contains('translate-x-full')) loadAssetImages(currentAssetId); else loadProfileImages(); }
+        function updateSelectionUI() { const btns = [getEl('btn-select-mode'), getEl('btn-select-mode-asset')]; const bar = getEl('selection-bar'); const count = getEl('selection-count'); if(isSelectionMode) { btns.forEach(b=>{if(b) b.classList.add('btn-active')}); bar.classList.remove('translate-y-full'); bar.classList.add('translate-y-0'); } else { btns.forEach(b=>{if(b) b.classList.remove('btn-active')}); bar.classList.add('translate-y-full'); bar.classList.remove('translate-y-0'); } if(count) count.textContent = selectedImages.size; }
+        
+        function toggleImage(id, div) { if(selectedImages.has(id)) { selectedImages.delete(id); div.classList.remove('selected'); } else { selectedImages.add(id); div.classList.add('selected'); } getEl('selection-count').textContent = selectedImages.size; }
+        function deleteSelectedImages() { if(!selectedImages.size) return; if(!confirm(`Xóa ${selectedImages.size} ảnh?`)) return; const tx = db.transaction(['images'], 'readwrite'); selectedImages.forEach(id => tx.objectStore('images').delete(id)); tx.oncomplete = () => { showToast("Đã xóa"); toggleSelectionMode(); }; }
+        function dataURLtoBlob(dataurl) { var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1], bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n); while(n--){ u8arr[n] = bstr.charCodeAt(n); } return new Blob([u8arr], {type:mime}); }
+        async function shareSelectedImages() { 
+            if(!selectedImages.size) return; getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Đóng gói ảnh...";
+            try { const tx = db.transaction(['images'], 'readonly'); const store = tx.objectStore('images'); const filePromises = Array.from(selectedImages).map(id => { return new Promise((resolve) => { const req = store.get(id); req.onsuccess = (e) => { if(e.target.result) { const blob = dataURLtoBlob(e.target.result.data); resolve(new File([blob], `img_${Date.now()}_${Math.random().toString(36).substr(2,5)}.jpg`, {type: 'image/jpeg'})); } else resolve(null); }; req.onerror = () => resolve(null); }); });
+                const files = (await Promise.all(filePromises)).filter(f => f !== null); getEl('loader').classList.add('hidden');
+                if (files.length > 0) { if (navigator.canShare && navigator.canShare({ files })) { await navigator.share({ files, title: 'SmartBanking', text: 'Gửi ảnh hồ sơ' }); } else { alert("Thiết bị không hỗ trợ chia sẻ nhiều ảnh."); } } toggleSelectionMode();
+            } catch (err) { getEl('loader').classList.add('hidden'); console.error(err); alert("Lỗi chia sẻ"); }
+        }
+
+        function loadImagesFiltered(filterFn, targetId = 'content-images') {
+            db.transaction(['images'], 'readonly').objectStore('images').index('customerId').getAll(currentCustomerId).onsuccess = e => {
+                let imgs = e.target.result || []; imgs = imgs.filter(filterFn); imgs.sort((a,b) => b.createdAt - a.createdAt);
+                if (targetId === 'content-images' && !getEl('screen-asset-gallery').classList.contains('translate-x-full')) { } else { currentLightboxList = imgs; }
+                const grid = getEl(targetId); if(!grid) return; grid.innerHTML = '';
+                if (imgs.length === 0) { grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`; return; }
+                const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                imgs.forEach((img, idx) => {
+                    const div = document.createElement('div'); div.className = "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
+                    if(isSelectionMode && selectedImages.has(img.id)) div.classList.add('selected');
+                    const ringHtml = isSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
+                    div.innerHTML = `<img src="${img.data}" class="pointer-events-none">${ringHtml}`;
+                    div.onclick = () => { if(isSelectionMode) toggleImage(img.id, div); else openLightbox(img.data, img.id, idx, imgs); }; grid.appendChild(div);
+                });
+            };
+        }
+        function loadProfileImages() { loadImagesFiltered(img => !img.assetId); }
+        function loadAssetImages(id) { 
+            db.transaction(['images'], 'readonly').objectStore('images').index('customerId').getAll(currentCustomerId).onsuccess = e => {
+                let imgs = e.target.result || []; imgs = imgs.filter(img => img.assetId === id); imgs.sort((a,b) => b.createdAt - a.createdAt); currentLightboxList = imgs; 
+                const grid = getEl('asset-gallery-grid'); grid.innerHTML = '';
+                if (imgs.length === 0) { grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`; return; }
+                const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                imgs.forEach((img, idx) => {
+                     const div = document.createElement('div'); div.className = "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
+                    if(isSelectionMode && selectedImages.has(img.id)) div.classList.add('selected');
+                    const ringHtml = isSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
+                    div.innerHTML = `<img src="${img.data}" class="pointer-events-none">${ringHtml}`;
+                    div.onclick = () => { if(isSelectionMode) toggleImage(img.id, div); else openLightbox(img.data, img.id, idx, imgs); }; grid.appendChild(div);
+                });
+            }
+        }
+        
+        function compressImage(base64, cb) { const img = new Image(); img.src=base64; img.onload=()=>{ const cvs=document.createElement('canvas'); const max=1280; let w=img.width,h=img.height; if(w>h){if(w>max){h*=max/w;w=max}}else{if(h>max){w*=max/h;h=max}} cvs.width=w;cvs.height=h; cvs.getContext('2d').drawImage(img,0,0,w,h); let q=0.8; const tryC = () => { const res = cvs.toDataURL('image/jpeg', q); if(res.length*0.75 > 800*1024 && q>0.3) { q-=0.1; tryC(); } else cb(res); }; tryC(); } }
+        async function handleFileUpload(input, mode) { 
+            captureMode=mode; const files = Array.from(input.files); if(!files.length) return; 
+            for(let f of files) { await new Promise(resolve => { const reader = new FileReader(); reader.onload = async (e) => { await saveImageToDB(e.target.result); resolve(); }; reader.readAsDataURL(f); }); } input.value = ''; 
+        }
+        function saveImageToDB(rawBase64) { 
+            return new Promise(async (resolve) => {
+                if (!currentCustomerId) { resolve(); return; }
+                getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Xử lý ảnh...";
+                const enhancedBase64 = await enhanceDocumentWithAI(rawBase64); getEl('loader-text').textContent = "Đang lưu...";
+                compressImage(enhancedBase64, (compressed) => { 
+                    const newImg = { id: 'img_' + Date.now() + Math.random(), customerId: currentCustomerId, assetId: captureMode === 'asset' ? currentAssetId : null, data: compressed, createdAt: Date.now() }; 
+                    db.transaction(['images'], 'readwrite').objectStore('images').add(newImg).onsuccess = () => { getEl('loader').classList.add('hidden'); showToast("Đã lưu ảnh"); if(captureMode === 'asset') loadAssetImages(currentAssetId); else loadProfileImages(); resolve(); }; 
+                }); 
+            });
+        }
+        
+        async function tryOpenCamera(mode) { captureMode=mode; try { getEl('camera-modal').classList.remove('hidden'); stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); getEl('camera-feed').srcObject = stream; } catch { getEl('camera-modal').classList.add('hidden'); getEl(mode==='profile'?'native-camera-profile':'native-camera-asset').click(); } }
+        function closeCamera() { getEl('camera-modal').classList.add('hidden'); if(stream) stream.getTracks().forEach(t=>t.stop()); }
+        function capturePhoto() { const v=getEl('camera-feed'); const c=getEl('camera-canvas'); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext('2d').drawImage(v,0,0); saveImageToDB(c.toDataURL('image/jpeg', 1.0)); closeCamera(); }
+        function shareOpenedImage() { if(!currentImageBase64) return; fetch(currentImageBase64).then(res => res.blob()).then(blob => { if(navigator.canShare) navigator.share({files:[new File([blob], "evidence.jpg", {type:"image/jpeg"})]}); }); }
+        function deleteOpenedImage() { if(confirm("Hủy chứng từ này?")) { db.transaction(['images'], 'readwrite').objectStore('images').delete(currentImageId).onsuccess = () => { closeLightbox(); if(currentAssetId && getEl('screen-asset-gallery').classList.contains('translate-x-full') === false) loadAssetImages(currentAssetId); else loadProfileImages(); }; } }
+        function toggleMenu() { const m=getEl('settings-menu'); const o=getEl('menu-overlay'); if(m.classList.contains('hidden')){m.classList.remove('hidden');o.classList.remove('hidden'); setTimeout(()=>{m.classList.remove('scale-95','opacity-0');},10)}else{m.classList.add('scale-95','opacity-0'); setTimeout(()=>{m.classList.add('hidden');o.classList.add('hidden');},200)} }
+        async function backupData() { 
+            toggleMenu(); getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Đóng gói...";
+            const tx = db.transaction(['customers', 'images'], 'readonly');
+            Promise.all([new Promise(r => tx.objectStore('customers').getAll().onsuccess = e => r(e.target.result)), new Promise(r => tx.objectStore('images').getAll().onsuccess = e => r(e.target.result))])
+            .then(([c, i]) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({v:1.0, customers:c, images:i})], {type:'application/json'})); a.download = `QLKH_Backup_${Date.now()}.json`; a.click(); getEl('loader').classList.add('hidden'); });
+        }
+        function restoreData(input) { 
+            toggleMenu(); const f = input.files[0]; if(!f) return; getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Đồng bộ...";
+            const r = new FileReader(); r.onload = e => { try { const d = JSON.parse(e.target.result); const tx = db.transaction(['customers', 'images'], 'readwrite'); d.customers.forEach(c => tx.objectStore('customers').put(c)); d.images.forEach(i => tx.objectStore('images').put(i)); tx.oncomplete = () => { getEl('loader').classList.add('hidden'); alert("Đã xong"); loadCustomers(); }; } catch(err) { getEl('loader').classList.add('hidden'); alert("Lỗi file"); } }; r.readAsText(f); 
+        }
+        function resetAppData() { if(confirm("XÓA SẠCH dữ liệu?")) { localStorage.clear(); indexedDB.deleteDatabase(DB_NAME).onsuccess = () => { alert("Đã reset."); window.location.reload(); }; } }
+    </script>
+</body>
+</html>
