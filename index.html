@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ClientPro1.0</title>
+    <title>ClientPro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -851,36 +851,39 @@ initWeather();
             else { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20"; badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`; } lucide.createIcons();
         }
 
-        function openFolder(id) { currentCustomerId = id; getEl('screen-folder').classList.remove('translate-x-full'); db.transaction(['customers'], 'readonly').objectStore('customers').get(id).onsuccess = (e) => { currentCustomerData = e.target.result; if(!currentCustomerData.status) currentCustomerData.status = 'pending'; renderFolderHeader(currentCustomerData); 
-        function openFolder(id) { 
-    currentCustomerId = id; 
-    getEl('screen-folder').classList.remove('translate-x-full'); 
+        function openFolder(id) {
+    currentCustomerId = id;
+    getEl('screen-folder').classList.remove('translate-x-full');
     
-    // Gọi Database lấy thông tin khách
-    db.transaction(['customers'], 'readonly').objectStore('customers').get(id).onsuccess = (e) => { 
-        currentCustomerData = e.target.result; 
+    // Lấy data khách hàng
+    const tx = db.transaction(['customers'], 'readonly');
+    tx.objectStore('customers').get(id).onsuccess = (e) => {
+        currentCustomerData = e.target.result;
+        if (!currentCustomerData) return;
         
-        // Fix lỗi data cũ chưa có status
-        if(!currentCustomerData.status) currentCustomerData.status = 'pending'; 
+        // Fix data cũ
+        if (!currentCustomerData.status) currentCustomerData.status = 'pending';
+        if (!currentCustomerData.assets) currentCustomerData.assets = [];
         
-        // Vẽ header (Tên, SĐT...)
-        renderFolderHeader(currentCustomerData); 
+        // Header: tên, SĐT, trạng thái
+        renderFolderHeader(currentCustomerData);
         
-        // 👇 QUAN TRỌNG: Hiển thị nút Drive (Khắc phục lỗi mất nút)
+        // ⭐ Quan trọng: hiển thị lại trạng thái Drive sau khi reload / restore
         if (typeof renderDriveStatus === "function") {
-            renderDriveStatus(currentCustomerData.driveLink); 
+            renderDriveStatus(currentCustomerData.driveLink || null);
         }
-
-        // Luôn chuyển về tab tài sản
-        switchTab('images'); 
         
-        // Load danh sách tài sản (Khắc phục lỗi không hiện list tài sản)
+        // Reset chọn ảnh nếu có
+        isSelectionMode = false;
+        selectedImages.clear();
+        updateSelectionUI();
+        
+        // Về tab Hồ sơ ảnh, load ảnh + TSBĐ
+        switchTab('images');
         renderAssets();
-    }; 
+    };
 }
-
-        switchTab('images'); }; }
-        function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'); currentCustomerId = null; loadCustomers(getEl('search-input').value); }
+function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'); currentCustomerId = null; loadCustomers(getEl('search-input').value); }
         function switchTab(tabName) { 
             const tabImages = getEl('tab-btn-images'); const tabAssets = getEl('tab-btn-assets'); 
             if (tabName === 'images') { tabImages.className = "flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-all border-indigo-500 text-indigo-400 bg-white/5"; tabAssets.className = "flex-1 py-3 text-xs font-bold uppercase tracking-widest border-b-2 transition-all border-transparent text-slate-500 hover:text-white"; getEl('content-images').classList.remove('hidden'); getEl('content-assets').classList.add('hidden'); getEl('actions-images').classList.remove('hidden'); getEl('actions-assets').classList.add('hidden'); loadProfileImages(); } 
@@ -1456,6 +1459,7 @@ function renderAssetDriveStatus(url) {
     const btnUp = getEl('btn-asset-upload');
     
     if (url && url.length > 5) {
+        // ĐÃ CÓ LINK → hiện nút mở Drive
         area.classList.remove('hidden');
         area.innerHTML = `
             <a href="${url}" target="_blank" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border border-teal-400/30">
@@ -1463,11 +1467,19 @@ function renderAssetDriveStatus(url) {
             </a>
             <p class="text-[10px] text-center text-teal-400/70 italic mb-2">Ảnh tài sản đã được đồng bộ</p>
         `;
-        if(btnUp) btnUp.classList.add('hidden');
+        if (btnUp) btnUp.classList.add('hidden');
     } else {
-        area.classList.add('hidden');
-        if(btnUp) btnUp.classList.remove('hidden');
+        // CHƯA CÓ LINK → cho phép “tìm lại folder TSBĐ”
+        area.classList.remove('hidden');
+        area.innerHTML = `
+            <button onclick="reconnectAssetDrive()" 
+                class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
+                <i data-lucide="search" class="w-4 h-4"></i> Tìm folder TSBĐ trên Drive
+            </button>
+        `;
+        if (btnUp) btnUp.classList.remove('hidden');
     }
+    lucide.createIcons();
 }
 // --- TÍNH NĂNG TÌM LẠI FOLDER THẤT LẠC ---
 async function reconnectDriveFolder() {
@@ -1508,6 +1520,57 @@ async function reconnectDriveFolder() {
             alert("Không tìm thấy Folder nào tên: " + folderName + "\n\nCó thể bạn đã đổi tên khách hoặc chưa từng upload?");
         }
 
+    } catch (err) {
+        console.error(err);
+        getEl('loader').classList.add('hidden');
+        alert("Lỗi kết nối: " + err.message);
+    }
+}
+async function reconnectAssetDrive() {
+    const scriptUrl = localStorage.getItem(SCRIPT_KEY);
+    if (!scriptUrl) return alert("Chưa cấu hình Script!");
+    if (!currentCustomerData || !currentAssetId) return;
+    
+    // Tìm asset hiện tại trong danh sách tài sản
+    const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
+    if (assetIndex === -1) {
+        return alert("Không tìm được TSBĐ hiện tại.");
+    }
+    
+    const asset = currentCustomerData.assets[assetIndex];
+    // Tên folder phải giống lúc uploadAssetToDrive
+    const folderName = `${currentCustomerData.name} - TSBĐ: ${asset.name}`;
+    
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang tìm folder TSBĐ trên Drive...";
+    
+    try {
+        const response = await fetch(scriptUrl, {
+            method: "POST",
+            body: JSON.stringify({
+                action: 'search', // cùng format với reconnectDriveFolder
+                folderName: folderName
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'found') {
+            // Gán lại link cho tài sản
+            currentCustomerData.assets[assetIndex].driveLink = result.url;
+            
+            // Lưu vào IndexedDB
+            const tx = db.transaction(['customers'], 'readwrite');
+            tx.objectStore('customers').put(currentCustomerData).onsuccess = () => {
+                getEl('loader').classList.add('hidden');
+                renderAssetDriveStatus(result.url);
+                showToast("Đã tìm lại folder TSBĐ & kết nối!");
+            };
+        } else {
+            getEl('loader').classList.add('hidden');
+            alert("Không tìm thấy folder TSBĐ: " + folderName);
+        }
+        
     } catch (err) {
         console.error(err);
         getEl('loader').classList.add('hidden');
