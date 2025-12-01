@@ -2169,11 +2169,13 @@ async function uploadToGoogleDrive() {
     };
 }
 
-// 5. REGEX ĐA NĂNG (Bắt dính cả Loại 1 và Loại 2)
+// --- CẬP NHẬT REGEX CHUẨN XÁC (V6: THEO YÊU CẦU NGƯỜI DÙNG) ---
+
 function parseRedBookInfo(text) {
     if (!text) return {};
-    // Dọn dẹp văn bản: Gộp dòng, xóa ký tự lạ do hoa văn
-    const raw = text.replace(/\r\n/g, ' ').replace(/\n/g, ' ').replace(/\|/g, '').replace(/\s+/g, ' '); 
+    
+    // Làm sạch văn bản
+    const raw = text.replace(/\|/g, ' ').replace(/\r\n/g, '\n').replace(/\n/g, '  ').replace(/\s+/g, ' '); 
 
     const get = (regex) => {
         const m = raw.match(regex);
@@ -2181,26 +2183,21 @@ function parseRedBookInfo(text) {
     };
 
     return {
-        // Số phát hành (Góc trái/phải): 2 chữ cái in hoa + dãy số (VD: DL 654746 hoặc AA 04830801)
-        soPhatHanh: get(/([A-Z]{2}\s+[0-9]{6,9})/),
+        // 1. [CHUẨN] Diện tích: Phải bắt đầu bằng chữ "Diện tích"
+        // Lấy các con số và dấu chấm/phẩy ngay sau đó
+        dienTich: get(/Diện tích[:\s]*([0-9\.\,]+)/i),
         
-        // Số vào sổ (Thường viết tay ở góc trái): Bắt đầu bằng chữ số hoặc CH, CS...
-        soVaoSo: get(/(?:Số vào sổ cấp GCN|Số vào sổ)[:\s]*([A-Za-z0-9\.\-\/ ]+)/i),
+        // 2. [CHUẨN] Địa chỉ: Bắt "Địa chỉ thửa đất" HOẶC "Địa chỉ"
+        // Quan trọng: (?!.*thường trú) để KHÔNG bắt nhầm "Địa chỉ thường trú" của chủ nhà
+        diaChi: get(/(?:Địa chỉ thửa đất|Địa chỉ)(?!\s*thường trú)[:\s]*([^.;]+(?:Tỉnh|Thành phố|Huyện|Quận|Xã|Phường|Thị trấn)[^.;]*)/i),
 
-        // Tờ bản đồ: Bắt cả kiểu "Tờ bản đồ số:" và "tờ bản đồ số"
+        // Các thông tin khác (để hiển thị trong nút Xem OCR)
+        soPhatHanh: get(/\b([A-Z]{2}\s{0,2}[0-9]{6,9})\b/),
+        soVaoSo: get(/(?:Số vào sổ cấp GCN|Số vào sổ)[:\s]*([A-Za-z0-9\.\-\/ ]+)/i),
         toBanDo: get(/(?:Tờ bản đồ số|TBĐ số|bản đồ số)[:\s]*([0-9]+)/i),
-        
-        // Thửa đất: Bắt cả "a) Thửa đất số" (Loại 1) và "a. Thửa đất số" (Loại 2)
-        thuaDat: get(/(?:Thửa đất số|Thửa số)[:\s]*([0-9\-\,]+)/i),
-        
-        // Diện tích: Số thực + m2
-        dienTich: get(/([0-9\.\,]+)\s*m[²2]/i),
-        
-        // Địa chỉ: Bắt sau chữ "Địa chỉ:" hoặc "b) Địa chỉ thửa đất:"
-        diaChi: get(/(?:Địa chỉ|tại|thửa đất)[:\s]*([^.;]+(?:Tỉnh|Thành phố|Huyện|Quận|Xã|Phường)[^.;]*)/i),
-        
-        // Mục đích: Bắt sau dấu hai chấm đến dấu chấm phẩy
-        mucDich: get(/Mục đích sử dụng[:\s]*([^.;]+)/i)
+        thuaDat: get(/(?:Thửa đất số|Thửa số|thửa đất số)[:\s]*([0-9\-\,]+)/i),
+        mucDich: get(/(?:Mục đích sử dụng|Mục đích|Loại đất)[:\s]*([^.;]+)/i),
+        chuSoHuu: get(/(?:Ông|Bà|Người sử dụng đất|Hộ ông|Hộ bà|Họ và tên)[:\s]*([A-ZĂÂÁẮẤÀẰẦẢẲẨÃẴẪẠẶẬĐEÊÉẾÈỀẺỂẼỄẸỆIÍÌỈĨỊOÔƠÓỐỚÒỒỜỎỔỞÕỖỠỌỘỢUƯÚỨÙỪỦỬŨỮỤỰYÝỲỶỸỴ\s]+)/)
     };
 }
 
