@@ -2169,13 +2169,15 @@ async function uploadToGoogleDrive() {
     };
 }
 
-// --- CẬP NHẬT REGEX CHUẨN XÁC (V6: THEO YÊU CẦU NGƯỜI DÙNG) ---
-
+// --- CẬP NHẬT REGEX V7: CHIẾN THUẬT "CHẶN ĐUÔI" (FIX LỖI DÍNH DÒNG) ---
 function parseRedBookInfo(text) {
     if (!text) return {};
     
-    // Làm sạch văn bản
-    const raw = text.replace(/\|/g, ' ').replace(/\r\n/g, '\n').replace(/\n/g, '  ').replace(/\s+/g, ' '); 
+    // 1. Chuẩn hóa văn bản: Xóa xuống dòng, xóa dấu | bảng biểu
+    const raw = text.replace(/\|/g, ' ')
+                    .replace(/\r\n/g, ' ')
+                    .replace(/\n/g, ' ')
+                    .replace(/\s+/g, ' '); // Gộp tất cả thành 1 dòng dài duy nhất
 
     const get = (regex) => {
         const m = raw.match(regex);
@@ -2183,17 +2185,19 @@ function parseRedBookInfo(text) {
     };
 
     return {
-        // 1. [CHUẨN] Diện tích: Phải bắt đầu bằng chữ "Diện tích"
-        // Lấy các con số và dấu chấm/phẩy ngay sau đó
-        dienTich: get(/Diện tích[:\s]*([0-9\.\,]+)/i),
-        
-        // 2. [CHUẨN] Địa chỉ: Bắt "Địa chỉ thửa đất" HOẶC "Địa chỉ"
-        // Quan trọng: (?!.*thường trú) để KHÔNG bắt nhầm "Địa chỉ thường trú" của chủ nhà
-        diaChi: get(/(?:Địa chỉ thửa đất|Địa chỉ)(?!\s*thường trú)[:\s]*([^.;]+(?:Tỉnh|Thành phố|Huyện|Quận|Xã|Phường|Thị trấn)[^.;]*)/i),
-
-        // Các thông tin khác (để hiển thị trong nút Xem OCR)
+        // [SỐ BÌA ĐỎ]: Bắt mã AA/BS...
         soPhatHanh: get(/\b([A-Z]{2}\s{0,2}[0-9]{6,9})\b/),
-        soVaoSo: get(/(?:Số vào sổ cấp GCN|Số vào sổ)[:\s]*([A-Za-z0-9\.\-\/ ]+)/i),
+        
+        // [DIỆN TÍCH]: Bắt số ngay sau chữ "Diện tích"
+        // Chỉ lấy số và dấu phẩy/chấm, bỏ qua chữ "c)" hay ":"
+        dienTich: get(/Diện tích(?:.*?)[:\s]*([0-9]+[.,][0-9]+|[0-9]+)/i),
+        
+        // [ĐỊA CHỈ - QUAN TRỌNG NHẤT]: 
+        // Chiến thuật: Bắt từ "Địa chỉ" cho đến khi gặp từ khóa "Diện tích" hoặc "Mục đích" hoặc "c)"
+        // (?=...) là cú pháp "Dừng lại trước khi gặp..."
+        diaChi: get(/(?:Địa chỉ|thửa đất)(?:\s*thửa đất)?[:\s]*(.*?)(?=\s*Diện tích|\s*Mục đích|\s*Hình thức|\s*c\))/i),
+
+        // Các thông tin phụ (để hiển thị xem thêm)
         toBanDo: get(/(?:Tờ bản đồ số|TBĐ số|bản đồ số)[:\s]*([0-9]+)/i),
         thuaDat: get(/(?:Thửa đất số|Thửa số|thửa đất số)[:\s]*([0-9\-\,]+)/i),
         mucDich: get(/(?:Mục đích sử dụng|Mục đích|Loại đất)[:\s]*([^.;]+)/i),
