@@ -623,21 +623,6 @@ async function enhanceDocumentWithAI(base64) {
         img.onerror = () => resolve(base64);
         img.src = base64;
     });
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => showToast("Đã copy nội dung OCR"))
-      .catch(() => alert("Copy không thành công, hãy chọn và copy tay."));
-  } else {
-    // Fallback
-    txtArea.select();
-    try {
-      document.execCommand('copy');
-      showToast("Đã copy nội dung");
-    } catch (e) {
-      alert("Trình duyệt không hỗ trợ copy tự động.");
-    }
-  }
 }
 
         document.addEventListener('DOMContentLoaded', () => {
