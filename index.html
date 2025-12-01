@@ -1170,7 +1170,26 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
                 }); 
             });
         }
-        
+        function handleFileUpload(input, mode) {
+    const files = input.files;
+    if (!files || !files.length) return;
+    
+    // Ghi chế độ ảnh (profile = hồ sơ / asset = tài sản)
+    captureMode = mode || 'profile';
+    
+    // Duyệt từng ảnh
+    Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64 = e.target.result;
+            await saveImageToDB(base64);
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // Reset input để lần sau chọn lại vẫn trigger onchange
+    input.value = "";
+}
         async function tryOpenCamera(mode) { captureMode=mode; try { getEl('camera-modal').classList.remove('hidden'); stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); getEl('camera-feed').srcObject = stream; } catch { getEl('camera-modal').classList.add('hidden'); getEl(mode==='profile'?'native-camera-profile':'native-camera-asset').click(); } }
         function closeCamera() { getEl('camera-modal').classList.add('hidden'); if(stream) stream.getTracks().forEach(t=>t.stop()); }
         function capturePhoto() { const v=getEl('camera-feed'); const c=getEl('camera-canvas'); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext('2d').drawImage(v,0,0); saveImageToDB(c.toDataURL('image/jpeg', 1.0)); closeCamera(); }
