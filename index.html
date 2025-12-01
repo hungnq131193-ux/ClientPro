@@ -1813,56 +1813,80 @@ function enhanceRedBookImage(base64) {
     });
 }
 
-// 4. Chạy OCR
-async function runOcrNow() {
-    if (!currentOcrBase64) return;
+// --- LOGIC UPLOAD ẢNH HỒ SƠ ---
+async function uploadToGoogleDrive() {
+    const scriptUrl = localStorage.getItem(SCRIPT_KEY);
+    if (!scriptUrl) return alert("⚠️ Chưa cấu hình Drive!\nVào Cài đặt -> Dán Link Apps Script.");
     
-    const btn = getEl('btn-run-ocr');
-    const statusDiv = getEl('ocr-structured');
-    const originalBtnText = btn.innerHTML;
+    if (!currentCustomerData) return;
 
-    btn.disabled = true;
+    // 1. Lấy ảnh từ Database
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang kiểm tra ảnh...";
     
-    try {
-        // BƯỚC 1: LỌC NỀN
-        btn.innerHTML = `<span class="animate-pulse">Đang lọc nhiễu nền...</span>`;
-        // MỚI (Đúng tên hàm mới)
-        const processedImg = await enhanceRedBookImage(currentOcrBase64);
+    const tx = db.transaction(['images'], 'readonly');
+    const store = tx.objectStore('images');
+    const index = store.index('customerId');
 
-        getEl('ocr-preview-img').src = processedImg; // Show ảnh đã lọc cho user thấy
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        // Lấy ảnh hồ sơ (không có assetId)
+        let imagesToUpload = allImages.filter(img => !img.assetId);
 
-        // BƯỚC 2: CHẠY TESSERACT
-        const worker = await Tesseract.createWorker('vie', 1, {
-            logger: m => {
-                if(m.status === 'recognizing text') {
-                    const pct = Math.round(m.progress * 100);
-                    btn.innerHTML = `Đang đọc... ${pct}%`;
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Không có ảnh hồ sơ nào để tải lên!");
+        }
+
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang đẩy lên Google Drive...";
+
+        // 2. Chuẩn bị gói dữ liệu
+        const payload = {
+            action: 'upload', // <--- Báo cho Script biết là muốn Upload
+            folderName: `${currentCustomerData.name} - ${currentCustomerData.phone}`,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `hoso_${Date.now()}_${idx}.jpg`,
+                data: img.data // Gửi cả mảng ảnh đi 1 lần
+            }))
+        };
+
+        try {
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                // Lưu link Folder
+                currentCustomerData.driveLink = result.url;
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                renderDriveStatus(result.url);
+                
+                if(confirm("✅ Đã Upload xong!\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => {
+                        loadProfileImages();
+                        showToast("Đã dọn dẹp bộ nhớ");
+                    };
                 }
+            } else {
+                throw new Error(result.message);
             }
-        });
-
-        // Bìa đỏ là dạng khối văn bản thưa, dùng PSM 6 (Assume a single uniform block of text) là tốt nhất
-        await worker.setParameters({
-            tessedit_pageseg_mode: '6', 
-        });
-
-        const { data: { text } } = await worker.recognize(processedImg);
-        
-        // BƯỚC 3: HIỂN THỊ
-        getEl('ocr-result-text').value = text;
-        const info = parseRedBookInfo(text);
-        statusDiv.innerHTML = renderRedBookInfo(info);
-        getEl('ocr-status').classList.remove('hidden');
-
-        await worker.terminate();
-
-    } catch (err) {
-        console.error(err);
-        statusDiv.innerHTML = `<p class="text-red-400 text-center text-xs">Lỗi: ${err.message}</p>`;
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalBtnText;
-    }
+        } catch (err) {
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi Upload: " + err.message);
+        }
+    };
 }
 
 // 5. REGEX ĐA NĂNG (Bắt dính cả Loại 1 và Loại 2)
