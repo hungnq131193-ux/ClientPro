@@ -640,39 +640,6 @@ async function enhanceDocumentWithAI(base64) {
   }
 }
 
-// ===== HÀM OCR ẢNH BÌA ĐỎ =====
-async function runOcrForRedBook(rawBase64) {
-    // Để xem hàm có chạy không
-    alert('Bắt đầu OCR');
-    
-    try {
-        // nếu bạn có modal riêng thì mở lên, không có thì bỏ dòng này
-        if (typeof openOcrModal === 'function') {
-            openOcrModal();
-        }
-        
-        const textarea = document.getElementById('ocr-result-text');
-        if (textarea) {
-            textarea.value = 'Đang nhận diện...';
-        }
-        
-        // Tạm dùng 'eng' cho chắc (ít phụ thuộc tải gói tiếng Việt)
-        const result = await Tesseract.recognize(rawBase64, 'eng', {
-            logger: m => console.log(m) // nếu chạy trên trình duyệt sẽ xem log được
-        });
-        
-        const text = result.data && result.data.text ? result.data.text : '';
-        if (textarea) {
-            textarea.value = text;
-        }
-        
-        alert('OCR xong rồi');
-        
-    } catch (err) {
-        console.error('Lỗi OCR', err);
-        alert('Lỗi OCR: ' + err.message);
-    }
-}
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
@@ -1867,6 +1834,7 @@ ${show('Nguồn gốc sử dụng', info.nguonGocSuDung)}
 ${show('Số vào sổ cấp GCN', info.soVaoSoCapGCN)}
 `;
 }
+</script>
 <!-- MODAL OCR BÌA ĐỎ -->
 <div id="ocr-modal" class="hidden fixed inset-0 ...">
   <div class="...">
