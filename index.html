@@ -1761,52 +1761,72 @@ function copyOcrResult() {
 }
 
 // 2. Hàm chạy OCR chính
+// --- LOGIC OCR BÌA ĐỎ (BẢN V5 - CÓ THANH TIẾN ĐỘ) ---
 async function runOcrForRedBook(rawBase64) {
     console.log('Bắt đầu quy trình OCR...');
     
-    // Mở modal ngay lập tức để báo user chờ
     openOcrModal();
+    const statusDiv = getEl('ocr-structured');
+    const resultBox = getEl('ocr-result-text');
+    
+    // Hàm vẽ thanh loading
+    const updateStatus = (msg, percent = 0) => {
+        statusDiv.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-6 space-y-3">
+                <div class="w-8 h-8 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin"></div>
+                <p class="text-xs text-red-300 font-mono text-center animate-pulse">${msg}</p>
+                ${percent > 0 ? `<div class="w-2/3 h-1.5 bg-white/10 rounded-full mt-2 overflow-hidden"><div class="h-full bg-gradient-to-r from-red-500 to-pink-500 transition-all duration-300" style="width: ${percent*100}%"></div></div>` : ''}
+            </div>
+        `;
+    };
 
     try {
-        // BƯỚC 1: Xử lý ảnh cho rõ nét (Dùng lại hàm AI có sẵn của app)
-        // Việc này cực quan trọng để OCR đọc đúng số tờ/số thửa
+        updateStatus("Đang xử lý ảnh nét hơn...");
+        
+        // 1. Làm nét ảnh
         const enhancedImage = await enhanceDocumentWithAI(rawBase64);
 
-        // BƯỚC 2: Gọi Tesseract
-        // Lưu ý: Lần đầu chạy sẽ cần tải data ngôn ngữ (~20MB), các lần sau sẽ nhanh
-        const worker = await Tesseract.createWorker('vie'); // Chỉ dùng tiếng Việt cho nhẹ, hoặc 'vie+eng' nếu cần
+        // 2. Khởi tạo Worker Tesseract V5
+        updateStatus("Đang tải dữ liệu Tiếng Việt...", 0.1);
         
-        // Cấu hình chỉ nhận diện ký tự cần thiết (Optional - giúp chạy nhanh hơn)
-        // await worker.setParameters({ tessedit_char_whitelist: '0123456789aAàÀảẢãÃáÁạẠ...XYZ' }); 
+        const worker = await Tesseract.createWorker('vie', 1, {
+            logger: m => {
+                if (m.status === 'recognizing text') {
+                    updateStatus(`Đang đọc văn bản: ${Math.round(m.progress * 100)}%`, m.progress);
+                } else if (m.status === 'loading tesseract core') {
+                    updateStatus("Đang khởi động Core...", 0.2);
+                } else {
+                    updateStatus("Đang xử lý: " + m.status);
+                }
+            }
+        });
 
+        // 3. Nhận diện
         const { data: { text } } = await worker.recognize(enhancedImage);
         
-        console.log('Kết quả OCR:', text);
-        
-        // BƯỚC 3: Hiển thị kết quả
-        const resultBox = getEl('ocr-result-text');
+        // 4. Hiển thị kết quả
         resultBox.value = text.trim();
-        
-        // Parse ra dữ liệu có cấu trúc
         const structuredInfo = parseRedBookInfo(text);
-        getEl('ocr-structured').innerHTML = renderRedBookInfo(structuredInfo);
+        statusDiv.innerHTML = renderRedBookInfo(structuredInfo);
         
-        getEl('ocr-status').classList.remove('hidden'); // Hiện chữ "Đã xong"
-        
-        await worker.terminate(); // Dọn dẹp worker
+        getEl('ocr-status').classList.remove('hidden'); // Báo xong
+        await worker.terminate();
         
     } catch (err) {
         console.error('Lỗi OCR:', err);
-        getEl('ocr-structured').innerHTML = `
-            <div class="text-red-400 text-center py-4 text-xs">
-                <i data-lucide="alert-triangle" class="w-6 h-6 mx-auto mb-2"></i>
-                Lỗi nhận diện: ${err.message}<br>Kiểm tra kết nối mạng (cần tải data ngôn ngữ).
+        let errorMsg = err.message || JSON.stringify(err);
+        
+        statusDiv.innerHTML = `
+            <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center">
+                <i data-lucide="wifi-off" class="w-8 h-8 mx-auto mb-2 text-red-400"></i>
+                <h4 class="font-bold text-red-400 text-sm mb-1">Thất bại</h4>
+                <p class="text-[10px] text-slate-300 mb-2">${errorMsg}</p>
+                <p class="text-[10px] text-slate-500 italic">Hãy kiểm tra mạng Wifi/4G và thử lại.</p>
             </div>
         `;
         if (window.lucide) lucide.createIcons();
     }
 }
-
 // 3. Hàm Regex trích xuất thông tin (Tinh chỉnh lại cho chuẩn hơn)
 function parseRedBookInfo(rawText) {
     if (!rawText) return {};
@@ -1859,7 +1879,7 @@ function renderRedBookInfo(info) {
 }
 </script>
 <!-- Thư viện OCR -->
-<script src="https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 // ===== PARSE THÔNG TIN BÌA ĐỎ TỪ TEXT OCR =====
 function parseRedBookInfo(rawText) {
