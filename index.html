@@ -617,8 +617,56 @@ async function enhanceDocumentWithAI(base64) {
         img.onerror = () => resolve(base64);
         img.src = base64;
     });
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast("Đã copy nội dung OCR"))
+      .catch(() => alert("Copy không thành công, hãy chọn và copy tay."));
+  } else {
+    // Fallback
+    txtArea.select();
+    try {
+      document.execCommand('copy');
+      showToast("Đã copy nội dung");
+    } catch (e) {
+      alert("Trình duyệt không hỗ trợ copy tự động.");
+    }
+  }
 }
 
+// ===== HÀM OCR ẢNH BÌA ĐỎ =====
+async function runOcrForRedBook(rawBase64) {
+    // Để xem hàm có chạy không
+    alert('Bắt đầu OCR');
+    
+    try {
+        // nếu bạn có modal riêng thì mở lên, không có thì bỏ dòng này
+        if (typeof openOcrModal === 'function') {
+            openOcrModal();
+        }
+        
+        const textarea = document.getElementById('ocr-result-text');
+        if (textarea) {
+            textarea.value = 'Đang nhận diện...';
+        }
+        
+        // Tạm dùng 'eng' cho chắc (ít phụ thuộc tải gói tiếng Việt)
+        const result = await Tesseract.recognize(rawBase64, 'eng', {
+            logger: m => console.log(m) // nếu chạy trên trình duyệt sẽ xem log được
+        });
+        
+        const text = result.data && result.data.text ? result.data.text : '';
+        if (textarea) {
+            textarea.value = text;
+        }
+        
+        alert('OCR xong rồi');
+        
+    } catch (err) {
+        console.error('Lỗi OCR', err);
+        alert('Lỗi OCR: ' + err.message);
+    }
+}
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
@@ -1199,7 +1247,25 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
     }
 }); getEl('camera-feed').srcObject = stream; } catch { getEl('camera-modal').classList.add('hidden'); getEl(mode==='profile'?'native-camera-profile':'native-camera-asset').click(); } }
         function closeCamera() { getEl('camera-modal').classList.add('hidden'); if(stream) stream.getTracks().forEach(t=>t.stop()); }
-        function capturePhoto() { const v=getEl('camera-feed'); const c=getEl('camera-canvas'); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext('2d').drawImage(v,0,0); saveImageToDB(c.toDataURL('image/jpeg', 1.0)); closeCamera(); }
+        // CHỤP ẢNH TỪ CAMERA + OCR TRƯỚC KHI NÉN
+async function capturePhoto() {
+    const v = getEl('camera-feed');
+    const c = getEl('camera-canvas');
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(v, 0, 0);
+    
+    const rawBase64 = c.toDataURL('image/jpeg', 1.0);
+    
+    closeCamera();
+    
+    // 1) OCR TRƯỚC khi nén
+    await runOcrForRedBook(rawBase64);
+    
+    // 2) Sau đó mới lưu vào DB (đoạn cũ của bạn)
+    await saveImageToDB(rawBase64);
+}
         function shareOpenedImage() { if(!currentImageBase64) return; fetch(currentImageBase64).then(res => res.blob()).then(blob => { if(navigator.canShare) navigator.share({files:[new File([blob], "evidence.jpg", {type:"image/jpeg"})]}); }); }
         function deleteOpenedImage() { if(confirm("Hủy chứng từ này?")) { db.transaction(['images'], 'readwrite').objectStore('images').delete(currentImageId).onsuccess = () => { closeLightbox(); if(currentAssetId && getEl('screen-asset-gallery').classList.contains('translate-x-full') === false) loadAssetImages(currentAssetId); else loadProfileImages(); }; } }
         function toggleMenu() { const m=getEl('settings-menu'); const o=getEl('menu-overlay'); if(m.classList.contains('hidden')){m.classList.remove('hidden');o.classList.remove('hidden'); setTimeout(()=>{m.classList.remove('scale-95','opacity-0');},10)}else{m.classList.add('scale-95','opacity-0'); setTimeout(()=>{m.classList.add('hidden');o.classList.add('hidden');},200)} }
@@ -1657,9 +1723,90 @@ async function reconnectDriveFolder() {
     } catch (err) {
         console.error(err);
         getEl('loader').classList.add('hidden');
-        alert("Lỗi kết nối: " + err.message);
+      alert("Lỗi kết nối: " + err.message);
+  }
+}
+function openOcrModal() {
+    const modal = getEl('ocr-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeOcrModal() {
+    const modal = getEl('ocr-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function copyOcrResult() {
+    const txt = getEl('ocr-result-text');
+    if (!txt) return;
+    txt.select();
+    document.execCommand('copy');
+    alert('Đã copy nội dung OCR vào clipboard');
+}
+
+// HÀM CHÍNH CHẠY OCR BÌA ĐỎ
+async function runOcrForRedBook(base64Image) {
+    console.log('runOcrForRedBook START'); // log để kiểm tra
+    const modal = getEl('ocr-modal');
+    const resultBox = getEl('ocr-result-text');
+    
+    if (!modal || !resultBox) {
+        alert('Không tìm thấy modal OCR, kiểm tra lại HTML!');
+        return;
+    }
+    
+    // Mở modal + set text chờ
+    openOcrModal();
+    resultBox.value = 'Đang nhận diện OCR, vui lòng chờ...';
+    
+    try {
+        // Nếu ảnh bìa đỏ chủ yếu tiếng Việt có chút tiếng Anh:
+        const { data } = await Tesseract.recognize(
+            base64Image,
+            'vie+eng',
+            {
+                logger: m => console.log(m) // xem tiến trình ở console
+            }
+        );
+        
+        console.log('OCR DONE', data);
+        resultBox.value = (data && data.text) ? data.text.trim() : 'Không đọc được nội dung.';
+    } catch (err) {
+        console.error('Lỗi OCR:', err);
+        resultBox.value = 'Có lỗi khi nhận diện OCR: ' + err.message;
     }
 }
-    </script>
+</script>
+<!-- Thư viện OCR -->
+<script src="https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+
+<!-- MODAL KẾT QUẢ OCR BÌA ĐỎ -->
+<div id="ocr-modal"
+     class="fixed inset-0 z-[340] bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+  <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+    <button onclick="closeOcrModal()"
+            class="absolute top-4 right-4 text-white/70 hover:text-white">
+      <i data-lucide="x" class="w-5 h-5"></i>
+    </button>
+
+    <h3 class="font-bold text-lg mb-2" style="color: var(--text-main)">
+      Kết quả OCR bìa đỏ
+    </h3>
+    <p class="text-xs mb-3 opacity-70" style="color: var(--text-sub)">
+      Nội dung được nhận diện tự động từ ảnh bìa đỏ. Anh/chị nhớ kiểm tra lại trước khi gửi mail.
+    </p>
+
+    <textarea id="ocr-result-text"
+              class="w-full border rounded-xl p-3 text-sm bg-black/30"
+              style="border-color: var(--border-panel); color: var(--text-main);"
+              rows="6"></textarea>
+
+    <button onclick="copyOcrResult()"
+            class="w-full mt-4 py-3 text-white font-bold rounded-xl active:scale-[0.98] transition-transform"
+            style="background: var(--accent-gradient);">
+      Copy nội dung
+    </button>
+  </div>
+</div>
 </body>
 </html>
