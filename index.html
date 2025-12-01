@@ -1051,11 +1051,71 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
             }
         }
         
-        function compressImage(base64, cb) { const img = new Image(); img.src=base64; img.onload=()=>{ const cvs=document.createElement('canvas'); const max=1280; let w=img.width,h=img.height; if(w>h){if(w>max){h*=max/w;w=max}}else{if(h>max){w*=max/h;h=max}} cvs.width=w;cvs.height=h; cvs.getContext('2d').drawImage(img,0,0,w,h); let q=0.8; const tryC = () => { const res = cvs.toDataURL('image/jpeg', q); if(res.length*0.75 > 800*1024 && q>0.3) { q-=0.1; tryC(); } else cb(res); }; tryC(); } }
-        async function handleFileUpload(input, mode) { 
-            captureMode=mode; const files = Array.from(input.files); if(!files.length) return; 
-            for(let f of files) { await new Promise(resolve => { const reader = new FileReader(); reader.onload = async (e) => { await saveImageToDB(e.target.result); resolve(); }; reader.readAsDataURL(f); }); } input.value = ''; 
+        function compressImage(base64, cb) {
+    const img = new Image();
+    img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        
+        // Giới hạn chiều dài max ~2000px để giữ nét chữ
+        const maxDim = 2000;
+        if (w > h && w > maxDim) {
+            h = h * maxDim / w;
+            w = maxDim;
+        } else if (h >= w && h > maxDim) {
+            w = w * maxDim / h;
+            h = maxDim;
         }
+        
+        const cvs = document.createElement('canvas');
+        cvs.width = Math.round(w);
+        cvs.height = Math.round(h);
+        const ctx = cvs.getContext('2d');
+        
+        // "AI-lite": tăng nhẹ contrast & màu, giảm noise nhẹ
+        // (không blur mạnh để chữ vẫn sắc)
+        ctx.filter = 'contrast(1.05) saturate(1.02) brightness(1.01)';
+        
+        // Vẽ ảnh lên canvas (tự nội suy giúp đỡ rung nhẹ)
+        ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
+        
+        let q = 0.9;
+        const MAX_BYTES = 700 * 1024; // ~700 KB
+        const MIN_BYTES = 450 * 1024; // tối thiểu ~450 KB cho ảnh rõ chữ
+        
+        function adjustAndCheck() {
+            const dataUrl = cvs.toDataURL('image/jpeg', q);
+            // Base64 lớn hơn binary ~33%, nhân 0.75 cho gần đúng
+            const sizeBytes = Math.floor(dataUrl.length * 0.75);
+            
+            // Nếu còn > max và vẫn có room để giảm chất lượng
+            if (sizeBytes > MAX_BYTES && q > 0.5) {
+                q -= 0.07; // giảm từ từ
+                setTimeout(adjustAndCheck, 0);
+                return;
+            }
+            
+            // Nếu quá nhỏ so với min (ảnh quá nhẹ → tăng thêm chất lượng nếu được)
+            if (sizeBytes < MIN_BYTES && q < 0.95) {
+                q += 0.05;
+                setTimeout(adjustAndCheck, 0);
+                return;
+            }
+            
+            // Ok – trả kết quả
+            cb(dataUrl);
+        }
+        
+        adjustAndCheck();
+    };
+    
+    img.onerror = () => {
+        // Nếu lỗi thì trả luôn ảnh gốc để tránh treo app
+        cb(base64);
+    };
+    
+    img.src = base64;
+}
         function saveImageToDB(rawBase64) { 
             return new Promise(async (resolve) => {
                 if (!currentCustomerId) { resolve(); return; }
@@ -1237,16 +1297,15 @@ function fallbackCopyDonate(text) {
 
         // ================== END WEATHER ==================
     // --- LOGIC UPLOAD DRIVE & CẤU HÌNH ---
-const SCRIPT_KEY = 'user_google_script_url';
-
-// 1. Hàm nạp/lưu cấu hình Script
 function saveScriptUrl() {
     const url = getEl('user-script-url').value.trim();
-    if (!url.startsWith('https://script.google.com/')) return alert("Link không đúng định dạng!");
+    if (!url.startsWith('https://script.google.com/')) {
+        alert("Link không đúng định dạng!");
+        return;
+    }
     localStorage.setItem(SCRIPT_KEY, url);
     showToast("Đã lưu kết nối Drive");
 }
-
 document.addEventListener('DOMContentLoaded', () => {
     const savedUrl = localStorage.getItem(SCRIPT_KEY);
     if(savedUrl) getEl('user-script-url').value = savedUrl;
@@ -1337,29 +1396,39 @@ function renderDriveStatus(url) {
     const area = getEl('drive-status-area');
     const btnUp = getEl('btn-upload-drive');
     
+    if (!area) return;
+    
     if (url && url.length > 5) {
-        // ĐÃ CÓ LINK → vẫn hiện nút Mở Drive
+        // ĐÃ CÓ LINK → hiện nút Mở Drive
         area.classList.remove('hidden');
         area.innerHTML = `
-            <a href="${url}" target="_blank" class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border border-emerald-400/30">
-                <i data-lucide="external-link" class="w-5 h-5"></i> Mở Folder Drive
-            </a>
-            <p class="text-[10px] text-center text-emerald-400/70 italic mb-2">Đã đồng bộ lên Cloud</p>
-        `;
+      <a href="${url}" target="_blank"
+         class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold
+                flex items-center justify-center gap-2 shadow-lg mb-1
+                animate-fade-in border border-emerald-400/30">
+        <i data-lucide="external-link" class="w-5 h-5"></i> Mở Folder Drive
+      </a>
+      <p class="text-[10px] text-center text-emerald-400/70 italic mb-2">
+        Đã đồng bộ lên Cloud
+      </p>
+    `;
         
-        // ❗ KHÔNG ẩn nút upload nữa (để upload thêm ảnh)
-        if (btnUp) btnUp.classList.remove('hidden');
+        if (btnUp) btnUp.classList.remove('hidden'); // vẫn cho phép upload thêm
     } else {
         // CHƯA CÓ LINK → hiện nút tìm lại + nút upload
         area.classList.remove('hidden');
         area.innerHTML = `
-             <button onclick="reconnectDriveFolder()" class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
-                <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
-            </button>
-        `;
+      <button onclick="reconnectDriveFolder()"
+              class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600
+                     rounded-lg text-xs font-medium text-slate-300
+                     flex items-center justify-center gap-2 hover:bg-slate-700 transition">
+        <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
+      </button>
+    `;
         if (btnUp) btnUp.classList.remove('hidden');
     }
-    lucide.createIcons();
+    
+    if (window.lucide) lucide.createIcons();
 }
 
 // --- LOGIC UPLOAD DRIVE CHO TÀI SẢN (TSBĐ) ---
