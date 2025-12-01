@@ -2246,7 +2246,7 @@ function triggerAssetOcr() {
     getEl('native-camera-asset').click();
 }
 
-// --- HÀM ĐIỀN FORM (ĐÃ THÊM LỌC RÁC) ---
+// --- HÀM XỬ LÝ OCR (ĐÃ RÚT GỌN: CHỈ ĐIỀN DIỆN TÍCH) ---
 async function runAssetOcrLogic(base64) {
     let scriptUrl = localStorage.getItem(SCRIPT_KEY);
     if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL;
@@ -2254,6 +2254,7 @@ async function runAssetOcrLogic(base64) {
     try {
         const cleanBase64 = base64.split(',')[1];
         
+        // Gọi Google Script
         const response = await fetch(scriptUrl, {
             method: "POST",
             body: JSON.stringify({ action: 'ocr', image: cleanBase64 })
@@ -2262,50 +2263,33 @@ async function runAssetOcrLogic(base64) {
         
         if (result.status === 'success') {
             const rawText = result.text;
+            // Vẫn dùng hàm parse cũ để lấy số liệu
             const info = parseRedBookInfo(rawText);
             
-            // --- 1. ĐIỀN ĐỊA CHỈ (MÔ TẢ CHÍNH) ---
-            if(info.diaChi) {
-                // Làm sạch: Xóa các ký tự rác ở đầu như "b)", ":", "..."
-                let cleanAddr = info.diaChi.replace(/^[a-z]\)\s*/i, '') // Xóa a) b) c)
-                                           .replace(/^[:\.\-]\s*/, '')  // Xóa dấu : . -
-                                           .trim();
-                
-                // Nếu địa chỉ quá ngắn (do lỗi), không điền
-                if (cleanAddr.length > 5) {
-                    getEl('asset-name').value = cleanAddr;
-                }
-            }
-            
-            // --- 2. ĐIỀN DIỆN TÍCH ---
+            // --- 1. CHỈ TỰ ĐỘNG ĐIỀN DIỆN TÍCH ---
             if(info.dienTich) {
-                // Chuẩn hóa: Thay dấu phẩy thành chấm để đúng chuẩn số học
+                // Chuẩn hóa dấu phẩy thành dấu chấm (145,6 -> 145.6)
                 let area = info.dienTich.replace(',', '.');
+                // Lọc bỏ sạch các ký tự không phải số và dấu chấm (đề phòng OCR lỗi)
+                area = area.replace(/[^0-9.]/g, '');
+                
                 getEl('asset-area').value = area;
             }
             
-            // --- 3. ĐIỀN CÁC Ô KHÁC (NẾU CẦN) ---
-            // Tự động điền Tờ/Thửa vào ô Vị trí (asset-onland) như ảnh bạn gửi
-            // (Bạn đang để placeholder là: Tờ: 90, Thửa: 357)
-            if (info.toBanDo || info.thuaDat) {
-                let posInfo = [];
-                if(info.toBanDo) posInfo.push(`Tờ: ${info.toBanDo}`);
-                if(info.thuaDat) posInfo.push(`Thửa: ${info.thuaDat}`);
-                getEl('asset-onland').value = posInfo.join(', ');
-            }
+            // --- 2. CÁC Ô KHÁC (ĐỊA CHỈ, TỜ, THỬA...) ---
+            // Đã xóa lệnh điền -> Để trống cho bạn tự nhập
 
-            // Lưu dữ liệu gốc
-            const savedContent = `--- KẾT QUẢ OCR ---\nSố sổ: ${info.soPhatHanh}\nDiện tích: ${info.dienTich}\nĐ/C: ${info.diaChi}\n----------------\n${rawText}`;
+            // --- 3. LƯU KẾT QUẢ ĐỂ COPY SAU NÀY ---
+            const savedContent = `--- KẾT QUẢ OCR ---\nSố sổ: ${info.soPhatHanh}\nDiện tích: ${info.dienTich}\nĐ/C: ${info.diaChi}\nTờ: ${info.toBanDo} | Thửa: ${info.thuaDat}\n----------------\n${rawText}`;
             getEl('asset-ocr-data').value = savedContent;
 
-            showToast("Đã điền thông tin!");
+            showToast("Đã điền số Diện tích!");
         }
     } catch (e) {
         console.error(e);
         alert("Lỗi đọc Bìa đỏ: " + e.message);
     }
 }
-
 
 // --- Hàm xem lại dữ liệu OCR đã lưu ---
 function viewSavedOcr(assetId) {
