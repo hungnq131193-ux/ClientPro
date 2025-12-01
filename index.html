@@ -1190,7 +1190,14 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
     // Reset input để lần sau chọn lại vẫn trigger onchange
     input.value = "";
 }
-        async function tryOpenCamera(mode) { captureMode=mode; try { getEl('camera-modal').classList.remove('hidden'); stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); getEl('camera-feed').srcObject = stream; } catch { getEl('camera-modal').classList.add('hidden'); getEl(mode==='profile'?'native-camera-profile':'native-camera-asset').click(); } }
+        async function tryOpenCamera(mode) { captureMode=mode; try { getEl('camera-modal').classList.remove('hidden'); stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+        facingMode: { ideal: 'environment' },
+        // Ưu tiên Full HD trở lên
+        width: { min: 1280, ideal: 1920, max: 2560 },
+        height: { min: 720, ideal: 1080, max: 1440 }
+    }
+}); getEl('camera-feed').srcObject = stream; } catch { getEl('camera-modal').classList.add('hidden'); getEl(mode==='profile'?'native-camera-profile':'native-camera-asset').click(); } }
         function closeCamera() { getEl('camera-modal').classList.add('hidden'); if(stream) stream.getTracks().forEach(t=>t.stop()); }
         function capturePhoto() { const v=getEl('camera-feed'); const c=getEl('camera-canvas'); c.width=v.videoWidth; c.height=v.videoHeight; c.getContext('2d').drawImage(v,0,0); saveImageToDB(c.toDataURL('image/jpeg', 1.0)); closeCamera(); }
         function shareOpenedImage() { if(!currentImageBase64) return; fetch(currentImageBase64).then(res => res.blob()).then(blob => { if(navigator.canShare) navigator.share({files:[new File([blob], "evidence.jpg", {type:"image/jpeg"})]}); }); }
