@@ -190,6 +190,15 @@
             <h3 class="font-bold mb-4 flex justify-between items-center text-lg" style="color: var(--text-main)"><span id="modal-title-asset">Thêm TSBĐ</span><input type="hidden" id="edit-asset-index"></h3>
             <div class="space-y-3">
                 <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Mô tả chính</label><input id="asset-name" placeholder="VD: Nhà cấp 4, hẻm xe hơi..." class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);"></div>
+                <input type="hidden" id="asset-ocr-data">
+                <div class="mb-2">
+                    <button type="button" onclick="triggerAssetOcr()" class="w-full py-3 rounded-xl font-bold text-white shadow-lg active:scale-95 transition bg-gradient-to-r from-red-600 to-pink-600 flex items-center justify-center gap-2">
+                        <i data-lucide="scan-text" class="w-5 h-5"></i> Quét Bìa Đỏ (Auto Fill)
+                    </button>
+                    <p class="text-[10px] text-center mt-1 opacity-50 italic">Tự động điền Diện tích, Địa chỉ & Lưu ảnh</p>
+                </div>
+
+
                 <div class="grid grid-cols-2 gap-3">
                     <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Định giá (VNĐ)</label><input id="asset-val" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
                     <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vay Max (VNĐ)</label><input id="asset-loan" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
@@ -200,7 +209,6 @@
                     <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Xây dựng</label><input id="asset-year" type="number" placeholder="Năm" class="w-full p-3 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
                 </div>
                 <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Tài sản trên đất</label><input id="asset-onland" placeholder="VD: Nhà 2 tầng, Vườn cây..." class="w-full p-3.5 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
-                
                 <div>
                     <label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vị trí / Tọa độ (Map)</label>
                     <div class="flex gap-2">
@@ -406,12 +414,6 @@
             <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up Drive
         </button>
 
-    <!-- Nút CHỤP OCR BÌA ĐỎ -->
-    <button onclick="tryOpenCamera('ocr')"
-            class="w-28 text-red-300 py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform
-                   bg-red-500/20 border border-red-500/40 text-[11px]">
-        <i data-lucide="scan-text" class="w-4 h-4"></i> OCR Bìa
-    </button>
         <input type="file" id="native-camera-profile" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'profile')">
         <label class="w-12 border py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer bg-black/20 hover:bg-white/5 transition active:scale-[0.98]" style="border-color: var(--border-panel); color: var(--text-sub)">
             <i data-lucide="upload" class="w-5 h-5"></i>
@@ -861,15 +863,28 @@ initWeather();
         }
 
         function openModal() { getEl('add-modal').classList.remove('hidden'); getEl('new-name').value=''; getEl('new-phone').value=''; getEl('edit-cust-id').value = ''; getEl('modal-title-cust').textContent = "Khởi tạo hồ sơ"; getEl('btn-save-cust').textContent = "Tạo mới"; getEl('new-name').focus(); }
-        function openEditCustomerModal() { if(!currentCustomerData) return; getEl('add-modal').classList.remove('hidden'); getEl('new-name').value = currentCustomerData.name; getEl('new-phone').value = currentCustomerData.phone; getEl('edit-cust-id').value = currentCustomerData.id; getEl('modal-title-cust').textContent = "Cập nhật hồ sơ"; getEl('btn-save-cust').textContent = "Lưu thay đổi"; }
-        function closeModal() { getEl('add-modal').classList.add('hidden'); }
-        function saveCustomer() {
-            const name = getEl('new-name').value; const phone = getEl('new-phone').value; const editId = getEl('edit-cust-id').value;
-            if (!name) return alert("Thiếu tên");
-            const tx = db.transaction(['customers'], 'readwrite'); const store = tx.objectStore('customers');
-            if (editId) { currentCustomerData.name = name; currentCustomerData.phone = phone; store.put(currentCustomerData).onsuccess = () => { closeModal(); openFolder(editId); showToast("Đã cập nhật"); }; } 
-            else { const newItem = { id: 'cust_' + Date.now(), name, phone, assets: [], status: 'pending', createdAt: Date.now() }; store.add(newItem).onsuccess = () => { closeModal(); switchListTab('pending'); showToast("Đã tạo hồ sơ"); }; }
-        }
+        function openEditAssetModal(index) { 
+    getEl('asset-modal').classList.remove('hidden'); 
+    const asset = currentCustomerData.assets[index]; 
+    getEl('edit-asset-index').value = index; 
+    getEl('modal-title-asset').textContent = "Cập nhật TSBĐ"; 
+    getEl('btn-save-asset').textContent = "Lưu thay đổi"; 
+    
+    getEl('asset-name').value = asset.name; 
+    getEl('asset-link').value = asset.link || ''; 
+    getEl('asset-val').value = asset.valuation || ''; 
+    getEl('asset-loan').value = asset.loanValue || '';
+    getEl('asset-area').value = asset.area || ''; 
+    getEl('asset-width').value = asset.width || ''; 
+    getEl('asset-onland').value = asset.onland || ''; 
+    getEl('asset-year').value = asset.year || '';
+    
+    // [MỚI] Load dữ liệu OCR cũ lên để sẵn sàng lưu tiếp
+    getEl('asset-ocr-data').value = asset.ocrData || '';
+    
+    // Gán ID để nếu chụp thêm ảnh thì lưu đúng chỗ
+    currentAssetId = asset.id;
+}
         
         function deleteCurrentCustomer() { 
             if(!confirm("XÁC NHẬN: Xóa toàn bộ hồ sơ khách hàng này?")) return; 
@@ -962,20 +977,36 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
         function closeRefModal() { getEl('ref-price-modal').classList.add('hidden'); }
 
         function renderAssets() { 
-            const list = getEl('content-assets'); list.innerHTML = ''; const assets = currentCustomerData.assets || []; 
-            if (assets.length === 0) { list.innerHTML = `<div class="text-center py-20 text-slate-500"><i data-lucide="building" class="w-10 h-10 mx-auto mb-2 opacity-20"></i><p class="text-sm">Chưa có tài sản</p></div>`; lucide.createIcons(); return; } 
-            assets.forEach((asset, index) => { 
-                const el = document.createElement('div'); el.className = "glass-panel p-4 rounded-xl shadow-sm flex flex-col gap-3 transition-transform active:scale-[0.99] mb-4"; 
-                const mapLink = formatLink(asset.link); 
-                const mapBtn = mapLink ? `<a href="${mapLink}" target="_blank" class="flex-1 py-2.5 bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-slate-300 flex items-center justify-center gap-1 hover:bg-white/10 transition"><i data-lucide="map" class="w-3 h-3"></i> Bản đồ</a>` : `<span class="flex-1 py-2.5 bg-white/5 border border-white/10 rounded-lg text-xs text-slate-500 text-center cursor-not-allowed opacity-50">No Map</span>`;
-                const areaInfo = asset.area ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-indigo-500/20">${asset.area}m²</span>` : '';
-                const widthInfo = asset.width ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-indigo-500/20">MT:${asset.width}m</span>` : '';
-                const yearInfo = asset.year ? `<span class="bg-slate-500/20 text-slate-300 px-2 py-1 rounded text-[10px] font-bold border border-slate-500/20">${asset.year}</span>` : '';
-                const onlandInfo = asset.onland ? `<div class="text-xs text-slate-400 mt-1 italic"><i data-lucide="home" class="w-3 h-3 inline mr-1"></i>${asset.onland}</div>` : '';
-                el.innerHTML = `<div class="flex justify-between items-start mb-1"><div class="flex gap-3 items-center"><div class="p-2 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="map-pin" class="w-5 h-5"></i></div><div><h4 class="font-bold text-white text-sm line-clamp-1">${asset.name}</h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div></div><div class="flex gap-1"><button onclick="openEditAssetModal(${index})" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="deleteAsset(${index})" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div>${onlandInfo}<div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"><span>ĐG: <b class="text-emerald-400 text-sm">${asset.valuation||'-'}</b></span><span>Vay: <b class="text-blue-400 text-sm">${asset.loanValue||'-'}</b></span></div><div class="flex gap-2">${mapBtn}<button onclick="referenceAssetPrice(${index})" class="flex-1 py-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-emerald-500/20 transition"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo giá</button></div><button onclick="openAssetGallery('${asset.id}', '${asset.name}', ${index})" class="w-full py-2.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-500/20 mt-1 transition"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`; 
-                list.appendChild(el); 
-            }); lucide.createIcons(); 
-        }
+    const list = getEl('content-assets'); 
+    list.innerHTML = ''; 
+    const assets = currentCustomerData.assets || []; 
+    
+    if (assets.length === 0) { 
+        list.innerHTML = `<div class="text-center py-20 text-slate-500"><i data-lucide="building" class="w-10 h-10 mx-auto mb-2 opacity-20"></i><p class="text-sm">Chưa có tài sản</p></div>`; 
+        lucide.createIcons(); 
+        return; 
+    } 
+    
+    assets.forEach((asset, index) => { 
+        const el = document.createElement('div'); 
+        el.className = "glass-panel p-4 rounded-xl shadow-sm flex flex-col gap-3 transition-transform active:scale-[0.99] mb-4"; 
+        
+        const mapLink = formatLink(asset.link); 
+        const mapBtn = mapLink ? `<a href="${mapLink}" target="_blank" class="flex-1 py-2.5 bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-slate-300 flex items-center justify-center gap-1 hover:bg-white/10 transition"><i data-lucide="map" class="w-3 h-3"></i> Bản đồ</a>` : `<span class="flex-1 py-2.5 bg-white/5 border border-white/10 rounded-lg text-xs text-slate-500 text-center cursor-not-allowed opacity-50">No Map</span>`;
+        
+        // [MỚI] Nút xem OCR (chỉ hiện nếu có dữ liệu)
+        const ocrBtn = asset.ocrData ? `<button onclick="viewSavedOcr('${asset.id}')" class="px-3 py-2.5 bg-purple-500/10 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:bg-purple-500/20 transition"><i data-lucide="scan-line" class="w-3 h-3"></i> OCR</button>` : '';
+
+        const areaInfo = asset.area ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-indigo-500/20">${asset.area}m²</span>` : '';
+        const widthInfo = asset.width ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-indigo-500/20">MT:${asset.width}m</span>` : '';
+        const yearInfo = asset.year ? `<span class="bg-slate-500/20 text-slate-300 px-2 py-1 rounded text-[10px] font-bold border border-slate-500/20">${asset.year}</span>` : '';
+        const onlandInfo = asset.onland ? `<div class="text-xs text-slate-400 mt-1 italic"><i data-lucide="home" class="w-3 h-3 inline mr-1"></i>${asset.onland}</div>` : '';
+        
+        el.innerHTML = `<div class="flex justify-between items-start mb-1"><div class="flex gap-3 items-center"><div class="p-2 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="map-pin" class="w-5 h-5"></i></div><div><h4 class="font-bold text-white text-sm line-clamp-1">${asset.name}</h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div></div><div class="flex gap-1"><button onclick="openEditAssetModal(${index})" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="deleteAsset(${index})" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div>${onlandInfo}<div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"><span>ĐG: <b class="text-emerald-400 text-sm">${asset.valuation||'-'}</b></span><span>Vay: <b class="text-blue-400 text-sm">${asset.loanValue||'-'}</b></span></div><div class="flex gap-2">${mapBtn}${ocrBtn}<button onclick="referenceAssetPrice(${index})" class="flex-1 py-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-emerald-500/20 transition"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button></div><button onclick="openAssetGallery('${asset.id}', '${asset.name}', ${index})" class="w-full py-2.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-500/20 mt-1 transition"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`; 
+        list.appendChild(el); 
+    }); 
+    lucide.createIcons(); 
+}
 
         function openAssetGallery(id, name, idx) {
     // Logic tạo ID nếu chưa có (cho data cũ)
@@ -1030,21 +1061,52 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
         function closeAssetModal() { getEl('asset-modal').classList.add('hidden'); }
         
         function saveAsset() { 
-            const name = getEl('asset-name').value; let link = getEl('asset-link').value; const valuation = getEl('asset-val').value; const loan = getEl('asset-loan').value; 
-            const area = getEl('asset-area').value; const width = getEl('asset-width').value; const onland = getEl('asset-onland').value; const year = getEl('asset-year').value;
-            const index = getEl('edit-asset-index').value; 
-            
-            if (!name) return alert("Nhập mô tả tài sản"); 
-            // AUTO FORMAT LINK
-            const coords = parseLatLngFromLink(link);
-            if (coords && !link.includes('http')) { link = `https://www.google.com/maps?q=${coords.lat},${coords.lng}`; }
+    const name = getEl('asset-name').value; 
+    let link = getEl('asset-link').value; 
+    const valuation = getEl('asset-val').value; 
+    const loan = getEl('asset-loan').value; 
+    const area = getEl('asset-area').value; 
+    const width = getEl('asset-width').value; 
+    const onland = getEl('asset-onland').value; 
+    const year = getEl('asset-year').value;
+    const index = getEl('edit-asset-index').value; 
+    
+    // [MỚI] Lấy dữ liệu OCR từ input ẩn
+    const ocrData = getEl('asset-ocr-data').value;
 
-            if (!currentCustomerData.assets) currentCustomerData.assets = []; 
-            const assetObj = { name, link, valuation, loanValue: loan, area, width, onland, year };
-            if (index !== "") { const i = parseInt(index); assetObj.id = currentCustomerData.assets[i].id; assetObj.createdAt = currentCustomerData.assets[i].createdAt; currentCustomerData.assets[i] = assetObj; } 
-            else { assetObj.id = 'asset_' + Date.now(); assetObj.createdAt = Date.now(); currentCustomerData.assets.push(assetObj); } 
-            db.transaction(['customers'],'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { closeAssetModal(); renderAssets(); showToast("Đã lưu TSBĐ"); }; 
-        }
+    if (!name) return alert("Nhập mô tả tài sản"); 
+    
+    const coords = parseLatLngFromLink(link);
+    if (coords && !link.includes('http')) { link = `https://www.google.com/maps?q=${coords.lat},${coords.lng}`; }
+
+    if (!currentCustomerData.assets) currentCustomerData.assets = []; 
+    
+    const assetObj = { 
+        name, link, valuation, loanValue: loan, area, width, onland, year,
+        ocrData: ocrData // <--- LƯU DATA OCR VÀO ĐÂY
+    };
+
+    if (index !== "") { 
+        const i = parseInt(index); 
+        assetObj.id = currentCustomerData.assets[i].id; 
+        assetObj.createdAt = currentCustomerData.assets[i].createdAt; 
+        // Giữ lại link Drive nếu có
+        if(currentCustomerData.assets[i].driveLink) assetObj.driveLink = currentCustomerData.assets[i].driveLink;
+        currentCustomerData.assets[i] = assetObj; 
+    } else { 
+        // Dùng ID đã tạo lúc bấm nút OCR (nếu có)
+        assetObj.id = currentAssetId || ('asset_' + Date.now()); 
+        assetObj.createdAt = Date.now(); 
+        currentCustomerData.assets.push(assetObj); 
+    } 
+    
+    db.transaction(['customers'],'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { 
+        closeAssetModal(); 
+        renderAssets(); 
+        showToast("Đã lưu TSBĐ"); 
+        currentAssetId = null; // Reset
+    }; 
+}
 
         // --- NEW GUIDE MODAL LOGIC ---
         function openGuideModal() { getEl('guide-modal').classList.remove('hidden'); }
@@ -1165,17 +1227,50 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
     
     img.src = base64;
 }
-        function saveImageToDB(rawBase64) { 
-            return new Promise(async (resolve) => {
-                if (!currentCustomerId) { resolve(); return; }
-                getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Xử lý ảnh...";
-                const enhancedBase64 = await enhanceDocumentWithAI(rawBase64); getEl('loader-text').textContent = "Đang lưu...";
-                compressImage(enhancedBase64, (compressed) => { 
-                    const newImg = { id: 'img_' + Date.now() + Math.random(), customerId: currentCustomerId, assetId: captureMode === 'asset' ? currentAssetId : null, data: compressed, createdAt: Date.now() }; 
-                    db.transaction(['images'], 'readwrite').objectStore('images').add(newImg).onsuccess = () => { getEl('loader').classList.add('hidden'); showToast("Đã lưu ảnh"); if(captureMode === 'asset') loadAssetImages(currentAssetId); else loadProfileImages(); resolve(); }; 
-                }); 
-            });
+        // --- BƯỚC 3: SỬA HÀM LƯU ẢNH (ĐỂ KÍCH HOẠT OCR TÀI SẢN) ---
+function saveImageToDB(rawBase64) { 
+    return new Promise(async (resolve) => {
+        if (!currentCustomerId) { resolve(); return; }
+        
+        // 1. Kiểm tra: Nếu đang mở Modal Asset thì ép chế độ là 'asset'
+        // Để đảm bảo ảnh được gắn đúng vào tài sản
+        if (getEl('asset-modal') && !getEl('asset-modal').classList.contains('hidden')) {
+            captureMode = 'asset';
         }
+
+        getEl('loader').classList.remove('hidden'); 
+        getEl('loader-text').textContent = "Xử lý ảnh...";
+        
+        // 2. Làm nét ảnh bằng AI (giúp OCR chuẩn hơn)
+        const enhancedBase64 = await enhanceDocumentWithAI(rawBase64); 
+        
+        // 3. LOGIC MỚI: Nếu là ảnh tài sản -> Chạy quét Bìa Đỏ ngay
+        if (captureMode === 'asset') {
+             getEl('loader-text').textContent = "Đang đọc Bìa Đỏ...";
+             await runAssetOcrLogic(enhancedBase64); // Gọi hàm điền form
+        }
+
+        getEl('loader-text').textContent = "Đang lưu ảnh...";
+        
+        // 4. Nén và Lưu vào Database
+        compressImage(enhancedBase64, (compressed) => { 
+            const newImg = { 
+                id: 'img_' + Date.now() + Math.random(), 
+                customerId: currentCustomerId, 
+                // Quan trọng: Lưu vào đúng ID tài sản đang tạo/sửa
+                assetId: currentAssetId, 
+                data: compressed, 
+                createdAt: Date.now() 
+            }; 
+            
+            db.transaction(['images'], 'readwrite').objectStore('images').add(newImg).onsuccess = () => { 
+                getEl('loader').classList.add('hidden'); 
+                showToast("Đã lưu ảnh & Quét xong"); 
+                resolve(); 
+            }; 
+        }); 
+    });
+}
         function handleFileUpload(input, mode) {
     const files = input.files;
     if (!files || !files.length) return;
@@ -2137,117 +2232,93 @@ function renderRedBookInfo(info) {
         </div>
     `;
 }
-
-</script>
-<script>
-// ===== PARSE THÔNG TIN BÌA ĐỎ TỪ TEXT OCR =====
-function parseRedBookInfo(rawText) {
-if (!rawText) rawText = '';
-const text = rawText.replace(/\r/g, '');
-
-const get = (regex, idx = 1) => {
-const m = text.match(regex);
-return m && m[idx] ? m[idx].trim() : '';
-};
-
-return {
-// Ví dụ: "DC 891344" hoặc "CH 13574"
-soBiaDo: get(/([A-Z]{1,3}\s*\d{5,7})\s*$/m, 1),
-
-// Thửa đất số: 422-8
-thuaDatSo: get(/Thửa\s*đất\s*số[:\s]*([0-9\-]+)/i),
-
-// Tờ bản đồ số: 21
-toBanDoSo: get(/Tờ\s*bản\s*đồ\s*số[:\s]*([0-9]+)/i),
-
-// Diện tích: 125,0 m²
-dienTich: get(/Diện\s*tích[:\s]*([\d\.,]+)\s*m[²2]/i),
-
-// Hình thức sử dụng: Sử dụng riêng
-hinhThucSuDung: get(/Hình\s*thức\s*sử\s*dụng[:\s]*([^\n]+)/i),
-
-// Mục đích sử dụng: Đất ở tại đô thị
-mucDichSuDung: get(/Mục\s*đích\s*sử\s*dụng[:\s]*([^\n]+)/i),
-
-// Thời hạn sử dụng: Lâu dài
-thoiHanSuDung: get(/Thời\s*hạn\s*sử\s*dụng[:\s]*([^\n]+)/i),
-
-// Nguồn gốc sử dụng: Nhận chuyển nhượng...
-nguonGocSuDung: get(/Nguồn\s*gốc\s*sử\s*dụng[:\s]*([^\n]+)/i),
-
-// Số vào sổ cấp GCN: CH...13574...
-soVaoSoCapGCN: get(/Số\s*vào\s*sổ\s*cấp\s*GCN[:\s]*([A-Za-z0-9\.\-\/ ]+)/i)
-};
+// --- 1. Hàm kích hoạt OCR từ nút bấm trong Modal Tài Sản ---
+function triggerAssetOcr() {
+    // Tạo ID tạm cho tài sản nếu đang là "Thêm mới" để có chỗ lưu ảnh
+    let assetId = getEl('edit-asset-index').value === "" 
+        ? 'asset_' + Date.now() 
+        : currentCustomerData.assets[getEl('edit-asset-index').value].id;
+    
+    currentAssetId = assetId; // Gán vào biến toàn cục
+    
+    // Mở input file (camera) của phần tài sản
+    getEl('native-camera-asset').click();
 }
 
-function renderRedBookInfo(info) {
-const show = (label, value) => {
-const v = value && value.trim()
-? value.trim()
-: '<span class="text-red-500 italic">Không nhận dạng được</span>';
-return `<div><span class="font-semibold">${label}:</span> ${v}</div>`;
-};
+// --- 2. Hàm xử lý OCR và Tự động điền form (Chạy ngầm) ---
+async function runAssetOcrLogic(base64) {
+    // Lấy link script (ưu tiên từ cài đặt, nếu ko có thì dùng mặc định)
+    let scriptUrl = localStorage.getItem(SCRIPT_KEY);
+    if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL; // Đảm bảo bạn đã khai báo biến này ở đầu file hoặc thay trực tiếp link vào đây
 
-return `
-${show('Số bìa đỏ', info.soBiaDo)}
-${show('Thửa đất số', info.thuaDatSo)}
-${show('Tờ bản đồ số', info.toBanDoSo)}
-${show('Diện tích', info.dienTich)}
-${show('Hình thức sử dụng / Loại đất', info.hinhThucSuDung)}
-${show('Mục đích sử dụng', info.mucDichSuDung)}
-${show('Thời hạn sử dụng', info.thoiHanSuDung)}
-${show('Nguồn gốc sử dụng', info.nguonGocSuDung)}
-${show('Số vào sổ cấp GCN', info.soVaoSoCapGCN)}
-`;
+    try {
+        const cleanBase64 = base64.split(',')[1];
+        
+        // Gọi Google Script OCR
+        const response = await fetch(scriptUrl, {
+            method: "POST",
+            body: JSON.stringify({ action: 'ocr', image: cleanBase64 })
+        });
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            const rawText = result.text;
+            const info = parseRedBookInfo(rawText); // Dùng lại hàm regex có sẵn
+            
+            // --- TỰ ĐỘNG ĐIỀN FORM ---
+            
+            // 1. Điền địa chỉ vào ô Mô tả chính
+            if(info.diaChi) getEl('asset-name').value = info.diaChi;
+            
+            // 2. Điền Diện tích (chỉ lấy số)
+            if(info.dienTich) {
+                // Lọc lấy số (vd: 74,9 -> 74.9)
+                let area = info.dienTich.replace(',','.').replace(/[^0-9.]/g, '');
+                getEl('asset-area').value = area;
+            }
+            
+            // 3. Điền thông tin khác vào ô Tài sản trên đất (làm ghi chú)
+            let note = [];
+            if(info.mucDich) note.push(info.mucDich);
+            if(info.toBanDo) note.push(`Tờ: ${info.toBanDo}`);
+            if(info.thuaDat) note.push(`Thửa: ${info.thuaDat}`);
+            if(note.length > 0) getEl('asset-onland').value = note.join(', ');
+
+            // 4. Lưu nội dung OCR vào Input ẩn (để tí nữa lưu vào DB)
+            const savedContent = `--- KẾT QUẢ OCR ---\nSố sổ: ${info.soPhatHanh}\nDiện tích: ${info.dienTich}\nĐ/C: ${info.diaChi}\n----------------\n${rawText}`;
+            getEl('asset-ocr-data').value = savedContent;
+
+            showToast("Đã trích xuất & Điền thông tin!");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Lỗi đọc Bìa đỏ: " + e.message);
+    }
 }
+// --- Hàm xem lại dữ liệu OCR đã lưu ---
+function viewSavedOcr(assetId) {
+    const asset = currentCustomerData.assets.find(a => a.id === assetId);
+    if(!asset || !asset.ocrData) return showToast("Không có dữ liệu");
+    
+    // Tạo một hộp thoại đơn giản để copy (dùng prompt cho nhanh gọn và native)
+    // Hoặc nếu text quá dài, dùng cách tạo overlay tạm thời
+    
+    // Cách 1: Dùng overlay full màn hình (Đẹp hơn)
+    const overlay = document.createElement('div');
+    overlay.className = "fixed inset-0 z-[300] bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in";
+    overlay.innerHTML = `
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-purple-500/30">
+            <h3 class="font-bold text-lg mb-4 text-purple-400 flex items-center gap-2">
+                <i data-lucide="scan-text" class="w-5 h-5"></i> Nội dung Bìa Đỏ
+            </h3>
+            <textarea readonly class="w-full h-60 bg-black/30 border border-white/10 rounded-xl p-3 text-xs text-slate-300 font-mono outline-none mb-4 custom-scrollbar">${asset.ocrData}</textarea>
+            <button onclick="this.closest('.fixed').remove()" class="w-full py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    if(window.lucide) lucide.createIcons();
+}
+
 </script>
-<div id="ocr-modal" class="fixed inset-0 z-[200] bg-black/90 hidden flex items-center justify-center p-4 backdrop-blur-sm">
-    <div class="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative modal-animate flex flex-col max-h-[95vh]">
-        <button onclick="closeOcrModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
-            <i data-lucide="x" class="w-6 h-6"></i>
-        </button>
-        <h3 class="font-bold text-lg mb-4 text-red-400 flex items-center gap-2">
-            <i data-lucide="scan-text" class="w-5 h-5"></i> Trích xuất Bìa Đỏ
-        </h3>
-        
-        <div class="overflow-y-auto custom-scrollbar pr-1 flex-1 space-y-4">
-            
-            <div class="bg-black/40 rounded-xl p-2 border border-white/10 text-center relative group">
-                <p class="text-[10px] text-slate-400 mb-1">Ảnh gốc</p>
-                <img id="ocr-preview-img" class="h-40 mx-auto object-contain rounded border border-white/20">
-            </div>
-            
-            <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-                <div class="text-[11px] font-bold uppercase text-slate-400 mb-3 tracking-wider flex justify-between items-center">
-                    <span>Thông tin trích xuất</span>
-                    <span id="ocr-status" class="text-emerald-400 text-[10px] hidden"><i data-lucide="check" class="w-3 h-3 inline"></i> Xong</span>
-                </div>
-                <div id="ocr-structured" class="text-sm space-y-3">
-                    <div class="text-center py-6 opacity-40 text-xs text-slate-500">
-                        Bấm nút <b>"Quét Thông Tin"</b> để bắt đầu
-                    </div>
-                </div>
-            </div>
-            
-            <details>
-                <summary class="text-[10px] text-slate-500 cursor-pointer mt-2 select-none">Xem văn bản thô</summary>
-                <textarea id="ocr-result-text" class="w-full h-20 mt-2 bg-black/30 border border-white/10 rounded-lg p-2 text-[10px] font-mono text-slate-400"></textarea>
-            </details>
-        </div>
-        
-        <div class="mt-4 pt-4 border-t border-white/10 space-y-2">
-            <button onclick="runOcrNow()" id="btn-run-ocr" class="w-full py-3.5 rounded-xl font-bold text-white shadow-lg active:scale-[0.98] transition bg-gradient-to-r from-red-600 to-pink-600 flex items-center justify-center gap-2">
-                <i data-lucide="scan-line" class="w-5 h-5"></i> Quét Thông Tin
-            </button>
-            
-            <div class="flex gap-2">
-                <button onclick="closeOcrModal()" class="flex-1 py-3 rounded-xl font-bold bg-white/5 text-slate-300 hover:bg-white/10 transition text-xs">Đóng</button>
-                <button onclick="copyOcrResult()" class="flex-1 py-3 rounded-xl font-bold bg-white/5 text-white hover:bg-white/10 transition text-xs flex items-center justify-center gap-1">
-                    <i data-lucide="copy" class="w-3 h-3"></i> Copy
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 </body>
 </html>
