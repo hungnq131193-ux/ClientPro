@@ -1337,8 +1337,8 @@ function renderDriveStatus(url) {
     const area = getEl('drive-status-area');
     const btnUp = getEl('btn-upload-drive');
     
-    // TRƯỜNG HỢP 1: ĐÃ CÓ LINK -> Hiện nút Mở Drive
     if (url && url.length > 5) {
+        // ĐÃ CÓ LINK → vẫn hiện nút Mở Drive
         area.classList.remove('hidden');
         area.innerHTML = `
             <a href="${url}" target="_blank" class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border border-emerald-400/30">
@@ -1346,18 +1346,18 @@ function renderDriveStatus(url) {
             </a>
             <p class="text-[10px] text-center text-emerald-400/70 italic mb-2">Đã đồng bộ lên Cloud</p>
         `;
-        if(btnUp) btnUp.classList.add('hidden'); // Ẩn nút Upload
-    } 
-    // TRƯỜNG HỢP 2: CHƯA CÓ LINK -> Hiện nút Tìm lại & Nút Upload
-    else {
-        area.classList.remove('hidden'); 
-        // Nút tìm lại (nếu lỡ mất kết nối)
+        
+        // ❗ KHÔNG ẩn nút upload nữa (để upload thêm ảnh)
+        if (btnUp) btnUp.classList.remove('hidden');
+    } else {
+        // CHƯA CÓ LINK → hiện nút tìm lại + nút upload
+        area.classList.remove('hidden');
         area.innerHTML = `
              <button onclick="reconnectDriveFolder()" class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
                 <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
             </button>
         `;
-        if(btnUp) btnUp.classList.remove('hidden'); // Hiện lại nút Upload
+        if (btnUp) btnUp.classList.remove('hidden');
     }
     lucide.createIcons();
 }
@@ -1459,7 +1459,7 @@ function renderAssetDriveStatus(url) {
     const btnUp = getEl('btn-asset-upload');
     
     if (url && url.length > 5) {
-        // ĐÃ CÓ LINK → hiện nút mở Drive
+        // ĐÃ CÓ LINK → hiện nút mở Folder TSBĐ
         area.classList.remove('hidden');
         area.innerHTML = `
             <a href="${url}" target="_blank" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border border-teal-400/30">
@@ -1467,18 +1467,14 @@ function renderAssetDriveStatus(url) {
             </a>
             <p class="text-[10px] text-center text-teal-400/70 italic mb-2">Ảnh tài sản đã được đồng bộ</p>
         `;
-        if (btnUp) btnUp.classList.add('hidden');
+        // KHÔNG ẩn nút Upload – để có thể upload thêm ảnh TSBĐ
+        if (btnUp) btnUp.classList.remove('hidden');
     } else {
-        // CHƯA CÓ LINK → cho phép “tìm lại folder TSBĐ”
-        area.classList.remove('hidden');
-        area.innerHTML = `
-            <button onclick="reconnectAssetDrive()" 
-                class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
-                <i data-lucide="search" class="w-4 h-4"></i> Tìm folder TSBĐ trên Drive
-            </button>
-        `;
+        // Chưa có link → chỉ hiện nút Upload, ẩn khu trạng thái
+        area.classList.add('hidden');
         if (btnUp) btnUp.classList.remove('hidden');
     }
+    
     lucide.createIcons();
 }
 // --- TÍNH NĂNG TÌM LẠI FOLDER THẤT LẠC ---
@@ -1520,57 +1516,6 @@ async function reconnectDriveFolder() {
             alert("Không tìm thấy Folder nào tên: " + folderName + "\n\nCó thể bạn đã đổi tên khách hoặc chưa từng upload?");
         }
 
-    } catch (err) {
-        console.error(err);
-        getEl('loader').classList.add('hidden');
-        alert("Lỗi kết nối: " + err.message);
-    }
-}
-async function reconnectAssetDrive() {
-    const scriptUrl = localStorage.getItem(SCRIPT_KEY);
-    if (!scriptUrl) return alert("Chưa cấu hình Script!");
-    if (!currentCustomerData || !currentAssetId) return;
-    
-    // Tìm asset hiện tại trong danh sách tài sản
-    const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
-    if (assetIndex === -1) {
-        return alert("Không tìm được TSBĐ hiện tại.");
-    }
-    
-    const asset = currentCustomerData.assets[assetIndex];
-    // Tên folder phải giống lúc uploadAssetToDrive
-    const folderName = `${currentCustomerData.name} - TSBĐ: ${asset.name}`;
-    
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang tìm folder TSBĐ trên Drive...";
-    
-    try {
-        const response = await fetch(scriptUrl, {
-            method: "POST",
-            body: JSON.stringify({
-                action: 'search', // cùng format với reconnectDriveFolder
-                folderName: folderName
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (result.status === 'found') {
-            // Gán lại link cho tài sản
-            currentCustomerData.assets[assetIndex].driveLink = result.url;
-            
-            // Lưu vào IndexedDB
-            const tx = db.transaction(['customers'], 'readwrite');
-            tx.objectStore('customers').put(currentCustomerData).onsuccess = () => {
-                getEl('loader').classList.add('hidden');
-                renderAssetDriveStatus(result.url);
-                showToast("Đã tìm lại folder TSBĐ & kết nối!");
-            };
-        } else {
-            getEl('loader').classList.add('hidden');
-            alert("Không tìm thấy folder TSBĐ: " + folderName);
-        }
-        
     } catch (err) {
         console.error(err);
         getEl('loader').classList.add('hidden');
