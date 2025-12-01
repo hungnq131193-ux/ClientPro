@@ -2246,7 +2246,7 @@ function triggerAssetOcr() {
     getEl('native-camera-asset').click();
 }
 
-// --- HÀM XỬ LÝ OCR (ĐÃ RÚT GỌN THEO YÊU CẦU) ---
+// --- HÀM ĐIỀN FORM (ĐÃ THÊM LỌC RÁC) ---
 async function runAssetOcrLogic(base64) {
     let scriptUrl = localStorage.getItem(SCRIPT_KEY);
     if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL;
@@ -2254,7 +2254,6 @@ async function runAssetOcrLogic(base64) {
     try {
         const cleanBase64 = base64.split(',')[1];
         
-        // Gọi Google Script
         const response = await fetch(scriptUrl, {
             method: "POST",
             body: JSON.stringify({ action: 'ocr', image: cleanBase64 })
@@ -2265,34 +2264,48 @@ async function runAssetOcrLogic(base64) {
             const rawText = result.text;
             const info = parseRedBookInfo(rawText);
             
-            // --- TỰ ĐỘNG ĐIỀN FORM ---
-            
-            // 1. Điền Địa chỉ vào ô "Mô tả chính"
+            // --- 1. ĐIỀN ĐỊA CHỈ (MÔ TẢ CHÍNH) ---
             if(info.diaChi) {
-                getEl('asset-name').value = info.diaChi;
+                // Làm sạch: Xóa các ký tự rác ở đầu như "b)", ":", "..."
+                let cleanAddr = info.diaChi.replace(/^[a-z]\)\s*/i, '') // Xóa a) b) c)
+                                           .replace(/^[:\.\-]\s*/, '')  // Xóa dấu : . -
+                                           .trim();
+                
+                // Nếu địa chỉ quá ngắn (do lỗi), không điền
+                if (cleanAddr.length > 5) {
+                    getEl('asset-name').value = cleanAddr;
+                }
             }
             
-            // 2. Điền Diện tích vào ô "Diện tích"
+            // --- 2. ĐIỀN DIỆN TÍCH ---
             if(info.dienTich) {
-                // Chuẩn hóa số (ví dụ 74,9 -> 74.9) để đúng định dạng số
-                let area = info.dienTich.replace(',','.').replace(/[^0-9.]/g, '');
+                // Chuẩn hóa: Thay dấu phẩy thành chấm để đúng chuẩn số học
+                let area = info.dienTich.replace(',', '.');
                 getEl('asset-area').value = area;
             }
             
-            // [ĐÃ XÓA] Phần tự điền vào ô "Vị trí + Ghi chú thêm" (asset-onland)
-            // Để người dùng tự nhập tay theo ý muốn.
+            // --- 3. ĐIỀN CÁC Ô KHÁC (NẾU CẦN) ---
+            // Tự động điền Tờ/Thửa vào ô Vị trí (asset-onland) như ảnh bạn gửi
+            // (Bạn đang để placeholder là: Tờ: 90, Thửa: 357)
+            if (info.toBanDo || info.thuaDat) {
+                let posInfo = [];
+                if(info.toBanDo) posInfo.push(`Tờ: ${info.toBanDo}`);
+                if(info.thuaDat) posInfo.push(`Thửa: ${info.thuaDat}`);
+                getEl('asset-onland').value = posInfo.join(', ');
+            }
 
-            // 3. Vẫn lưu nội dung OCR đầy đủ vào ẩn (để sau này bấm nút "Xem OCR" vẫn có)
+            // Lưu dữ liệu gốc
             const savedContent = `--- KẾT QUẢ OCR ---\nSố sổ: ${info.soPhatHanh}\nDiện tích: ${info.dienTich}\nĐ/C: ${info.diaChi}\n----------------\n${rawText}`;
             getEl('asset-ocr-data').value = savedContent;
 
-            showToast("Đã điền Diện tích & Địa chỉ!");
+            showToast("Đã điền thông tin!");
         }
     } catch (e) {
         console.error(e);
         alert("Lỗi đọc Bìa đỏ: " + e.message);
     }
 }
+
 
 // --- Hàm xem lại dữ liệu OCR đã lưu ---
 function viewSavedOcr(assetId) {
@@ -2317,7 +2330,6 @@ function viewSavedOcr(assetId) {
     document.body.appendChild(overlay);
     if(window.lucide) lucide.createIcons();
 }
-
 </script>
 </body>
 </html>
