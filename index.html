@@ -558,26 +558,66 @@ const DONATE_DEFAULT_DESC = 'Ung ho tac gia ClientPro';
 
         function parseMoneyToNumber(str) { if(!str) return 0; return parseInt(str.toString().replace(/\D/g, '')) || 0; }
         
-        // --- AI ENHANCE STUB ---
-        async function enhanceDocumentWithAI(base64) {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-                    canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0);
-                    try {
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height); const data = imageData.data;
-                        const contrast = 1.15; const brightness = 5;
-                        for (let i = 0; i < data.length; i += 4) {
-                            data[i] = (data[i] - 128) * contrast + 128 + brightness;
-                            data[i+1] = (data[i+1] - 128) * contrast + 128 + brightness;
-                            data[i+2] = (data[i+2] - 128) * contrast + 128 + brightness;
-                        }
-                        ctx.putImageData(imageData, 0, 0); resolve(canvas.toDataURL('image/jpeg', 0.9));
-                    } catch (e) { resolve(base64); }
-                }; img.onerror = () => resolve(base64); img.src = base64;
-            });
-        }
+        // --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
+async function enhanceDocumentWithAI(base64) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            // vẽ lần 1 với filter nhẹ (giảm noise một chút)
+            ctx.filter = 'contrast(1.05) brightness(1.02)';
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            try {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                
+                // Tăng nhẹ contrast + làm nền trắng hơn, giữ chữ đậm
+                const contrast = 1.10;
+                const brightness = 6;
+                
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    
+                    // Nếu là nền sáng (gần trắng) → đẩy lên trắng luôn cho sạch noise
+                    if (r > 230 && g > 230 && b > 230) {
+                        data[i] = 255;
+                        data[i + 1] = 255;
+                        data[i + 2] = 255;
+                        continue;
+                    }
+                    
+                    // Áp dụng contrast / brightness nhẹ cho vùng còn lại (chữ, họa tiết)
+                    let nr = (r - 128) * contrast + 128 + brightness;
+                    let ng = (g - 128) * contrast + 128 + brightness;
+                    let nb = (b - 128) * contrast + 128 + brightness;
+                    
+                    data[i] = Math.max(0, Math.min(255, nr));
+                    data[i + 1] = Math.max(0, Math.min(255, ng));
+                    data[i + 2] = Math.max(0, Math.min(255, nb));
+                }
+                
+                ctx.putImageData(imageData, 0, 0);
+                
+                // Giữ chất lượng cao nhất ở bước này, nén sẽ làm ở hàm compressImage
+                const out = canvas.toDataURL('image/jpeg', 0.98);
+                resolve(out);
+            } catch (e) {
+                console.warn('enhanceDocumentWithAI error', e);
+                resolve(base64);
+            }
+        };
+        img.onerror = () => resolve(base64);
+        img.src = base64;
+    });
+}
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
@@ -1051,14 +1091,14 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
             }
         }
         
-        function compressImage(base64, cb) {
+    function compressImage(base64, cb) {
     const img = new Image();
     img.onload = () => {
         let w = img.width;
         let h = img.height;
         
-        // Giới hạn chiều dài max ~2000px để giữ nét chữ
-        const maxDim = 2000;
+        // Cho phép max ~2200px để chữ vẫn rất nét
+        const maxDim = 2200;
         if (w > h && w > maxDim) {
             h = h * maxDim / w;
             w = maxDim;
@@ -1072,37 +1112,40 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
         cvs.height = Math.round(h);
         const ctx = cvs.getContext('2d');
         
-        // "AI-lite": tăng nhẹ contrast & màu, giảm noise nhẹ
-        // (không blur mạnh để chữ vẫn sắc)
-        ctx.filter = 'contrast(1.05) saturate(1.02) brightness(1.01)';
-        
-        // Vẽ ảnh lên canvas (tự nội suy giúp đỡ rung nhẹ)
+        // Filter nhẹ (không quá tay để khỏi mờ chữ)
+        ctx.filter = 'contrast(1.03) brightness(1.01)';
         ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
         
+        // Bắt đầu với chất lượng khá cao
         let q = 0.9;
-        const MAX_BYTES = 700 * 1024; // ~700 KB
-        const MIN_BYTES = 450 * 1024; // tối thiểu ~450 KB cho ảnh rõ chữ
+        
+        // Mục tiêu: 500–700KB
+        const MAX_BYTES = 700 * 1024;
+        const MIN_BYTES = 500 * 1024;
         
         function adjustAndCheck() {
             const dataUrl = cvs.toDataURL('image/jpeg', q);
-            // Base64 lớn hơn binary ~33%, nhân 0.75 cho gần đúng
+            // Ước lượng size binary từ base64
             const sizeBytes = Math.floor(dataUrl.length * 0.75);
             
-            // Nếu còn > max và vẫn có room để giảm chất lượng
+            // DEBUG nếu muốn xem thực tế:
+            // console.log('q=', q, 'size=', (sizeBytes/1024).toFixed(0), 'KB');
+            
+            // Nếu > 700KB → giảm chất lượng xuống
             if (sizeBytes > MAX_BYTES && q > 0.5) {
-                q -= 0.07; // giảm từ từ
+                q -= 0.05;
                 setTimeout(adjustAndCheck, 0);
                 return;
             }
             
-            // Nếu quá nhỏ so với min (ảnh quá nhẹ → tăng thêm chất lượng nếu được)
-            if (sizeBytes < MIN_BYTES && q < 0.95) {
-                q += 0.05;
+            // Nếu < 500KB mà vẫn còn room tăng chất lượng → tăng lên
+            if (sizeBytes < MIN_BYTES && q < 0.96) {
+                q += 0.03;
                 setTimeout(adjustAndCheck, 0);
                 return;
             }
             
-            // Ok – trả kết quả
+            // Chốt ở đây: nằm trong [500, 700] hoặc hết room chỉnh
             cb(dataUrl);
         }
         
