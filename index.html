@@ -1852,10 +1852,15 @@ async function uploadToGoogleDrive() {
     };
 }
 
-// 5. REGEX PARSE THÔNG TIN BÌA ĐỎ
+// --- CẬP NHẬT REGEX THÔNG MINH (V5: BẮT DÍNH LOẠI ĐẤT & SỐ BÌA) ---
+
 function parseRedBookInfo(text) {
     if (!text) return {};
-    const raw = text.replace(/\r\n/g, ' ').replace(/\n/g, '  ').replace(/\s+/g, ' '); 
+    
+    // 1. Làm sạch văn bản:
+    // - Thay dấu gạch đứng | (do bảng biểu) thành khoảng trắng
+    // - Gộp dòng nhưng giữ lại một chút dấu hiệu để regex không bị trôi
+    const raw = text.replace(/\|/g, ' ').replace(/\r\n/g, '\n').replace(/\n/g, '  ').replace(/\s+/g, ' '); 
 
     const get = (regex) => {
         const m = raw.match(regex);
@@ -1863,26 +1868,51 @@ function parseRedBookInfo(text) {
     };
 
     return {
-        soPhatHanh: get(/([A-Z]{2}\s+[0-9]{6,9})/),
+        // [CẬP NHẬT] Số bìa đỏ: 
+        // - Bắt 2 chữ hoa đầu (VD: AA, BA, CS...)
+        // - Có thể có khoảng trắng hoặc không
+        // - Theo sau là 6 đến 8 chữ số
+        // - Thêm \b để đảm bảo nó là một mã riêng biệt, không nằm trong từ khác
+        soPhatHanh: get(/\b([A-Z]{2}\s{0,2}[0-9]{6,9})\b/),
+        
+        // Số vào sổ cấp GCN:
         soVaoSo: get(/(?:Số vào sổ cấp GCN|Số vào sổ)[:\s]*([A-Za-z0-9\.\-\/ ]+)/i),
+
+        // Tờ bản đồ:
         toBanDo: get(/(?:Tờ bản đồ số|TBĐ số|bản đồ số)[:\s]*([0-9]+)/i),
+        
+        // Thửa đất:
         thuaDat: get(/(?:Thửa đất số|Thửa số|thửa đất số)[:\s]*([0-9\-\,]+)/i),
+        
+        // Diện tích:
         dienTich: get(/([0-9\.\,]+)\s*m[²2]/i),
-        diaChi: get(/(?:Địa chỉ|Dia chi|Đia chi|tại)[:\s]*([^.;]+(?:Tỉnh|Thành phố|Huyện|Quận|Xã|Phường|Thị trấn)[^.;]*)/i),
-        mucDich: get(/(?:Mục đích sử dụng|Mục đích)[:\s]*([^.;,]+)/i),
-        chuSoHuu: get(/(?:Ông|Bà|Người sử dụng đất|Hộ ông|Hộ bà)[:\s]*([A-ZĂÂÁẮẤÀẰẦẢẲẨÃẴẪẠẶẬĐEÊÉẾÈỀẺỂẼỄẸỆIÍÌỈĨỊOÔƠÓỐỚÒỒỜỎỔỞÕỖỠỌỘỢUƯÚỨÙỪỦỬŨỮỤỰYÝỲỶỸỴ\s]+)/)
+        
+        // [CẬP NHẬT] Địa chỉ:
+        // - Google OCR thường đọc rất chuẩn dòng này, ta sẽ bắt từ "Địa chỉ" hoặc "tại:"
+        // - Lấy dài ra một chút để bắt hết Tỉnh/Thành phố
+        diaChi: get(/(?:Địa chỉ|Đia chi|tại)(?: thửa đất)?[:\s]*([^.;]+(?:Tỉnh|Thành phố|Huyện|Quận|Xã|Phường|Thị trấn)[^.;]*)/i),
+        
+        // [CẬP NHẬT] Mục đích sử dụng / Loại đất:
+        // - Thêm từ khóa "Loại đất" (cho bìa mới)
+        // - Bắt nội dung đến khi gặp dấu chấm phẩy hoặc dấu chấm (kết thúc câu)
+        mucDich: get(/(?:Mục đích sử dụng|Mục đích|Loại đất)[:\s]*([^.;]+)/i),
+
+        // Tên chủ sở hữu:
+        chuSoHuu: get(/(?:Ông|Bà|Người sử dụng đất|Hộ ông|Hộ bà|Họ và tên)[:\s]*([A-ZĂÂÁẮẤÀẰẦẢẲẨÃẴẪẠẶẬĐEÊÉẾÈỀẺỂẼỄẸỆIÍÌỈĨỊOÔƠÓỐỚÒỒỜỎỔỞÕỖỠỌỘỢUƯÚỨÙỪỦỬŨỮỤỰYÝỲỶỸỴ\s]+)/)
     };
 }
 
+// --- CẬP NHẬT HIỂN THỊ KẾT QUẢ ---
 function renderRedBookInfo(info) {
-    const item = (label, val, icon) => {
-        const content = val ? `<b class="text-white select-all">${val}</b>` : `<span class="opacity-20 text-[10px]">---</span>`;
+    const item = (label, val, icon, highlight = false) => {
+        // Nếu không có dữ liệu thì hiện dòng mờ
+        const content = val ? `<b class="${highlight ? 'text-emerald-400' : 'text-white'} select-all text-right">${val}</b>` : `<span class="opacity-20 text-[10px]">---</span>`;
         return `
-            <div class="flex items-start justify-between border-b border-white/5 pb-2 last:border-0 gap-2">
-                <span class="text-slate-400 text-xs flex items-center gap-1.5 shrink-0 mt-0.5">
+            <div class="flex items-start justify-between border-b border-white/5 pb-2 last:border-0 gap-3">
+                <span class="text-slate-400 text-xs flex items-center gap-1.5 shrink-0 mt-0.5 min-w-[90px]">
                     <i data-lucide="${icon}" class="w-3.5 h-3.5 text-slate-500"></i> ${label}
                 </span>
-                <span class="text-sm text-right break-words font-medium leading-tight">${content}</span>
+                <span class="text-sm break-words font-medium leading-tight flex-1 text-right">${content}</span>
             </div>
         `;
     };
@@ -1890,26 +1920,82 @@ function renderRedBookInfo(info) {
     return `
         <div class="space-y-3 animate-fade-in">
             ${item('Chủ sở hữu', info.chuSoHuu, 'user')}
-            ${item('Số phát hành', info.soPhatHanh, 'qr-code')}
-            ${item('Số vào sổ', info.soVaoSo, 'file-text')}
+            ${item('Số bìa đỏ', info.soPhatHanh, 'qr-code', true)}
             <div class="grid grid-cols-2 gap-4">
                 ${item('Tờ bản đồ', info.toBanDo, 'map')}
                 ${item('Thửa đất', info.thuaDat, 'grid')}
             </div>
             ${item('Diện tích', info.dienTich ? info.dienTich + ' m²' : '', 'maximize')}
-            ${item('Mục đích', info.mucDich, 'sprout')}
+            
+            ${item('Loại đất', info.mucDich, 'sprout')}
+            
             ${item('Địa chỉ', info.diaChi, 'map-pin')}
+            ${item('Số vào sổ', info.soVaoSo, 'file-text')}
+        </div>
+        <div class="mt-3 text-[10px] text-slate-500 text-center italic">
+            * Dữ liệu được trích xuất tự động từ ảnh
         </div>
     `;
 }
 
+
+// --- HÀM COPY AN TOÀN CHO MOBILE (FIX LỖI KHÔNG PASTE ĐƯỢC) ---
 function copyOcrResult() {
-    const txt = getEl('ocr-result-text');
-    if (!txt) return;
-    txt.select();
-    document.execCommand('copy');
-    showToast('Đã copy nội dung OCR');
+    // 1. Lấy nội dung text từ ô kết quả
+    const txtField = getEl('ocr-result-text');
+    const textToCopy = txtField ? txtField.value : "";
+
+    if (!textToCopy) {
+        // Nếu chưa có kết quả thì báo lỗi nhẹ
+        showToast("Chưa có nội dung để copy!");
+        return;
+    }
+
+    // 2. Logic Copy đa năng (Hỗ trợ cả Android & iOS đời cũ)
+    // Ưu tiên dùng API hiện đại
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showToast('Đã copy nội dung OCR');
+        }).catch(() => {
+            // Nếu lỗi, chuyển sang phương án 2 (Fallback)
+            fallbackCopyText(textToCopy);
+        });
+    } else {
+        // Nếu trình duyệt không hỗ trợ API mới, dùng phương án 2 luôn
+        fallbackCopyText(textToCopy);
+    }
 }
+
+// Phương án dự phòng: Tạo vùng text ảo để copy (Bao uy tín trên Mobile)
+function fallbackCopyText(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    
+    // Đảm bảo phần tử này nằm trong màn hình để ko bị lỗi focus
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0"; // Ẩn đi để không xấu giao diện
+
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showToast('Đã copy nội dung (Chế độ tương thích)');
+        } else {
+            alert('Không thể copy tự động. Vui lòng copy thủ công từ ô kết quả.');
+        }
+    } catch (err) {
+        console.error('Lỗi copy:', err);
+        alert('Lỗi copy. Hãy mở phần "Xem văn bản thô" và copy tay.');
+    }
+
+    document.body.removeChild(textArea);
+}
+
 
 
 // --- LOGIC UPLOAD ẢNH HỒ SƠ ---
