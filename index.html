@@ -406,6 +406,12 @@
             <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up Drive
         </button>
 
+    <!-- Nút CHỤP OCR BÌA ĐỎ -->
+    <button onclick="tryOpenCamera('ocr')"
+            class="w-28 text-red-300 py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform
+                   bg-red-500/20 border border-red-500/40 text-[11px]">
+        <i data-lucide="scan-text" class="w-4 h-4"></i> OCR Bìa
+    </button>
         <input type="file" id="native-camera-profile" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'profile')">
         <label class="w-12 border py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer bg-black/20 hover:bg-white/5 transition active:scale-[0.98]" style="border-color: var(--border-panel); color: var(--text-sub)">
             <i data-lucide="upload" class="w-5 h-5"></i>
@@ -1248,22 +1254,28 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
 }); getEl('camera-feed').srcObject = stream; } catch { getEl('camera-modal').classList.add('hidden'); getEl(mode==='profile'?'native-camera-profile':'native-camera-asset').click(); } }
         function closeCamera() { getEl('camera-modal').classList.add('hidden'); if(stream) stream.getTracks().forEach(t=>t.stop()); }
         // CHỤP ẢNH TỪ CAMERA + OCR TRƯỚC KHI NÉN
+// CHỤP ẢNH TỪ CAMERA
 async function capturePhoto() {
     const v = getEl('camera-feed');
     const c = getEl('camera-canvas');
     c.width = v.videoWidth;
     c.height = v.videoHeight;
+    
     const ctx = c.getContext('2d');
     ctx.drawImage(v, 0, 0);
     
+    // Ảnh gốc chất lượng cao
     const rawBase64 = c.toDataURL('image/jpeg', 1.0);
     
+    // Tắt camera trước khi xử lý
     closeCamera();
     
-    // 1) OCR TRƯỚC khi nén
-    await runOcrForRedBook(rawBase64);
+    // Chỉ chạy OCR khi bật chế độ 'ocr'
+    if (captureMode === 'ocr') {
+        await runOcrForRedBook(rawBase64);
+    }
     
-    // 2) Sau đó mới lưu vào DB (đoạn cũ của bạn)
+    // Lưu ảnh vào DB như cũ (hồ sơ / tài sản / bìa đỏ đều dùng chung)
     await saveImageToDB(rawBase64);
 }
         function shareOpenedImage() { if(!currentImageBase64) return; fetch(currentImageBase64).then(res => res.blob()).then(blob => { if(navigator.canShare) navigator.share({files:[new File([blob], "evidence.jpg", {type:"image/jpeg"})]}); }); }
