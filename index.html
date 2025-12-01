@@ -1826,7 +1826,9 @@ async function runOcrNow() {
     try {
         // BƯỚC 1: LỌC NỀN
         btn.innerHTML = `<span class="animate-pulse">Đang lọc nhiễu nền...</span>`;
-        const processedImg = await filterRedBackground(currentOcrBase64);
+        // MỚI (Đúng tên hàm mới)
+        const processedImg = await enhanceRedBookImage(currentOcrBase64);
+
         getEl('ocr-preview-img').src = processedImg; // Show ảnh đã lọc cho user thấy
 
         // BƯỚC 2: CHẠY TESSERACT
