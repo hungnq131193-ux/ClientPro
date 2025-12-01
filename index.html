@@ -1690,44 +1690,17 @@ async function reconnectDriveFolder() {
       alert("Lỗi kết nối: " + err.message);
   }
 }
-function openOcrModal(text) {
-    const raw = text || '';
-    
-    // Fill textarea với toàn bộ text OCR
-    const area = getEl('ocr-result-text');
-    if (area) area.value = raw;
-    
-    // Parse & hiển thị thông tin bìa đỏ
-    const box = getEl('ocr-structured');
-    if (box) {
-        const info = parseRedBookInfo(raw);
-        box.innerHTML = renderRedBookInfo(info);
-    }
-    
-    // Mở modal
-    const modal = getEl('ocr-modal');
-    if (modal) modal.classList.remove('hidden');
-    if (window.lucide) lucide.createIcons();
-}
+// ============================================================
+// LOGIC KẾT NỐI GOOGLE APPS SCRIPT (OCR & UPLOAD)
+// ============================================================
 
-function closeOcrModal() {
-    const modal = getEl('ocr-modal');
-    if (modal) modal.classList.add('hidden');
-}
-
-function copyOcrResult() {
-    const txt = getEl('ocr-result-text');
-    if (!txt) return;
-    txt.select();
-    document.execCommand('copy');
-    alert('Đã copy nội dung OCR vào clipboard');
-}
-
-// --- LOGIC OCR BÌA ĐỎ CHUYÊN DỤNG (V4: FINAL) ---
+// Link Script mặc định (Dự phòng nếu user chưa nhập trong Cài đặt)
+// Bạn hãy thay bằng LINK SCRIPT CỦA BẠN vào đây nhé:
+const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx... (DÁN LINK CỦA BẠN VÀO ĐÂY) .../exec"; 
 
 let currentOcrBase64 = null;
 
-// 1. Mở Modal
+// 1. Mở Modal OCR
 function openOcrModal() {
     const modal = getEl('ocr-modal');
     if (modal) modal.classList.remove('hidden');
@@ -1743,75 +1716,201 @@ function openOcrModal() {
     if (window.lucide) lucide.createIcons();
 }
 
+function closeOcrModal() { getEl('ocr-modal').classList.add('hidden'); }
+
 // 2. Nhận ảnh đầu vào
-async function runOcrForRedBook(rawBase64) {
+function runOcrForRedBook(rawBase64) {
     currentOcrBase64 = rawBase64;
     openOcrModal();
-    // Hiển thị ảnh gốc tạm thời
     getEl('ocr-preview-img').src = rawBase64; 
-    // Tự động chạy luôn cho tiện (hoặc đợi bấm nút)
-    // runOcrNow(); 
 }
 
-// --- THUẬT TOÁN XỬ LÝ ẢNH MỚI (V5: SMART CONTRAST) ---
-// Thay thế cho hàm filterRedBackground cũ bị lóe sáng
+// 3. HÀM CHẠY OCR (Gửi ảnh lên Google Script)
+async function runOcrNow() {
+    // Ưu tiên lấy link từ Cài đặt, nếu không có thì dùng link mặc định
+    let scriptUrl = localStorage.getItem(SCRIPT_KEY);
+    if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL;
 
-function enhanceRedBookImage(base64) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
+    if (scriptUrl.includes("...")) {
+        alert("⚠️ Chưa cấu hình Server!\nVui lòng vào Cài đặt -> Dán Link Apps Script.");
+        return;
+    }
 
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
+    if (!currentOcrBase64) return;
+    
+    const btn = getEl('btn-run-ocr');
+    const statusDiv = getEl('ocr-structured');
+    const originalBtnText = btn.innerHTML;
 
-            // Hệ số tương phản (1.5 = tăng 50%)
-            // Giúp tách biệt chữ đen và nền hồng tốt hơn
-            const contrast = 1.5; 
-            const intercept = 128 * (1 - contrast);
+    btn.disabled = true;
+    btn.innerHTML = `<span class="animate-pulse">Đang gửi lên Google...</span>`;
 
-            for (let i = 0; i < data.length; i += 4) {
-                let r = data[i];
-                let g = data[i + 1];
-                let b = data[i + 2];
+    try {
+        // Lấy phần data base64 sạch
+        const cleanBase64 = currentOcrBase64.split(',')[1];
 
-                // 1. Tăng tương phản (Contrast Stretching)
-                // Công thức: New = (Old - 128) * contrast + 128
-                r = r * contrast + intercept;
-                g = g * contrast + intercept;
-                b = b * contrast + intercept;
+        // Gửi request POST
+        const response = await fetch(scriptUrl, {
+            method: "POST",
+            body: JSON.stringify({ 
+                action: 'ocr',       // Báo cho Script biết là muốn OCR
+                image: cleanBase64 
+            })
+        });
 
-                // 2. Chuyển sang thang xám (Grayscale) dựa trên độ sáng
-                // Công thức chuẩn mắt người: 0.299R + 0.587G + 0.114B
-                const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const result = await response.json();
 
-                // 3. Ngưỡng (Thresholding) mềm hơn
-                // Thay vì xóa sạch màu đỏ, ta chỉ giữ lại những gì "đủ tối" (là chữ)
-                // Bìa đỏ: Nền hồng (sáng), Chữ đen (tối)
-                
-                if (luma < 140) {
-                    // Nếu là điểm tối (chữ) -> Cho thành đen tuyền để rõ nét
-                    data[i] = 0;
-                    data[i+1] = 0;
-                    data[i+2] = 0;
-                } else {
-                    // Nếu là điểm sáng (nền hồng, hoa văn) -> Cho thành trắng
-                    data[i] = 255;
-                    data[i+1] = 255;
-                    data[i+2] = 255;
-                }
-            }
+        if (result.status !== 'success') {
+            throw new Error(result.message || "Lỗi xử lý phía Server");
+        }
 
-            ctx.putImageData(imageData, 0, 0);
-            resolve(canvas.toDataURL('image/jpeg', 0.9));
+        const rawText = result.text;
+        
+        // Hiển thị kết quả
+        getEl('ocr-result-text').value = rawText;
+        const info = parseRedBookInfo(rawText);
+        statusDiv.innerHTML = renderRedBookInfo(info);
+        getEl('ocr-status').classList.remove('hidden');
+
+    } catch (err) {
+        console.error(err);
+        statusDiv.innerHTML = `<div class="text-red-400 text-xs text-center p-2">Lỗi: ${err.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalBtnText;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+// 4. HÀM UPLOAD ẢNH (Gửi mảng ảnh lên Google Script)
+async function uploadToGoogleDrive() {
+    let scriptUrl = localStorage.getItem(SCRIPT_KEY);
+    if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL;
+    
+    if (scriptUrl.includes("...")) return alert("Vui lòng cấu hình Link Script trong Cài đặt!");
+    if (!currentCustomerData) return;
+
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang kiểm tra ảnh...";
+    
+    const tx = db.transaction(['images'], 'readonly');
+    const index = tx.objectStore('images').index('customerId');
+
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        let imagesToUpload = allImages.filter(img => !img.assetId);
+
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Không có ảnh nào để tải lên!");
+        }
+
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang Upload lên Drive...";
+
+        // Đóng gói mảng ảnh
+        const payload = {
+            action: 'upload',
+            folderName: `${currentCustomerData.name} - ${currentCustomerData.phone}`,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `hoso_${Date.now()}_${idx}.jpg`,
+                data: img.data
+            }))
         };
-        img.src = base64;
-    });
+
+        try {
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                currentCustomerData.driveLink = result.url;
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                renderDriveStatus(result.url);
+                
+                if(confirm("✅ Upload thành công!\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => { loadProfileImages(); };
+                }
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi Upload: " + err.message);
+        }
+    };
 }
+
+// 5. REGEX PARSE THÔNG TIN BÌA ĐỎ
+function parseRedBookInfo(text) {
+    if (!text) return {};
+    const raw = text.replace(/\r\n/g, ' ').replace(/\n/g, '  ').replace(/\s+/g, ' '); 
+
+    const get = (regex) => {
+        const m = raw.match(regex);
+        return m && m[1] ? m[1].trim() : '';
+    };
+
+    return {
+        soPhatHanh: get(/([A-Z]{2}\s+[0-9]{6,9})/),
+        soVaoSo: get(/(?:Số vào sổ cấp GCN|Số vào sổ)[:\s]*([A-Za-z0-9\.\-\/ ]+)/i),
+        toBanDo: get(/(?:Tờ bản đồ số|TBĐ số|bản đồ số)[:\s]*([0-9]+)/i),
+        thuaDat: get(/(?:Thửa đất số|Thửa số|thửa đất số)[:\s]*([0-9\-\,]+)/i),
+        dienTich: get(/([0-9\.\,]+)\s*m[²2]/i),
+        diaChi: get(/(?:Địa chỉ|Dia chi|Đia chi|tại)[:\s]*([^.;]+(?:Tỉnh|Thành phố|Huyện|Quận|Xã|Phường|Thị trấn)[^.;]*)/i),
+        mucDich: get(/(?:Mục đích sử dụng|Mục đích)[:\s]*([^.;,]+)/i),
+        chuSoHuu: get(/(?:Ông|Bà|Người sử dụng đất|Hộ ông|Hộ bà)[:\s]*([A-ZĂÂÁẮẤÀẰẦẢẲẨÃẴẪẠẶẬĐEÊÉẾÈỀẺỂẼỄẸỆIÍÌỈĨỊOÔƠÓỐỚÒỒỜỎỔỞÕỖỠỌỘỢUƯÚỨÙỪỦỬŨỮỤỰYÝỲỶỸỴ\s]+)/)
+    };
+}
+
+function renderRedBookInfo(info) {
+    const item = (label, val, icon) => {
+        const content = val ? `<b class="text-white select-all">${val}</b>` : `<span class="opacity-20 text-[10px]">---</span>`;
+        return `
+            <div class="flex items-start justify-between border-b border-white/5 pb-2 last:border-0 gap-2">
+                <span class="text-slate-400 text-xs flex items-center gap-1.5 shrink-0 mt-0.5">
+                    <i data-lucide="${icon}" class="w-3.5 h-3.5 text-slate-500"></i> ${label}
+                </span>
+                <span class="text-sm text-right break-words font-medium leading-tight">${content}</span>
+            </div>
+        `;
+    };
+
+    return `
+        <div class="space-y-3 animate-fade-in">
+            ${item('Chủ sở hữu', info.chuSoHuu, 'user')}
+            ${item('Số phát hành', info.soPhatHanh, 'qr-code')}
+            ${item('Số vào sổ', info.soVaoSo, 'file-text')}
+            <div class="grid grid-cols-2 gap-4">
+                ${item('Tờ bản đồ', info.toBanDo, 'map')}
+                ${item('Thửa đất', info.thuaDat, 'grid')}
+            </div>
+            ${item('Diện tích', info.dienTich ? info.dienTich + ' m²' : '', 'maximize')}
+            ${item('Mục đích', info.mucDich, 'sprout')}
+            ${item('Địa chỉ', info.diaChi, 'map-pin')}
+        </div>
+    `;
+}
+
+function copyOcrResult() {
+    const txt = getEl('ocr-result-text');
+    if (!txt) return;
+    txt.select();
+    document.execCommand('copy');
+    showToast('Đã copy nội dung OCR');
+}
+
 
 // --- LOGIC UPLOAD ẢNH HỒ SƠ ---
 async function uploadToGoogleDrive() {
@@ -1954,8 +2053,6 @@ function renderRedBookInfo(info) {
 }
 
 </script>
-<!-- Thư viện OCR -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 // ===== PARSE THÔNG TIN BÌA ĐỎ TỪ TEXT OCR =====
 function parseRedBookInfo(rawText) {
@@ -2018,7 +2115,6 @@ ${show('Số vào sổ cấp GCN', info.soVaoSoCapGCN)}
 `;
 }
 </script>
-<!-- MODAL OCR BÌA ĐỎ -->
 <div id="ocr-modal" class="fixed inset-0 z-[200] bg-black/90 hidden flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative modal-animate flex flex-col max-h-[95vh]">
         <button onclick="closeOcrModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
@@ -2027,14 +2123,14 @@ ${show('Số vào sổ cấp GCN', info.soVaoSoCapGCN)}
         <h3 class="font-bold text-lg mb-4 text-red-400 flex items-center gap-2">
             <i data-lucide="scan-text" class="w-5 h-5"></i> Trích xuất Bìa Đỏ
         </h3>
-
+        
         <div class="overflow-y-auto custom-scrollbar pr-1 flex-1 space-y-4">
             
             <div class="bg-black/40 rounded-xl p-2 border border-white/10 text-center relative group">
-                <p class="text-[10px] text-slate-400 mb-1">Ảnh gốc (Đã lọc nhiễu nền)</p>
+                <p class="text-[10px] text-slate-400 mb-1">Ảnh gốc</p>
                 <img id="ocr-preview-img" class="h-40 mx-auto object-contain rounded border border-white/20">
             </div>
-
+            
             <div class="bg-white/5 border border-white/10 rounded-xl p-4">
                 <div class="text-[11px] font-bold uppercase text-slate-400 mb-3 tracking-wider flex justify-between items-center">
                     <span>Thông tin trích xuất</span>
@@ -2046,26 +2142,24 @@ ${show('Số vào sổ cấp GCN', info.soVaoSoCapGCN)}
                     </div>
                 </div>
             </div>
-
+            
             <details>
                 <summary class="text-[10px] text-slate-500 cursor-pointer mt-2 select-none">Xem văn bản thô</summary>
                 <textarea id="ocr-result-text" class="w-full h-20 mt-2 bg-black/30 border border-white/10 rounded-lg p-2 text-[10px] font-mono text-slate-400"></textarea>
             </details>
         </div>
-
-        <div class="mt-4 pt-4 border-t border-white/10">
+        
+        <div class="mt-4 pt-4 border-t border-white/10 space-y-2">
             <button onclick="runOcrNow()" id="btn-run-ocr" class="w-full py-3.5 rounded-xl font-bold text-white shadow-lg active:scale-[0.98] transition bg-gradient-to-r from-red-600 to-pink-600 flex items-center justify-center gap-2">
                 <i data-lucide="scan-line" class="w-5 h-5"></i> Quét Thông Tin
             </button>
-        </div>
-    </div>
-</div>
-
-        <div class="mt-4 flex gap-3 pt-4 border-t border-white/10">
-            <button onclick="closeOcrModal()" class="flex-1 py-3 rounded-xl font-bold bg-white/5 text-slate-300 hover:bg-white/10 transition">Đóng</button>
-            <button onclick="copyOcrResult()" class="flex-1 py-3 rounded-xl font-bold text-white shadow-lg active:scale-95 transition bg-gradient-to-r from-red-600 to-pink-600">
-                <i data-lucide="copy" class="w-4 h-4 inline mr-1"></i> Copy
-            </button>
+            
+            <div class="flex gap-2">
+                <button onclick="closeOcrModal()" class="flex-1 py-3 rounded-xl font-bold bg-white/5 text-slate-300 hover:bg-white/10 transition text-xs">Đóng</button>
+                <button onclick="copyOcrResult()" class="flex-1 py-3 rounded-xl font-bold bg-white/5 text-white hover:bg-white/10 transition text-xs flex items-center justify-center gap-1">
+                    <i data-lucide="copy" class="w-3 h-3"></i> Copy
+                </button>
+            </div>
         </div>
     </div>
 </div>
