@@ -2245,16 +2245,15 @@ function triggerAssetOcr() {
     getEl('native-camera-asset').click();
 }
 
-// --- 2. Hàm xử lý OCR và Tự động điền form (Chạy ngầm) ---
+// --- HÀM XỬ LÝ OCR (ĐÃ RÚT GỌN THEO YÊU CẦU) ---
 async function runAssetOcrLogic(base64) {
-    // Lấy link script (ưu tiên từ cài đặt, nếu ko có thì dùng mặc định)
     let scriptUrl = localStorage.getItem(SCRIPT_KEY);
-    if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL; // Đảm bảo bạn đã khai báo biến này ở đầu file hoặc thay trực tiếp link vào đây
+    if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL;
 
     try {
         const cleanBase64 = base64.split(',')[1];
         
-        // Gọi Google Script OCR
+        // Gọi Google Script
         const response = await fetch(scriptUrl, {
             method: "POST",
             body: JSON.stringify({ action: 'ocr', image: cleanBase64 })
@@ -2263,38 +2262,37 @@ async function runAssetOcrLogic(base64) {
         
         if (result.status === 'success') {
             const rawText = result.text;
-            const info = parseRedBookInfo(rawText); // Dùng lại hàm regex có sẵn
+            const info = parseRedBookInfo(rawText);
             
             // --- TỰ ĐỘNG ĐIỀN FORM ---
             
-            // 1. Điền địa chỉ vào ô Mô tả chính
-            if(info.diaChi) getEl('asset-name').value = info.diaChi;
+            // 1. Điền Địa chỉ vào ô "Mô tả chính"
+            if(info.diaChi) {
+                getEl('asset-name').value = info.diaChi;
+            }
             
-            // 2. Điền Diện tích (chỉ lấy số)
+            // 2. Điền Diện tích vào ô "Diện tích"
             if(info.dienTich) {
-                // Lọc lấy số (vd: 74,9 -> 74.9)
+                // Chuẩn hóa số (ví dụ 74,9 -> 74.9) để đúng định dạng số
                 let area = info.dienTich.replace(',','.').replace(/[^0-9.]/g, '');
                 getEl('asset-area').value = area;
             }
             
-            // 3. Điền thông tin khác vào ô Tài sản trên đất (làm ghi chú)
-            let note = [];
-            if(info.mucDich) note.push(info.mucDich);
-            if(info.toBanDo) note.push(`Tờ: ${info.toBanDo}`);
-            if(info.thuaDat) note.push(`Thửa: ${info.thuaDat}`);
-            if(note.length > 0) getEl('asset-onland').value = note.join(', ');
+            // [ĐÃ XÓA] Phần tự điền vào ô "Vị trí + Ghi chú thêm" (asset-onland)
+            // Để người dùng tự nhập tay theo ý muốn.
 
-            // 4. Lưu nội dung OCR vào Input ẩn (để tí nữa lưu vào DB)
+            // 3. Vẫn lưu nội dung OCR đầy đủ vào ẩn (để sau này bấm nút "Xem OCR" vẫn có)
             const savedContent = `--- KẾT QUẢ OCR ---\nSố sổ: ${info.soPhatHanh}\nDiện tích: ${info.dienTich}\nĐ/C: ${info.diaChi}\n----------------\n${rawText}`;
             getEl('asset-ocr-data').value = savedContent;
 
-            showToast("Đã trích xuất & Điền thông tin!");
+            showToast("Đã điền Diện tích & Địa chỉ!");
         }
     } catch (e) {
         console.error(e);
         alert("Lỗi đọc Bìa đỏ: " + e.message);
     }
 }
+
 // --- Hàm xem lại dữ liệu OCR đã lưu ---
 function viewSavedOcr(assetId) {
     const asset = currentCustomerData.assets.find(a => a.id === assetId);
