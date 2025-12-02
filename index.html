@@ -40,20 +40,96 @@
             transition: background 0.8s ease;
         }
 
-        body::before {
-            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
-            pointer-events: none; z-index: 0; mix-blend-mode: overlay;
-        }
+   /* --- CẤU HÌNH GIAO DIỆN CHUNG --- */
+body {
+    /* Biến màu mặc định */
+    --text-main: #f8fafc;
+    --text-sub: #94a3b8;
+    --accent: #6366f1;
+    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: var(--text-main);
+    
+    /* Cấu hình hình nền chung */
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-attachment: fixed;
+    background-size: cover;
+    
+    /* Hiệu ứng chuyển đổi mượt mà khi đổi theme */
+    transition: background-image 0.5s ease-in-out, background-color 0.5s;
+    
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+    height: var(--app-height);
+    width: 100vw;
+    overflow: hidden;
+    position: fixed;
+}
 
-        /* THEMES */
-        body.theme-midnight { /* Default */ }
-        body.theme-sunset { --bg-gradient: linear-gradient(145deg, #2e1065 0%, #be185d 50%, #f59e0b 100%); --bg-panel: rgba(50, 20, 80, 0.75); --border-panel: rgba(251, 146, 60, 0.2); --accent: #fbbf24; --accent-gradient: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
-        body.theme-ocean { --bg-gradient: linear-gradient(145deg, #0c4a6e 0%, #075985 50%, #0284c7 100%); --bg-panel: rgba(12, 74, 110, 0.75); --border-panel: rgba(56, 189, 248, 0.15); --accent: #38bdf8; --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); }
-        body.theme-mint { --bg-gradient: linear-gradient(145deg, #064e3b 0%, #065f46 50%, #0d9488 100%); --bg-panel: rgba(6, 78, 59, 0.75); --border-panel: rgba(52, 211, 153, 0.15); --accent: #34d399; --accent-gradient: linear-gradient(135deg, #34d399 0%, #059669 100%); }
-        body.theme-royal { --bg-gradient: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%); --bg-panel: rgba(40, 40, 40, 0.85); --border-panel: rgba(255, 255, 255, 0.1); --accent: #d4af37; --accent-gradient: linear-gradient(135deg, #d4af37 0%, #c5a028 100%); }
-        body.theme-coffee { --bg-gradient: linear-gradient(145deg, #271c19 0%, #4a3b32 60%, #5d4037 100%); --bg-panel: rgba(40, 30, 25, 0.85); --border-panel: rgba(161, 136, 127, 0.15); --accent: #d7ccc8; --accent-gradient: linear-gradient(135deg, #d7ccc8 0%, #a1887f 100%); }
-        body.theme-amoled { --bg-gradient: linear-gradient(0deg, #000000 0%, #000000 100%); --bg-panel: #000000; --border-panel: #333333; --input-bg: #111; --text-main: #fff; --accent: #fff; --header-bg: #000; }
+/* --- 5 THEME GLASS APPLE --- */
+
+/* 1. MIDNIGHT (Mặc định - Tím Xanh) */
+body.theme-midnight {
+    background-image: url('https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974&auto=format&fit=crop');
+    /* Kính màu xanh tím than nhạt */
+    --bg-panel: rgba(20, 25, 50, 0.50);
+    --header-bg: rgba(20, 25, 50, 0.65);
+    --border-panel: rgba(100, 120, 255, 0.15);
+    --input-bg: rgba(0, 0, 0, 0.3);
+    --accent: #818cf8;
+    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+}
+
+/* 2. SUNSET (Hoàng Hôn - Cam Đỏ) */
+body.theme-sunset {
+    background-image: url('https://images.unsplash.com/photo-1558470598-a5dda9640f6b?q=80&w=1974&auto=format&fit=crop');
+    /* Kính ám màu đỏ cam ấm áp */
+    --bg-panel: rgba(50, 20, 30, 0.50);
+    --header-bg: rgba(50, 20, 30, 0.65);
+    --border-panel: rgba(255, 150, 100, 0.15);
+    --input-bg: rgba(20, 0, 0, 0.3);
+    --accent: #fbbf24;
+    --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+}
+
+/* 3. OCEAN (Đại Dương - Xanh Ngọc) */
+body.theme-ocean {
+    background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1920&auto=format&fit=crop');
+    /* Kính màu xanh biển sâu */
+    --bg-panel: rgba(10, 40, 50, 0.55);
+    --header-bg: rgba(10, 40, 50, 0.7);
+    --border-panel: rgba(56, 189, 248, 0.15);
+    --input-bg: rgba(0, 20, 30, 0.3);
+    --accent: #38bdf8;
+    --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%);
+}
+
+/* 4. FOREST (Rừng - Xanh Lá Tinh Tế) */
+body.theme-mint { /* Dùng lại class mint cũ nhưng update ảnh mới */
+    background-image: url('https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=1920&auto=format&fit=crop');
+    /* Kính ám màu xanh rêu */
+    --bg-panel: rgba(20, 40, 30, 0.55);
+    --header-bg: rgba(20, 40, 30, 0.7);
+    --border-panel: rgba(52, 211, 153, 0.15);
+    --input-bg: rgba(0, 20, 10, 0.3);
+    --accent: #34d399;
+    --accent-gradient: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+}
+
+/* 5. DARK PRO (Đen - Sang trọng) */
+body.theme-royal { /* Dùng lại class royal cũ */
+    background-image: url('https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?q=80&w=1935&auto=format&fit=crop');
+    /* Kính đen khói */
+    --bg-panel: rgba(10, 10, 15, 0.65); /* Đậm hơn để dễ đọc chữ */
+    --header-bg: rgba(0, 0, 0, 0.8);
+    --border-panel: rgba(255, 255, 255, 0.1);
+    --input-bg: rgba(255, 255, 255, 0.05);
+    --accent: #d4af37;
+    --accent-gradient: linear-gradient(135deg, #d4af37 0%, #fcd34d 100%);
+}
 
         /* PERFORMANCE OPTIMIZED GLASS */
         .glass-panel { 
@@ -316,17 +392,29 @@
     <div id="settings-menu" class="fixed top-20 right-4 w-80 glass-panel rounded-2xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
         <div class="px-5 py-4 border-b border-white/5"><h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3><p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro</p></div>
         <div class="px-5 py-5 border-b border-white/5">
-            <p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Giao diện</p>
-            <div class="flex flex-wrap gap-3 justify-start">
-                <button onclick="setTheme('theme-midnight')" class="theme-btn" style="background: linear-gradient(135deg, #0f172a, #312e81)" title="Midnight"></button>
-                <button onclick="setTheme('theme-sunset')" class="theme-btn" style="background: linear-gradient(135deg, #2e1065, #f59e0b)" title="Sunset"></button>
-                <button onclick="setTheme('theme-ocean')" class="theme-btn" style="background: linear-gradient(135deg, #0c4a6e, #0284c7)" title="Ocean"></button>
-                <button onclick="setTheme('theme-mint')" class="theme-btn" style="background: linear-gradient(135deg, #064e3b, #34d399)" title="Mint"></button>
-                <button onclick="setTheme('theme-royal')" class="theme-btn" style="background: linear-gradient(135deg, #2d2d2d, #d4af37)" title="Royal"></button>
-                <button onclick="setTheme('theme-coffee')" class="theme-btn" style="background: linear-gradient(135deg, #3e2723, #a1887f)" title="Coffee"></button>
-                <button onclick="setTheme('theme-amoled')" class="theme-btn bg-black border border-white/20" title="Amoled"></button>
-            </div>
-        </div>
+    <p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Chọn hình nền & Giao diện</p>
+    <div class="flex flex-wrap gap-4 justify-start">
+        <button onclick="setTheme('theme-midnight')" class="theme-btn relative overflow-hidden" title="Midnight Apple">
+            <div class="absolute inset-0 bg-gradient-to-br from-indigo-900 to-purple-600"></div>
+        </button>
+        
+        <button onclick="setTheme('theme-sunset')" class="theme-btn relative overflow-hidden" title="Sunset Warm">
+            <div class="absolute inset-0 bg-gradient-to-br from-red-900 to-orange-500"></div>
+        </button>
+        
+        <button onclick="setTheme('theme-ocean')" class="theme-btn relative overflow-hidden" title="Ocean Blue">
+            <div class="absolute inset-0 bg-gradient-to-br from-blue-900 to-cyan-500"></div>
+        </button>
+        
+        <button onclick="setTheme('theme-mint')" class="theme-btn relative overflow-hidden" title="Forest Green">
+            <div class="absolute inset-0 bg-gradient-to-br from-green-900 to-emerald-500"></div>
+        </button>
+        
+        <button onclick="setTheme('theme-royal')" class="theme-btn relative overflow-hidden" title="Dark Pro">
+            <div class="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-600"></div>
+        </button>
+    </div>
+</div>
         <button onclick="openSecuritySetup()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="shield" class="w-4 h-4"></i></div> Bảo mật & An toàn</button>
     <button onclick="backupData()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-blue-500/20 text-blue-400"><i data-lucide="database" class="w-4 h-4"></i></div> Backup Dữ liệu</button>
 
