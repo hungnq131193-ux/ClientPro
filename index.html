@@ -40,96 +40,93 @@
             transition: background 0.8s ease;
         }
 
-   /* --- CẤU HÌNH GIAO DIỆN CHUNG --- */
-body {
-    /* Biến màu mặc định */
-    --text-main: #f8fafc;
-    --text-sub: #94a3b8;
-    --accent: #6366f1;
-    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    color: var(--text-main);
-    
-    /* Cấu hình hình nền chung */
-    background-repeat: no-repeat;
-    background-position: center center;
-    background-attachment: fixed;
-    background-size: cover;
-    
-    /* Hiệu ứng chuyển đổi mượt mà khi đổi theme */
-    transition: background-image 0.5s ease-in-out, background-color 0.5s;
-    
-    -webkit-tap-highlight-color: transparent;
-    -webkit-font-smoothing: antialiased;
-    overscroll-behavior-y: none;
-    height: var(--app-height);
-    width: 100vw;
-    overflow: hidden;
-    position: fixed;
-}
+        /* --- CẤU HÌNH GIAO DIỆN CHUNG --- */
+        body {
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--text-main);
+            
+            /* Cấu hình hiển thị ảnh nền full màn hình */
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-attachment: fixed;
+            background-size: cover;
+            
+            /* Hiệu ứng chuyển đổi mượt mà khi đổi theme */
+            transition: background-image 0.5s ease-in-out;
+            
+            -webkit-tap-highlight-color: transparent;
+            -webkit-font-smoothing: antialiased;
+            overscroll-behavior-y: none;
+            height: var(--app-height);
+            width: 100vw;
+            overflow: hidden;
+            position: fixed;
+        }
 
-/* --- 5 THEME GLASS APPLE --- */
+        /* --- 5 THEME GLASS APPLE (Ảnh + Màu kính tương ứng) --- */
 
-/* 1. MIDNIGHT (Mặc định - Tím Xanh) */
-body.theme-midnight {
-    background-image: url('https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974&auto=format&fit=crop');
-    /* Kính màu xanh tím than nhạt */
-    --bg-panel: rgba(20, 25, 50, 0.50);
-    --header-bg: rgba(20, 25, 50, 0.65);
-    --border-panel: rgba(100, 120, 255, 0.15);
-    --input-bg: rgba(0, 0, 0, 0.3);
-    --accent: #818cf8;
-    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-}
+        /* 1. MIDNIGHT (Mặc định - Tím Xanh) */
+        body.theme-midnight {
+            background-image: url('https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974&auto=format&fit=crop');
+            /* Kính màu xanh tím than nhạt */
+            --bg-panel: rgba(20, 25, 50, 0.50);
+            --header-bg: rgba(20, 25, 50, 0.65);
+            --border-panel: rgba(100, 120, 255, 0.15);
+            --input-bg: rgba(0, 0, 0, 0.3);
+            --accent: #818cf8;
+            --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        }
 
-/* 2. SUNSET (Hoàng Hôn - Cam Đỏ) */
-body.theme-sunset {
-    background-image: url('https://images.unsplash.com/photo-1558470598-a5dda9640f6b?q=80&w=1974&auto=format&fit=crop');
-    /* Kính ám màu đỏ cam ấm áp */
-    --bg-panel: rgba(50, 20, 30, 0.50);
-    --header-bg: rgba(50, 20, 30, 0.65);
-    --border-panel: rgba(255, 150, 100, 0.15);
-    --input-bg: rgba(20, 0, 0, 0.3);
-    --accent: #fbbf24;
-    --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-}
+        /* 2. SUNSET (Hoàng Hôn - Cam Đỏ) */
+        body.theme-sunset {
+            background-image: url('https://images.unsplash.com/photo-1558470598-a5dda9640f6b?q=80&w=1974&auto=format&fit=crop');
+            /* Kính ám màu đỏ cam ấm áp */
+            --bg-panel: rgba(60, 20, 30, 0.50);
+            --header-bg: rgba(60, 20, 30, 0.65);
+            --border-panel: rgba(255, 150, 100, 0.15);
+            --input-bg: rgba(40, 10, 10, 0.3);
+            --accent: #fbbf24;
+            --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+        }
 
-/* 3. OCEAN (Đại Dương - Xanh Ngọc) */
-body.theme-ocean {
-    background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1920&auto=format&fit=crop');
-    /* Kính màu xanh biển sâu */
-    --bg-panel: rgba(10, 40, 50, 0.55);
-    --header-bg: rgba(10, 40, 50, 0.7);
-    --border-panel: rgba(56, 189, 248, 0.15);
-    --input-bg: rgba(0, 20, 30, 0.3);
-    --accent: #38bdf8;
-    --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%);
-}
+        /* 3. OCEAN (Đại Dương - Xanh Ngọc) */
+        body.theme-ocean {
+            background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1920&auto=format&fit=crop');
+            /* Kính màu xanh biển sâu */
+            --bg-panel: rgba(10, 40, 50, 0.55);
+            --header-bg: rgba(10, 40, 50, 0.7);
+            --border-panel: rgba(56, 189, 248, 0.15);
+            --input-bg: rgba(0, 20, 30, 0.3);
+            --accent: #38bdf8;
+            --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%);
+        }
 
-/* 4. FOREST (Rừng - Xanh Lá Tinh Tế) */
-body.theme-mint { /* Dùng lại class mint cũ nhưng update ảnh mới */
-    background-image: url('https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=1920&auto=format&fit=crop');
-    /* Kính ám màu xanh rêu */
-    --bg-panel: rgba(20, 40, 30, 0.55);
-    --header-bg: rgba(20, 40, 30, 0.7);
-    --border-panel: rgba(52, 211, 153, 0.15);
-    --input-bg: rgba(0, 20, 10, 0.3);
-    --accent: #34d399;
-    --accent-gradient: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-}
+        /* 4. FOREST (Rừng - Xanh Lá Tinh Tế) */
+        body.theme-mint { 
+            background-image: url('https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=1920&auto=format&fit=crop');
+            /* Kính ám màu xanh rêu */
+            --bg-panel: rgba(20, 40, 30, 0.55);
+            --header-bg: rgba(20, 40, 30, 0.7);
+            --border-panel: rgba(52, 211, 153, 0.15);
+            --input-bg: rgba(0, 20, 10, 0.3);
+            --accent: #34d399;
+            --accent-gradient: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+        }
 
-/* 5. DARK PRO (Đen - Sang trọng) */
-body.theme-royal { /* Dùng lại class royal cũ */
-    background-image: url('https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?q=80&w=1935&auto=format&fit=crop');
-    /* Kính đen khói */
-    --bg-panel: rgba(10, 10, 15, 0.65); /* Đậm hơn để dễ đọc chữ */
-    --header-bg: rgba(0, 0, 0, 0.8);
-    --border-panel: rgba(255, 255, 255, 0.1);
-    --input-bg: rgba(255, 255, 255, 0.05);
-    --accent: #d4af37;
-    --accent-gradient: linear-gradient(135deg, #d4af37 0%, #fcd34d 100%);
-}
+        /* 5. DARK PRO (Đen - Sang trọng) */
+        body.theme-royal { 
+            background-image: url('https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?q=80&w=1935&auto=format&fit=crop');
+            /* Kính đen khói */
+            --bg-panel: rgba(10, 10, 15, 0.65); 
+            --header-bg: rgba(0, 0, 0, 0.8);
+            --border-panel: rgba(255, 255, 255, 0.1);
+            --input-bg: rgba(255, 255, 255, 0.05);
+            --accent: #d4af37;
+            --accent-gradient: linear-gradient(135deg, #d4af37 0%, #fcd34d 100%);
+        }
 
         /* PERFORMANCE OPTIMIZED GLASS */
         .glass-panel { 
@@ -719,7 +716,17 @@ async function enhanceDocumentWithAI(base64) {
             lucide.createIcons();
             const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
             window.addEventListener('resize', setAppHeight); setAppHeight();
-            const savedTheme = localStorage.getItem(THEME_KEY) || 'theme-midnight';
+let savedTheme = localStorage.getItem(THEME_KEY);
+// Danh sách các theme hợp lệ hiện tại
+const validThemes = ['theme-midnight', 'theme-sunset', 'theme-ocean', 'theme-mint', 'theme-royal'];
+
+// Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về Midnight
+if (!validThemes.includes(savedTheme)) {
+    savedTheme = 'theme-midnight';
+}
+
+setTheme(savedTheme);
+
             setTheme(savedTheme);
 // 🌤 Khởi động thời tiết
 initWeather();
