@@ -66,12 +66,12 @@
             position: fixed;
         }
 
-        /* --- 5 THEME GLASS APPLE (Ảnh + Màu kính tương ứng) --- */
+          /* --- 5 THEME GLASS APPLE (CODE CHUẨN - DÁN VÀO ĐỂ THAY THẾ) --- */
 
-        /* 1. MIDNIGHT (Mặc định - Tím Xanh) */
+        /* 1. MIDNIGHT (Tím Than) */
         body.theme-midnight {
             background-image: url('https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974&auto=format&fit=crop');
-            /* Kính màu xanh tím than nhạt */
+            background-color: #1e1b4b; /* Màu dự phòng khi chưa load ảnh */
             --bg-panel: rgba(20, 25, 50, 0.50);
             --header-bg: rgba(20, 25, 50, 0.65);
             --border-panel: rgba(100, 120, 255, 0.15);
@@ -80,22 +80,22 @@
             --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
         }
 
-        /* 2. SUNSET (Hoàng Hôn - Cam Đỏ) */
+        /* 2. SUNSET (Hoàng Hôn - Đã Fix Ảnh) */
         body.theme-sunset {
-            background-image: url('https://images.unsplash.com/photo-1558470598-a5dda9640f6b?q=80&w=1974&auto=format&fit=crop');
-            /* Kính ám màu đỏ cam ấm áp */
-            --bg-panel: rgba(60, 20, 30, 0.50);
-            --header-bg: rgba(60, 20, 30, 0.65);
-            --border-panel: rgba(255, 150, 100, 0.15);
+            background-image: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=1920&auto=format&fit=crop');
+            background-color: #451a03; /* Màu dự phòng: Nâu đỏ */
+            --bg-panel: rgba(60, 20, 30, 0.55);
+            --header-bg: rgba(60, 20, 30, 0.70);
+            --border-panel: rgba(255, 180, 150, 0.15);
             --input-bg: rgba(40, 10, 10, 0.3);
             --accent: #fbbf24;
             --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
         }
 
-        /* 3. OCEAN (Đại Dương - Xanh Ngọc) */
+        /* 3. OCEAN (Đại Dương) */
         body.theme-ocean {
             background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1920&auto=format&fit=crop');
-            /* Kính màu xanh biển sâu */
+            background-color: #0c4a6e;
             --bg-panel: rgba(10, 40, 50, 0.55);
             --header-bg: rgba(10, 40, 50, 0.7);
             --border-panel: rgba(56, 189, 248, 0.15);
@@ -104,10 +104,10 @@
             --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%);
         }
 
-        /* 4. FOREST (Rừng - Xanh Lá Tinh Tế) */
+        /* 4. FOREST (Rừng Xanh) */
         body.theme-mint { 
             background-image: url('https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=1920&auto=format&fit=crop');
-            /* Kính ám màu xanh rêu */
+            background-color: #064e3b;
             --bg-panel: rgba(20, 40, 30, 0.55);
             --header-bg: rgba(20, 40, 30, 0.7);
             --border-panel: rgba(52, 211, 153, 0.15);
@@ -116,17 +116,18 @@
             --accent-gradient: linear-gradient(135deg, #10b981 0%, #34d399 100%);
         }
 
-        /* 5. DARK PRO (Đen - Sang trọng) */
+        /* 5. DARK PRO (Đen Huyền Bí) */
         body.theme-royal { 
             background-image: url('https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?q=80&w=1935&auto=format&fit=crop');
-            /* Kính đen khói */
-            --bg-panel: rgba(10, 10, 15, 0.65); 
+            background-color: #000000;
+            --bg-panel: rgba(10, 10, 15, 0.65);
             --header-bg: rgba(0, 0, 0, 0.8);
             --border-panel: rgba(255, 255, 255, 0.1);
             --input-bg: rgba(255, 255, 255, 0.05);
             --accent: #d4af37;
             --accent-gradient: linear-gradient(135deg, #d4af37 0%, #fcd34d 100%);
         }
+
 
         /* PERFORMANCE OPTIMIZED GLASS */
         .glass-panel { 
@@ -142,14 +143,18 @@
             transform: translateZ(0); 
         }
         
-        .glass-header { 
-            background: var(--header-bg); 
-            backdrop-filter: blur(16px) saturate(180%);
-            -webkit-backdrop-filter: blur(16px) saturate(180%); 
-            border-bottom: 1px solid var(--border-panel); 
-            z-index: 40; 
-            will-change: transform;
-        }
+        /* Header trong suốt hơn để lộ hình nền khi cuộn trang */
+.glass-header {
+    background: var(--header-bg);
+    /* Nó sẽ lấy màu từ theme mới */
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid var(--border-panel);
+    z-index: 40;
+    will-change: transform;
+    /* Thêm bóng đổ nhẹ để tách biệt nội dung */
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
 
         /* MOBILE OPTIMIZATION: Reduce Blur for High FPS */
         @media (max-width: 768px) {
@@ -473,7 +478,7 @@
         <button onclick="locateMe()" class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
     </div>
 
-    <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300" style="background: var(--bg-gradient);">
+    <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300">
         <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
             <div class="flex items-center justify-between mb-4">
                 <button onclick="closeFolder()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition" style="color: var(--text-main)"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
@@ -512,7 +517,7 @@
         <i data-lucide="plus-square" class="w-5 h-5"></i> Thêm TSBĐ Mới
     </button>
 </div>
-        </div> </div> <div id="screen-asset-gallery" class="app-container z-30 transform translate-x-full transition-transform duration-300" style="background: var(--bg-gradient);">
+        </div> </div> <div id="screen-asset-gallery" class="app-container z-30 transform translate-x-full transition-transform duration-300">
         <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full"><div class="flex items-center justify-between"><button onclick="closeAssetGallery()" class="p-2 -ml-2 rounded-full hover:bg-white/10" style="color: var(--text-main)"><i data-lucide="arrow-left" class="w-6 h-6"></i></button><div class="flex items-center gap-3"><h2 id="gallery-asset-name" class="font-bold text-sm uppercase truncate max-w-[160px]" style="color: var(--text-main)">Chi tiết TSBĐ</h2><button onclick="toggleSelectionMode()" id="btn-select-mode-asset" class="px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-2 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub)"><i data-lucide="check-square" class="w-4 h-4"></i> Chọn</button></div></div><div class="flex gap-2 mt-3 text-xs justify-center w-full font-mono" style="color: var(--text-sub)"><span id="gallery-asset-val" class="px-3 py-1.5 rounded-lg border bg-black/20" style="border-color: var(--border-panel)">--</span><span id="gallery-asset-loan" class="px-3 py-1.5 rounded-lg border bg-blue-900/20 text-blue-400 border-blue-500/30">--</span></div></div>
         <div id="asset-gallery-grid" class="scroll-area flex-1 img-grid-container content-start"></div>
         <div class="glass-panel border-t p-4 pb-8 flex flex-col gap-3 flex-none z-30" style="border-color: var(--border-panel)">
