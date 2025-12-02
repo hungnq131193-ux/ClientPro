@@ -1328,12 +1328,60 @@ async function capturePhoto() {
         function shareOpenedImage() { if(!currentImageBase64) return; fetch(currentImageBase64).then(res => res.blob()).then(blob => { if(navigator.canShare) navigator.share({files:[new File([blob], "evidence.jpg", {type:"image/jpeg"})]}); }); }
         function deleteOpenedImage() { if(confirm("Hủy chứng từ này?")) { db.transaction(['images'], 'readwrite').objectStore('images').delete(currentImageId).onsuccess = () => { closeLightbox(); if(currentAssetId && getEl('screen-asset-gallery').classList.contains('translate-x-full') === false) loadAssetImages(currentAssetId); else loadProfileImages(); }; } }
         function toggleMenu() { const m=getEl('settings-menu'); const o=getEl('menu-overlay'); if(m.classList.contains('hidden')){m.classList.remove('hidden');o.classList.remove('hidden'); setTimeout(()=>{m.classList.remove('scale-95','opacity-0');},10)}else{m.classList.add('scale-95','opacity-0'); setTimeout(()=>{m.classList.add('hidden');o.classList.add('hidden');},200)} }
-        async function backupData() { 
-            toggleMenu(); getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Đóng gói...";
-            const tx = db.transaction(['customers', 'images'], 'readonly');
-            Promise.all([new Promise(r => tx.objectStore('customers').getAll().onsuccess = e => r(e.target.result)), new Promise(r => tx.objectStore('images').getAll().onsuccess = e => r(e.target.result))])
-            .then(([c, i]) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({v:1.0, customers:c, images:i})], {type:'application/json'})); a.download = `QLKH_Backup_${Date.now()}.json`; a.click(); getEl('loader').classList.add('hidden'); });
-        }
+        // ============================================================
+// HÀM BACKUP MỚI (CHỈ LƯU THÔNG TIN - LOẠI BỎ ẢNH & LINK)
+// ============================================================
+function backupData() { 
+    toggleMenu(); // Đóng menu
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đóng gói an toàn...";
+
+    const tx = db.transaction(['customers'], 'readonly');
+    const store = tx.objectStore('customers');
+
+    store.getAll().onsuccess = (e) => {
+        let customers = e.target.result || [];
+
+        // 1. LỌC BỎ LINK DRIVE & LÀM SẠCH DỮ LIỆU
+        const cleanCustomers = customers.map(c => {
+            // Tạo bản sao để không ảnh hưởng dữ liệu gốc đang hiển thị trên máy bạn
+            let copy = JSON.parse(JSON.stringify(c));
+            
+            // Xóa link folder hồ sơ (QUAN TRỌNG)
+            copy.driveLink = null; 
+            
+            // Xóa link folder tài sản (QUAN TRỌNG)
+            if (copy.assets) {
+                copy.assets = copy.assets.map(a => {
+                    a.driveLink = null;
+                    // Giữ lại link bản đồ (Google Maps) vì cái này cần thiết
+                    return a;
+                });
+            }
+            return copy;
+        });
+
+        // 2. ĐÓNG GÓI
+        // Lưu ý: Trường 'images' để rỗng [] để TUYỆT ĐỐI KHÔNG xuất ảnh gốc
+        const dataToExport = {
+            v: 1.0,
+            customers: cleanCustomers,
+            images: [] 
+        };
+
+        // 3. TẢI XUỐNG
+        const blob = new Blob([JSON.stringify(dataToExport)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        // Đặt tên file có chữ InfoOnly để dễ nhận biết
+        a.download = `ClientPro_InfoOnly_${Date.now()}.json`; 
+        a.click();
+
+        getEl('loader').classList.add('hidden');
+        showToast("Đã xuất file");
+    };
+}
+
         function restoreData(input) { 
             toggleMenu(); const f = input.files[0]; if(!f) return; getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Đồng bộ...";
             const r = new FileReader(); r.onload = e => { try { const d = JSON.parse(e.target.result); const tx = db.transaction(['customers', 'images'], 'readwrite'); d.customers.forEach(c => tx.objectStore('customers').put(c)); d.images.forEach(i => tx.objectStore('images').put(i)); tx.oncomplete = () => { getEl('loader').classList.add('hidden'); alert("Đã xong"); loadCustomers(); }; } catch(err) { getEl('loader').classList.add('hidden'); alert("Lỗi file"); } }; r.readAsText(f); 
