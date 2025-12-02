@@ -999,7 +999,7 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
 
         const areaInfo = asset.area ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-indigo-500/20">${asset.area}m²</span>` : '';
         const widthInfo = asset.width ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-indigo-500/20">MT:${asset.width}m</span>` : '';
-        const yearInfo = asset.year ? `<span class="bg-slate-500/20 text-slate-300 px-2 py-1 rounded text-[10px] font-bold border border-slate-500/20">${asset.year}</span>` : '';
+        const yearInfo = asset.year ? `<span class="bg-slate-500/20 text-slate-300 px-2 py-1 rounded text-[10px] font-bold border border-slate-500/20">Năm xây dựng:${asset.year}</span>` : '';
         const onlandInfo = asset.onland ? `<div class="text-xs text-slate-400 mt-1 italic"><i data-lucide="home" class="w-3 h-3 inline mr-1"></i>${asset.onland}</div>` : '';
         
         el.innerHTML = `<div class="flex justify-between items-start mb-1"><div class="flex gap-3 items-center"><div class="p-2 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="map-pin" class="w-5 h-5"></i></div><div><h4 class="font-bold text-white text-sm line-clamp-1">${asset.name}</h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div></div><div class="flex gap-1"><button onclick="openEditAssetModal(${index})" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="deleteAsset(${index})" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div>${onlandInfo}<div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"><span>ĐG: <b class="text-emerald-400 text-sm">${asset.valuation||'-'}</b></span><span>Vay: <b class="text-blue-400 text-sm">${asset.loanValue||'-'}</b></span></div><div class="flex gap-2">${mapBtn}${ocrBtn}<button onclick="referenceAssetPrice(${index})" class="flex-1 py-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-emerald-500/20 transition"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button></div><button onclick="openAssetGallery('${asset.id}', '${asset.name}', ${index})" class="w-full py-2.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-500/20 mt-1 transition"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`; 
@@ -1600,7 +1600,7 @@ function renderDriveStatus(url) {
          class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold
                 flex items-center justify-center gap-2 shadow-lg mb-1
                 animate-fade-in border border-emerald-400/30">
-        <i data-lucide="external-link" class="w-5 h-5"></i> Mở Folder Drive
+        <i data-lucide="external-link" class="w-5 h-5"></i> Mở Folder Ảnh
       </a>
       <p class="text-[10px] text-center text-emerald-400/70 italic mb-2">
         Đã đồng bộ lên Cloud
