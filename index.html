@@ -478,7 +478,7 @@
         <button onclick="locateMe()" class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
     </div>
 
-    <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300">
+    <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300" style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
         <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
             <div class="flex items-center justify-between mb-4">
                 <button onclick="closeFolder()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition" style="color: var(--text-main)"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
@@ -517,7 +517,7 @@
         <i data-lucide="plus-square" class="w-5 h-5"></i> Thêm TSBĐ Mới
     </button>
 </div>
-        </div> </div> <div id="screen-asset-gallery" class="app-container z-30 transform translate-x-full transition-transform duration-300">
+        </div> </div> <div id="screen-asset-gallery" class="app-container z-30 transform translate-x-full transition-transform duration-300" style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
         <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full"><div class="flex items-center justify-between"><button onclick="closeAssetGallery()" class="p-2 -ml-2 rounded-full hover:bg-white/10" style="color: var(--text-main)"><i data-lucide="arrow-left" class="w-6 h-6"></i></button><div class="flex items-center gap-3"><h2 id="gallery-asset-name" class="font-bold text-sm uppercase truncate max-w-[160px]" style="color: var(--text-main)">Chi tiết TSBĐ</h2><button onclick="toggleSelectionMode()" id="btn-select-mode-asset" class="px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-2 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub)"><i data-lucide="check-square" class="w-4 h-4"></i> Chọn</button></div></div><div class="flex gap-2 mt-3 text-xs justify-center w-full font-mono" style="color: var(--text-sub)"><span id="gallery-asset-val" class="px-3 py-1.5 rounded-lg border bg-black/20" style="border-color: var(--border-panel)">--</span><span id="gallery-asset-loan" class="px-3 py-1.5 rounded-lg border bg-blue-900/20 text-blue-400 border-blue-500/30">--</span></div></div>
         <div id="asset-gallery-grid" class="scroll-area flex-1 img-grid-container content-start"></div>
         <div class="glass-panel border-t p-4 pb-8 flex flex-col gap-3 flex-none z-30" style="border-color: var(--border-panel)">
