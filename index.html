@@ -1160,13 +1160,13 @@ async function checkRecovery() {
                 const res = await fetch(scriptUrl + query);
                 // Một số Apps Script cần trả về JSON thuần. Nếu trả về text 'success', vẫn xử lý được.
                 let result;
-                try {
-                    result = await res.json();
-                } catch (e) {
-                    // Nếu response không phải JSON, đọc text
-                    const txt = await res.text();
-                    result = txt;
-                }
+                // --- ĐOẠN CODE ĐÃ SỬA ---
+const txt = await res.text(); // Đọc dữ liệu ra text 1 lần duy nhất
+try {
+    result = JSON.parse(txt); // Thử chuyển nó sang JSON
+} catch (e) {
+    result = txt; // Nếu không chuyển được thì giữ nguyên là text
+}
                 // Kiểm tra thành công: server có thể trả về {status:'success'} hoặc 'success'
                 if ((result && result.status && String(result.status).toLowerCase() === 'success') || String(result).toLowerCase().includes('success')) {
                     // Thành công: xử lý tùy theo máy mới hay tái kích hoạt
