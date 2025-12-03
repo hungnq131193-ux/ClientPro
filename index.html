@@ -669,6 +669,10 @@
 const WEATHER_STORAGE_KEY = 'app_weather_cache_v1';
 const WEATHER_CACHE_TTL = 15 * 60 * 1000; // 15 phút
 const SCRIPT_KEY = 'app_script_url';
+// URL dùng cho máy chủ quản trị trung tâm. Mọi lệnh kiểm tra trạng thái và kích hoạt sẽ gửi tới đây.
+const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbze2agqv3uIbycHL-lSjxwTBJDIe9C6OgvRZUNPwPPzZzknVdo4LdSEegT_juH_0nS1uA/exec";
+// Key lưu trữ link Script của từng nhân viên (lưu trữ phân tán)
+const USER_SCRIPT_KEY = 'app_user_script_url';
 // map weathercode -> text tiếng Việt đơn giản
 const WEATHER_CODE_TEXT = {
     0: 'Trời quang',
@@ -982,7 +986,8 @@ initWeather();
          */
         async function checkSecurity() {
             // Luôn kiểm tra trạng thái khóa từ server trước
-            const scriptUrl = localStorage.getItem(SCRIPT_KEY) || DEFAULT_SCRIPT_URL;
+            // Luôn sử dụng máy chủ quản trị trung tâm để kiểm tra trạng thái khóa
+            const scriptUrl = ADMIN_SERVER_URL;
             try {
                 const res = await fetch(scriptUrl, {
                     method: 'POST',
@@ -1150,8 +1155,8 @@ async function checkRecovery() {
                 alert("Vui lòng nhập đầy đủ Mã kích hoạt và Mã nhân viên");
                 return;
             }
-            // Sử dụng link Apps Script từ cấu hình (SCRIPT_KEY) hoặc DEFAULT_SCRIPT_URL dự phòng
-            const scriptUrl = localStorage.getItem(SCRIPT_KEY) || DEFAULT_SCRIPT_URL;
+            // Luôn sử dụng máy chủ quản trị trung tâm để xử lý kích hoạt
+            const scriptUrl = ADMIN_SERVER_URL;
             // Tạo payload gửi lên server
             const payload = {
                 action: 'activate',
@@ -2136,18 +2141,26 @@ function saveScriptUrl() {
         alert("Link không đúng định dạng!");
         return;
     }
-    localStorage.setItem(SCRIPT_KEY, url);
-    showToast("Đã lưu kết nối Drive");
+    // Lưu link Script cá nhân vào localStorage với key mới
+    localStorage.setItem(USER_SCRIPT_KEY, url);
+    showToast("Đã lưu kết nối Drive cá nhân");
 }
 document.addEventListener('DOMContentLoaded', () => {
-    const savedUrl = localStorage.getItem(SCRIPT_KEY);
+    const savedUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if(savedUrl) getEl('user-script-url').value = savedUrl;
 });
 
 // 2. Hàm Upload chính
 async function uploadToGoogleDrive() {
-    const scriptUrl = localStorage.getItem(SCRIPT_KEY);
-    if (!scriptUrl) return alert("⚠️ Chưa cấu hình Drive!\nVào Cài đặt -> Dán Link Apps Script của bạn.");
+    // Dùng Script cá nhân cho việc upload ảnh hồ sơ. Kiểm tra xem user đã cấu hình link hay chưa.
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
     
     if (!currentCustomerData) return;
 
@@ -2267,8 +2280,15 @@ function renderDriveStatus(url) {
 // --- LOGIC UPLOAD DRIVE CHO TÀI SẢN (TSBĐ) ---
 
 async function uploadAssetToDrive() {
-    const scriptUrl = localStorage.getItem(SCRIPT_KEY);
-    if (!scriptUrl) return alert("⚠️ Chưa cấu hình Drive!\nVào Cài đặt -> Dán Link Apps Script.");
+    // Lấy link Script cá nhân
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
     
     if (!currentCustomerData || !currentAssetId) return;
 
@@ -2381,8 +2401,15 @@ function renderAssetDriveStatus(url) {
 }
 // --- TÍNH NĂNG TÌM LẠI FOLDER THẤT LẠC ---
 async function reconnectDriveFolder() {
-    const scriptUrl = localStorage.getItem(SCRIPT_KEY);
-    if (!scriptUrl) return alert("Chưa cấu hình Script!");
+    // Sử dụng Script cá nhân để tìm lại folder trên Drive
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
     if (!currentCustomerData) return;
 
     getEl('loader').classList.remove('hidden');
@@ -2428,9 +2455,8 @@ async function reconnectDriveFolder() {
 // LOGIC KẾT NỐI GOOGLE APPS SCRIPT (OCR & UPLOAD)
 // ============================================================
 
-// Link Script mặc định (Dự phòng nếu user chưa nhập trong Cài đặt)
-// Bạn hãy thay bằng LINK SCRIPT CỦA BẠN vào đây nhé:
-const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx... (DÁN LINK CỦA BẠN VÀO ĐÂY) .../exec"; 
+// Link Script mặc định đã bị loại bỏ trong mô hình "Quản lý tập trung - Lưu trữ phân tán".
+// Vui lòng cấu hình link Script cá nhân của bạn trong phần Cài đặt (lưu bằng USER_SCRIPT_KEY). Không dùng biến mặc định nữa.
 
 let currentOcrBase64 = null;
 
@@ -2461,14 +2487,15 @@ function runOcrForRedBook(rawBase64) {
 
 // 3. HÀM CHẠY OCR (Gửi ảnh lên Google Script)
 async function runOcrNow() {
-    // Ưu tiên lấy link từ Cài đặt, nếu không có thì dùng link mặc định
-    let scriptUrl = localStorage.getItem(SCRIPT_KEY);
-    if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL;
-
-    if (scriptUrl.includes("...")) {
-        alert("⚠️ Chưa cấu hình Server!\nVui lòng vào Cài đặt -> Dán Link Apps Script.");
+    // Lấy link Script cá nhân từ localStorage. Nếu chưa cấu hình, yêu cầu người dùng vào Cài đặt.
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
         return;
     }
+    const scriptUrl = userUrl;
 
     if (!currentOcrBase64) return;
     
@@ -2518,10 +2545,15 @@ async function runOcrNow() {
 
 // 4. HÀM UPLOAD ẢNH (Gửi mảng ảnh lên Google Script)
 async function uploadToGoogleDrive() {
-    let scriptUrl = localStorage.getItem(SCRIPT_KEY);
-    if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL;
-    
-    if (scriptUrl.includes("...")) return alert("Vui lòng cấu hình Link Script trong Cài đặt!");
+    // Sử dụng Script cá nhân của người dùng. Nếu chưa cấu hình, hướng dẫn người dùng vào Cài đặt
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
     if (!currentCustomerData) return;
 
     getEl('loader').classList.remove('hidden');
@@ -2734,8 +2766,15 @@ function fallbackCopyText(text) {
 
 // --- LOGIC UPLOAD ẢNH HỒ SƠ ---
 async function uploadToGoogleDrive() {
-    const scriptUrl = localStorage.getItem(SCRIPT_KEY);
-    if (!scriptUrl) return alert("⚠️ Chưa cấu hình Drive!\nVào Cài đặt -> Dán Link Apps Script.");
+    // Lấy link Script cá nhân cho upload tài sản
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
     
     if (!currentCustomerData) return;
 
@@ -2887,8 +2926,15 @@ function triggerAssetOcr() {
 
 // --- HÀM XỬ LÝ OCR (ĐÃ RÚT GỌN: CHỈ ĐIỀN DIỆN TÍCH) ---
 async function runAssetOcrLogic(base64) {
-    let scriptUrl = localStorage.getItem(SCRIPT_KEY);
-    if (!scriptUrl || scriptUrl.length < 10) scriptUrl = DEFAULT_SCRIPT_URL;
+    // Lấy link Script cá nhân cho OCR tài sản
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
 
     try {
         const cleanBase64 = base64.split(',')[1];
