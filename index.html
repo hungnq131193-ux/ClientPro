@@ -1716,7 +1716,7 @@ async function capturePhoto() {
 function backupData() { 
     toggleMenu(); // Đóng menu
     getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đóng gói an toàn...";
+    getEl('loader-text').textContent = "Đóng gói (Bảo mật)...";
 
     const tx = db.transaction(['customers'], 'readonly');
     const store = tx.objectStore('customers');
@@ -1724,30 +1724,29 @@ function backupData() {
     store.getAll().onsuccess = (e) => {
         let customers = e.target.result || [];
 
-        // 1. LỌC BỎ LINK DRIVE & LÀM SẠCH DỮ LIỆU
+        // 1. LỌC BỎ LINK DRIVE NHƯNG GIỮ NGUYÊN DỮ LIỆU MÃ HÓA
         const cleanCustomers = customers.map(c => {
-            // Tạo bản sao để không ảnh hưởng dữ liệu gốc đang hiển thị trên máy bạn
+            // Tạo bản sao
             let copy = JSON.parse(JSON.stringify(c));
-            // Xóa link folder hồ sơ (QUAN TRỌNG)
+            
+            // Chỉ xóa link Drive (không cần thiết khi backup local)
             copy.driveLink = null;
-            // Xóa link folder tài sản (QUAN TRỌNG)
             if (copy.assets) {
                 copy.assets = copy.assets.map(a => {
                     a.driveLink = null;
-                    // Giữ lại link bản đồ (Google Maps) vì cái này cần thiết
                     return a;
                 });
             }
-            // Giải mã dữ liệu trước khi xuất ra
-            decryptCustomerObject(copy);
+            
+            // --- QUAN TRỌNG: KHÔNG GIẢI MÃ Ở ĐÂY NỮA ---
+            // Dữ liệu trong Database đang mã hóa thế nào thì xuất ra y hệt vậy
             return copy;
         });
 
         // 2. ĐÓNG GÓI
-        // Lưu ý: Trường 'images' để rỗng [] để TUYỆT ĐỐI KHÔNG xuất ảnh gốc
         const dataToExport = {
             v: 1.0,
-            customers: cleanCustomers,
+            customers: cleanCustomers, // Đây là danh sách đã mã hóa (Cipher Text)
             images: [] 
         };
 
@@ -1755,12 +1754,13 @@ function backupData() {
         const blob = new Blob([JSON.stringify(dataToExport)], {type: 'application/json'});
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        // Đặt tên file có chữ InfoOnly để dễ nhận biết
-        a.download = `ClientPro_InfoOnly_${Date.now()}.json`; 
+        
+        // Đặt tên file là Encrypted để dễ phân biệt
+        a.download = `ClientPro_Encrypted_${Date.now()}.json`; 
         a.click();
 
         getEl('loader').classList.add('hidden');
-        showToast("Đã xuất file");
+        showToast("Đã xuất file (Bảo mật)");
     };
 }
 
