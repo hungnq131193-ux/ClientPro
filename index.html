@@ -32,7 +32,7 @@
         background-size: cover;
         background-repeat: no-repeat;
         
-        transition: all 0.8s ease;
+        transition: background-color 0.5s ease, color 0.3s ease;
         -webkit-tap-highlight-color: transparent;
         overscroll-behavior-y: none;
         height: var(--app-height); width: 100vw; overflow: hidden; position: fixed;
@@ -670,7 +670,7 @@ const WEATHER_STORAGE_KEY = 'app_weather_cache_v1';
 const WEATHER_CACHE_TTL = 15 * 60 * 1000; // 15 phút
 const SCRIPT_KEY = 'app_script_url';
 // --- CẤU HÌNH SERVER TRUNG TÂM ---
-const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbwNrWex1CHTQcBe3QOujCDewjS-Po0SQjUSiy0k7HUMNdVC-Eg3CSuA8uzcTlR094iT2g/exec"; 
+const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbzQHqI260HJ9hw6nlIO7wHlavKBRpGWuKfyg-lD_xhUz8Pghxuv_TcfgJrJMzj3m8N9SQ/exec"; 
 const USER_SCRIPT_KEY = 'app_user_script_url';
 // map weathercode -> text tiếng Việt đơn giản
 const WEATHER_CODE_TEXT = {
