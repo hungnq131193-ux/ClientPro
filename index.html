@@ -2146,29 +2146,38 @@ async function uploadAssetToDrive() {
     };
 }
 
-// Hàm hiển thị nút Drive trong màn hình Asset
+// Hàm hiển thị nút Drive trong màn hình Asset (Đã bổ sung nút Tìm lại)
 function renderAssetDriveStatus(url) {
     const area = getEl('asset-drive-status-area');
     const btnUp = getEl('btn-asset-upload');
     
+    if (!area) return;
+    
+    area.classList.remove('hidden'); // Luôn hiện khu vực này để chứa nút hoặc thông báo
+
     if (url && url.length > 5) {
         // ĐÃ CÓ LINK → hiện nút mở Folder TSBĐ
-        area.classList.remove('hidden');
         area.innerHTML = `
             <a href="${url}" target="_blank" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border border-teal-400/30">
                 <i data-lucide="external-link" class="w-5 h-5"></i> Xem Folder TSBĐ
             </a>
             <p class="text-[10px] text-center text-teal-400/70 italic mb-2">Ảnh tài sản đã được đồng bộ</p>
         `;
-        // KHÔNG ẩn nút Upload – để có thể upload thêm ảnh TSBĐ
         if (btnUp) btnUp.classList.remove('hidden');
     } else {
-        // Chưa có link → chỉ hiện nút Upload, ẩn khu trạng thái
-        area.classList.add('hidden');
+        // CHƯA CÓ LINK → hiện nút TÌM LẠI KẾT NỐI
+        area.innerHTML = `
+            <button onclick="reconnectAssetDriveFolder()"
+                    class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600
+                           rounded-lg text-xs font-medium text-slate-300
+                           flex items-center justify-center gap-2 hover:bg-slate-700 transition">
+                <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
+            </button>
+        `;
         if (btnUp) btnUp.classList.remove('hidden');
     }
     
-    lucide.createIcons();
+    if(window.lucide) lucide.createIcons();
 }
 // --- TÍNH NĂNG TÌM LẠI FOLDER THẤT LẠC ---
 async function reconnectDriveFolder() {
@@ -2214,6 +2223,93 @@ async function reconnectDriveFolder() {
         getEl('loader').classList.add('hidden');
       alert("Lỗi kết nối: " + err.message);
   }
+}
+// --- TÍNH NĂNG TÌM LẠI FOLDER TÀI SẢN ---
+async function reconnectAssetDriveFolder() {
+    const scriptUrl = localStorage.getItem(SCRIPT_KEY);
+    if (!scriptUrl) return alert("Chưa cấu hình Script!");
+    
+    if (!currentCustomerData || !currentAssetId) return;
+
+    // Tìm tài sản đang thao tác
+    const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
+    if (assetIndex === -1) return;
+    const currentAsset = currentCustomerData.assets[assetIndex];
+
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang tìm TSBĐ trên Drive...";
+
+    // Tên folder cần tìm (Phải khớp quy tắc đặt tên lúc Upload TSBĐ)
+    // Quy tắc: [Tên Khách] - TSBĐ: [Tên Tài Sản]
+    const folderName = `${currentCustomerData.name} - TSBĐ: ${currentAsset.name}`;
+
+    try {
+        const response = await fetch(scriptUrl, {
+            method: "POST",
+            body: JSON.stringify({
+                action: 'search', // Hành động tìm kiếm
+                folderName: folderName
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'found') {
+            // TÌM THẤY!
+            // 1. Cập nhật link vào đúng tài sản
+            currentCustomerData.assets[assetIndex].driveLink = result.url;
+            
+            // 2. Lưu vào Database (Mã hóa tự động xử lý khi hiển thị, ở đây lưu object đã decrypt trong memory nên cần put lại)
+            // Lưu ý: Do currentCustomerData đang ở dạng Decrypted (đã giải mã), 
+            // nên khi lưu ta cần gọi hàm saveAsset hoặc tự mã hóa lại. 
+            // Tuy nhiên, để đơn giản và an toàn nhất, ta dùng transaction readwrite trực tiếp:
+            
+            // Vì currentCustomerData đang là bản RÕ (Plain text) do được giải mã lúc mở folder,
+            // nhưng DB yêu cầu lưu bản MÃ HÓA.
+            // -> Cách nhanh nhất: Gọi hàm saveAsset() nhưng không thay đổi thông tin form, chỉ update link.
+            // Nhưng để tránh phiền phức, ta sẽ mã hóa thủ công link Drive này và lưu đè.
+            
+            // *QUAN TRỌNG*: Để đảm bảo tính nhất quán với logic "Master Key" mới:
+            // Ta sẽ reload lại logic lưu. Nhưng đơn giản nhất là cập nhật vào memory và gọi saveAsset giả lập
+            // Hoặc: Ta lưu thẳng vào DB bản customer hiện tại (đã có link mới).
+            
+            // CÁCH AN TOÀN NHẤT VỚI LOGIC BẢO MẬT HIỆN TẠI:
+            // Ta sẽ dùng hàm encryptText để mã hóa lại các trường trước khi lưu, giống hệt hàm saveAsset.
+            // Nhưng để code ngắn gọn, ta sẽ update vào biến tạm và hiển thị luôn, 
+            // việc lưu xuống DB sẽ thực hiện thủ công như sau:
+            
+            // B1: Mã hóa link vừa tìm được
+            const encLink = encryptText(result.url);
+            
+            // B2: Lấy bản ghi gốc từ DB (đang mã hóa) để cập nhật đúng trường driveLink
+            const tx = db.transaction(['customers'], 'readwrite');
+            const store = tx.objectStore('customers');
+            
+            store.get(currentCustomerData.id).onsuccess = (e) => {
+                let dbRecord = e.target.result;
+                if (dbRecord && dbRecord.assets && dbRecord.assets[assetIndex]) {
+                    // Cập nhật link Drive (đã mã hóa) vào DB
+                    dbRecord.assets[assetIndex].driveLink = encLink;
+                    store.put(dbRecord);
+                }
+            };
+
+            tx.oncomplete = () => {
+                getEl('loader').classList.add('hidden');
+                renderAssetDriveStatus(result.url); // Hiển thị nút Mở Drive ngay
+                showToast("Đã kết nối lại TSBĐ!");
+            };
+
+        } else {
+            getEl('loader').classList.add('hidden');
+            alert("Không tìm thấy Folder: " + folderName + "\n\nLưu ý: Tên khách và Tên tài sản phải y hệt lúc Upload.");
+        }
+
+    } catch (err) {
+        console.error(err);
+        getEl('loader').classList.add('hidden');
+        alert("Lỗi kết nối: " + err.message);
+    }
 }
 // ============================================================
 // LOGIC KẾT NỐI GOOGLE APPS SCRIPT (OCR & UPLOAD)
