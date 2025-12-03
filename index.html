@@ -32,7 +32,7 @@
         background-size: cover;
         background-repeat: no-repeat;
         
-        transition: background-color 0.5s ease, color 0.3s ease;
+        transition: background-color 0.3s ease, color 0.3s ease;
         -webkit-tap-highlight-color: transparent;
         overscroll-behavior-y: none;
         height: var(--app-height); width: 100vw; overflow: hidden; position: fixed;
@@ -670,7 +670,7 @@ const WEATHER_STORAGE_KEY = 'app_weather_cache_v1';
 const WEATHER_CACHE_TTL = 15 * 60 * 1000; // 15 phút
 const SCRIPT_KEY = 'app_script_url';
 // --- CẤU HÌNH SERVER TRUNG TÂM ---
-const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbzQHqI260HJ9hw6nlIO7wHlavKBRpGWuKfyg-lD_xhUz8Pghxuv_TcfgJrJMzj3m8N9SQ/exec"; 
+const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbwUVByXR0eDgnuoX2eQnkS3VuKvkpC0og134bGpK4S_089oVbb_kyv_WNGy6V582SbO6Q/exec"; 
 const USER_SCRIPT_KEY = 'app_user_script_url';
 // map weathercode -> text tiếng Việt đơn giản
 const WEATHER_CODE_TEXT = {
@@ -983,59 +983,62 @@ initWeather();
          *     Mã nhân viên sẽ được điền sẵn từ localStorage để người dùng không cần nhập lại.
          *  3. Nếu đã có PIN, hiển thị màn hình khóa để nhập PIN.
          */
-        async function checkSecurity() {
-            // Luôn kiểm tra trạng thái khóa từ server trước
-            // Luôn sử dụng máy chủ quản trị trung tâm để kiểm tra trạng thái khóa
-            const scriptUrl = ADMIN_SERVER_URL;
-            try {
-            // Gửi yêu cầu GET với tham số truy vấn tới Apps Script thay vì POST
-            const query = `?action=check_status&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-            const res = await fetch(scriptUrl + query);
-                let result;
-                try { result = await res.json(); } catch (e) { result = await res.text(); }
-                const isLocked = (result && result.status && String(result.status).toLowerCase() === 'locked') || String(result).toLowerCase().includes('locked');
-                if (isLocked) {
-                    // Tài khoản tạm khóa: không xóa dữ liệu, chỉ yêu cầu nhập key mới
-                    const modal = getEl('activation-modal');
-                    if (modal) modal.classList.remove('hidden');
-                    // thay đổi tiêu đề thành thông báo tạm khóa
-                    const titleEl = document.getElementById('activation-title');
-                    if (titleEl) titleEl.textContent = 'Tài khoản tạm khóa. Vui lòng nhập Mã kích hoạt mới';
-                    return;
-                }
-            } catch (err) {
-                // Nếu lỗi mạng hoặc lỗi server, bỏ qua và dùng trạng thái cục bộ
-            }
+        // --- HÀM CHECK BẢO MẬT MỚI (MỞ KHÓA SIÊU TỐC) ---
+async function checkSecurity() {
+    // 1. KIỂM TRA DỮ LIỆU TRONG MÁY TRƯỚC (Cực nhanh)
+    const activated = localStorage.getItem(ACTIVATED_KEY);
+    const pinEnc = localStorage.getItem(PIN_KEY);
 
-            const activated = localStorage.getItem(ACTIVATED_KEY);
-            if (!activated) {
-                // Chưa kích hoạt -> yêu cầu nhập key & mã nhân viên
-                const modal = getEl('activation-modal');
-                if (modal) modal.classList.remove('hidden');
-                // tiêu đề mặc định
-                const titleEl = document.getElementById('activation-title');
-                if (titleEl) titleEl.textContent = 'Kích hoạt Thiết bị';
-                return;
-            }
+    // Nếu chưa kích hoạt -> Hiện bảng kích hoạt luôn
+    if (!activated) {
+        const modal = getEl('activation-modal');
+        if (modal) modal.classList.remove('hidden');
+        return; 
+    }
 
-            const pinEnc = localStorage.getItem(PIN_KEY);
-            if (!pinEnc) {
-                // Đã kích hoạt nhưng chưa đặt PIN -> mở modal thiết lập bảo mật
-                getEl('setup-lock-modal').classList.remove('hidden');
-                // reset PIN input
-                getEl('setup-pin').value = '';
-                // Điền sẵn mã nhân viên từ localStorage (nếu có)
-                const empId = localStorage.getItem(EMPLOYEE_KEY);
-                if (empId) {
-                    getEl('setup-answer').value = empId;
-                } else {
-                    getEl('setup-answer').value = '';
-                }
-                return;
-            }
-            // Đã có PIN -> hiển thị màn hình khóa
-            showLockScreen();
+    // Nếu đã kích hoạt -> HIỆN MÀN HÌNH KHÓA NGAY (Không chờ Server)
+    if (!pinEnc) {
+        // Chưa có PIN -> Hiện bảng tạo PIN
+        getEl('setup-lock-modal').classList.remove('hidden');
+        // Điền sẵn mã NV nếu có
+        const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
+        if (storedEmp) getEl('setup-answer').value = storedEmp;
+    } else {
+        // Đã có PIN -> Hiện bàn phím nhập PIN ngay lập tức
+        showLockScreen();
+    }
+
+    // 2. CHECK NGẦM VỚI SERVER (Background Check)
+    // Phần này chạy âm thầm bên dưới, không làm đơ màn hình của bạn
+    try {
+        const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || '';
+        // Gửi Mã NV lên để Server kiểm tra (như logic bước 1)
+        const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
+        
+        const res = await fetch(ADMIN_SERVER_URL + query);
+        const result = await res.json();
+
+        // Nếu Server báo "LOCKED" (Do bạn xóa Key trên Sheet)
+        if (result.status === 'locked') {
+            // Tắt màn hình khóa
+            getEl('screen-lock').classList.add('hidden');
+            getEl('setup-lock-modal').classList.add('hidden');
+
+            // Hiện thông báo Kích hoạt lại
+            const modal = getEl('activation-modal');
+            modal.classList.remove('hidden');
+            
+            const titleEl = document.getElementById('activation-title');
+            if (titleEl) titleEl.textContent = result.message || 'Tài khoản đã bị thu hồi!';
+            
+            // Xóa trạng thái kích hoạt cũ để bắt nhập lại
+            localStorage.removeItem(ACTIVATED_KEY);
         }
+    } catch (err) {
+        console.log("Không kết nối được Server, dùng chế độ Offline");
+        // Nếu mất mạng, App vẫn cho dùng bình thường (Offline mode)
+    }
+}
         function openSecuritySetup() {
             // Mở giao diện thiết lập bảo mật mới. Không điền sẵn mã nhân viên vì dữ liệu trong localStorage đã được mã hóa.
             toggleMenu();
