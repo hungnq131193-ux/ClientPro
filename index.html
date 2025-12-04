@@ -253,8 +253,8 @@
 
 
                 <div class="grid grid-cols-2 gap-3">
-                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Định giá (VNĐ)</label><input id="asset-val" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
-                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vay Max (VNĐ)</label><input id="asset-loan" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Định giá (Trđ)</label><input id="asset-val" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vay Max (Trđ)</label><input id="asset-loan" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
                 </div>
                 <div class="grid grid-cols-3 gap-3">
                     <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Diện tích</label><input id="asset-area" type="number" placeholder="m²" class="w-full p-3 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
@@ -744,7 +744,7 @@ const DONATE_DEFAULT_DESC = 'Ung ho tac gia ClientPro';
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
                     // Tạo link chuẩn cho Google Maps (Search Query)
-                    const mapLink = `https://www.google.com/maps?q=${lat},${lng}`;
+                    const mapLink = `https://www.google.com/maps?q={lat},${lng}`;
                     
                     const inputLink = getEl('asset-link');
                     inputLink.value = mapLink;
