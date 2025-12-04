@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ClientPro</title>
+    <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#00346e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Thư viện quét QR offline -->
@@ -3417,7 +3422,16 @@ function handleRedBookResult(data) {
 // Stubbed functions to override removed OCR utilities (in case leftover calls exist)
 function parseRedBookInfo(text) { return {}; }
 function renderRedBookInfo(info) { return ''; }
-
+</script>
+<script>
+    // Đăng ký PWA Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('Service Worker đã sẵn sàng!', reg))
+                .catch(err => console.log('Lỗi Service Worker:', err));
+        });
+    }
 </script>
 </body>
 </html>
