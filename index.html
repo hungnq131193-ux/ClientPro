@@ -641,6 +641,11 @@
         // --- Security & Encryption Helpers (ADVANCED RECOVERY MODE) ---
         // Sử dụng masterKey cho cơ chế mã hóa toàn bộ dữ liệu và khôi phục bằng mã nhân viên.
         let masterKey = null;
+        /**
+         * Hằng số bí mật dùng để mã hóa/giải mã dữ liệu backup.
+         * Cần giữ bí mật chuỗi này để đảm bảo file backup không thể đọc được nếu không có khóa.
+         */
+        const APP_BACKUP_SECRET = 'ClientPro_Protected_v5_@2025';
 
         /**
          * Compute a SHA-256 hash of the provided PIN string and return it as a hex string.
@@ -2024,51 +2029,150 @@ async function capturePhoto() {
         // ============================================================
 // HÀM BACKUP MỚI (CHỈ LƯU THÔNG TIN - LOẠI BỎ ẢNH & LINK)
 // ============================================================
-function backupData() { 
+async function backupData() { 
+    // Đóng menu và hiển thị loader
     toggleMenu(); 
     getEl('loader').classList.remove('hidden');
     getEl('loader-text').textContent = "Đóng gói (Bảo mật)...";
-
-    const tx = db.transaction(['customers'], 'readonly');
-    const store = tx.objectStore('customers');
-
-    store.getAll().onsuccess = (e) => {
-        let customers = e.target.result || [];
-
-        // LỌC BỎ LINK DRIVE NHƯNG GIỮ NGUYÊN DỮ LIỆU MÃ HÓA
-        const cleanCustomers = customers.map(c => {
-            let copy = JSON.parse(JSON.stringify(c));
-            copy.driveLink = null;
-            if (copy.assets) {
-                copy.assets = copy.assets.map(a => {
-                    a.driveLink = null;
-                    return a;
-                });
-            }
-            // KHÔNG GIẢI MÃ (decryptCustomerObject) ĐỂ FILE BACKUP ĐƯỢC BẢO MẬT
-            return copy;
+    try {
+        // Đọc toàn bộ khách hàng từ IndexedDB
+        const customers = await new Promise((resolve, reject) => {
+            const tx = db.transaction(['customers'], 'readonly');
+            const store = tx.objectStore('customers');
+            const req = store.getAll();
+            req.onsuccess = (e) => resolve(e.target.result || []);
+            req.onerror = (e) => reject(e);
         });
 
+        // Chuẩn hoá dữ liệu: giải mã các trường cần thiết và loại bỏ driveLink
+        const cleanCustomers = customers.map((c) => {
+            const cust = JSON.parse(JSON.stringify(c));
+            // Giải mã các trường văn bản
+            cust.name = decryptText(cust.name);
+            cust.phone = decryptText(cust.phone);
+            cust.cccd = decryptText(cust.cccd);
+            // Loại bỏ liên kết Drive ở cấp khách hàng
+            cust.driveLink = null;
+
+            if (cust.assets && Array.isArray(cust.assets)) {
+                cust.assets = cust.assets.map((a) => {
+                    const asset = JSON.parse(JSON.stringify(a));
+                    asset.name = decryptText(asset.name);
+                    asset.link = decryptText(asset.link);
+                    asset.valuation = decryptText(asset.valuation);
+                    asset.loanValue = decryptText(asset.loanValue);
+                    asset.area = decryptText(asset.area);
+                    asset.width = decryptText(asset.width);
+                    asset.onland = decryptText(asset.onland);
+                    asset.year = decryptText(asset.year);
+                    asset.ocrData = decryptText(asset.ocrData);
+                    // Loại bỏ liên kết Drive của tài sản
+                    asset.driveLink = null;
+                    return asset;
+                });
+            }
+            return cust;
+        });
+
+        // Đóng gói dữ liệu xuất
         const dataToExport = {
             v: 1.0,
-            customers: cleanCustomers, 
-            images: [] 
+            customers: cleanCustomers,
+            images: [] // bỏ ảnh để giảm kích thước backup
         };
 
-        const blob = new Blob([JSON.stringify(dataToExport)], {type: 'application/json'});
+        // Mã hóa toàn bộ dữ liệu bằng khóa bí mật
+        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(dataToExport), APP_BACKUP_SECRET).toString();
+
+        // Tạo file chứa dữ liệu đã mã hóa
+        const blob = new Blob([encrypted], {type: 'application/json'});
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `ClientPro_Encrypted_${Date.now()}.json`; 
+        a.download = `ClientPro_Backup_${Date.now()}.cpro`;
         a.click();
 
-        getEl('loader').classList.add('hidden');
         showToast("Đã xuất file");
-    };
+    } catch(err) {
+        console.error(err);
+        alert("Lỗi xuất file");
+    } finally {
+        // Ẩn loader trong mọi trường hợp
+        getEl('loader').classList.add('hidden');
+    }
 }
-        function restoreData(input) { 
-            toggleMenu(); const f = input.files[0]; if(!f) return; getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Đồng bộ...";
-            const r = new FileReader(); r.onload = e => { try { const d = JSON.parse(e.target.result); const tx = db.transaction(['customers', 'images'], 'readwrite'); d.customers.forEach(c => tx.objectStore('customers').put(c)); d.images.forEach(i => tx.objectStore('images').put(i)); tx.oncomplete = () => { getEl('loader').classList.add('hidden'); alert("Đã xong"); loadCustomers(); }; } catch(err) { getEl('loader').classList.add('hidden'); alert("Lỗi file"); } }; r.readAsText(f); 
-        }
+function restoreData(input) { 
+    // Đóng menu và chuẩn bị loader
+    toggleMenu(); 
+    const f = input.files && input.files[0]; 
+    if (!f) return;
+    getEl('loader').classList.remove('hidden'); 
+    getEl('loader-text').textContent = "Đồng bộ...";
+    const r = new FileReader(); 
+    r.onload = async (e) => { 
+        try { 
+            const encryptedContent = e.target.result;
+            // Thử giải mã nội dung file bằng khóa bí mật
+            let decryptedStr = '';
+            try {
+                const bytes = CryptoJS.AES.decrypt(String(encryptedContent), APP_BACKUP_SECRET);
+                decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
+            } catch(ex) {
+                decryptedStr = '';
+            }
+            if (!decryptedStr) throw new Error("Decryption failed");
+
+            const data = JSON.parse(decryptedStr);
+            // Chuẩn bị ghi dữ liệu vào IndexedDB
+            const tx = db.transaction(['customers', 'images'], 'readwrite');
+            const customerStore = tx.objectStore('customers');
+            const imageStore = tx.objectStore('images');
+
+            // Ghi từng khách hàng, mã hóa lại các trường bằng masterKey hiện tại
+            (data.customers || []).forEach((c) => {
+                const cust = JSON.parse(JSON.stringify(c));
+                // Mã hóa các trường quan trọng
+                cust.name = encryptText(cust.name);
+                cust.phone = encryptText(cust.phone);
+                cust.cccd = encryptText(cust.cccd);
+                // Nếu có tài sản thì mã hóa từng trường của tài sản
+                if (cust.assets && Array.isArray(cust.assets)) {
+                    cust.assets = cust.assets.map((a) => {
+                        const asset = JSON.parse(JSON.stringify(a));
+                        asset.name = encryptText(asset.name);
+                        asset.link = encryptText(asset.link);
+                        asset.valuation = encryptText(asset.valuation);
+                        asset.loanValue = encryptText(asset.loanValue);
+                        asset.area = encryptText(asset.area);
+                        asset.width = encryptText(asset.width);
+                        asset.onland = encryptText(asset.onland);
+                        asset.year = encryptText(asset.year);
+                        asset.ocrData = encryptText(asset.ocrData);
+                        // Giữ driveLink theo dữ liệu backup (có thể null)
+                        return asset;
+                    });
+                }
+                customerStore.put(cust);
+            });
+
+            // Ghi ảnh nếu có trong backup (images thường trống)
+            (data.images || []).forEach(i => imageStore.put(i));
+
+            tx.oncomplete = () => { 
+                getEl('loader').classList.add('hidden'); 
+                alert("Đã khôi phục"); 
+                loadCustomers(); 
+            };
+            tx.onerror = () => {
+                getEl('loader').classList.add('hidden');
+                alert("Lỗi khi ghi vào cơ sở dữ liệu");
+            };
+        } catch(err) { 
+            getEl('loader').classList.add('hidden'); 
+            alert("File backup không hợp lệ hoặc sai định dạng bảo mật"); 
+        } 
+    }; 
+    r.readAsText(f); 
+}
         function resetAppData() { if(confirm("XÓA SẠCH dữ liệu?")) { localStorage.clear(); indexedDB.deleteDatabase(DB_NAME).onsuccess = () => { alert("Đã reset."); window.location.reload(); }; } }
         // =============== DONATE FEATURE ===============
 
