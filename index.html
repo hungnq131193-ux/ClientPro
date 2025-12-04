@@ -2127,26 +2127,34 @@ function restoreData(input) {
             const customerStore = tx.objectStore('customers');
             const imageStore = tx.objectStore('images');
 
+                       // --- SỬA LỖI: Hàm helper chỉ mã hóa khi có dữ liệu ---
+            const enc = (txt) => (txt && String(txt).trim().length > 0) ? encryptText(txt) : '';
+
             // Ghi từng khách hàng, mã hóa lại các trường bằng masterKey hiện tại
             (data.customers || []).forEach((c) => {
                 const cust = JSON.parse(JSON.stringify(c));
-                // Mã hóa các trường quan trọng
-                cust.name = encryptText(cust.name);
-                cust.phone = encryptText(cust.phone);
-                cust.cccd = encryptText(cust.cccd);
+                
+                // Sử dụng hàm enc thay vì encryptText trực tiếp
+                cust.name = enc(cust.name);
+                cust.phone = enc(cust.phone);
+                cust.cccd = enc(cust.cccd);
+                
                 // Nếu có tài sản thì mã hóa từng trường của tài sản
                 if (cust.assets && Array.isArray(cust.assets)) {
                     cust.assets = cust.assets.map((a) => {
                         const asset = JSON.parse(JSON.stringify(a));
-                        asset.name = encryptText(asset.name);
-                        asset.link = encryptText(asset.link);
-                        asset.valuation = encryptText(asset.valuation);
-                        asset.loanValue = encryptText(asset.loanValue);
-                        asset.area = encryptText(asset.area);
-                        asset.width = encryptText(asset.width);
-                        asset.onland = encryptText(asset.onland);
-                        asset.year = encryptText(asset.year);
-                        asset.ocrData = encryptText(asset.ocrData);
+                        
+                        // Áp dụng enc cho toàn bộ các trường tài sản
+                        asset.name = enc(asset.name);
+                        asset.link = enc(asset.link);
+                        asset.valuation = enc(asset.valuation);
+                        asset.loanValue = enc(asset.loanValue);
+                        asset.area = enc(asset.area);
+                        asset.width = enc(asset.width);
+                        asset.onland = enc(asset.onland);
+                        asset.year = enc(asset.year);
+                        asset.ocrData = enc(asset.ocrData);
+                        
                         // Giữ driveLink theo dữ liệu backup (có thể null)
                         return asset;
                     });
