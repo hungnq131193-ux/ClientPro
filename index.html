@@ -1507,19 +1507,78 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
     isSelectionMode = false; selectedImages.clear(); updateSelectionUI(); 
 }
 
-        function referenceAssetPrice(assetIndex) {
-            const targetAsset = currentCustomerData.assets[assetIndex]; const targetLoc = parseLatLngFromLink(targetAsset.link);
-            if (!targetLoc) { showToast("TSBĐ chưa có tọa độ chuẩn."); return; }
-            getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Tham chiếu...";
-            const tx = db.transaction(['customers'], 'readonly');
-            tx.objectStore('customers').getAll().onsuccess = (e) => {
-                const customers = e.target.result || []; const candidates = [];
-                customers.forEach(cust => { if (!cust.assets) return; cust.assets.forEach(asset => { if (cust.id === currentCustomerData.id && asset.id === targetAsset.id) return; const loc = parseLatLngFromLink(asset.link); const val = parseMoneyToNumber(asset.valuation); if (loc && val > 0) { const dist = distanceMeters(targetLoc.lat, targetLoc.lng, loc.lat, loc.lng); candidates.push({ customerName: cust.name, assetName: asset.name, valuation: val, distance: dist }); } }); });
-                getEl('loader').classList.add('hidden'); getEl('loader-text').textContent = "Loading...";
-                if (candidates.length === 0) { showToast("Chưa có dữ liệu phù hợp"); return; }
-                candidates.sort((a, b) => a.distance - b.distance); showRefModal(candidates.slice(0, 10));
-            };
+        // --- ĐÃ SỬA: GIẢI MÃ DỮ LIỆU TRƯỚC KHI TÍNH TOÁN KHOẢNG CÁCH ---
+function referenceAssetPrice(assetIndex) {
+    // 1. Lấy tài sản đang chọn
+    const targetAsset = currentCustomerData.assets[assetIndex]; 
+    
+    // GIẢI MÃ LINK BẢN ĐỒ TRƯỚC KHI LẤY TỌA ĐỘ
+    const decryptedTargetLink = decryptText(targetAsset.link);
+    const targetLoc = parseLatLngFromLink(decryptedTargetLink);
+
+    if (!targetLoc) { 
+        showToast("TSBĐ chưa có tọa độ chuẩn (Link sai hoặc chưa nhập)."); 
+        return; 
+    }
+
+    getEl('loader').classList.remove('hidden'); 
+    getEl('loader-text').textContent = "Đang tìm kiếm & so sánh...";
+
+    const tx = db.transaction(['customers'], 'readonly');
+    tx.objectStore('customers').getAll().onsuccess = (e) => {
+        const customers = e.target.result || []; 
+        const candidates = [];
+
+        customers.forEach(cust => { 
+            if (!cust.assets) return; 
+            
+            // Giải mã tên khách hàng để hiển thị
+            const custName = decryptText(cust.name);
+
+            cust.assets.forEach(asset => { 
+                // Bỏ qua chính tài sản đang so sánh
+                if (cust.id === currentCustomerData.id && asset.id === targetAsset.id) return; 
+                
+                // GIẢI MÃ DỮ LIỆU CỦA CÁC TÀI SẢN KHÁC
+                const decryptedLink = decryptText(asset.link);
+                const loc = parseLatLngFromLink(decryptedLink); 
+                
+                // Giải mã định giá để tính toán
+                const val = parseMoneyToNumber(decryptText(asset.valuation)); 
+                
+                // Giải mã tên tài sản để hiển thị
+                const assetName = decryptText(asset.name);
+
+                if (loc && val > 0) { 
+                    const dist = distanceMeters(targetLoc.lat, targetLoc.lng, loc.lat, loc.lng); 
+                    
+                    // Chỉ lấy các tài sản trong bán kính 5km (hoặc tùy chỉnh)
+                    // Ở đây lấy tất cả rồi sort, nhưng có thể if (dist < 5000)
+                    candidates.push({ 
+                        customerName: custName, 
+                        assetName: assetName, 
+                        valuation: val, 
+                        distance: dist 
+                    }); 
+                } 
+            }); 
+        });
+
+        getEl('loader').classList.add('hidden'); 
+        getEl('loader-text').textContent = "Loading...";
+
+        if (candidates.length === 0) { 
+            showToast("Chưa có dữ liệu tham chiếu phù hợp"); 
+            return; 
         }
+
+        // Sắp xếp: Gần nhất lên đầu
+        candidates.sort((a, b) => a.distance - b.distance); 
+        
+        // Hiển thị top 20 kết quả
+        showRefModal(candidates.slice(0, 20));
+    };
+}
 
         function showRefModal(results) {
             const modal = getEl('ref-price-modal'); const container = getEl('ref-results'); container.innerHTML = '';
