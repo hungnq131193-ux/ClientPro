@@ -3424,12 +3424,28 @@ function parseRedBookInfo(text) { return {}; }
 function renderRedBookInfo(info) { return ''; }
 </script>
 <script>
-    // Đăng ký PWA Service Worker
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('Service Worker đã sẵn sàng!', reg))
-                .catch(err => console.log('Lỗi Service Worker:', err));
+            navigator.serviceWorker.register('./sw.js').then(reg => {
+                // Kiểm tra cập nhật mỗi khi mở App
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        // Nếu đã tải xong bản mới
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // Hiện thông báo (Toast) cho người dùng
+                            const toast = document.getElementById('toast');
+                            const msg = document.getElementById('toast-msg');
+                            if (toast && msg) {
+                                msg.textContent = "Đã có bản cập nhật mới! Tự động tải lại sau 3s...";
+                                toast.classList.add('toast-show');
+                                // Tự động reload sau 3 giây để nhận code mới
+                                setTimeout(() => window.location.reload(), 3000);
+                            }
+                        }
+                    });
+                });
+            });
         });
     }
 </script>
