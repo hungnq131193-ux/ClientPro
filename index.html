@@ -6,6 +6,8 @@
     <title>ClientPro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Thư viện quét QR offline -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <!-- CryptoJS library for hashing and encryption -->
@@ -228,7 +230,13 @@
                 <!-- CCCD/CMND mới thêm -->
                 <div>
                     <label class="text-xs font-bold uppercase block mb-1.5 opacity-70" style="color: var(--text-sub)">CCCD / CMND</label>
-                    <input id="new-cccd" class="w-full border p-3.5 rounded-xl outline-none" placeholder="Số căn cước..." style="border-color: var(--border-panel);">
+                    <!-- Thay thế input đơn bằng container flex: nhập tay hoặc quét QR -->
+                    <div class="flex gap-2">
+                        <input id="new-cccd" class="flex-1 border p-3.5 rounded-xl outline-none" placeholder="Số căn cước..." style="border-color: var(--border-panel);">
+                        <button type="button" onclick="openQrScanner()" class="p-3.5 rounded-xl flex items-center justify-center glass-btn" title="Quét CCCD">
+                            <i data-lucide="qrcode" class="w-5 h-5"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="mt-8">
@@ -244,11 +252,11 @@
             <div class="space-y-3">
                 <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Mô tả chính</label><input id="asset-name" placeholder="VD: Nhà cấp 4, hẻm xe hơi..." class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);"></div>
                 <input type="hidden" id="asset-ocr-data">
+                <!-- Nút quét QR Bìa Đỏ mới -->
                 <div class="mb-2">
-                    <button type="button" onclick="triggerAssetOcr()" class="w-full py-3 rounded-xl font-bold text-white shadow-lg active:scale-95 transition bg-gradient-to-r from-red-600 to-pink-600 flex items-center justify-center gap-2">
-                        <i data-lucide="scan-text" class="w-5 h-5"></i> Quét Bìa Đỏ
+                    <button type="button" onclick="openRedBookScanner()" class="w-full py-3 rounded-xl font-bold text-white shadow-lg active:scale-95 transition bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center justify-center gap-2">
+                        <i data-lucide="qrcode" class="w-5 h-5"></i> Quét QR Bìa Đỏ
                     </button>
-                    <p class="text-[10px] text-center mt-1 opacity-50 italic">Tự động điền Diện tích, Địa chỉ & Lưu ảnh</p>
                 </div>
 
 
@@ -581,6 +589,14 @@
     <div id="lightbox" class="fixed inset-0 z-[60] bg-black/95 hidden flex flex-col justify-center items-center touch-none backdrop-blur-xl"><button class="lightbox-nav left-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute" onclick="navigateLightbox(-1)"><i data-lucide="chevron-left" class="w-8 h-8 text-white"></i></button><img id="lightbox-img" class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform"><button class="lightbox-nav right-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute" onclick="navigateLightbox(1)"><i data-lucide="chevron-right" class="w-8 h-8 text-white"></i></button><button onclick="closeLightbox()" class="absolute top-6 right-6 text-white p-3 z-[70] bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20"><i data-lucide="x" class="w-6 h-6"></i></button><div class="absolute bottom-12 text-white text-xs font-bold bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 tracking-widest" id="lightbox-counter">1/1</div><div class="absolute bottom-12 right-6 flex gap-4"><button onclick="shareOpenedImage()" class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20"><i data-lucide="share-2" class="w-5 h-5"></i></button><button onclick="deleteOpenedImage()" class="p-3 bg-red-500/20 rounded-full text-red-400 hover:bg-red-500/30"><i data-lucide="trash-2" class="w-5 h-5"></i></button></div></div>
     <div id="camera-modal" class="fixed inset-0 z-50 bg-black hidden flex-col"><video id="camera-feed" class="flex-1 w-full object-cover" autoplay playsinline webkit-playsinline muted></video><div class="absolute bottom-10 left-0 right-0 flex justify-center"><button onclick="capturePhoto()" class="w-20 h-20 bg-white rounded-full border-4 border-gray-300 shadow-2xl active:scale-95 transition-transform ring-4 ring-white/20"></button></div><button onclick="closeCamera()" class="absolute top-8 right-6 text-white p-2 bg-black/20 rounded-full backdrop-blur"><i data-lucide="x" class="w-8 h-8"></i></button><canvas id="camera-canvas" class="hidden"></canvas></div>
 
+    <!-- Modal Quét QR: hiển thị camera quét QR CCCD hoặc Bìa Đỏ -->
+    <div id="qr-modal" class="fixed inset-0 z-50 bg-black/90 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="relative w-full max-w-sm mx-auto glass-panel p-4 rounded-2xl shadow-2xl">
+            <button onclick="closeQrScanner()" class="absolute top-3 right-3 text-slate-400 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+            <div id="qr-reader" class="w-full h-64"></div>
+        </div>
+    </div>
+
     <script>
         function getEl(id) { return document.getElementById(id); }
         const DB_NAME='QLKH_Pro_V4'; let db;
@@ -800,65 +816,7 @@ const DONATE_DEFAULT_DESC = 'Ung ho tac gia ClientPro';
         function parseMoneyToNumber(str) { if(!str) return 0; return parseInt(str.toString().replace(/\D/g, '')) || 0; }
         
         // --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
-async function enhanceDocumentWithAI(base64) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            canvas.width = img.width;
-            canvas.height = img.height;
-            
-            // vẽ lần 1 với filter nhẹ (giảm noise một chút)
-            ctx.filter = 'contrast(1.05) brightness(1.02)';
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
-            try {
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const data = imageData.data;
-                
-                // Tăng nhẹ contrast + làm nền trắng hơn, giữ chữ đậm
-                const contrast = 1.10;
-                const brightness = 6;
-                
-                for (let i = 0; i < data.length; i += 4) {
-                    const r = data[i];
-                    const g = data[i + 1];
-                    const b = data[i + 2];
-                    
-                    // Nếu là nền sáng (gần trắng) → đẩy lên trắng luôn cho sạch noise
-                    if (r > 230 && g > 230 && b > 230) {
-                        data[i] = 255;
-                        data[i + 1] = 255;
-                        data[i + 2] = 255;
-                        continue;
-                    }
-                    
-                    // Áp dụng contrast / brightness nhẹ cho vùng còn lại (chữ, họa tiết)
-                    let nr = (r - 128) * contrast + 128 + brightness;
-                    let ng = (g - 128) * contrast + 128 + brightness;
-                    let nb = (b - 128) * contrast + 128 + brightness;
-                    
-                    data[i] = Math.max(0, Math.min(255, nr));
-                    data[i + 1] = Math.max(0, Math.min(255, ng));
-                    data[i + 2] = Math.max(0, Math.min(255, nb));
-                }
-                
-                ctx.putImageData(imageData, 0, 0);
-                
-                // Giữ chất lượng cao nhất ở bước này, nén sẽ làm ở hàm compressImage
-                const out = canvas.toDataURL('image/jpeg', 0.98);
-                resolve(out);
-            } catch (e) {
-                console.warn('enhanceDocumentWithAI error', e);
-                resolve(base64);
-            }
-        };
-        img.onerror = () => resolve(base64);
-        img.src = base64;
-    });
-}
+// Removed enhanceDocumentWithAI as OCR is no longer used
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
@@ -1645,7 +1603,7 @@ function referenceAssetPrice(assetIndex) {
         
         const mapLink = formatLink(decLink);
         const mapBtn = mapLink ? `<a href="${mapLink}" target="_blank" class="glass-btn flex-1 py-2.5 rounded-lg text-xs font-bold text-slate-300 flex items-center justify-center gap-1 hover:text-white"><i data-lucide="map" class="w-3 h-3"></i> Bản đồ</a>` : `<span class="glass-btn flex-1 py-2.5 rounded-lg text-xs text-slate-500 text-center cursor-not-allowed opacity-50">No Map</span>`;
-        const ocrBtn = asset.ocrData ? `<button onclick="viewSavedOcr('${asset.id}')" class="glass-btn px-3 py-2.5 text-purple-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:text-white"><i data-lucide="scan-line" class="w-3 h-3"></i> OCR</button>` : '';
+        const ocrBtn = asset.ocrData ? `<button onclick="viewSavedOcr('${asset.id}')" class="glass-btn px-3 py-2.5 text-purple-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:text-white"><i data-lucide="info" class="w-3 h-3"></i> Thông tin bìa</button>` : '';
         
         const areaInfo = safeArea ? `<span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10">${safeArea}m²</span>` : '';
         const widthInfo = safeWidth ? `<span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10">MT:${safeWidth}m</span>` : '';
@@ -1946,15 +1904,8 @@ function saveImageToDB(rawBase64) {
         getEl('loader').classList.remove('hidden'); 
         getEl('loader-text').textContent = "Xử lý ảnh...";
         
-        // Làm nét ảnh
-        const enhancedBase64 = await enhanceDocumentWithAI(rawBase64); 
-        
-        // --- LOGIC MỚI: CHỈ CHẠY OCR NẾU CÓ CỜ HIỆU TỪ NÚT QUÉT ---
-        if (window.isOcrRequest === true) {
-             getEl('loader-text').textContent = "Đang đọc Bìa Đỏ...";
-             await runAssetOcrLogic(enhancedBase64); 
-             window.isOcrRequest = false; // Tắt cờ ngay sau khi dùng xong để tránh dính sang ảnh sau
-        }
+        // Không xử lý làm nét hoặc OCR nữa, sử dụng trực tiếp ảnh gốc
+        const enhancedBase64 = rawBase64;
 
         getEl('loader-text').textContent = "Đang lưu ảnh...";
         
@@ -2032,10 +1983,7 @@ async function capturePhoto() {
     // Tắt camera trước khi xử lý
     closeCamera();
     
-    // Chỉ chạy OCR khi bật chế độ 'ocr'
-    if (captureMode === 'ocr') {
-        await runOcrForRedBook(rawBase64);
-    }
+    // Bỏ qua xử lý OCR ở chế độ 'ocr' vì đã chuyển sang quét QR offline
     
     // Lưu ảnh vào DB như cũ (hồ sơ / tài sản / bìa đỏ đều dùng chung)
     await saveImageToDB(rawBase64);
@@ -2631,87 +2579,7 @@ async function reconnectDriveFolder() {
 let currentOcrBase64 = null;
 
 // 1. Mở Modal OCR
-function openOcrModal() {
-    const modal = getEl('ocr-modal');
-    if (modal) modal.classList.remove('hidden');
-    
-    // Reset UI
-    getEl('ocr-status').classList.add('hidden');
-    getEl('ocr-result-text').value = '';
-    getEl('ocr-structured').innerHTML = `
-        <div class="text-center py-6 space-y-2">
-            <p class="text-xs text-slate-400">Đang chờ ảnh...</p>
-        </div>
-    `;
-    if (window.lucide) lucide.createIcons();
-}
-
-function closeOcrModal() { getEl('ocr-modal').classList.add('hidden'); }
-
-// 2. Nhận ảnh đầu vào
-function runOcrForRedBook(rawBase64) {
-    currentOcrBase64 = rawBase64;
-    openOcrModal();
-    getEl('ocr-preview-img').src = rawBase64; 
-}
-
-// 3. HÀM CHẠY OCR (Gửi ảnh lên Google Script)
-async function runOcrNow() {
-    // Lấy link Script cá nhân từ localStorage. Nếu chưa cấu hình, yêu cầu người dùng vào Cài đặt.
-    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
-    if (!userUrl || userUrl.length < 10) {
-        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
-            toggleMenu();
-        }
-        return;
-    }
-    const scriptUrl = userUrl;
-
-    if (!currentOcrBase64) return;
-    
-    const btn = getEl('btn-run-ocr');
-    const statusDiv = getEl('ocr-structured');
-    const originalBtnText = btn.innerHTML;
-
-    btn.disabled = true;
-    btn.innerHTML = `<span class="animate-pulse">Đang gửi lên Google...</span>`;
-
-    try {
-        // Lấy phần data base64 sạch
-        const cleanBase64 = currentOcrBase64.split(',')[1];
-
-        // Gửi request POST
-        const response = await fetch(scriptUrl, {
-            method: "POST",
-            body: JSON.stringify({ 
-                action: 'ocr',       // Báo cho Script biết là muốn OCR
-                image: cleanBase64 
-            })
-        });
-
-        const result = await response.json();
-
-        if (result.status !== 'success') {
-            throw new Error(result.message || "Lỗi xử lý phía Server");
-        }
-
-        const rawText = result.text;
-        
-        // Hiển thị kết quả
-        getEl('ocr-result-text').value = rawText;
-        const info = parseRedBookInfo(rawText);
-        statusDiv.innerHTML = renderRedBookInfo(info);
-        getEl('ocr-status').classList.remove('hidden');
-
-    } catch (err) {
-        console.error(err);
-        statusDiv.innerHTML = `<div class="text-red-400 text-xs text-center p-2">Lỗi: ${err.message}</div>`;
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalBtnText;
-        if (window.lucide) lucide.createIcons();
-    }
-}
+// Removed OCR modal handlers and OCR execution functions as OCR is no longer used
 
 // 4. HÀM UPLOAD ẢNH (Gửi mảng ảnh lên Google Script)
 async function uploadToGoogleDrive() {
@@ -2792,51 +2660,8 @@ async function uploadToGoogleDrive() {
 // --- CẬP NHẬT REGEX THÔNG MINH (V5: BẮT DÍNH LOẠI ĐẤT & SỐ BÌA) ---
 
 function parseRedBookInfo(text) {
-    if (!text) return {};
-    
-    // 1. Làm sạch văn bản:
-    // - Thay dấu gạch đứng | (do bảng biểu) thành khoảng trắng
-    // - Gộp dòng nhưng giữ lại một chút dấu hiệu để regex không bị trôi
-    const raw = text.replace(/\|/g, ' ').replace(/\r\n/g, '\n').replace(/\n/g, '  ').replace(/\s+/g, ' '); 
-
-    const get = (regex) => {
-        const m = raw.match(regex);
-        return m && m[1] ? m[1].trim() : '';
-    };
-
-    return {
-        // [CẬP NHẬT] Số bìa đỏ: 
-        // - Bắt 2 chữ hoa đầu (VD: AA, BA, CS...)
-        // - Có thể có khoảng trắng hoặc không
-        // - Theo sau là 6 đến 8 chữ số
-        // - Thêm \b để đảm bảo nó là một mã riêng biệt, không nằm trong từ khác
-        soPhatHanh: get(/\b([A-Z]{2}\s{0,2}[0-9]{6,9})\b/),
-        
-        // Số vào sổ cấp GCN:
-        soVaoSo: get(/(?:Số vào sổ cấp GCN|Số vào sổ)[:\s]*([A-Za-z0-9\.\-\/ ]+)/i),
-
-        // Tờ bản đồ:
-        toBanDo: get(/(?:Tờ bản đồ số|TBĐ số|bản đồ số)[:\s]*([0-9]+)/i),
-        
-        // Thửa đất:
-        thuaDat: get(/(?:Thửa đất số|Thửa số|thửa đất số)[:\s]*([0-9\-\,]+)/i),
-        
-        // Diện tích:
-        dienTich: get(/([0-9\.\,]+)\s*m[²2]/i),
-        
-        // [CẬP NHẬT] Địa chỉ:
-        // - Google OCR thường đọc rất chuẩn dòng này, ta sẽ bắt từ "Địa chỉ" hoặc "tại:"
-        // - Lấy dài ra một chút để bắt hết Tỉnh/Thành phố
-        diaChi: get(/(?:Địa chỉ|Đia chi|tại)(?: thửa đất)?[:\s]*([^.;]+(?:Tỉnh|Thành phố|Huyện|Quận|Xã|Phường|Thị trấn)[^.;]*)/i),
-        
-        // [CẬP NHẬT] Mục đích sử dụng / Loại đất:
-        // - Thêm từ khóa "Loại đất" (cho bìa mới)
-        // - Bắt nội dung đến khi gặp dấu chấm phẩy hoặc dấu chấm (kết thúc câu)
-        mucDich: get(/(?:Mục đích sử dụng|Mục đích|Loại đất)[:\s]*([^.;]+)/i),
-
-        // Tên chủ sở hữu:
-        chuSoHuu: get(/(?:Ông|Bà|Người sử dụng đất|Hộ ông|Hộ bà|Họ và tên)[:\s]*([A-ZĂÂÁẮẤÀẰẦẢẲẨÃẴẪẠẶẬĐEÊÉẾÈỀẺỂẼỄẸỆIÍÌỈĨỊOÔƠÓỐỚÒỒỜỎỔỞÕỖỠỌỘỢUƯÚỨÙỪỦỬŨỮỤỰYÝỲỶỸỴ\s]+)/)
-    };
+    // Trả về đối tượng rỗng (OCR parser đã bỏ)
+    return {};
 }
 
 // --- CẬP NHẬT HIỂN THỊ KẾT QUẢ ---
@@ -2876,62 +2701,7 @@ function renderRedBookInfo(info) {
 }
 
 
-// --- HÀM COPY AN TOÀN CHO MOBILE (FIX LỖI KHÔNG PASTE ĐƯỢC) ---
-function copyOcrResult() {
-    // 1. Lấy nội dung text từ ô kết quả
-    const txtField = getEl('ocr-result-text');
-    const textToCopy = txtField ? txtField.value : "";
-
-    if (!textToCopy) {
-        // Nếu chưa có kết quả thì báo lỗi nhẹ
-        showToast("Chưa có nội dung để copy!");
-        return;
-    }
-
-    // 2. Logic Copy đa năng (Hỗ trợ cả Android & iOS đời cũ)
-    // Ưu tiên dùng API hiện đại
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            showToast('Đã copy nội dung OCR');
-        }).catch(() => {
-            // Nếu lỗi, chuyển sang phương án 2 (Fallback)
-            fallbackCopyText(textToCopy);
-        });
-    } else {
-        // Nếu trình duyệt không hỗ trợ API mới, dùng phương án 2 luôn
-        fallbackCopyText(textToCopy);
-    }
-}
-
-// Phương án dự phòng: Tạo vùng text ảo để copy (Bao uy tín trên Mobile)
-function fallbackCopyText(text) {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    
-    // Đảm bảo phần tử này nằm trong màn hình để ko bị lỗi focus
-    textArea.style.top = "0";
-    textArea.style.left = "0";
-    textArea.style.position = "fixed";
-    textArea.style.opacity = "0"; // Ẩn đi để không xấu giao diện
-
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-
-    try {
-        const successful = document.execCommand('copy');
-        if (successful) {
-            showToast('Đã copy nội dung (Chế độ tương thích)');
-        } else {
-            alert('Không thể copy tự động. Vui lòng copy thủ công từ ô kết quả.');
-        }
-    } catch (err) {
-        console.error('Lỗi copy:', err);
-        alert('Lỗi copy. Hãy mở phần "Xem văn bản thô" và copy tay.');
-    }
-
-    document.body.removeChild(textArea);
-}
+// Removed old mobile copy functions (copyOcrResult and fallbackCopyText) as OCR features have been replaced by QR scanning. Use copyToClipboard() instead.
 
 
 
@@ -3084,108 +2854,8 @@ function renderRedBookInfo(info) {
     `;
 }
 // --- 1. Hàm kích hoạt OCR từ nút bấm trong Modal Tài Sản ---
-function triggerAssetOcr() {
-    // Logic tạo ID tạm nếu đang thêm mới (giữ nguyên)
-    let assetId = getEl('edit-asset-index').value === "" 
-        ? 'asset_' + Date.now() 
-        : currentCustomerData.assets[getEl('edit-asset-index').value].id;
-    
-    currentAssetId = assetId; 
-    
-    // --- THÊM MỚI: BẬT CỜ HIỆU OCR ---
-    window.isOcrRequest = true; 
-    
-    // Mở camera/thư viện ảnh
-    getEl('native-camera-asset').click();
-}
-
-// --- HÀM XỬ LÝ OCR (ĐÃ RÚT GỌN: CHỈ ĐIỀN DIỆN TÍCH) ---
-async function runAssetOcrLogic(base64) {
-    // Lấy link Script cá nhân cho OCR tài sản
-    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
-    if (!userUrl || userUrl.length < 10) {
-        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
-            toggleMenu();
-        }
-        return;
-    }
-    const scriptUrl = userUrl;
-
-    try {
-        const cleanBase64 = base64.split(',')[1];
-        
-        // Gọi Google Script
-        const response = await fetch(scriptUrl, {
-            method: "POST",
-            body: JSON.stringify({ action: 'ocr', image: cleanBase64 })
-        });
-        const result = await response.json();
-        
-        if (result.status === 'success') {
-            const rawText = result.text;
-            // Vẫn dùng hàm parse cũ để lấy số liệu
-            const info = parseRedBookInfo(rawText);
-            
-            // --- 1. CHỈ TỰ ĐỘNG ĐIỀN DIỆN TÍCH ---
-            if(info.dienTich) {
-                // Chuẩn hóa dấu phẩy thành dấu chấm (145,6 -> 145.6)
-                let area = info.dienTich.replace(',', '.');
-                // Lọc bỏ sạch các ký tự không phải số và dấu chấm (đề phòng OCR lỗi)
-                area = area.replace(/[^0-9.]/g, '');
-                
-                getEl('asset-area').value = area;
-            }
-            
-            // --- 2. CÁC Ô KHÁC (ĐỊA CHỈ, TỜ, THỬA...) ---
-            // Đã xóa lệnh điền -> Để trống cho bạn tự nhập
-
-            // --- 3. LƯU KẾT QUẢ ĐỂ COPY SAU NÀY ---
-            const savedContent = `--- KẾT QUẢ OCR ---\nSố sổ: ${info.soPhatHanh}\nDiện tích: ${info.dienTich}\nĐ/C: ${info.diaChi}\nTờ: ${info.toBanDo} | Thửa: ${info.thuaDat}\n----------------\n${rawText}`;
-            getEl('asset-ocr-data').value = savedContent;
-
-            showToast("Đã điền số Diện tích!");
-        }
-    } catch (e) {
-        console.error(e);
-        alert("Lỗi đọc Bìa đỏ: " + e.message);
-    }
-}
-// --- Hàm xem lại dữ liệu OCR đã lưu (ĐÃ SỬA: GIẢI MÃ DỮ LIỆU) ---
-function viewSavedOcr(assetId) {
-    // Tìm tài sản hiện tại
-    const asset = currentCustomerData.assets.find(a => a.id === assetId);
-    
-    // Kiểm tra nếu không có dữ liệu
-    if(!asset || !asset.ocrData) return showToast("Không có dữ liệu OCR");
-    
-    // --- KHẮC PHỤC: Giải mã dữ liệu trước khi hiển thị ---
-    // Hàm decryptText sẽ biến chuỗi mã hóa thành văn bản đọc được
-    const contentToShow = decryptText(asset.ocrData); 
-    
-    // Tạo overlay hiển thị
-    const overlay = document.createElement('div');
-    overlay.className = "fixed inset-0 z-[300] bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in";
-    overlay.innerHTML = `
-        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-purple-500/30">
-            <h3 class="font-bold text-lg mb-4 text-purple-400 flex items-center gap-2">
-                <i data-lucide="scan-text" class="w-5 h-5"></i> Nội dung Bìa Đỏ
-            </h3>
-            <textarea readonly class="w-full h-60 bg-black/30 border border-white/10 rounded-xl p-3 text-xs text-slate-300 font-mono outline-none mb-4 custom-scrollbar">${contentToShow}</textarea>
-            <div class="flex gap-3">
-                <button onclick="copyToClipboard('${contentToShow.replace(/\n/g, '\\n')}')" class="flex-1 py-3 rounded-xl font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition border border-purple-500/30">Copy</button>
-                <button onclick="this.closest('.fixed').remove()" class="flex-1 py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(overlay);
-    
-    // Thêm hàm copy nhanh nếu chưa có
-    window.copyToClipboard = (text) => {
-        navigator.clipboard.writeText(text).then(() => showToast("Đã copy!")).catch(() => prompt("Copy thủ công:", text));
-    };
-
-    if(window.lucide) lucide.createIcons();
-}
+// Removed triggerAssetOcr, runAssetOcrLogic and old viewSavedOcr as OCR has been replaced by QR scanning.
+// The new implementation of viewSavedOcr is defined later in the script.
 // --- BỔ SUNG CÁC HÀM BỊ THIẾU (Dán vào cuối file script) ---
 
 function closeModal() {
@@ -3270,6 +2940,152 @@ function openEditCustomerModal() {
         getEl('new-cccd').value = decryptedCccd || '';
     }
 }
+
+// =========================================
+// QR Code Scanning Logic (Offline)
+// =========================================
+let qrScanner = null;
+let qrMode = null;
+
+function openQrScanner() {
+    qrMode = 'cccd';
+    const modal = getEl('qr-modal');
+    if (modal) modal.classList.remove('hidden');
+    startQrScanner();
+}
+
+function openRedBookScanner() {
+    qrMode = 'redbook';
+    const modal = getEl('qr-modal');
+    if (modal) modal.classList.remove('hidden');
+    startQrScanner();
+}
+
+function closeQrScanner() {
+    const modal = getEl('qr-modal');
+    if (qrScanner) {
+        qrScanner.stop().then(() => {
+            return qrScanner.clear();
+        }).catch((err) => {
+            console.warn(err);
+        });
+    }
+    if (modal) modal.classList.add('hidden');
+}
+
+function startQrScanner() {
+    const qrRegionId = 'qr-reader';
+    // Clear existing scanner if exists
+    if (qrScanner) {
+        qrScanner.stop().then(() => {
+            return qrScanner.clear();
+        }).catch(() => {});
+    }
+    qrScanner = new Html5Qrcode(qrRegionId);
+    qrScanner.start(
+        { facingMode: { exact: 'environment' } },
+        {
+            fps: 10,
+            qrbox: { width: 250, height: 250 }
+        },
+        (decodedText, decodedResult) => {
+            try {
+                if (qrMode === 'cccd') {
+                    handleCccdResult(decodedText);
+                } else if (qrMode === 'redbook') {
+                    handleRedBookResult(decodedText);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                closeQrScanner();
+            }
+        },
+        (errorMessage) => {
+            // ignore scanning errors per frame
+        }
+    ).catch((err) => {
+        console.error(err);
+        showToast('Không thể truy cập camera');
+    });
+}
+
+function handleCccdResult(data) {
+    // Try to parse CCCD QR format: ID|FullName|DOB|Gender|Address...
+    let idNum = '';
+    let name = '';
+    try {
+        let parts = [];
+        if (data.includes('|')) {
+            parts = data.split('|');
+        } else if (data.includes('\n')) {
+            parts = data.split('\n');
+        } else {
+            parts = data.split(' ');
+        }
+        idNum = parts[0] ? parts[0].trim() : '';
+        name = parts[1] ? parts[1].trim() : '';
+    } catch (e) {
+        idNum = data.trim();
+    }
+    if (idNum) {
+        const cccdInput = getEl('new-cccd');
+        if (cccdInput) cccdInput.value = idNum;
+    }
+    if (name) {
+        const nameInput = getEl('new-name');
+        if (nameInput) nameInput.value = name;
+    }
+}
+
+function handleRedBookResult(data) {
+    // Save raw QR text into hidden input and visible note
+    const hiddenInput = getEl('asset-ocr-data');
+    if (hiddenInput) hiddenInput.value = data;
+    const noteInput = getEl('asset-onland');
+    if (noteInput) noteInput.value = data;
+    showToast('Đã quét thành công QR bìa đỏ!');
+}
+
+// Simplified view of saved QR content
+function viewSavedOcr(assetId) {
+    const asset = currentCustomerData && currentCustomerData.assets
+        ? currentCustomerData.assets.find(a => a.id === assetId)
+        : null;
+    if (!asset || !asset.ocrData) {
+        showToast('Không có dữ liệu QR');
+        return;
+    }
+    // Decrypt text if encryption is enabled
+    const contentToShow = decryptText(asset.ocrData);
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-[300] bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in';
+    overlay.innerHTML = `
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-purple-500/30">
+            <h3 class="font-bold text-lg mb-4 text-purple-400 flex items-center gap-2">
+                <i data-lucide="info" class="w-5 h-5"></i> Thông tin bìa đỏ
+            </h3>
+            <textarea readonly class="w-full h-60 bg-black/30 border border-white/10 rounded-xl p-3 text-xs text-slate-300 font-mono outline-none mb-4 custom-scrollbar">${contentToShow}</textarea>
+            <div class="flex gap-3">
+                <button onclick="copyToClipboard('${contentToShow.replace(/\n/g, '\\n')}')" class="flex-1 py-3 rounded-xl font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition border border-purple-500/30">Copy</button>
+                <button onclick="this.closest('.fixed').remove()" class="flex-1 py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    if (window.lucide) lucide.createIcons();
+}
+
+// Utility to copy text to clipboard
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => showToast('Đã copy!')).catch(() => {
+        prompt('Copy thủ công:', text);
+    });
+}
+
+// Stubbed functions to override removed OCR utilities (in case leftover calls exist)
+function parseRedBookInfo(text) { return {}; }
+function renderRedBookInfo(info) { return ''; }
 
 </script>
 </body>
