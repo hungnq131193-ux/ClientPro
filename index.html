@@ -3084,50 +3084,6 @@ function applyDigitalZoom(value) {
         video.style.transition = "transform 0.1s ease-out";
     }
 }
-    qrScanner = new Html5Qrcode(qrRegionId);
-    
-    // Cấu hình mới: Ưu tiên khung vuông (aspectRatio: 1.0)
-    const config = {
-        fps: 10,
-        qrbox: function(viewfinderWidth, viewfinderHeight) {
-            // Tạo vùng quét chiếm 80% khung hình (để bạn không cần đưa camera quá sát)
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            return {
-                width: Math.floor(minEdge * 0.8),
-                height: Math.floor(minEdge * 0.8)
-            };
-        },
-        aspectRatio: 1.0 
-    };
-
-    qrScanner.start(
-        { facingMode: "environment" }, // Dùng camera sau
-        config,
-        (decodedText, decodedResult) => {
-            try {
-                // Rung nhẹ điện thoại khi quét thành công (nếu thiết bị hỗ trợ)
-                if (navigator.vibrate) navigator.vibrate(200);
-
-                if (qrMode === 'cccd') {
-                    handleCccdResult(decodedText);
-                } else if (qrMode === 'redbook') {
-                    handleRedBookResult(decodedText);
-                }
-            } catch (e) {
-                console.error(e);
-            } finally {
-                closeQrScanner();
-            }
-        },
-        (errorMessage) => {
-            // Bỏ qua lỗi khi đang quét
-        }
-    ).catch((err) => {
-        console.error(err);
-        alert('Lỗi Camera: Hãy cấp quyền truy cập camera cho trình duyệt!');
-        closeQrScanner();
-    });
-}
 
 function handleCccdResult(data) {
     // Try to parse CCCD QR format: ID|FullName|DOB|Gender|Address...
