@@ -3024,21 +3024,28 @@ function initScannerInstance(regionId) {
     const container = getEl(regionId); if(container) container.innerHTML = "";
     qrScanner = new Html5Qrcode(regionId);
     
+        // --- SỬA LỖI & CẤU HÌNH NÉT CĂNG ---
+    
+    // 1. Chuyển cấu hình độ phân giải (4K/FullHD) vào đây
     const config = {
         fps: 15, 
-        qrbox: { width: 220, height: 220 }, // Vùng quét nhỏ để dễ căn tâm
+        qrbox: { width: 220, height: 220 },
         aspectRatio: 1.0,
-        disableFlip: false 
+        disableFlip: false,
+        // Thêm videoConstraints vào đây để ép độ nét cao
+        videoConstraints: {
+            width: { min: 1280, ideal: 3840, max: 4096 }, // Ưu tiên 4K
+            height: { min: 720, ideal: 2160, max: 2160 },
+            focusMode: "continuous"
+        }
     };
     
-    // CẤU HÌNH 4K (QUAN TRỌNG NHẤT)
-    // Giúp ảnh đầu vào nét căng, khi Zoom lên không bị vỡ hạt
+    // 2. cameraConfig chỉ giữ đúng 1 dòng này để không bị lỗi "found 4 keys"
     const cameraConfig = { 
-        facingMode: "environment",
-        width: { min: 1280, ideal: 3840, max: 4096 }, // Ưu tiên 4K
-        height: { min: 720, ideal: 2160, max: 2160 },
-        focusMode: "continuous"
+        facingMode: "environment" 
     };
+
+    // --- KẾT THÚC ĐOẠN SỬA ---
 
     qrScanner.start(cameraConfig, config,
         (decodedText) => {
