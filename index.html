@@ -2969,99 +2969,121 @@ function openEditCustomerModal() {
 // =========================================
 // QR Code Scanning Logic (Offline)
 // =========================================
-// --- LOGIC QUÉT QR (4K + ZOOM CSS) ---
-let qrScanner = null;
-let qrMode = null;
-let isScannerRunning = false;
+// --- LOGIC QUÉT QR (CODE MỚI ĐÃ SỬA: FIX ĐEN MÀN HÌNH + CAM SAU) ---
+let html5QrCode = null; // Biến giữ camera
+let isQrBusy = false;   // Biến chống click đúp
+let qrMode = null;      // Biến lưu chế độ (cccd hoặc redbook)
 
-function openQrScanner() { qrMode = 'cccd'; getEl('qr-modal').classList.remove('hidden'); startQrScanner(); }
-function openRedBookScanner() { qrMode = 'redbook'; getEl('qr-modal').classList.remove('hidden'); startQrScanner(); }
+// Hàm mở Modal và bật Camera
+function openQrScanner() { 
+    qrMode = 'cccd'; 
+    document.getElementById('qr-modal').classList.remove('hidden'); 
+    startMyScanner(); 
+}
 
+function openRedBookScanner() { 
+    qrMode = 'redbook'; 
+    document.getElementById('qr-modal').classList.remove('hidden'); 
+    startMyScanner(); 
+}
+
+// Hàm đóng và tắt Camera an toàn
 async function closeQrScanner() {
-    const modal = getEl('qr-modal');
-    // Dừng camera an toàn
-    if (qrScanner && isScannerRunning) {
-        try { await qrScanner.stop(); qrScanner.clear(); } catch (err) {}
-        isScannerRunning = false;
+    const modal = document.getElementById('qr-modal');
+    
+    // Nếu chưa khởi tạo hoặc đang bận thì chỉ ẩn modal
+    if (!html5QrCode || isQrBusy) {
+        modal.classList.add('hidden');
+        return;
     }
-    // Reset zoom về 1
-    const slider = getEl('zoom-slider'); if(slider) slider.value = 1;
+    
+    isQrBusy = true; 
+    try {
+        // Chỉ STOP (tạm dừng) chứ không CLEAR (hủy) để tránh đen màn hình lần sau
+        if (html5QrCode.isScanning) {
+            await html5QrCode.stop();
+        }
+    } catch (err) {
+        console.warn("Camera đã dừng hoặc lỗi nhẹ:", err);
+    }
+    isQrBusy = false; 
     modal.classList.add('hidden');
 }
 
-function startQrScanner() {
-    const qrRegionId = 'qr-reader';
-    // Đảm bảo camera cũ đã tắt trước khi bật mới
-    if (qrScanner && isScannerRunning) {
-        qrScanner.stop().then(() => {
-            isScannerRunning = false; initScannerInstance(qrRegionId);
-        }).catch(() => initScannerInstance(qrRegionId));
-    } else {
-        initScannerInstance(qrRegionId);
+// Hàm khởi động Camera thông minh (Tự tìm Cam sau)
+async function startMyScanner() {
+    const regionId = 'qr-reader';
+
+    // 1. Chỉ tạo đối tượng quét 1 lần duy nhất
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode(regionId);
     }
-}
 
-function initScannerInstance(regionId) {
-    const container = getEl(regionId); 
-    if(container) container.innerHTML = "";
-    
-    qrScanner = new Html5Qrcode(regionId);
-    
-    // --- SỬA LỖI CAMERA CỦA BẠN HƯNG Ở ĐÂY ---
-    
-    // 1. Cấu hình Camera: Hạ xuống HD (1280x720) để máy dễ lấy nét gần
-    const videoConfig = {
-        facingMode: { exact: "environment" }, // Dùng "exact" để ép buộc dùng cam sau
-        width: { min: 640, ideal: 1280, max: 1920 }, // Độ phân giải vừa phải để focus nhanh
-        height: { min: 480, ideal: 720, max: 1080 },
-        focusMode: "continuous" // Bật chế độ tự động lấy nét liên tục
-    };
+    if (isQrBusy) return;
+    isQrBusy = true;
 
-    // Nếu máy không hỗ trợ "exact", dùng chế độ "ideal" để tránh lỗi crash
-    const videoConfigFallback = {
-        facingMode: "environment",
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        focusMode: "continuous"
-    };
-
-    const config = {
-        fps: 20, // Tăng tốc độ quét
-        qrbox: { width: 250, height: 250 }, // Tăng vùng quét to hơn chút
-        aspectRatio: 1.0,
-        disableFlip: false
-    };
-
-    // Hàm khởi động quét
-    const startScanning = (constraints) => {
-        qrScanner.start(constraints, config,
-            (decodedText) => {
-                // Khi quét thành công
-                if (navigator.vibrate) navigator.vibrate(200);
-                if (qrMode === 'cccd') handleCccdResult(decodedText);
-                else if (qrMode === 'redbook') handleRedBookResult(decodedText);
-                closeQrScanner();
-            },
-            () => {} // Bỏ qua lỗi quét từng khung hình
-        ).then(() => {
-            isScannerRunning = true;
-        }).catch((err) => {
-            // Nếu lỗi với cấu hình "exact" (ép cam sau), thử lại với cấu hình lỏng hơn
-            if (constraints.facingMode && constraints.facingMode.exact) {
-                console.log("Thử lại với cấu hình Camera Fallback...");
-                startScanning(videoConfigFallback);
-            } else {
-                console.error(err);
-                isScannerRunning = false;
-                alert('Không thể mở Camera sau. Vui lòng cấp quyền hoặc thử thiết bị khác.\nLỗi: ' + err);
-                getEl('qr-modal').classList.add('hidden');
+    try {
+        // 2. Lấy danh sách Camera để chọn ĐÚNG cam sau
+        const devices = await Html5Qrcode.getCameras();
+        
+        if (devices && devices.length) {
+            let cameraId = devices[0].id; // Mặc định cái đầu tiên
+            
+            // Lọc tìm Camera sau dựa vào tên (back, rear, environment, sau)
+            const backCam = devices.find(d => {
+                const label = d.label.toLowerCase();
+                return label.includes('back') || label.includes('rear') || 
+                       label.includes('environment') || label.includes('sau');
+            });
+            
+            // Nếu tìm thấy cam sau thì lấy, nếu không thì lấy cái cuối cùng (thường là cam sau trên Android)
+            if (backCam) {
+                cameraId = backCam.id;
+            } else if (devices.length > 1) {
+                cameraId = devices[devices.length - 1].id;
             }
-        });
-    };
 
-    // Bắt đầu quét với cấu hình ưu tiên
-    startScanning(videoConfig);
+            // 3. Cấu hình quét
+            const config = { 
+                fps: 20, 
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0,
+                disableFlip: false 
+            };
+            
+            // 4. Bắt đầu quét với ID camera cụ thể
+            await html5QrCode.start(
+                cameraId, 
+                config,
+                (decodedText) => {
+                    // Khi quét thành công
+                    if (navigator.vibrate) navigator.vibrate(200);
+                    
+                    if (qrMode === 'cccd') handleCccdResult(decodedText);
+                    else if (qrMode === 'redbook') handleRedBookResult(decodedText);
+                    
+                    closeQrScanner(); 
+                },
+                (errorMessage) => {
+                    // Bỏ qua lỗi quét từng khung hình để đỡ rối
+                }
+            );
+        } else {
+            alert("Không tìm thấy Camera nào!");
+            closeQrScanner();
+        }
+    } catch (err) {
+        console.error("Lỗi:", err);
+        // Nếu lỗi quá nặng thì reload lại trang để reset
+        if(confirm("Camera bị kẹt. Tải lại trang để sửa lỗi?")) {
+            window.location.reload();
+        }
+        closeQrScanner();
+    }
+    
+    isQrBusy = false;
 }
+
 function handleCccdResult(data) {
     // Try to parse CCCD QR format: ID|FullName|DOB|Gender|Address...
     let idNum = '';
