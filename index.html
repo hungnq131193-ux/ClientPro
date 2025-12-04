@@ -1501,10 +1501,10 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
     list.innerHTML = '';
     const assets = currentCustomerData.assets || [];
     
-    if (assets.length === 0) { 
+    if (assets.length === 0) {
         list.innerHTML = `<div class="text-center py-20 text-slate-500"><i data-lucide="building" class="w-10 h-10 mx-auto mb-2 opacity-20"></i><p class="text-sm">Chưa có tài sản</p></div>`;
-        lucide.createIcons(); 
-        return; 
+        lucide.createIcons();
+        return;
     }
     
     assets.forEach((asset, index) => {
@@ -1512,8 +1512,8 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
         el.className = "glass-panel p-4 rounded-xl flex flex-col gap-3 transition-transform active:scale-[0.99] mb-4";
         el.style.border = '1px solid rgba(255,255,255,0.12)';
         
-        // --- QUAN TRỌNG: Giải mã dữ liệu (Decrypt) trước khi dùng ---
-        // Lấy dữ liệu thô -> Giải mã -> Nếu rỗng thì trả về ''
+        // --- GIẢI MÃ DỮ LIỆU (DECRYPT) ---
+        // Nếu ô nào lưu rỗng, hàm decryptText sẽ trả về rỗng -> Không hiện chuỗi mã hóa nữa
         const decName = decryptText(asset.name) || '';
         const decLink = decryptText(asset.link) || '';
         const decVal = decryptText(asset.valuation) || '';
@@ -1522,8 +1522,8 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
         const decWidth = decryptText(asset.width) || '';
         const decYear = decryptText(asset.year) || '';
         const decOnland = decryptText(asset.onland) || '';
-
-        // --- Sau đó mới Escape HTML để chống lỗi hiển thị ---
+        
+        // Escape HTML để an toàn
         const safeName = escapeHTML(decName);
         const safeVal = escapeHTML(decVal) || '-';
         const safeLoan = escapeHTML(decLoan) || '-';
@@ -1531,16 +1531,11 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
         const safeWidth = escapeHTML(decWidth);
         const safeYear = escapeHTML(decYear);
         const safeOnland = escapeHTML(decOnland);
-
+        
         const mapLink = formatLink(decLink);
-        
-        // Render nút bấm
         const mapBtn = mapLink ? `<a href="${mapLink}" target="_blank" class="glass-btn flex-1 py-2.5 rounded-lg text-xs font-bold text-slate-300 flex items-center justify-center gap-1 hover:text-white"><i data-lucide="map" class="w-3 h-3"></i> Bản đồ</a>` : `<span class="glass-btn flex-1 py-2.5 rounded-lg text-xs text-slate-500 text-center cursor-not-allowed opacity-50">No Map</span>`;
-        
-        // Nút OCR (Kiểm tra dữ liệu thô mã hóa hay chưa cũng được, vì chỉ check null)
         const ocrBtn = asset.ocrData ? `<button onclick="viewSavedOcr('${asset.id}')" class="glass-btn px-3 py-2.5 text-purple-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:text-white"><i data-lucide="scan-line" class="w-3 h-3"></i> OCR</button>` : '';
         
-        // Render thông tin chi tiết
         const areaInfo = safeArea ? `<span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10">${safeArea}m²</span>` : '';
         const widthInfo = safeWidth ? `<span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10">MT:${safeWidth}m</span>` : '';
         const yearInfo = safeYear ? `<span class="bg-slate-500/10 text-slate-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10">Năm:${safeYear}</span>` : '';
@@ -1650,68 +1645,59 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
         function closeAssetModal() { getEl('asset-modal').classList.add('hidden'); }
         
         function saveAsset() { 
-    const name = getEl('asset-name').value; 
-    let link = getEl('asset-link').value; 
-    const valuation = getEl('asset-val').value; 
-    const loan = getEl('asset-loan').value; 
-    const area = getEl('asset-area').value; 
-    const width = getEl('asset-width').value; 
-    const onland = getEl('asset-onland').value; 
-    const year = getEl('asset-year').value;
-    const index = getEl('edit-asset-index').value; 
-    // [MỚI] Lấy dữ liệu OCR từ input ẩn
-    const ocrData = getEl('asset-ocr-data').value;
+    // Lấy giá trị từ các ô nhập liệu
+    const name = getEl('asset-name').value.trim(); 
+    let link = getEl('asset-link').value.trim(); 
+    
+    // Helper: Chỉ mã hóa nếu có dữ liệu (tránh biến ô trống thành mã loằng ngoằng)
+    const enc = (txt) => txt ? encryptText(txt) : '';
 
     if (!name) return alert("Nhập mô tả tài sản"); 
-    // Chuẩn hóa link bản đồ trước khi mã hóa
+
+    // Xử lý link map
     const coords = parseLatLngFromLink(link);
-    if (coords && !link.includes('http')) { link = `https://www.google.com/maps?q=${coords.lat},${coords.lng}`; }
+    if (coords && !link.includes('http')) { 
+        link = `https://www.google.com/maps?q=$${coords.lat},${coords.lng}`; 
+    }
 
     if (!currentCustomerData.assets) currentCustomerData.assets = []; 
-    // Mã hóa tất cả các trường văn bản của tài sản (ngoại trừ id và createdAt)
-    const encName = encryptText(name);
-    const encLink = encryptText(link);
-    const encValuation = encryptText(valuation);
-    const encLoan = encryptText(loan);
-    const encArea = encryptText(area);
-    const encWidth = encryptText(width);
-    const encOnland = encryptText(onland);
-    const encYear = encryptText(year);
-    const encOcr = encryptText(ocrData);
+
+    // --- SỬA LỖI TẠI ĐÂY: Dùng hàm enc() đã viết ở trên ---
     const assetObj = { 
-        name: encName, 
-        link: encLink, 
-        valuation: encValuation, 
-        loanValue: encLoan, 
-        area: encArea, 
-        width: encWidth, 
-        onland: encOnland, 
-        year: encYear,
-        ocrData: encOcr // <--- LƯU DATA OCR VÀO ĐÂY
+        name: enc(name), 
+        link: enc(link), 
+        valuation: enc(getEl('asset-val').value), 
+        loanValue: enc(getEl('asset-loan').value), 
+        area: enc(getEl('asset-area').value), 
+        width: enc(getEl('asset-width').value), 
+        onland: enc(getEl('asset-onland').value), 
+        year: enc(getEl('asset-year').value),
+        ocrData: enc(getEl('asset-ocr-data').value)
     };
 
+    const index = getEl('edit-asset-index').value; 
     if (index !== "") { 
+        // Cập nhật tài sản cũ
         const i = parseInt(index); 
         assetObj.id = currentCustomerData.assets[i].id; 
         assetObj.createdAt = currentCustomerData.assets[i].createdAt; 
-        // Giữ lại link Drive nếu có
         if(currentCustomerData.assets[i].driveLink) assetObj.driveLink = currentCustomerData.assets[i].driveLink;
         currentCustomerData.assets[i] = assetObj; 
     } else { 
-        // Dùng ID đã tạo lúc bấm nút OCR (nếu có)
+        // Thêm mới
         assetObj.id = currentAssetId || ('asset_' + Date.now()); 
         assetObj.createdAt = Date.now(); 
         currentCustomerData.assets.push(assetObj); 
     } 
     
+    // Lưu vào DB
     db.transaction(['customers'],'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { 
         closeAssetModal(); 
         renderAssets(); 
         showToast("Đã lưu TSBĐ"); 
-        currentAssetId = null; // Reset
+        currentAssetId = null; 
     }; 
 }
-
         // --- NEW GUIDE MODAL LOGIC ---
         function openGuideModal() { getEl('guide-modal').classList.remove('hidden'); }
         function closeGuideModal() { getEl('guide-modal').classList.add('hidden'); }
