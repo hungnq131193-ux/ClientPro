@@ -1863,7 +1863,7 @@ function saveImageToDB(rawBase64) {
     return new Promise(async (resolve) => {
         if (!currentCustomerId) { resolve(); return; }
         
-        // 1. Kiểm tra: Nếu đang mở Modal Asset thì ép chế độ là 'asset'
+        // Kiểm tra xem đang ở modal asset không
         if (getEl('asset-modal') && !getEl('asset-modal').classList.contains('hidden')) {
             captureMode = 'asset';
         }
@@ -1871,20 +1871,23 @@ function saveImageToDB(rawBase64) {
         getEl('loader').classList.remove('hidden'); 
         getEl('loader-text').textContent = "Xử lý ảnh...";
         
-        // 2. Làm nét ảnh bằng AI (giữ nguyên để ảnh đẹp)
+        // Làm nét ảnh
         const enhancedBase64 = await enhanceDocumentWithAI(rawBase64); 
         
-        // --- ĐÃ XÓA: ĐOẠN LOGIC TỰ ĐỘNG CHẠY OCR TẠI ĐÂY ---
-        // (Nút chụp ảnh giờ chỉ thuần túy là chụp và lưu)
+        // --- LOGIC MỚI: CHỈ CHẠY OCR NẾU CÓ CỜ HIỆU TỪ NÚT QUÉT ---
+        if (window.isOcrRequest === true) {
+             getEl('loader-text').textContent = "Đang đọc Bìa Đỏ...";
+             await runAssetOcrLogic(enhancedBase64); 
+             window.isOcrRequest = false; // Tắt cờ ngay sau khi dùng xong để tránh dính sang ảnh sau
+        }
 
         getEl('loader-text').textContent = "Đang lưu ảnh...";
         
-        // 3. Nén và Lưu vào Database
+        // Nén và Lưu vào Database
         compressImage(enhancedBase64, (compressed) => { 
             const newImg = { 
                 id: 'img_' + Date.now() + Math.random(), 
                 customerId: currentCustomerId, 
-                // Quan trọng: Lưu vào đúng ID tài sản đang tạo/sửa
                 assetId: currentAssetId, 
                 data: compressed, 
                 createdAt: Date.now() 
@@ -1894,16 +1897,12 @@ function saveImageToDB(rawBase64) {
                 getEl('loader').classList.add('hidden'); 
                 showToast("Đã lưu ảnh"); 
 
-                // --- ĐÃ THÊM: LOGIC CẬP NHẬT GIAO DIỆN NGAY LẬP TỨC ---
-                // Kiểm tra xem đang ở màn hình Tài sản hay Hồ sơ để load lại cho đúng
+                // Refresh giao diện ngay lập tức
                 if (currentAssetId && !getEl('screen-asset-gallery').classList.contains('translate-x-full')) {
-                    // Nếu đang mở gallery tài sản -> Load lại ảnh tài sản
                     loadAssetImages(currentAssetId);
                 } else if (captureMode === 'asset' && currentAssetId) {
-                    // Nếu chụp tài sản nhưng chưa mở gallery (ví dụ chụp từ modal) -> Cũng load ngầm
                     loadAssetImages(currentAssetId);
                 } else {
-                    // Ngược lại -> Load ảnh hồ sơ
                     loadProfileImages();
                 }
 
@@ -3011,14 +3010,17 @@ function renderRedBookInfo(info) {
 }
 // --- 1. Hàm kích hoạt OCR từ nút bấm trong Modal Tài Sản ---
 function triggerAssetOcr() {
-    // Tạo ID tạm cho tài sản nếu đang là "Thêm mới" để có chỗ lưu ảnh
+    // Logic tạo ID tạm nếu đang thêm mới (giữ nguyên)
     let assetId = getEl('edit-asset-index').value === "" 
         ? 'asset_' + Date.now() 
         : currentCustomerData.assets[getEl('edit-asset-index').value].id;
     
-    currentAssetId = assetId; // Gán vào biến toàn cục
+    currentAssetId = assetId; 
     
-    // Mở input file (camera) của phần tài sản
+    // --- THÊM MỚI: BẬT CỜ HIỆU OCR ---
+    window.isOcrRequest = true; 
+    
+    // Mở camera/thư viện ảnh
     getEl('native-camera-asset').click();
 }
 
