@@ -3002,53 +3002,66 @@ function startQrScanner() {
 }
 
 function initScannerInstance(regionId) {
-    const container = getEl(regionId); if(container) container.innerHTML = "";
+    const container = getEl(regionId); 
+    if(container) container.innerHTML = "";
+    
     qrScanner = new Html5Qrcode(regionId);
     
-        // --- SỬA LỖI & CẤU HÌNH NÉT CĂNG ---
+    // --- SỬA LỖI CAMERA CỦA BẠN HƯNG Ở ĐÂY ---
     
-    // 1. Chuyển cấu hình độ phân giải (4K/FullHD) vào đây
-        // --- KHẮC PHỤC: TÁCH RIÊNG CẤU HÌNH CAMERA VÀ ĐỘ NÉT ---
+    // 1. Cấu hình Camera: Hạ xuống HD (1280x720) để máy dễ lấy nét gần
+    const videoConfig = {
+        facingMode: { exact: "environment" }, // Dùng "exact" để ép buộc dùng cam sau
+        width: { min: 640, ideal: 1280, max: 1920 }, // Độ phân giải vừa phải để focus nhanh
+        height: { min: 480, ideal: 720, max: 1080 },
+        focusMode: "continuous" // Bật chế độ tự động lấy nét liên tục
+    };
 
-    // 1. Cấu hình quét & Độ nét (Đưa 4K vào videoConstraints)
+    // Nếu máy không hỗ trợ "exact", dùng chế độ "ideal" để tránh lỗi crash
+    const videoConfigFallback = {
+        facingMode: "environment",
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        focusMode: "continuous"
+    };
+
     const config = {
-        fps: 15, 
-        qrbox: { width: 220, height: 220 },
+        fps: 20, // Tăng tốc độ quét
+        qrbox: { width: 250, height: 250 }, // Tăng vùng quét to hơn chút
         aspectRatio: 1.0,
-        disableFlip: false,
-        // Ép độ nét ở đây (quan trọng)
-        videoConstraints: {
-            width: { min: 1280, ideal: 3840, max: 4096 },
-            height: { min: 720, ideal: 2160, max: 2160 },
-            focusMode: "continuous"
-        }
+        disableFlip: false
     };
-    
-    // 2. Cấu hình chọn Camera (Chỉ giữ 1 dòng để fix lỗi và chọn Cam Sau)
-    const cameraConfig = { 
-        facingMode: "environment" // "environment" = Cam Sau, "user" = Cam Trước
+
+    // Hàm khởi động quét
+    const startScanning = (constraints) => {
+        qrScanner.start(constraints, config,
+            (decodedText) => {
+                // Khi quét thành công
+                if (navigator.vibrate) navigator.vibrate(200);
+                if (qrMode === 'cccd') handleCccdResult(decodedText);
+                else if (qrMode === 'redbook') handleRedBookResult(decodedText);
+                closeQrScanner();
+            },
+            () => {} // Bỏ qua lỗi quét từng khung hình
+        ).then(() => {
+            isScannerRunning = true;
+        }).catch((err) => {
+            // Nếu lỗi với cấu hình "exact" (ép cam sau), thử lại với cấu hình lỏng hơn
+            if (constraints.facingMode && constraints.facingMode.exact) {
+                console.log("Thử lại với cấu hình Camera Fallback...");
+                startScanning(videoConfigFallback);
+            } else {
+                console.error(err);
+                isScannerRunning = false;
+                alert('Không thể mở Camera sau. Vui lòng cấp quyền hoặc thử thiết bị khác.\nLỗi: ' + err);
+                getEl('qr-modal').classList.add('hidden');
+            }
+        });
     };
-    qrScanner.start(cameraConfig, config,
-        (decodedText) => {
-            if (navigator.vibrate) navigator.vibrate(200);
-            if (qrMode === 'cccd') handleCccdResult(decodedText);
-            else if (qrMode === 'redbook') handleRedBookResult(decodedText);
-            closeQrScanner();
-        },
-        () => {}
-    ).then(() => {
-        isScannerRunning = true;
-        // Digital zoom initialization removed as manual zoom feature is no longer used
-    }).catch((err) => {
-        console.error(err);
-        isScannerRunning = false;
-        alert('Lỗi Camera: ' + err);
-        getEl('qr-modal').classList.add('hidden');
-    });
+
+    // Bắt đầu quét với cấu hình ưu tiên
+    startScanning(videoConfig);
 }
-
-// Removed applyDigitalZoom function as the manual zoom feature has been removed
-
 function handleCccdResult(data) {
     // Try to parse CCCD QR format: ID|FullName|DOB|Gender|Address...
     let idNum = '';
