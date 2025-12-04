@@ -3011,10 +3011,11 @@ async function closeQrScanner() {
 }
 
 // Hàm khởi động Camera thông minh (Tự tìm Cam sau)
+// --- HÀM KHỞI ĐỘNG CAMERA + TÍNH NĂNG ZOOM (PHIÊN BẢN CẬP NHẬT) ---
 async function startMyScanner() {
     const regionId = 'qr-reader';
 
-    // 1. Chỉ tạo đối tượng quét 1 lần duy nhất
+    // 1. Khởi tạo
     if (!html5QrCode) {
         html5QrCode = new Html5Qrcode(regionId);
     }
@@ -3023,61 +3024,101 @@ async function startMyScanner() {
     isQrBusy = true;
 
     try {
-        // 2. Lấy danh sách Camera để chọn ĐÚNG cam sau
+        // 2. Tìm Camera sau
         const devices = await Html5Qrcode.getCameras();
-        
+        let cameraId = null;
+
         if (devices && devices.length) {
-            let cameraId = devices[0].id; // Mặc định cái đầu tiên
-            
-            // Lọc tìm Camera sau dựa vào tên (back, rear, environment, sau)
+            // Ưu tiên tìm cam sau
             const backCam = devices.find(d => {
                 const label = d.label.toLowerCase();
                 return label.includes('back') || label.includes('rear') || 
                        label.includes('environment') || label.includes('sau');
             });
-            
-            // Nếu tìm thấy cam sau thì lấy, nếu không thì lấy cái cuối cùng (thường là cam sau trên Android)
-            if (backCam) {
-                cameraId = backCam.id;
-            } else if (devices.length > 1) {
-                cameraId = devices[devices.length - 1].id;
-            }
-
-            // 3. Cấu hình quét
-            const config = { 
-                fps: 20, 
-                qrbox: { width: 250, height: 250 },
-                aspectRatio: 1.0,
-                disableFlip: false 
-            };
-            
-            // 4. Bắt đầu quét với ID camera cụ thể
-            await html5QrCode.start(
-                cameraId, 
-                config,
-                (decodedText) => {
-                    // Khi quét thành công
-                    if (navigator.vibrate) navigator.vibrate(200);
-                    
-                    if (qrMode === 'cccd') handleCccdResult(decodedText);
-                    else if (qrMode === 'redbook') handleRedBookResult(decodedText);
-                    
-                    closeQrScanner(); 
-                },
-                (errorMessage) => {
-                    // Bỏ qua lỗi quét từng khung hình để đỡ rối
-                }
-            );
+            // Lấy cam sau tìm được hoặc cam cuối cùng
+            cameraId = backCam ? backCam.id : devices[devices.length - 1].id;
         } else {
-            alert("Không tìm thấy Camera nào!");
+            alert("Không tìm thấy Camera!");
             closeQrScanner();
+            return;
         }
+
+        // 3. Cấu hình quét
+        const config = { 
+            fps: 30, // Tăng FPS để bắt nét nhanh hơn
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            disableFlip: false 
+        };
+        
+        // 4. Bắt đầu quét
+        await html5QrCode.start(
+            cameraId, 
+            config,
+            (decodedText) => {
+                // Quét thành công
+                if (navigator.vibrate) navigator.vibrate(200);
+                if (qrMode === 'cccd') handleCccdResult(decodedText);
+                else if (qrMode === 'redbook') handleRedBookResult(decodedText);
+                closeQrScanner(); 
+            },
+            () => {} 
+        );
+
+        // --- 5. KÍCH HOẠT ZOOM (PHẦN MỚI THÊM) ---
+        // Đợi 500ms để camera ổn định rồi mới bật zoom
+        setTimeout(() => {
+            try {
+                // Lấy khả năng của Camera đang chạy
+                const track = html5QrCode.getRunningTrackCameraCapabilities();
+                const zoomCap = track.zoomFeature(); // Kiểm tra tính năng zoom
+                
+                if (zoomCap.isSupported()) {
+                    // Tự động Zoom lên 2.0x (hoặc mức tối đa nếu thấp hơn) để đọc CCCD dễ hơn
+                    const startZoom = Math.min(2.0, zoomCap.max()); 
+                    
+                    // Áp dụng Zoom
+                    zoomCap.apply(startZoom);
+
+                    // --- TẠO THANH TRƯỢT ZOOM TRÊN MÀN HÌNH ---
+                    // Tìm chỗ để chèn thanh trượt (chèn vào modal)
+                    const modalContent = document.querySelector('#qr-modal .glass-panel');
+                    
+                    // Xóa thanh cũ nếu có
+                    const oldSlider = document.getElementById('my-zoom-slider-container');
+                    if (oldSlider) oldSlider.remove();
+
+                    // Tạo thanh trượt mới
+                    const sliderDiv = document.createElement('div');
+                    sliderDiv.id = 'my-zoom-slider-container';
+                    sliderDiv.className = "mt-4 w-full px-4 animate-fade-in";
+                    sliderDiv.innerHTML = `
+                        <div class="flex items-center justify-between text-white text-xs font-bold mb-2">
+                            <span>1x</span>
+                            <span class="text-emerald-400">ZOOM ĐỂ LẤY NÉT</span>
+                            <span>${zoomCap.max()}x</span>
+                        </div>
+                        <input type="range" id="zoom-slider" 
+                               min="${zoomCap.min()}" max="${zoomCap.max()}" step="${zoomCap.step()}" value="${startZoom}" 
+                               class="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer">
+                    `;
+                    
+                    // Chèn vào dưới camera
+                    if (modalContent) modalContent.appendChild(sliderDiv);
+
+                    // Bắt sự kiện kéo thanh trượt
+                    document.getElementById('zoom-slider').addEventListener('input', (e) => {
+                        zoomCap.apply(e.target.value);
+                    });
+                }
+            } catch (err) {
+                console.log("Camera này không hỗ trợ Zoom: ", err);
+            }
+        }, 500);
+
     } catch (err) {
         console.error("Lỗi:", err);
-        // Nếu lỗi quá nặng thì reload lại trang để reset
-        if(confirm("Camera bị kẹt. Tải lại trang để sửa lỗi?")) {
-            window.location.reload();
-        }
+        alert("Lỗi camera: " + err);
         closeQrScanner();
     }
     
@@ -3085,30 +3126,44 @@ async function startMyScanner() {
 }
 
 function handleCccdResult(data) {
-    // Try to parse CCCD QR format: ID|FullName|DOB|Gender|Address...
     let idNum = '';
     let name = '';
+    
     try {
-        let parts = [];
+        // Cấu trúc CCCD Chip: 001097005097|123456789|PHAM HOANG NAM|...
+        // parts[0]: Số CCCD
+        // parts[1]: Số CMND cũ (Code cũ đang nhầm lấy cái này làm tên)
+        // parts[2]: Họ và tên (Cần lấy cái này)
+
         if (data.includes('|')) {
-            parts = data.split('|');
-        } else if (data.includes('\n')) {
-            parts = data.split('\n');
+            const parts = data.split('|');
+            
+            idNum = parts[0] ? parts[0].trim() : '';
+            
+            // SỬA Ở ĐÂY: Đổi từ parts[1] thành parts[2]
+            name = parts[2] ? parts[2].trim().toUpperCase() : ''; 
         } else {
-            parts = data.split(' ');
+            // Trường hợp dự phòng nếu không phải QR CCCD chuẩn
+            idNum = data.trim();
         }
-        idNum = parts[0] ? parts[0].trim() : '';
-        name = parts[1] ? parts[1].trim() : '';
+        
+        // Điền vào ô Số CCCD
+        if (idNum) {
+            const cccdInput = document.getElementById('new-cccd');
+            if (cccdInput) cccdInput.value = idNum;
+        }
+        
+        // Điền vào ô Tên Khách Hàng
+        if (name) {
+            const nameInput = document.getElementById('new-name');
+            if (nameInput) nameInput.value = name;
+        }
+
     } catch (e) {
-        idNum = data.trim();
-    }
-    if (idNum) {
-        const cccdInput = getEl('new-cccd');
-        if (cccdInput) cccdInput.value = idNum;
-    }
-    if (name) {
-        const nameInput = getEl('new-name');
-        if (nameInput) nameInput.value = name;
+        console.error("Lỗi phân tích QR:", e);
+        // Nếu lỗi thì vẫn điền chuỗi gốc vào ô CCCD để người dùng tự sửa
+        const cccdInput = document.getElementById('new-cccd');
+        if (cccdInput) cccdInput.value = data;
     }
 }
 
