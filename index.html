@@ -597,9 +597,9 @@
         
         <div class="relative w-full aspect-square bg-black overflow-hidden">
              <div id="qr-reader" class="w-full h-full"></div>
-            
-            <div class="absolute inset-0 border-2 border-white/30 pointer-events-none flex items-center justify-center">
-                <div class="w-64 h-64 border-2 border-white/80 rounded-lg relative">
+             
+             <div class="absolute inset-0 border-2 border-white/30 pointer-events-none flex items-center justify-center">
+                <div class="w-56 h-56 border-2 border-white/80 rounded-lg relative shadow-[0_0_100px_rgba(0,0,0,0.5)]">
                     <div class="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1"></div>
                     <div class="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1"></div>
                     <div class="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1"></div>
@@ -607,6 +607,23 @@
                 </div>
             </div>
         </div>
+        
+        <div class="p-5 bg-slate-900 border-t border-white/10 relative z-10">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-slate-400">1x</span>
+                <span class="text-xs font-bold text-white uppercase tracking-wider">Zoom Kỹ Thuật Số</span>
+                <span class="text-xs font-bold text-slate-400">4x</span>
+            </div>
+            <input type="range" id="zoom-slider" min="1" max="4" step="0.1" value="1" 
+                   class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                   oninput="applyDigitalZoom(this.value)">
+            
+            <p class="text-[10px] text-center text-slate-500 mt-3 italic">
+                * Kéo thanh trượt để phóng to mã QR từ xa
+            </p>
+        </div>
+    </div>
+</div>
         
         <div class="p-5 bg-slate-900 border-t border-white/10 relative z-10">
             <div class="flex items-center justify-between mb-2">
@@ -2971,117 +2988,83 @@ function openEditCustomerModal() {
 // =========================================
 // QR Code Scanning Logic (Offline)
 // =========================================
-// --- LOGIC QUÉT QR MỚI (FIX LỖI) ---
+// --- LOGIC QUÉT QR (4K + ZOOM CSS) ---
 let qrScanner = null;
 let qrMode = null;
-let isScannerRunning = false; // Cờ kiểm tra trạng thái camera
+let isScannerRunning = false;
 
-function openQrScanner() {
-    qrMode = 'cccd';
-    getEl('qr-modal').classList.remove('hidden');
-    startQrScanner();
-}
+function openQrScanner() { qrMode = 'cccd'; getEl('qr-modal').classList.remove('hidden'); startQrScanner(); }
+function openRedBookScanner() { qrMode = 'redbook'; getEl('qr-modal').classList.remove('hidden'); startQrScanner(); }
 
-function openRedBookScanner() {
-    qrMode = 'redbook';
-    getEl('qr-modal').classList.remove('hidden');
-    startQrScanner();
-}
-
-// Hàm đóng an toàn: Chờ camera tắt xong mới ẩn modal
 async function closeQrScanner() {
     const modal = getEl('qr-modal');
-    
+    // Dừng camera an toàn
     if (qrScanner && isScannerRunning) {
-        try {
-            await qrScanner.stop();
-            qrScanner.clear();
-        } catch (err) {
-            console.warn("Lỗi khi dừng camera:", err);
-        }
+        try { await qrScanner.stop(); qrScanner.clear(); } catch (err) {}
         isScannerRunning = false;
     }
-    
-    // Reset thanh zoom về 1
-    const slider = getEl('zoom-slider');
-    if(slider) slider.value = 1;
-    
+    // Reset zoom về 1
+    const slider = getEl('zoom-slider'); if(slider) slider.value = 1;
     modal.classList.add('hidden');
 }
 
 function startQrScanner() {
     const qrRegionId = 'qr-reader';
-    
-    // Nếu đang chạy thì dừng trước đã (Double check)
+    // Đảm bảo camera cũ đã tắt trước khi bật mới
     if (qrScanner && isScannerRunning) {
         qrScanner.stop().then(() => {
-            isScannerRunning = false;
-            initScannerInstance(qrRegionId);
-        }).catch(err => {
-            console.error("Không dừng được camera cũ", err);
-            // Cố gắng khởi tạo đè
-            initScannerInstance(qrRegionId);
-        });
+            isScannerRunning = false; initScannerInstance(qrRegionId);
+        }).catch(() => initScannerInstance(qrRegionId));
     } else {
         initScannerInstance(qrRegionId);
     }
 }
 
 function initScannerInstance(regionId) {
-    // Xóa nội dung cũ trong khung nếu có
-    const container = getEl(regionId);
-    if(container) container.innerHTML = "";
-
+    const container = getEl(regionId); if(container) container.innerHTML = "";
     qrScanner = new Html5Qrcode(regionId);
     
     const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 }, // Vùng quét logic ở giữa
+        fps: 15, 
+        qrbox: { width: 220, height: 220 }, // Vùng quét nhỏ để dễ căn tâm
         aspectRatio: 1.0,
         disableFlip: false 
     };
     
-    // Cấu hình Camera sau
-    const cameraConfig = { facingMode: "environment" };
+    // CẤU HÌNH 4K (QUAN TRỌNG NHẤT)
+    // Giúp ảnh đầu vào nét căng, khi Zoom lên không bị vỡ hạt
+    const cameraConfig = { 
+        facingMode: "environment",
+        width: { min: 1280, ideal: 3840, max: 4096 }, // Ưu tiên 4K
+        height: { min: 720, ideal: 2160, max: 2160 },
+        focusMode: "continuous"
+    };
 
-    qrScanner.start(
-        cameraConfig, 
-        config,
-        (decodedText, decodedResult) => {
-            // QUÉT THÀNH CÔNG
+    qrScanner.start(cameraConfig, config,
+        (decodedText) => {
             if (navigator.vibrate) navigator.vibrate(200);
-            
-            // Xử lý dữ liệu
             if (qrMode === 'cccd') handleCccdResult(decodedText);
             else if (qrMode === 'redbook') handleRedBookResult(decodedText);
-            
-            // Đóng camera ngay
             closeQrScanner();
         },
-        (errorMessage) => {
-            // Đang quét...
-        }
+        () => {}
     ).then(() => {
         isScannerRunning = true;
-        // Reset zoom visual
-        applyDigitalZoom(1);
+        applyDigitalZoom(1); // Khởi động zoom mặc định
     }).catch((err) => {
         console.error(err);
         isScannerRunning = false;
-        alert('Lỗi: Hãy cấp quyền Camera và thử lại. (' + err + ')');
+        alert('Lỗi Camera: ' + err);
         getEl('qr-modal').classList.add('hidden');
     });
 }
 
-// HÀM ZOOM KỸ THUẬT SỐ (CSS ZOOM) - Hoạt động 100%
+// Hàm Zoom bằng CSS (Không phụ thuộc phần cứng, máy nào cũng chạy)
 function applyDigitalZoom(value) {
-    // Tìm thẻ video do thư viện tạo ra
     const video = document.querySelector("#qr-reader video");
     if (video) {
-        // Phóng to video bằng CSS
         video.style.transform = `scale(${value})`;
         video.style.transformOrigin = "center center";
-        video.style.transition = "transform 0.1s ease-out";
     }
 }
 
