@@ -3075,16 +3075,19 @@ async function runAssetOcrLogic(base64) {
         alert("Lỗi đọc Bìa đỏ: " + e.message);
     }
 }
-
-// --- Hàm xem lại dữ liệu OCR đã lưu ---
+// --- Hàm xem lại dữ liệu OCR đã lưu (ĐÃ SỬA: GIẢI MÃ DỮ LIỆU) ---
 function viewSavedOcr(assetId) {
+    // Tìm tài sản hiện tại
     const asset = currentCustomerData.assets.find(a => a.id === assetId);
-    if(!asset || !asset.ocrData) return showToast("Không có dữ liệu");
     
-    // Tạo một hộp thoại đơn giản để copy (dùng prompt cho nhanh gọn và native)
-    // Hoặc nếu text quá dài, dùng cách tạo overlay tạm thời
+    // Kiểm tra nếu không có dữ liệu
+    if(!asset || !asset.ocrData) return showToast("Không có dữ liệu OCR");
     
-    // Cách 1: Dùng overlay full màn hình (Đẹp hơn)
+    // --- KHẮC PHỤC: Giải mã dữ liệu trước khi hiển thị ---
+    // Hàm decryptText sẽ biến chuỗi mã hóa thành văn bản đọc được
+    const contentToShow = decryptText(asset.ocrData); 
+    
+    // Tạo overlay hiển thị
     const overlay = document.createElement('div');
     overlay.className = "fixed inset-0 z-[300] bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in";
     overlay.innerHTML = `
@@ -3092,11 +3095,20 @@ function viewSavedOcr(assetId) {
             <h3 class="font-bold text-lg mb-4 text-purple-400 flex items-center gap-2">
                 <i data-lucide="scan-text" class="w-5 h-5"></i> Nội dung Bìa Đỏ
             </h3>
-            <textarea readonly class="w-full h-60 bg-black/30 border border-white/10 rounded-xl p-3 text-xs text-slate-300 font-mono outline-none mb-4 custom-scrollbar">${asset.ocrData}</textarea>
-            <button onclick="this.closest('.fixed').remove()" class="w-full py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
+            <textarea readonly class="w-full h-60 bg-black/30 border border-white/10 rounded-xl p-3 text-xs text-slate-300 font-mono outline-none mb-4 custom-scrollbar">${contentToShow}</textarea>
+            <div class="flex gap-3">
+                <button onclick="copyToClipboard('${contentToShow.replace(/\n/g, '\\n')}')" class="flex-1 py-3 rounded-xl font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition border border-purple-500/30">Copy</button>
+                <button onclick="this.closest('.fixed').remove()" class="flex-1 py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
+            </div>
         </div>
     `;
     document.body.appendChild(overlay);
+    
+    // Thêm hàm copy nhanh nếu chưa có
+    window.copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text).then(() => showToast("Đã copy!")).catch(() => prompt("Copy thủ công:", text));
+    };
+
     if(window.lucide) lucide.createIcons();
 }
 // --- BỔ SUNG CÁC HÀM BỊ THIẾU (Dán vào cuối file script) ---
