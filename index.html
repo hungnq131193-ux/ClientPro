@@ -2987,11 +2987,18 @@ function openRedBookScanner() {
     startMyScanner(); 
 }
 
-// Hàm đóng và tắt Camera an toàn
+// Biến lưu vòng lặp tự động Zoom
+let autoZoomInterval = null; 
+
 async function closeQrScanner() {
-    const modal = document.getElementById('qr-modal');
+    const modal = getEl('qr-modal');
     
-    // Nếu chưa khởi tạo hoặc đang bận thì chỉ ẩn modal
+    // 1. Tắt chế độ tự động Zoom ngay lập tức
+    if (autoZoomInterval) {
+        clearInterval(autoZoomInterval);
+        autoZoomInterval = null;
+    }
+
     if (!html5QrCode || isQrBusy) {
         modal.classList.add('hidden');
         return;
@@ -2999,12 +3006,11 @@ async function closeQrScanner() {
     
     isQrBusy = true; 
     try {
-        // Chỉ STOP (tạm dừng) chứ không CLEAR (hủy) để tránh đen màn hình lần sau
         if (html5QrCode.isScanning) {
             await html5QrCode.stop();
         }
     } catch (err) {
-        console.warn("Camera đã dừng hoặc lỗi nhẹ:", err);
+        console.warn(err);
     }
     isQrBusy = false; 
     modal.classList.add('hidden');
@@ -3014,114 +3020,100 @@ async function closeQrScanner() {
 // --- HÀM KHỞI ĐỘNG CAMERA + TÍNH NĂNG ZOOM (PHIÊN BẢN CẬP NHẬT) ---
 async function startMyScanner() {
     const regionId = 'qr-reader';
-
-    // 1. Khởi tạo
-    if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode(regionId);
-    }
-
+    if (!html5QrCode) html5QrCode = new Html5Qrcode(regionId);
     if (isQrBusy) return;
     isQrBusy = true;
 
     try {
-        // 2. Tìm Camera sau
         const devices = await Html5Qrcode.getCameras();
         let cameraId = null;
 
         if (devices && devices.length) {
-            // Ưu tiên tìm cam sau
             const backCam = devices.find(d => {
-                const label = d.label.toLowerCase();
-                return label.includes('back') || label.includes('rear') || 
-                       label.includes('environment') || label.includes('sau');
+                const l = d.label.toLowerCase();
+                return l.includes('back') || l.includes('rear') || l.includes('environment') || l.includes('sau');
             });
-            // Lấy cam sau tìm được hoặc cam cuối cùng
             cameraId = backCam ? backCam.id : devices[devices.length - 1].id;
         } else {
-            alert("Không tìm thấy Camera!");
-            closeQrScanner();
-            return;
+            alert("Lỗi Camera!"); closeQrScanner(); return;
         }
 
-        // 3. Cấu hình quét
-        const config = { 
-            fps: 30, // Tăng FPS để bắt nét nhanh hơn
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
-            disableFlip: false 
-        };
+        const config = { fps: 30, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0, disableFlip: false };
         
-        // 4. Bắt đầu quét
-        await html5QrCode.start(
-            cameraId, 
-            config,
+        await html5QrCode.start(cameraId, config,
             (decodedText) => {
-                // Quét thành công
                 if (navigator.vibrate) navigator.vibrate(200);
+                // Tắt Zoom tự động ngay khi quét được
+                if (autoZoomInterval) clearInterval(autoZoomInterval);
+                
                 if (qrMode === 'cccd') handleCccdResult(decodedText);
                 else if (qrMode === 'redbook') handleRedBookResult(decodedText);
                 closeQrScanner(); 
-            },
-            () => {} 
+            }, () => {} 
         );
 
-        // --- 5. KÍCH HOẠT ZOOM (PHẦN MỚI THÊM) ---
-        // Đợi 500ms để camera ổn định rồi mới bật zoom
+        // --- TÍNH NĂNG "AUTO-SWEEP ZOOM" (TỰ ĐỘNG DÒ NÉT) ---
         setTimeout(() => {
             try {
-                // Lấy khả năng của Camera đang chạy
                 const track = html5QrCode.getRunningTrackCameraCapabilities();
-                const zoomCap = track.zoomFeature(); // Kiểm tra tính năng zoom
-                
-                if (zoomCap.isSupported()) {
-                    // Tự động Zoom lên 2.0x (hoặc mức tối đa nếu thấp hơn) để đọc CCCD dễ hơn
-                    const startZoom = Math.min(2.0, zoomCap.max()); 
-                    
-                    // Áp dụng Zoom
-                    zoomCap.apply(startZoom);
+                const zoomCap = track.zoomFeature();
 
-                    // --- TẠO THANH TRƯỢT ZOOM TRÊN MÀN HÌNH ---
-                    // Tìm chỗ để chèn thanh trượt (chèn vào modal)
+                if (zoomCap.isSupported()) {
+                    // 1. Khởi động ngay ở mức 2.2x (Mức vàng cho CCCD)
+                    let currentZoom = Math.min(2.2, zoomCap.max());
+                    zoomCap.apply(currentZoom);
+
+                    // 2. Vẽ thanh hiển thị trạng thái Zoom (chỉ để nhìn, không cần kéo)
                     const modalContent = document.querySelector('#qr-modal .glass-panel');
-                    
-                    // Xóa thanh cũ nếu có
                     const oldSlider = document.getElementById('my-zoom-slider-container');
                     if (oldSlider) oldSlider.remove();
 
-                    // Tạo thanh trượt mới
                     const sliderDiv = document.createElement('div');
                     sliderDiv.id = 'my-zoom-slider-container';
-                    sliderDiv.className = "mt-4 w-full px-4 animate-fade-in";
+                    sliderDiv.className = "mt-4 w-full px-4 animate-fade-in text-center";
                     sliderDiv.innerHTML = `
-                        <div class="flex items-center justify-between text-white text-xs font-bold mb-2">
-                            <span>1x</span>
-                            <span class="text-emerald-400">ZOOM ĐỂ LẤY NÉT</span>
-                            <span>${zoomCap.max()}x</span>
-                        </div>
-                        <input type="range" id="zoom-slider" 
-                               min="${zoomCap.min()}" max="${zoomCap.max()}" step="${zoomCap.step()}" value="${startZoom}" 
-                               class="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer">
+                        <p class="text-[10px] text-emerald-400 font-bold mb-1 uppercase tracking-widest animate-pulse">
+                            <i data-lucide="scan-line" class="inline w-3 h-3"></i> Đang tự động dò nét...
+                        </p>
+                        <input type="range" id="zoom-slider" disabled
+                               min="${zoomCap.min()}" max="${zoomCap.max()}" step="0.1" value="${currentZoom}" 
+                               class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-wait">
                     `;
-                    
-                    // Chèn vào dưới camera
                     if (modalContent) modalContent.appendChild(sliderDiv);
+                    if (window.lucide) lucide.createIcons();
 
-                    // Bắt sự kiện kéo thanh trượt
-                    document.getElementById('zoom-slider').addEventListener('input', (e) => {
-                        zoomCap.apply(e.target.value);
-                    });
+                    // 3. Kích hoạt vòng lặp tự động (Zoom vào từ từ... rồi zoom ra)
+                    let direction = 1; // 1 là tăng, -1 là giảm
+                    const sliderEl = document.getElementById('zoom-slider');
+                    const step = 0.05; // Tốc độ trôi (càng nhỏ càng mượt)
+                    const maxZ = Math.min(3.5, zoomCap.max()); // Zoom tối đa
+                    const minZ = Math.max(1.5, zoomCap.min()); // Zoom tối thiểu
+
+                    if (autoZoomInterval) clearInterval(autoZoomInterval);
+                    
+                    autoZoomInterval = setInterval(() => {
+                        // Nếu camera đã tắt thì dừng
+                        if (!html5QrCode.isScanning) { clearInterval(autoZoomInterval); return; }
+
+                        currentZoom += (step * direction);
+
+                        // Đảo chiều nếu chạm ngưỡng
+                        if (currentZoom >= maxZ || currentZoom <= minZ) {
+                            direction *= -1;
+                        }
+
+                        // Áp dụng zoom
+                        zoomCap.apply(currentZoom);
+                        if(sliderEl) sliderEl.value = currentZoom;
+                        
+                    }, 50); // Cập nhật 50ms/lần (~20 khung hình/giây)
                 }
-            } catch (err) {
-                console.log("Camera này không hỗ trợ Zoom: ", err);
-            }
+            } catch (err) { console.log("No Zoom:", err); }
         }, 500);
 
     } catch (err) {
-        console.error("Lỗi:", err);
-        alert("Lỗi camera: " + err);
-        closeQrScanner();
+        console.error(err); closeQrScanner();
     }
-    
     isQrBusy = false;
 }
 
