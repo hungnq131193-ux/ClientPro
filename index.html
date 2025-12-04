@@ -614,31 +614,12 @@
                 <span class="text-xs font-bold text-white uppercase tracking-wider">Zoom Kỹ Thuật Số</span>
                 <span class="text-xs font-bold text-slate-400">4x</span>
             </div>
-            <input type="range" id="zoom-slider" min="1" max="4" step="0.1" value="1" 
-                   class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                   oninput="applyDigitalZoom(this.value)">
-            
-            <p class="text-[10px] text-center text-slate-500 mt-3 italic">
-                * Kéo thanh trượt để phóng to mã QR từ xa
-            </p>
+            <!-- Manual digital zoom slider removed -->
         </div>
     </div>
 </div>
         
-        <div class="p-5 bg-slate-900 border-t border-white/10 relative z-10">
-            <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-bold text-slate-400">1x</span>
-                <span class="text-xs font-bold text-white uppercase tracking-wider">Zoom Kỹ Thuật Số</span>
-                <span class="text-xs font-bold text-slate-400">3x</span>
-            </div>
-            <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1" 
-                   class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                   oninput="applyDigitalZoom(this.value)">
-            
-            <p class="text-[10px] text-center text-slate-500 mt-3 italic">
-                * Để điện thoại cách 20cm rồi kéo Zoom lên để rõ nét
-            </p>
-        </div>
+        <!-- Duplicate manual digital zoom bar removed -->
     </div>
 </div>
     <script>
@@ -3057,7 +3038,7 @@ function initScannerInstance(regionId) {
         () => {}
     ).then(() => {
         isScannerRunning = true;
-        applyDigitalZoom(1); // Khởi động zoom mặc định
+        // Digital zoom initialization removed as manual zoom feature is no longer used
     }).catch((err) => {
         console.error(err);
         isScannerRunning = false;
@@ -3066,14 +3047,7 @@ function initScannerInstance(regionId) {
     });
 }
 
-// Hàm Zoom bằng CSS (Không phụ thuộc phần cứng, máy nào cũng chạy)
-function applyDigitalZoom(value) {
-    const video = document.querySelector("#qr-reader video");
-    if (video) {
-        video.style.transform = `scale(${value})`;
-        video.style.transformOrigin = "center center";
-    }
-}
+// Removed applyDigitalZoom function as the manual zoom feature has been removed
 
 function handleCccdResult(data) {
     // Try to parse CCCD QR format: ID|FullName|DOB|Gender|Address...
