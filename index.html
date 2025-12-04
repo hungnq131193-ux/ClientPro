@@ -1579,30 +1579,34 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
     
     currentAssetId = id;
     
-    // Hiển thị màn hình
+    // Hiển thị màn hình Gallery
     getEl('screen-asset-gallery').classList.remove('translate-x-full');
-    getEl('gallery-asset-name').textContent = name;
     
-    // Lấy thông tin tài sản đang chọn
+    // Lấy thông tin tài sản đang chọn từ bộ nhớ (để đảm bảo chính xác nhất)
     const asset = currentCustomerData.assets[idx];
     
     if (asset) {
-        getEl('gallery-asset-val').textContent = asset.valuation || '--';
-        getEl('gallery-asset-loan').textContent = asset.loanValue || '--';
+        // --- SỬA LỖI Ở ĐÂY: Giải mã dữ liệu trước khi hiển thị ---
+        // 1. Tên tài sản (Giải mã từ object asset thay vì dùng tham số name có thể bị lỗi)
+        getEl('gallery-asset-name').textContent = decryptText(asset.name);
         
-        // 👇 QUAN TRỌNG: Kiểm tra link Drive của tài sản 👇
+        // 2. Định giá & Vay Max (Giải mã)
+        getEl('gallery-asset-val').textContent = decryptText(asset.valuation) || '--';
+        getEl('gallery-asset-loan').textContent = decryptText(asset.loanValue) || '--';
+        
+        // Kiểm tra link Drive của tài sản
         if (typeof renderAssetDriveStatus === "function") {
             renderAssetDriveStatus(asset.driveLink);
         }
-        // 👆 ------------------------------------------ 👆
     } else {
-        // Reset nếu lỗi
+        // Fallback nếu không tìm thấy tài sản
+        getEl('gallery-asset-name').textContent = name; // Dùng tạm tên truyền vào
         getEl('gallery-asset-val').textContent = '--';
         getEl('gallery-asset-loan').textContent = '--';
-        renderAssetDriveStatus(null);
+        if (typeof renderAssetDriveStatus === "function") renderAssetDriveStatus(null);
     }
     
-    // Vẫn gọi hàm load ảnh (để xem có ảnh nào chưa xóa không)
+    // Gọi hàm load ảnh
     loadAssetImages(id);
 }
 
