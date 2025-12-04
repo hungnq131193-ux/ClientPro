@@ -744,7 +744,7 @@ const DONATE_DEFAULT_DESC = 'Ung ho tac gia ClientPro';
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
                     // Tạo link chuẩn cho Google Maps (Search Query)
-                    const mapLink = `https://www.google.com/maps?q={lat},${lng}`;
+                    const mapLink = `https://www.google.com/maps?q=${lat},${lng}`;
                     
                     const inputLink = getEl('asset-link');
                     inputLink.value = mapLink;
