@@ -3160,50 +3160,49 @@ function handleCccdResult(data) {
 }
 
 function handleRedBookResult(data) {
-    // Save raw QR text into hidden input and visible note
-    const hiddenInput = getEl('asset-ocr-data');
+    // 1. Vẫn lưu chuỗi gốc vào ô ẨN để tính năng "Xem thông tin bìa" hoạt động
+    // (Nếu không lưu dòng này, nút xem lại thông tin sẽ bị trắng trơn)
+    const hiddenInput = document.getElementById('asset-ocr-data');
     if (hiddenInput) hiddenInput.value = data;
-    const noteInput = getEl('asset-onland');
-    if (noteInput) noteInput.value = data;
-    showToast('Đã quét thành công QR bìa đỏ!');
-}
 
-// Simplified view of saved QR content
-function viewSavedOcr(assetId) {
-    const asset = currentCustomerData && currentCustomerData.assets
-        ? currentCustomerData.assets.find(a => a.id === assetId)
-        : null;
-    if (!asset || !asset.ocrData) {
-        showToast('Không có dữ liệu QR');
-        return;
+    // 2. Xóa trắng ô "Vị trí/Ghi chú" (Không điền chuỗi dài vào đây nữa theo yêu cầu)
+    const noteInput = document.getElementById('asset-onland');
+    if (noteInput) noteInput.value = ''; 
+
+    // 3. Logic tách lấy "Số bìa đỏ" (AQ 04258571)
+    let redBookNum = '';
+    
+    // ƯU TIÊN 1: Tách theo dấu gạch đứng | (Chuẩn VNeID/ILIS)
+    if (data.includes('|')) {
+        const parts = data.split('|');
+        // Trong ví dụ bạn gửi: 05...|H44...|ILIS...|H44...|AQ 04258571|...
+        // Nó nằm ở vị trí thứ 5 (tức là index 4)
+        if (parts[4] && parts[4].length > 4) {
+            redBookNum = parts[4].trim();
+        }
+    } 
+    
+    // ƯU TIÊN 2: Nếu cách trên trượt, dùng Regex quét tìm mẫu (2 chữ hoa + số)
+    // Ví dụ: Tìm đoạn giống "AQ 04258571" hoặc "CS 123456"
+    if (!redBookNum) {
+        const match = data.match(/([A-Z]{2}\s*[0-9]{6,9})/);
+        if (match) redBookNum = match[1];
     }
-    // Decrypt text if encryption is enabled
-    const contentToShow = decryptText(asset.ocrData);
-    const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 z-[300] bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in';
-    overlay.innerHTML = `
-        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-purple-500/30">
-            <h3 class="font-bold text-lg mb-4 text-purple-400 flex items-center gap-2">
-                <i data-lucide="info" class="w-5 h-5"></i> Thông tin bìa đỏ
-            </h3>
-            <textarea readonly class="w-full h-60 bg-black/30 border border-white/10 rounded-xl p-3 text-xs text-slate-300 font-mono outline-none mb-4 custom-scrollbar">${contentToShow}</textarea>
-            <div class="flex gap-3">
-                <button onclick="copyToClipboard('${contentToShow.replace(/\n/g, '\\n')}')" class="flex-1 py-3 rounded-xl font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition border border-purple-500/30">Copy</button>
-                <button onclick="this.closest('.fixed').remove()" class="flex-1 py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(overlay);
-    if (window.lucide) lucide.createIcons();
-}
 
-// Utility to copy text to clipboard
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => showToast('Đã copy!')).catch(() => {
-        prompt('Copy thủ công:', text);
-    });
+    // 4. Điền kết quả vào ô "Tên Tài Sản"
+    const nameInput = document.getElementById('asset-name');
+    if (nameInput) {
+        if (redBookNum) {
+            // Điền số bìa vào
+            nameInput.value = "Bìa đỏ " + redBookNum; 
+            showToast('Đã lấy số bìa: ' + redBookNum);
+        } else {
+            // Nếu không tìm thấy số bìa trong QR thì điền tạm chữ này
+            nameInput.value = "Bìa đỏ (Chưa rõ số)";
+            showToast('Đã quét (Không tìm thấy số bìa)');
+        }
+    }
 }
-
 // Stubbed functions to override removed OCR utilities (in case leftover calls exist)
 function parseRedBookInfo(text) { return {}; }
 function renderRedBookInfo(info) { return ''; }
