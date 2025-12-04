@@ -645,7 +645,7 @@
          * Hằng số bí mật dùng để mã hóa/giải mã dữ liệu backup.
          * Cần giữ bí mật chuỗi này để đảm bảo file backup không thể đọc được nếu không có khóa.
          */
-        const APP_BACKUP_SECRET = 'ClientPro_Protected_v5_@2025';
+        let APP_BACKUP_SECRET = '';
 
         /**
          * Compute a SHA-256 hash of the provided PIN string and return it as a hex string.
@@ -747,7 +747,7 @@ const WEATHER_STORAGE_KEY = 'app_weather_cache_v1';
 const WEATHER_CACHE_TTL = 15 * 60 * 1000; // 15 phút
 const SCRIPT_KEY = 'app_script_url';
 // --- CẤU HÌNH SERVER TRUNG TÂM ---
-const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbwY0jsR0f70TCFhj5o_5LpIprcYUSlnT7Cpv91OjCZRv5OFjkSkbzvqIrbomY10x746-w/exec"; 
+const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbw0e3GftH7hDQJo12uhlPWyZI-YkFTsx-wNEs2BOG4Cklp1oNgo8ryldtWYyyKFzS6cRA/exec"; 
 const USER_SCRIPT_KEY = 'app_user_script_url';
 // map weathercode -> text tiếng Việt đơn giản
 const WEATHER_CODE_TEXT = {
@@ -1047,31 +1047,31 @@ async function checkSecurity() {
     // Phần này chạy âm thầm bên dưới, không làm đơ màn hình của bạn
     try {
         const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || '';
-        // Gửi Mã NV lên để Server kiểm tra (như logic bước 1)
-        const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-        
-        const res = await fetch(ADMIN_SERVER_URL + query);
-        const result = await res.json();
-
-        // Nếu Server báo "LOCKED" (Do bạn xóa Key trên Sheet)
-        if (result.status === 'locked') {
-            // Tắt màn hình khóa
-            getEl('screen-lock').classList.add('hidden');
-            getEl('setup-lock-modal').classList.add('hidden');
-
-            // Hiện thông báo Kích hoạt lại
-            const modal = getEl('activation-modal');
-            modal.classList.remove('hidden');
+        if (savedEmp) {
+            const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
             
-            const titleEl = document.getElementById('activation-title');
-            if (titleEl) titleEl.textContent = result.message || 'Tài khoản đã bị thu hồi!';
-            
-            // Xóa trạng thái kích hoạt cũ để bắt nhập lại
-            localStorage.removeItem(ACTIVATED_KEY);
+            const res = await fetch(ADMIN_SERVER_URL + query);
+            const txt = await res.text();
+            let result;
+            try { result = JSON.parse(txt); } catch (e) { result = {}; }
+
+            // Nạp Key bí mật vào RAM
+            if (result.secret) {
+                APP_BACKUP_SECRET = result.secret;
+            }
+
+            if (result.status === 'locked') {
+                getEl('screen-lock').classList.add('hidden');
+                getEl('setup-lock-modal').classList.add('hidden');
+                const modal = getEl('activation-modal');
+                modal.classList.remove('hidden');
+                const titleEl = document.getElementById('activation-title');
+                if (titleEl) titleEl.textContent = result.message || 'Tài khoản đã bị thu hồi!';
+                localStorage.removeItem(ACTIVATED_KEY);
+            }
         }
     } catch (err) {
-        console.log("Không kết nối được Server, dùng chế độ Offline");
-        // Nếu mất mạng, App vẫn cho dùng bình thường (Offline mode)
+        console.log("Offline mode: Tính năng Backup bảo mật tạm thời bị tắt.");
     }
 }
         function openSecuritySetup() {
@@ -1208,6 +1208,10 @@ try {
                 // Kiểm tra thành công: server có thể trả về {status:'success'} hoặc 'success'
                 if ((result && result.status && String(result.status).toLowerCase() === 'success') || String(result).toLowerCase().includes('success')) {
                     // Thành công: xử lý tùy theo máy mới hay tái kích hoạt
+                    if (result.secret) {
+                        APP_BACKUP_SECRET = result.secret;
+                        console.log("Đã nhận chìa khóa bảo mật từ Server");
+                    }
                     const hasOldData = !!localStorage.getItem(SEC_KEY);
                     if (!hasOldData) {
                         // Trường hợp máy mới: Lưu trạng thái kích hoạt và yêu cầu tạo PIN mới
@@ -2030,6 +2034,10 @@ async function capturePhoto() {
 // HÀM BACKUP MỚI (CHỈ LƯU THÔNG TIN - LOẠI BỎ ẢNH & LINK)
 // ============================================================
 async function backupData() { 
+    if (!APP_BACKUP_SECRET) {
+        alert("BẢO MẬT: Không thể xuất file khi đang Offline hoặc chưa xác thực với Server.\n\nVui lòng kết nối mạng và mở lại App để hệ thống tải khóa bảo mật.");
+        return;
+    }
     // Đóng menu và hiển thị loader
     toggleMenu(); 
     getEl('loader').classList.remove('hidden');
