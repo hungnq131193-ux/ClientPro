@@ -1386,28 +1386,6 @@ try {
 }
 
         function openModal() { getEl('add-modal').classList.remove('hidden'); getEl('new-name').value=''; getEl('new-phone').value=''; getEl('edit-cust-id').value = ''; getEl('modal-title-cust').textContent = "Khởi tạo hồ sơ"; getEl('btn-save-cust').textContent = "Tạo mới"; getEl('new-name').focus(); }
-        function openEditAssetModal(index) { 
-    getEl('asset-modal').classList.remove('hidden'); 
-    const asset = currentCustomerData.assets[index]; 
-    getEl('edit-asset-index').value = index; 
-    getEl('modal-title-asset').textContent = "Cập nhật TSBĐ"; 
-    getEl('btn-save-asset').textContent = "Lưu thay đổi"; 
-    
-    getEl('asset-name').value = asset.name; 
-    getEl('asset-link').value = asset.link || ''; 
-    getEl('asset-val').value = asset.valuation || ''; 
-    getEl('asset-loan').value = asset.loanValue || '';
-    getEl('asset-area').value = asset.area || ''; 
-    getEl('asset-width').value = asset.width || ''; 
-    getEl('asset-onland').value = asset.onland || ''; 
-    getEl('asset-year').value = asset.year || '';
-    
-    // [MỚI] Load dữ liệu OCR cũ lên để sẵn sàng lưu tiếp
-    getEl('asset-ocr-data').value = asset.ocrData || '';
-    
-    // Gán ID để nếu chụp thêm ảnh thì lưu đúng chỗ
-    currentAssetId = asset.id;
-}
         
         function deleteCurrentCustomer() { 
             if(!confirm("XÁC NHẬN: Xóa toàn bộ hồ sơ khách hàng này?")) return; 
@@ -1626,10 +1604,35 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
             getEl('asset-name').value=''; getEl('asset-link').value=''; getEl('asset-val').value=''; getEl('asset-loan').value=''; getEl('asset-area').value=''; getEl('asset-width').value=''; getEl('asset-onland').value=''; getEl('asset-year').value=''; 
         }
         function openEditAssetModal(index) { 
-            getEl('asset-modal').classList.remove('hidden'); const asset = currentCustomerData.assets[index]; getEl('edit-asset-index').value = index; getEl('modal-title-asset').textContent = "Cập nhật TSBĐ"; getEl('btn-save-asset').textContent = "Lưu thay đổi"; 
-            getEl('asset-name').value = asset.name; getEl('asset-link').value = asset.link || ''; getEl('asset-val').value = asset.valuation || ''; getEl('asset-loan').value = asset.loanValue || '';
-            getEl('asset-area').value = asset.area || ''; getEl('asset-width').value = asset.width || ''; getEl('asset-onland').value = asset.onland || ''; getEl('asset-year').value = asset.year || '';
-        }
+    // Hiện modal
+    getEl('asset-modal').classList.remove('hidden'); 
+    
+    // Lấy tài sản đang chọn
+    const asset = currentCustomerData.assets[index]; 
+    
+    // Setup tiêu đề modal
+    getEl('edit-asset-index').value = index; 
+    getEl('modal-title-asset').textContent = "Cập nhật TSBĐ"; 
+    getEl('btn-save-asset').textContent = "Lưu thay đổi"; 
+    
+    // --- QUAN TRỌNG: Giải mã dữ liệu trước khi điền vào ô input ---
+    // Nếu không có decryptText, nó sẽ hiện chuỗi U2FsdGVk...
+    getEl('asset-name').value = decryptText(asset.name); 
+    getEl('asset-link').value = decryptText(asset.link) || ''; 
+    getEl('asset-val').value = decryptText(asset.valuation) || ''; 
+    getEl('asset-loan').value = decryptText(asset.loanValue) || '';
+    
+    getEl('asset-area').value = decryptText(asset.area) || ''; 
+    getEl('asset-width').value = decryptText(asset.width) || ''; 
+    getEl('asset-onland').value = decryptText(asset.onland) || ''; 
+    getEl('asset-year').value = decryptText(asset.year) || '';
+    
+    // Giải mã cả dữ liệu OCR cũ (nếu có)
+    getEl('asset-ocr-data').value = decryptText(asset.ocrData) || '';
+    
+    // Gán ID để xử lý ảnh đúng tài sản
+    currentAssetId = asset.id;
+}
         function closeAssetModal() { getEl('asset-modal').classList.add('hidden'); }
         
         function saveAsset() { 
