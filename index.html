@@ -3027,26 +3027,26 @@ function initScannerInstance(regionId) {
         // --- SỬA LỖI & CẤU HÌNH NÉT CĂNG ---
     
     // 1. Chuyển cấu hình độ phân giải (4K/FullHD) vào đây
+        // --- KHẮC PHỤC: TÁCH RIÊNG CẤU HÌNH CAMERA VÀ ĐỘ NÉT ---
+
+    // 1. Cấu hình quét & Độ nét (Đưa 4K vào videoConstraints)
     const config = {
         fps: 15, 
         qrbox: { width: 220, height: 220 },
         aspectRatio: 1.0,
         disableFlip: false,
-        // Thêm videoConstraints vào đây để ép độ nét cao
+        // Ép độ nét ở đây (quan trọng)
         videoConstraints: {
-            width: { min: 1280, ideal: 3840, max: 4096 }, // Ưu tiên 4K
+            width: { min: 1280, ideal: 3840, max: 4096 },
             height: { min: 720, ideal: 2160, max: 2160 },
             focusMode: "continuous"
         }
     };
     
-    // 2. cameraConfig chỉ giữ đúng 1 dòng này để không bị lỗi "found 4 keys"
+    // 2. Cấu hình chọn Camera (Chỉ giữ 1 dòng để fix lỗi và chọn Cam Sau)
     const cameraConfig = { 
-        facingMode: "environment" 
+        facingMode: "environment" // "environment" = Cam Sau, "user" = Cam Trước
     };
-
-    // --- KẾT THÚC ĐOẠN SỬA ---
-
     qrScanner.start(cameraConfig, config,
         (decodedText) => {
             if (navigator.vibrate) navigator.vibrate(200);
