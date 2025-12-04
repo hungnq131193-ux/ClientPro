@@ -916,71 +916,87 @@ initWeather();
             renderMapMarkers();
         }
 
-        async function renderMapMarkers() {
-            if (!db || !map) return;
-            // Clear existing markers
-            markers.forEach(m => map.removeLayer(m));
-            markers = [];
+        // --- ĐÃ SỬA: GIẢI MÃ LINK VÀ THÔNG TIN TRƯỚC KHI VẼ MAP ---
+async function renderMapMarkers() {
+    if (!db || !map) return;
+    // Xóa marker cũ
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
 
-            const tx = db.transaction(['customers', 'images'], 'readonly');
-            const custStore = tx.objectStore('customers');
-            const imgStore = tx.objectStore('images');
+    const tx = db.transaction(['customers', 'images'], 'readonly');
+    const custStore = tx.objectStore('customers');
+    const imgStore = tx.objectStore('images');
 
-            // Pre-fetch all images for thumbnails (optimized)
-            const allImages = await new Promise(r => { const req = imgStore.getAll(); req.onsuccess = e => r(e.target.result || []); req.onerror = () => r([]); });
+    // Lấy trước toàn bộ ảnh để làm thumbnail
+    const allImages = await new Promise(r => { const req = imgStore.getAll(); req.onsuccess = e => r(e.target.result || []); req.onerror = () => r([]); });
 
-            custStore.getAll().onsuccess = (e) => {
-                const customers = e.target.result || [];
-                const bounds = [];
+    custStore.getAll().onsuccess = (e) => {
+        const customers = e.target.result || [];
+        const bounds = [];
 
-                customers.forEach(cust => {
-                    if (!cust.assets) return;
-                    cust.assets.forEach(asset => {
-                        const loc = parseLatLngFromLink(asset.link);
-                        if (loc) {
-                            // Find thumbnail
-                            const img = allImages.find(i => i.assetId === asset.id) || allImages.find(i => i.customerId === cust.id);
-                            const thumb = img ? img.data : 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzU1NSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
-                            
-                            // Style based on status
-                            const isApproved = cust.status === 'approved';
-                            const markerClass = isApproved ? 'marker-approved' : 'marker-pending';
-                            const statusTag = isApproved ? '<span class="map-tag approved">Đã Duyệt</span>' : '<span class="map-tag pending">Thẩm định</span>';
-                            const valStr = asset.valuation ? `<div class="text-xs text-slate-300">Định giá: <b class="text-white">${asset.valuation}</b></div>` : '';
+        customers.forEach(cust => {
+            if (!cust.assets) return;
+            
+            // 1. GIẢI MÃ TÊN KHÁCH HÀNG (để hiện trên Popup)
+            const custName = decryptText(cust.name);
 
-                            const icon = L.divIcon({
-                                className: 'custom-div-icon',
-                                html: `<div class="marker-glow ${markerClass}"></div>`,
-                                iconSize: [20, 20],
-                                iconAnchor: [10, 10]
-                            });
+            cust.assets.forEach(asset => {
+                // 2. QUAN TRỌNG: GIẢI MÃ LINK TRƯỚC KHI TÁCH TỌA ĐỘ
+                const decryptedLink = decryptText(asset.link);
+                const loc = parseLatLngFromLink(decryptedLink);
+                
+                if (loc) {
+                    // 3. GIẢI MÃ CÁC THÔNG TIN TÀI SẢN KHÁC
+                    const assetName = decryptText(asset.name);
+                    const assetVal = decryptText(asset.valuation);
 
-                            const marker = L.marker([loc.lat, loc.lng], { icon: icon }).addTo(map);
-                            const popupContent = `
-                                <div class="map-popup-card" onclick="openMapFolder('${cust.id}')">
-                                    <img src="${thumb}" class="map-popup-img">
-                                    <div class="flex justify-between items-start">
-                                        <div>
-                                            ${statusTag}
-                                            <div class="font-bold text-sm truncate w-40">${cust.name}</div>
-                                            <div class="text-[10px] text-slate-400 truncate w-40">${asset.name}</div>
-                                            ${valStr}
-                                        </div>
-                                        <div class="p-2 bg-indigo-500 rounded-lg text-white mt-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></div>
-                                    </div>
-                                    <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20">Chỉ đường</a>
-                                </div>
-                            `;
-                            marker.bindPopup(popupContent);
-                            markers.push(marker);
-                            bounds.push([loc.lat, loc.lng]);
-                        }
+                    // Tìm ảnh đại diện
+                    const img = allImages.find(i => i.assetId === asset.id) || allImages.find(i => i.customerId === cust.id);
+                    const thumb = img ? img.data : 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzU1NSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
+                    
+                    // Style marker theo trạng thái
+                    const isApproved = cust.status === 'approved';
+                    const markerClass = isApproved ? 'marker-approved' : 'marker-pending';
+                    const statusTag = isApproved ? '<span class="map-tag approved">Đã Duyệt</span>' : '<span class="map-tag pending">Thẩm định</span>';
+                    
+                    // Hiển thị giá trị định giá đã giải mã
+                    const valStr = assetVal ? `<div class="text-xs text-slate-300">Định giá: <b class="text-white">${assetVal}</b></div>` : '';
+
+                    const icon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div class="marker-glow ${markerClass}"></div>`,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
                     });
-                });
 
-                if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
-            };
-        }
+                    const marker = L.marker([loc.lat, loc.lng], { icon: icon }).addTo(map);
+                    
+                    // Popup với thông tin đã giải mã
+                    const popupContent = `
+                        <div class="map-popup-card" onclick="openMapFolder('${cust.id}')">
+                            <img src="${thumb}" class="map-popup-img">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    ${statusTag}
+                                    <div class="font-bold text-sm truncate w-40">${custName}</div>
+                                    <div class="text-[10px] text-slate-400 truncate w-40">${assetName}</div>
+                                    ${valStr}
+                                </div>
+                                <div class="p-2 bg-indigo-500 rounded-lg text-white mt-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></div>
+                            </div>
+                            <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20">Chỉ đường</a>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent);
+                    markers.push(marker);
+                    bounds.push([loc.lat, loc.lng]);
+                }
+            });
+        });
+
+        if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
+    };
+}
 
         function openMapFolder(custId) {
             toggleMap(); // Close map
