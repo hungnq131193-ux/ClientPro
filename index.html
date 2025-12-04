@@ -210,7 +210,31 @@
     </div>
     
     <div id="add-modal" class="fixed inset-0 z-40 bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative modal-animate"><button onclick="closeModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button><h3 class="font-bold text-lg mb-6" id="modal-title-cust" style="color: var(--text-main)">Thông tin khách hàng</h3><input type="hidden" id="edit-cust-id"><div class="space-y-5"><div><label class="text-xs font-bold uppercase block mb-1.5 opacity-70" style="color: var(--text-sub)">Tên khách hàng</label><input id="new-name" class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);"></div><div><label class="text-xs font-bold uppercase block mb-1.5 opacity-70" style="color: var(--text-sub)">Số điện thoại</label><input id="new-phone" type="tel" class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);"></div></div><div class="mt-8"><button onclick="saveCustomer()" class="w-full py-3.5 text-white font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform" id="btn-save-cust" style="background: var(--accent-gradient);">Lưu Hồ Sơ</button></div></div>
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative modal-animate">
+            <button onclick="closeModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <h3 class="font-bold text-lg mb-6" id="modal-title-cust" style="color: var(--text-main)">Thông tin khách hàng</h3>
+            <input type="hidden" id="edit-cust-id">
+            <div class="space-y-5">
+                <!-- Tên khách hàng -->
+                <div>
+                    <label class="text-xs font-bold uppercase block mb-1.5 opacity-70" style="color: var(--text-sub)">Tên khách hàng</label>
+                    <input id="new-name" class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);">
+                </div>
+                <!-- Số điện thoại -->
+                <div>
+                    <label class="text-xs font-bold uppercase block mb-1.5 opacity-70" style="color: var(--text-sub)">Số điện thoại</label>
+                    <input id="new-phone" type="tel" class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);">
+                </div>
+                <!-- CCCD/CMND mới thêm -->
+                <div>
+                    <label class="text-xs font-bold uppercase block mb-1.5 opacity-70" style="color: var(--text-sub)">CCCD / CMND</label>
+                    <input id="new-cccd" class="w-full border p-3.5 rounded-xl outline-none" placeholder="Số căn cước..." style="border-color: var(--border-panel);">
+                </div>
+            </div>
+            <div class="mt-8">
+                <button onclick="saveCustomer()" class="w-full py-3.5 text-white font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform" id="btn-save-cust" style="background: var(--accent-gradient);">Lưu Hồ Sơ</button>
+            </div>
+        </div>
     </div>
     
     <!-- ASSET MODAL UPDATED WITH GPS -->
@@ -633,6 +657,8 @@
             if (!cust) return cust;
             cust.name = decryptText(cust.name);
             cust.phone = decryptText(cust.phone);
+            // Giải mã thêm trường CCCD/CMND nếu tồn tại
+            cust.cccd = decryptText(cust.cccd);
             if (cust.assets && Array.isArray(cust.assets)) {
                 cust.assets.forEach(a => {
                     a.name = decryptText(a.name);
@@ -1385,7 +1411,17 @@ try {
     }); lucide.createIcons();
 }
 
-        function openModal() { getEl('add-modal').classList.remove('hidden'); getEl('new-name').value=''; getEl('new-phone').value=''; getEl('edit-cust-id').value = ''; getEl('modal-title-cust').textContent = "Khởi tạo hồ sơ"; getEl('btn-save-cust').textContent = "Tạo mới"; getEl('new-name').focus(); }
+        function openModal() {
+            getEl('add-modal').classList.remove('hidden');
+            // Reset tất cả trường nhập thông tin khách hàng khi tạo mới
+            getEl('new-name').value = '';
+            getEl('new-phone').value = '';
+            if (getEl('new-cccd')) getEl('new-cccd').value = '';
+            getEl('edit-cust-id').value = '';
+            getEl('modal-title-cust').textContent = "Khởi tạo hồ sơ";
+            getEl('btn-save-cust').textContent = "Tạo mới";
+            getEl('new-name').focus();
+        }
         
         function deleteCurrentCustomer() { 
             if(!confirm("XÁC NHẬN: Xóa toàn bộ hồ sơ khách hàng này?")) return; 
@@ -2179,7 +2215,8 @@ async function uploadToGoogleDrive() {
 
         // Chuẩn bị gói dữ liệu
         const payload = {
-            folderName: `${currentCustomerData.name} - ${currentCustomerData.phone}`,
+            // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
+            folderName: `${currentCustomerData.name} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
             images: imagesToUpload.map((img, idx) => ({
                 name: `img_${Date.now()}_${idx}.jpg`,
                 data: img.data
@@ -2442,55 +2479,62 @@ async function reconnectAssetDriveFolder() {
 }
 // --- TÍNH NĂNG TÌM LẠI FOLDER THẤT LẠC ---
 async function reconnectDriveFolder() {
-    // Sử dụng Script cá nhân để tìm lại folder trên Drive
+    // Lấy link Script cá nhân; nếu chưa cấu hình thì nhắc người dùng cài đặt
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
-            toggleMenu();
-        }
+        if (confirm("Chưa cấu hình Script! Vào cài đặt ngay?")) toggleMenu();
         return;
     }
-    const scriptUrl = userUrl;
+    // Không có dữ liệu khách hàng hiện tại thì dừng
     if (!currentCustomerData) return;
 
+    // Hiển thị loader và cập nhật thông báo
     getEl('loader').classList.remove('hidden');
     getEl('loader-text').textContent = "Đang tìm trên Drive...";
 
-    // Tên folder cần tìm (Phải khớp quy tắc đặt tên lúc Up)
-    const folderName = `${currentCustomerData.name} - ${currentCustomerData.phone}`;
+    // Lấy thông tin tên, SĐT và CCCD sau khi giải mã (hàm decryptText sẽ trả lại nguyên bản nếu đầu vào đã giải mã)
+    const name = currentCustomerData.name;
+    const phone = decryptText(currentCustomerData.phone);
+    const cccd = decryptText(currentCustomerData.cccd);
 
-    try {
-        const response = await fetch(scriptUrl, {
-            method: "POST",
-            body: JSON.stringify({
-                action: 'search', // Báo cho script biết là đang tìm kiếm
-                folderName: folderName
-            })
-        });
+    // Tạo danh sách tên thư mục có thể có: ưu tiên theo CCCD trước, sau đó là SĐT
+    const possibleNames = [];
+    if (cccd) possibleNames.push(`${name} - ${cccd}`);
+    if (phone) possibleNames.push(`${name} - ${phone}`);
 
-        const result = await response.json();
+    let foundUrl = null;
 
-        if (result.status === 'found') {
-            // TÌM THẤY RỒI!
-            currentCustomerData.driveLink = result.url;
-            
-            // Lưu lại vào Database
-            const tx = db.transaction(['customers'], 'readwrite');
-            tx.objectStore('customers').put(currentCustomerData).onsuccess = () => {
-                getEl('loader').classList.add('hidden');
-                renderDriveStatus(result.url); // Hiện nút Mở Drive ngay
-                showToast("Đã tìm thấy & Kết nối lại!");
-            };
-        } else {
-            getEl('loader').classList.add('hidden');
-            alert("Không tìm thấy Folder nào tên: " + folderName + "\n\nCó thể bạn đã đổi tên khách hoặc chưa từng upload?");
+    // Thử tìm lần lượt các tên trong danh sách
+    for (const folderName of possibleNames) {
+        try {
+            getEl('loader-text').textContent = `Đang tìm: ${folderName}...`;
+            const response = await fetch(userUrl, {
+                method: "POST",
+                body: JSON.stringify({ action: 'search', folderName: folderName })
+            });
+            const result = await response.json();
+            if (result.status === 'found') {
+                foundUrl = result.url;
+                break;
+            }
+        } catch (e) {
+            console.warn("Lỗi tìm kiếm:", e);
         }
+    }
 
-    } catch (err) {
-        console.error(err);
+    // Nếu tìm thấy thì lưu và cập nhật giao diện, ngược lại báo lỗi
+    if (foundUrl) {
+        currentCustomerData.driveLink = foundUrl;
+        const tx = db.transaction(['customers'], 'readwrite');
+        tx.objectStore('customers').put(currentCustomerData).onsuccess = () => {
+            getEl('loader').classList.add('hidden');
+            renderDriveStatus(foundUrl);
+            showToast("Đã kết nối lại thành công!");
+        };
+    } else {
         getEl('loader').classList.add('hidden');
-      alert("Lỗi kết nối: " + err.message);
-  }
+        alert("Không tìm thấy folder nào khớp với Tên + CCCD hoặc Tên + SĐT.");
+    }
 }
 // ============================================================
 // LOGIC KẾT NỐI GOOGLE APPS SCRIPT (OCR & UPLOAD)
@@ -2622,7 +2666,8 @@ async function uploadToGoogleDrive() {
         // Đóng gói mảng ảnh
         const payload = {
             action: 'upload',
-            folderName: `${currentCustomerData.name} - ${currentCustomerData.phone}`,
+            // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
+            folderName: `${currentCustomerData.name} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
             images: imagesToUpload.map((img, idx) => ({
                 name: `hoso_${Date.now()}_${idx}.jpg`,
                 data: img.data
@@ -2847,7 +2892,8 @@ async function uploadToGoogleDrive() {
         // 2. Chuẩn bị gói dữ liệu
         const payload = {
             action: 'upload', // <--- Báo cho Script biết là muốn Upload
-            folderName: `${currentCustomerData.name} - ${currentCustomerData.phone}`,
+            // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
+            folderName: `${currentCustomerData.name} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
             images: imagesToUpload.map((img, idx) => ({
                 name: `hoso_${Date.now()}_${idx}.jpg`,
                 data: img.data // Gửi cả mảng ảnh đi 1 lần
@@ -3050,9 +3096,11 @@ function saveCustomer() {
     const id = getEl('edit-cust-id').value;
     const name = getEl('new-name').value.trim();
     const phone = getEl('new-phone').value.trim();
+    const cccd = getEl('new-cccd') ? getEl('new-cccd').value.trim() : '';
     // Mã hóa đầy đủ thông tin khách hàng trước khi lưu
     const encName = encryptText(name);
     const encPhone = encryptText(phone);
+    const encCccd = encryptText(cccd);
     if (!name || !phone) return alert("Vui lòng nhập đầy đủ Tên và SĐT!");
 
     const tx = db.transaction(['customers'], 'readwrite');
@@ -3062,10 +3110,11 @@ function saveCustomer() {
         // --- Sửa khách hàng cũ ---
         store.get(id).onsuccess = (e) => {
             const data = e.target.result;
-        if (data) {
-                // Cập nhật tên và SĐT đã mã hóa
+            if (data) {
+                // Cập nhật tên, SĐT và CCCD đã mã hóa
                 data.name = encName;
                 data.phone = encPhone;
+                data.cccd = encCccd;
                 store.put(data);
             }
         };
@@ -3075,6 +3124,7 @@ function saveCustomer() {
             id: 'cust_' + Date.now(),
             name: encName,
             phone: encPhone,
+            cccd: encCccd,
             status: 'pending',
             createdAt: Date.now(),
             assets: [],
@@ -3089,11 +3139,12 @@ function saveCustomer() {
         
         // Nếu đang mở folder của khách này thì cập nhật header
         if (id && currentCustomerData && currentCustomerData.id === id) {
-             // Cập nhật lại UI header
-             getEl('folder-customer-name').textContent = name;
-             getEl('folder-avatar').textContent = name.charAt(0).toUpperCase();
-             currentCustomerData.name = name;
-             currentCustomerData.phone = phone;
+            // Cập nhật lại UI header
+            getEl('folder-customer-name').textContent = name;
+            getEl('folder-avatar').textContent = name.charAt(0).toUpperCase();
+            currentCustomerData.name = name;
+            currentCustomerData.phone = phone;
+            currentCustomerData.cccd = cccd;
         }
         
         showToast(id ? "Đã cập nhật hồ sơ" : "Đã thêm khách hàng mới");
@@ -3113,6 +3164,11 @@ function openEditCustomerModal() {
     getEl('new-name').value = currentCustomerData.name;
     // Decrypt stored phone before displaying in the input
     getEl('new-phone').value = decryptText(currentCustomerData.phone);
+    // Điền CCCD/CMND nếu có
+    if (getEl('new-cccd')) {
+        const decryptedCccd = decryptText(currentCustomerData.cccd);
+        getEl('new-cccd').value = decryptedCccd || '';
+    }
 }
 
 </script>
