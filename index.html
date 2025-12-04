@@ -1858,12 +1858,12 @@ function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'
     img.src = base64;
 }
         // --- BƯỚC 3: SỬA HÀM LƯU ẢNH (ĐỂ KÍCH HOẠT OCR TÀI SẢN) ---
+// --- ĐÃ SỬA: FIX LỖI KHÔNG REFRESH ẢNH & BỎ TỰ ĐỘNG OCR ---
 function saveImageToDB(rawBase64) { 
     return new Promise(async (resolve) => {
         if (!currentCustomerId) { resolve(); return; }
         
         // 1. Kiểm tra: Nếu đang mở Modal Asset thì ép chế độ là 'asset'
-        // Để đảm bảo ảnh được gắn đúng vào tài sản
         if (getEl('asset-modal') && !getEl('asset-modal').classList.contains('hidden')) {
             captureMode = 'asset';
         }
@@ -1871,18 +1871,15 @@ function saveImageToDB(rawBase64) {
         getEl('loader').classList.remove('hidden'); 
         getEl('loader-text').textContent = "Xử lý ảnh...";
         
-        // 2. Làm nét ảnh bằng AI (giúp OCR chuẩn hơn)
+        // 2. Làm nét ảnh bằng AI (giữ nguyên để ảnh đẹp)
         const enhancedBase64 = await enhanceDocumentWithAI(rawBase64); 
         
-        // 3. LOGIC MỚI: Nếu là ảnh tài sản -> Chạy quét Bìa Đỏ ngay
-        if (captureMode === 'asset') {
-             getEl('loader-text').textContent = "Đang đọc Bìa Đỏ...";
-             await runAssetOcrLogic(enhancedBase64); // Gọi hàm điền form
-        }
+        // --- ĐÃ XÓA: ĐOẠN LOGIC TỰ ĐỘNG CHẠY OCR TẠI ĐÂY ---
+        // (Nút chụp ảnh giờ chỉ thuần túy là chụp và lưu)
 
         getEl('loader-text').textContent = "Đang lưu ảnh...";
         
-        // 4. Nén và Lưu vào Database
+        // 3. Nén và Lưu vào Database
         compressImage(enhancedBase64, (compressed) => { 
             const newImg = { 
                 id: 'img_' + Date.now() + Math.random(), 
@@ -1895,7 +1892,21 @@ function saveImageToDB(rawBase64) {
             
             db.transaction(['images'], 'readwrite').objectStore('images').add(newImg).onsuccess = () => { 
                 getEl('loader').classList.add('hidden'); 
-                showToast("Đã lưu ảnh & Quét xong"); 
+                showToast("Đã lưu ảnh"); 
+
+                // --- ĐÃ THÊM: LOGIC CẬP NHẬT GIAO DIỆN NGAY LẬP TỨC ---
+                // Kiểm tra xem đang ở màn hình Tài sản hay Hồ sơ để load lại cho đúng
+                if (currentAssetId && !getEl('screen-asset-gallery').classList.contains('translate-x-full')) {
+                    // Nếu đang mở gallery tài sản -> Load lại ảnh tài sản
+                    loadAssetImages(currentAssetId);
+                } else if (captureMode === 'asset' && currentAssetId) {
+                    // Nếu chụp tài sản nhưng chưa mở gallery (ví dụ chụp từ modal) -> Cũng load ngầm
+                    loadAssetImages(currentAssetId);
+                } else {
+                    // Ngược lại -> Load ảnh hồ sơ
+                    loadProfileImages();
+                }
+
                 resolve(); 
             }; 
         }); 
