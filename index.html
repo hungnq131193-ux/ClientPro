@@ -3,11 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- 👇 DÁN ĐOẠN CSP VÀO VỊ TRÍ NÀY 👇 -->
     <meta http-equiv="Content-Security-Policy" 
-    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://api.open-meteo.com;">
-    <!-- 👆 KẾT THÚC ĐOẠN CSP 👆 -->
+content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; connect-src 'self' https:;">
 
     <title>ClientPro App</title>
     
