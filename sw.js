@@ -1,7 +1,6 @@
-// Đặt tên cache version mới để trình duyệt biết cần cập nhật
-const CACHE_NAME = 'clientpro-cache-v2';
+// ĐỔI TÊN CACHE ĐỂ ÉP CẬP NHẬT (Ví dụ: v3 -> v4)
+const CACHE_NAME = 'clientpro-cache-v4-fix-paths';
 
-// Danh sách các file cần lưu vào bộ nhớ đệm
 const urlsToCache = [
   './',
   './index.html',
@@ -9,24 +8,32 @@ const urlsToCache = [
   './icon-192.png',
   './icon-512.png',
   
-  // Cập nhật đúng đường dẫn thư mục Css (Viết hoa chữ C)
+  // QUAN TRỌNG: Viết đúng Hoa/Thường như trên GitHub của bạn
   './Css/style.css',
   
-  // Cập nhật đúng đường dẫn thư mục Js (Viết hoa chữ J)
+  // Vì hiện tại chỉ có app.js chứa code, các file khác trống thì không cần cache cũng được
+  // Nhưng để chắc chắn, cứ khai báo đúng đường dẫn
   './Js/config.js',
   './Js/database.js',
-  './Js/security.js',
   './Js/drive.js',
   './Js/map.js',
+  './Js/security.js',
   './Js/ui.js',
   './Js/app.js',
   
-  // Font Awesome (nếu muốn cache luôn)
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
+  // Thư viện bên ngoài (Font Awesome, Leaflet...)
+  'https://cdn.tailwindcss.com',
+  'https://unpkg.com/lucide@latest',
+  'https://unpkg.com/html5-qrcode',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js'
 ];
 
-// 1. Cài đặt Service Worker và Cache file
 self.addEventListener('install', (event) => {
+  // Ép SW mới cài đặt ngay lập tức (bỏ qua trạng thái waiting)
+  self.skipWaiting();
+  
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -34,39 +41,37 @@ self.addEventListener('install', (event) => {
         return cache.addAll(urlsToCache);
       })
   );
-  // Ép SW mới kích hoạt ngay lập tức thay thế cái cũ
-  self.skipWaiting();
 });
 
-// 2. Kích hoạt và Xóa cache cũ
 self.addEventListener('activate', (event) => {
+  // Ép SW mới chiếm quyền điều khiển ngay lập tức
+  event.waitUntil(self.clients.claim());
+  
+  // Xóa toàn bộ cache cũ
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
-            // Xóa cache cũ đi để nạp code mới
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
-  self.clients.claim();
 });
 
-// 3. Xử lý khi user mở App (Fetch strategy: Cache first, then Network)
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Nếu có trong cache thì dùng luôn (nhanh)
-        if (response) {
-          return response;
-        }
-        // Nếu chưa có thì tải từ mạng
-        return fetch(event.request);
+        // Nếu có trong cache thì dùng, không thì tải mạng
+        return response || fetch(event.request);
+      })
+      .catch(() => {
+        // Fallback nếu mất mạng và không có cache (thường dùng cho ảnh)
+        return caches.match('./icon-192.png');
       })
   );
 });
