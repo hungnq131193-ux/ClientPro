@@ -3477,88 +3477,147 @@ function renderRedBookInfo(info) { return ''; }
             });
         });
     }
-    /* --- BẮT ĐẦU CODE XỬ LÝ VUỐT ĐỂ BACK (SWIPE TO BACK) --- */
+/* --- BẮT ĐẦU CODE XỬ LÝ VUỐT BACK TOÀN DIỆN (FINAL VERSION) --- */
 
-// 1. Hàm đẩy lịch sử khi mở màn hình mới
+// 1. Hàm hỗ trợ đẩy lịch sử
 function pushHistoryState(viewName) {
     history.pushState({ view: viewName }, null, "#" + viewName);
 }
 
-// 2. Ghi đè các hàm mở màn hình để tự động lưu lịch sử
-// Lưu lại hàm gốc
+// 2. Ghi đè các hàm MỞ để tự động lưu lịch sử
+// --- NHÓM 1: CÁC MÀN HÌNH CHÍNH ---
 const originalOpenFolder = openFolder;
+openFolder = function(id) { originalOpenFolder(id); pushHistoryState('folder'); }
+
 const originalOpenAssetGallery = openAssetGallery;
+openAssetGallery = function(id, name, idx) { originalOpenAssetGallery(id, name, idx); pushHistoryState('gallery'); }
+
 const originalToggleMap = toggleMap;
-const originalOpenLightbox = openLightbox;
-
-// Ghi đè hàm Mở Hồ Sơ
-openFolder = function(id) {
-    originalOpenFolder(id);
-    pushHistoryState('folder');
-}
-
-// Ghi đè hàm Mở Kho Ảnh TSBĐ
-openAssetGallery = function(id, name, idx) {
-    originalOpenAssetGallery(id, name, idx);
-    pushHistoryState('gallery');
-}
-
-// Ghi đè hàm Mở Map (Chỉ push khi mở, không push khi đóng)
 toggleMap = function() {
     const mapScreen = document.getElementById('screen-map');
-    // Kiểm tra: Nếu đang ẩn (translate-x-full) nghĩa là sắp mở -> Push history
+    // Chỉ push khi đang MỞ (từ ẩn sang hiện)
     if (mapScreen.classList.contains('translate-x-full')) {
         pushHistoryState('map');
     }
-    originalToggleMap(); // Gọi hàm gốc để thực hiện mở/đóng
+    originalToggleMap();
 }
 
-// Ghi đè hàm Mở Ảnh Phóng to (Lightbox)
-openLightbox = function(src, id, idx, list) {
-    originalOpenLightbox(src, id, idx, list);
-    pushHistoryState('lightbox');
+const originalOpenLightbox = openLightbox;
+openLightbox = function(src, id, idx, list) { originalOpenLightbox(src, id, idx, list); pushHistoryState('lightbox'); }
+
+// --- NHÓM 2: CÁC MODAL ANH VỪA YÊU CẦU (Thêm Khách, Giá, QR, Chọn) ---
+
+// 2.1. Modal Khởi tạo hồ sơ
+const originalOpenModal = openModal;
+openModal = function() { originalOpenModal(); pushHistoryState('add-cust'); }
+// Ghi đè nút Đóng/X để nó gọi Back
+const originalCloseModal = closeModal;
+closeModal = function() { history.back(); }
+
+// 2.2. Modal Tham khảo giá
+const originalShowRefModal = showRefModal;
+showRefModal = function(results) { originalShowRefModal(results); pushHistoryState('ref-price'); }
+const originalCloseRefModal = closeRefModal;
+closeRefModal = function() { history.back(); }
+
+// 2.3. Thanh Chọn Khách Hàng (Selection Bar)
+const originalToggleCust = toggleCustSelectionMode;
+toggleCustSelectionMode = function() {
+    // Nếu đang tắt -> Bấm để Mở -> Push state
+    if (!isCustSelectionMode) {
+        originalToggleCust();
+        pushHistoryState('selection');
+    } else {
+        // Nếu đang mở -> Bấm X -> Gọi Back
+        history.back();
+    }
 }
 
-// 3. BẮT SỰ KIỆN KHI NGƯỜI DÙNG VUỐT BACK (HOẶC NHẤN NÚT BACK CỨNG)
+// 2.4. Popup QR Bìa đỏ (Dynamic HTML)
+const originalViewSavedOcr = viewSavedOcr;
+viewSavedOcr = function(assetId) {
+    originalViewSavedOcr(assetId); // Hiện popup
+    pushHistoryState('ocr-info');  // Lưu lịch sử
+
+    // Tìm và sửa nút "Đóng" trong popup vừa tạo
+    setTimeout(() => {
+        // Tìm popup overlay (lớp phủ đen)
+        const overlays = document.querySelectorAll('.fixed.inset-0.z-\\[300\\]');
+        if (overlays.length > 0) {
+            const popup = overlays[overlays.length - 1];
+            // Tìm nút Đóng (thường là nút thứ 2 trong nhóm nút)
+            const closeBtn = popup.querySelectorAll('button')[1]; 
+            // Hoặc tìm nút chứa chữ "Đóng"
+            if (closeBtn && closeBtn.textContent.trim() === 'Đóng') {
+                closeBtn.onclick = function() { history.back(); };
+            }
+        }
+    }, 100);
+}
+
+// 3. XỬ LÝ SỰ KIỆN KHI NGƯỜI DÙNG VUỐT BACK (POPSTATE)
+// Hàm này sẽ tự động đóng cửa sổ đang mở tương ứng
 window.addEventListener('popstate', function(event) {
-    // Ưu tiên đóng theo thứ tự: Lightbox -> QR -> Gallery -> Folder -> Map
-    
-    // Đóng Lightbox ảnh phóng to
-    if (!document.getElementById('lightbox').classList.contains('hidden')) {
-        closeLightbox();
+    // Ưu tiên đóng các lớp phủ trên cùng trước (Z-index cao đến thấp)
+
+    // 1. Lightbox ảnh
+    if (!getEl('lightbox').classList.contains('hidden')) {
+        closeLightbox(); // Gọi hàm đóng gốc của lightbox (không gọi back nữa)
         return;
     }
     
-    // Đóng QR Modal
-    if (!document.getElementById('qr-modal').classList.contains('hidden')) {
+    // 2. QR Scanner
+    if (!getEl('qr-modal').classList.contains('hidden')) {
         closeQrScanner();
         return;
     }
 
-    // Đóng Kho ảnh TSBĐ
-    if (!document.getElementById('screen-asset-gallery').classList.contains('translate-x-full')) {
-        // Gọi hàm đóng gốc (trong code anh là set class translate-x-full)
-        document.getElementById('screen-asset-gallery').classList.add('translate-x-full');
+    // 3. Popup QR Bìa đỏ (Tìm div overlay và xóa)
+    const ocrPopup = document.querySelector('.fixed.inset-0.z-\\[300\\]');
+    if (ocrPopup) {
+        ocrPopup.remove();
+        return;
+    }
+
+    // 4. Modal Khởi tạo hồ sơ
+    if (!getEl('add-modal').classList.contains('hidden')) {
+        originalCloseModal(); // Gọi hàm gốc thực sự đóng
+        return;
+    }
+
+    // 5. Modal Tham khảo giá
+    if (!getEl('ref-price-modal').classList.contains('hidden')) {
+        originalCloseRefModal();
+        return;
+    }
+
+    // 6. Thanh Chọn Khách Hàng
+    if (!getEl('cust-selection-bar').classList.contains('translate-y-full')) {
+        originalToggleCust(); // Gọi hàm gốc để ẩn thanh này
+        return;
+    }
+
+    // 7. Kho Ảnh TSBĐ
+    if (!getEl('screen-asset-gallery').classList.contains('translate-x-full')) {
+        getEl('screen-asset-gallery').classList.add('translate-x-full');
         currentAssetId = null; isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
         return;
     }
 
-    // Đóng Hồ sơ khách hàng
-    if (!document.getElementById('screen-folder').classList.contains('translate-x-full')) {
-        // Gọi logic đóng folder như trong hàm closeFolder() của anh
-        document.getElementById('screen-folder').classList.add('translate-x-full');
+    // 8. Hồ Sơ Khách Hàng
+    if (!getEl('screen-folder').classList.contains('translate-x-full')) {
+        getEl('screen-folder').classList.add('translate-x-full');
         currentCustomerId = null; 
-        loadCustomers(document.getElementById('search-input').value);
+        loadCustomers(getEl('search-input').value);
         return;
     }
 
-    // Đóng Map
-    if (!document.getElementById('screen-map').classList.contains('translate-x-full')) {
-        document.getElementById('screen-map').classList.add('translate-x-full');
+    // 9. Bản Đồ
+    if (!getEl('screen-map').classList.contains('translate-x-full')) {
+        getEl('screen-map').classList.add('translate-x-full');
         return;
     }
 });
-
 /* --- KẾT THÚC CODE VUỐT BACK --- */
 </script>
 </body>
