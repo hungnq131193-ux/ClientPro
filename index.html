@@ -2,237 +2,49 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <!-- Viewport chuẩn Mobile: Không cho zoom -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ClientPro</title>
     
-    <!-- ❌ ĐÃ XÓA HOÀN TOÀN THẺ META CSP ĐỂ KHÔNG BỊ CHẶN ❌ -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="theme-color" content="#00346e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <title>ClientPro - Hồ Sơ Khách Hàng</title>
-
-    <!-- 1. KẾT NỐI CSS -->
-    <!-- Tailwind (CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- CSS Riêng (trong thư mục css/) -->
-    <link rel="stylesheet" href="Css/style.css" onerror="showError('Không tìm thấy file css/style.css')">
-    <!-- Leaflet & Font -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-</head>
-<body>
-
-    <!-- KHUNG BÁO LỖI (Sẽ hiện lên nếu thiếu file) -->
-    <div id="debug-console" class="fixed top-0 left-0 w-full bg-red-600 text-white text-xs font-mono p-2 z-[9999] hidden">
-        <b>DEBUG MODE:</b> <span id="debug-msg"></span>
-    </div>
-
-    <!-- TOAST -->
-    <div id="toast"><span id="toast-msg">Thông báo hệ thống</span></div>
-
-    <!-- MÀN HÌNH LOADING -->
-    <div id="loader" class="fixed inset-0 z-[100] bg-[#0f172a] flex flex-col items-center justify-center transition-opacity duration-300">
-        <div class="loader-spin mb-4"></div>
-        <p id="loader-text" class="text-xs font-bold text-slate-400 tracking-widest uppercase animate-pulse">Đang tải dữ liệu...</p>
-    </div>
-
-    <!-- MÀN HÌNH KHÓA -->
-    <div id="screen-lock" class="fixed inset-0 z-[90] bg-[#0f172a] flex flex-col items-center justify-center hidden">
-        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-8 shadow-2xl">
-            <i data-lucide="lock" class="w-10 h-10 text-white"></i>
-        </div>
-        <h2 class="text-xl font-bold mb-8">Nhập mã PIN</h2>
-        <div class="flex gap-4 mb-12">
-            <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
-        </div>
-        <div class="grid grid-cols-3 gap-6 w-64">
-            <button onclick="enterPin('1')" class="h-16 rounded-full bg-white/5 text-xl font-bold">1</button>
-            <button onclick="enterPin('2')" class="h-16 rounded-full bg-white/5 text-xl font-bold">2</button>
-            <button onclick="enterPin('3')" class="h-16 rounded-full bg-white/5 text-xl font-bold">3</button>
-            <button onclick="enterPin('4')" class="h-16 rounded-full bg-white/5 text-xl font-bold">4</button>
-            <button onclick="enterPin('5')" class="h-16 rounded-full bg-white/5 text-xl font-bold">5</button>
-            <button onclick="enterPin('6')" class="h-16 rounded-full bg-white/5 text-xl font-bold">6</button>
-            <button onclick="enterPin('7')" class="h-16 rounded-full bg-white/5 text-xl font-bold">7</button>
-            <button onclick="enterPin('8')" class="h-16 rounded-full bg-white/5 text-xl font-bold">8</button>
-            <button onclick="enterPin('9')" class="h-16 rounded-full bg-white/5 text-xl font-bold">9</button>
-            <button onclick="forgotPin()" class="h-16 text-xs text-slate-400 font-bold uppercase">Quên?</button>
-            <button onclick="enterPin('0')" class="h-16 rounded-full bg-white/5 text-xl font-bold">0</button>
-            <button onclick="clearPin()" class="h-16 flex items-center justify-center"><i data-lucide="delete" class="w-6 h-6 text-red-400"></i></button>
-        </div>
-    </div>
-
-    <!-- MÀN HÌNH CHÍNH -->
-    <div id="app-container" class="h-full flex flex-col relative">
-        <div class="glass-header px-4 pt-4 pb-2 z-10">
-            <div class="flex justify-between items-center mb-4">
-                <h1 class="text-xl font-bold text-emerald-400">ClientPro</h1>
-                <div class="flex gap-2">
-                    <button onclick="toggleMap()" class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10"><i data-lucide="map" class="w-5 h-5 text-blue-400"></i></button>
-                    <button onclick="toggleMenu()" class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10"><i data-lucide="settings" class="w-5 h-5 text-slate-300"></i></button>
-                </div>
-            </div>
-            <div class="relative mb-3">
-                <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 text-slate-500"></i>
-                <input type="text" id="search-input" placeholder="Tìm kiếm..." class="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-emerald-500">
-            </div>
-            <div class="flex p-1 bg-black/20 rounded-xl border border-white/5">
-                <button id="list-tab-pending" onclick="switchListTab('pending')" class="flex-1 py-2 text-[10px] font-bold uppercase rounded-lg bg-white/10">Thẩm định</button>
-                <button id="list-tab-approved" onclick="switchListTab('approved')" class="flex-1 py-2 text-[10px] font-bold uppercase rounded-lg text-slate-400">Đã duyệt</button>
-            </div>
-        </div>
-        <div id="customer-list" class="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24"></div>
-        <button onclick="openModal()" class="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-emerald-500 text-white shadow-lg flex items-center justify-center z-30"><i data-lucide="plus" class="w-7 h-7"></i></button>
-        
-        <!-- Selection Bar -->
-        <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 bg-[#0f172a] border-t border-white/10 p-4 transform translate-y-full transition-transform duration-300 z-40 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <button onclick="toggleCustSelectionMode()" class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
-                <span class="font-bold text-sm"><span id="cust-selection-count" class="text-emerald-400">0</span> đã chọn</span>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="deleteSelectedCustomers()" class="px-4 py-2 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20">Xóa</button>
-                <button onclick="backupSelectedCustomers()" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold">Backup</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- MÀN HÌNH FOLDER -->
-    <div id="screen-folder" class="app-screen translate-x-full">
-        <div class="glass-header px-4 pt-3 pb-3 border-b border-white/10">
-            <div class="flex items-center gap-3 mb-4">
-                <button onclick="closeFolder()" class="w-10 h-10 -ml-2 flex items-center justify-center text-slate-400"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
-                <div class="flex-1 min-w-0">
-                    <h2 id="folder-customer-name" class="font-bold text-lg truncate">Tên KH</h2>
-                    <div id="detail-status-badge"></div>
-                </div>
-                <div id="folder-avatar" class="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-lg">A</div>
-            </div>
-            <div class="grid grid-cols-2 gap-3 mb-3">
-                <a id="btn-detail-call" href="#" class="glass-btn py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-green-400"><i data-lucide="phone" class="w-4 h-4"></i> Gọi</a>
-                <a id="btn-detail-zalo" href="#" target="_blank" class="glass-btn py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-blue-400"><i data-lucide="message-circle" class="w-4 h-4"></i> Zalo</a>
-            </div>
-            <div id="drive-status-area" class="hidden mb-3"></div>
-            <div class="flex p-1 bg-black/20 rounded-xl border border-white/5">
-                <button id="tab-btn-images" onclick="switchTab('images')" class="glass-tab-active flex-1 py-2 text-xs font-bold uppercase rounded-lg">Ảnh</button>
-                <button id="tab-btn-assets" onclick="switchTab('assets')" class="glass-tab-inactive flex-1 py-2 text-xs font-bold uppercase rounded-lg">Tài sản</button>
-            </div>
-        </div>
-        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24">
-            <div id="content-images" class="grid grid-cols-3 gap-2"></div>
-            <div id="content-assets" class="hidden pb-10"></div>
-        </div>
-        <div class="absolute bottom-0 left-0 right-0 p-4 glass-header border-t border-white/10 z-20">
-            <div id="actions-images" class="grid grid-cols-4 gap-2">
-                <button onclick="tryOpenCamera('profile')" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-emerald-400"><i data-lucide="camera" class="w-5 h-5"></i> Chụp</button>
-                <label class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-blue-400 cursor-pointer"><i data-lucide="image-plus" class="w-5 h-5"></i> Chọn<input type="file" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'profile')"></label>
-                <button id="btn-upload-drive" onclick="uploadToGoogleDrive()" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-amber-400 hidden"><i data-lucide="cloud-upload" class="w-5 h-5"></i> Drive</button>
-                <button id="btn-select-mode" onclick="toggleSelectionMode()" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-slate-400"><i data-lucide="check-square" class="w-5 h-5"></i> Chọn</button>
-            </div>
-            <div id="actions-assets" class="hidden grid grid-cols-2 gap-3">
-                <button onclick="openAssetModal()" class="glass-btn h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-emerald-400"><i data-lucide="plus-circle" class="w-5 h-5"></i> Thêm TSBĐ</button>
-                <button onclick="openEditCustomerModal()" class="glass-btn h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-indigo-400"><i data-lucide="user-cog" class="w-5 h-5"></i> Sửa</button>
-                <div class="col-span-2 mt-1"><button onclick="deleteCurrentCustomer()" class="w-full py-3 rounded-xl bg-red-500/10 text-red-400 text-xs font-bold border border-red-500/20">Xóa hồ sơ này</button></div>
-            </div>
-        </div>
-        <!-- Selection Bar Image -->
-        <div id="selection-bar" class="absolute bottom-0 left-0 right-0 bg-[#0f172a] border-t border-white/10 p-4 transform translate-y-full transition-transform duration-300 z-30 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <button onclick="toggleSelectionMode()" class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
-                <span class="font-bold text-sm"><span id="selection-count" class="text-emerald-400">0</span> ảnh</span>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="deleteSelectedImages()" class="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
-                <button onclick="shareSelectedImages()" class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20"><i data-lucide="share-2" class="w-5 h-5"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- MÀN HÌNH GALLERY -->
-    <div id="screen-asset-gallery" class="app-screen translate-x-full z-[60]">
-        <div class="glass-header px-4 pt-3 pb-3 border-b border-white/10">
-            <div class="flex items-center gap-3 mb-2">
-                <button onclick="closeAssetGallery()" class="w-10 h-10 -ml-2 flex items-center justify-center text-slate-400"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
-                <div class="flex-1 min-w-0"><h2 id="gallery-asset-name" class="font-bold text-sm truncate">Tên TSBĐ</h2></div>
-            </div>
-            <div class="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5 mb-3">
-                <div><p class="text-[10px] text-slate-500">Định giá</p><p id="gallery-asset-val" class="font-bold text-emerald-400">--</p></div>
-                <div><p class="text-[10px] text-slate-500">Vay tối đa</p><p id="gallery-asset-loan" class="font-bold text-blue-400">--</p></div>
-            </div>
-            <div id="asset-drive-status-area" class="hidden mb-1"></div>
-        </div>
-        <div id="asset-gallery-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-2 custom-scrollbar content-start"></div>
-        <div class="p-4 glass-header border-t border-white/10 grid grid-cols-4 gap-2">
-            <button onclick="tryOpenCamera('asset')" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-emerald-400"><i data-lucide="camera" class="w-5 h-5"></i> Chụp</button>
-            <label class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-blue-400 cursor-pointer"><i data-lucide="image-plus" class="w-5 h-5"></i> Thêm<input type="file" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'asset')"></label>
-            <button id="btn-asset-upload" onclick="uploadAssetToDrive()" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-amber-400 hidden"><i data-lucide="cloud-upload" class="w-5 h-5"></i> Drive</button>
-            <button id="btn-select-mode-asset" onclick="toggleSelectionMode()" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-slate-400"><i data-lucide="check-square" class="w-5 h-5"></i> Chọn</button>
-        </div>
-    </div>
-
-    <!-- MÀN HÌNH MAP -->
-    <div id="screen-map" class="app-screen translate-x-full z-[80]">
-        <div id="map-container" class="absolute inset-0 z-0 bg-slate-800"></div>
-        <button onclick="toggleMap()" class="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center z-10"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
-        <button onclick="locateMe()" class="absolute bottom-8 right-4 w-12 h-12 rounded-full bg-blue-500 text-white shadow-lg flex items-center justify-center z-10"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
-    </div>
-
-    <!-- CÁC MODAL KHÁC -->
-    <div id="add-modal" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4"><div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative"><button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400"><i data-lucide="x" class="w-6 h-6"></i></button><h3 id="modal-title-cust" class="text-xl font-bold mb-6 text-center">Hồ sơ mới</h3><input type="hidden" id="edit-cust-id"><div class="space-y-4"><input id="new-name" type="text" placeholder="Họ tên" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white"><input id="new-phone" type="tel" placeholder="SĐT" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white"><div class="flex gap-2"><input id="new-cccd" type="number" placeholder="CCCD" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white"><button onclick="openQrScanner()" class="w-12 rounded-xl bg-white/10 flex items-center justify-center"><i data-lucide="scan-line" class="w-5 h-5"></i></button></div><button id="btn-save-cust" onclick="saveCustomer()" class="w-full py-3.5 bg-emerald-600 rounded-xl font-bold">Lưu</button></div></div></div>
-    <div id="asset-modal" class="fixed inset-0 z-[110] bg-black/80 hidden flex items-center justify-center p-4"><div class="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"><div class="flex justify-between items-center mb-6"><h3 id="modal-title-asset" class="text-lg font-bold">Thêm TSBĐ</h3><button onclick="closeAssetModal()"><i data-lucide="x" class="w-4 h-4"></i></button></div><input type="hidden" id="edit-asset-index"><input type="hidden" id="asset-ocr-data"><div class="space-y-4"><div class="flex gap-2"><input id="asset-name" type="text" placeholder="Tên tài sản" class="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white"><button onclick="openRedBookScanner()" class="w-12 rounded-xl bg-pink-500/20"><i data-lucide="qr-code" class="w-5 h-5 text-pink-400"></i></button></div><div class="grid grid-cols-2 gap-3"><input id="asset-val" type="text" placeholder="Định giá" class="bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-center text-white"><input id="asset-loan" type="text" placeholder="Cho vay" class="bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-center text-white"></div><div class="grid grid-cols-3 gap-2"><input id="asset-area" type="number" placeholder="DT" class="bg-black/30 border border-white/10 rounded-xl px-2 py-3 text-center text-white"><input id="asset-width" type="number" placeholder="MT" class="bg-black/30 border border-white/10 rounded-xl px-2 py-3 text-center text-white"><input id="asset-year" type="number" placeholder="Năm" class="bg-black/30 border border-white/10 rounded-xl px-2 py-3 text-center text-white"></div><div class="relative"><input id="asset-link" type="text" placeholder="Link Map..." class="w-full bg-black/30 border border-white/10 rounded-xl pl-10 pr-12 py-3 text-white"><button onclick="getCurrentGPS()" class="absolute right-2 top-2 p-1.5 bg-blue-500 rounded-lg"><i data-lucide="map-pin" class="w-4 h-4 text-white"></i></button></div><textarea id="asset-onland" rows="2" placeholder="Mô tả..." class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-white"></textarea><button id="btn-save-asset" onclick="saveAsset()" class="w-full py-3.5 bg-emerald-600 rounded-xl font-bold">Lưu</button></div></div></div>
-    <div id="qr-modal" class="fixed inset-0 z-[200] bg-black hidden flex flex-col"><div id="qr-reader" class="w-full h-full object-cover"></div><button onclick="closeQrScanner()" class="absolute top-4 right-4 p-2 bg-white/20 rounded-full z-10"><i data-lucide="x" class="w-6 h-6"></i></button></div>
-    <div id="camera-modal" class="fixed inset-0 z-[200] bg-black hidden flex flex-col"><video id="camera-feed" class="flex-1 object-cover w-full h-full" autoplay playsinline></video><canvas id="camera-canvas" class="hidden"></canvas><div class="absolute bottom-0 w-full p-8 flex justify-center gap-8"><button onclick="closeCamera()" class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center"><i data-lucide="x" class="w-6 h-6"></i></button><button onclick="capturePhoto()" class="w-20 h-20 rounded-full border-4 border-white bg-white/20"></button></div></div>
-    <div id="lightbox" class="fixed inset-0 z-[300] bg-black hidden flex flex-col"><div class="absolute top-0 w-full p-4 flex justify-between"><p id="lightbox-counter" class="text-white">1/1</p><button onclick="closeLightbox()"><i data-lucide="x" class="w-6 h-6 text-white"></i></button></div><img id="lightbox-img" src="" class="max-w-full max-h-full object-contain m-auto"><div class="absolute bottom-0 w-full p-6 flex justify-center gap-6"><button onclick="deleteOpenedImage()" class="p-4 bg-red-500/20 rounded-full text-red-400"><i data-lucide="trash-2" class="w-6 h-6"></i></button></div></div>
-    <div id="ref-price-modal" class="fixed inset-0 z-[120] bg-black/90 hidden flex items-center justify-center"><div class="glass-panel w-full max-w-md h-[80vh] flex flex-col p-4"><div class="flex justify-between mb-4"><h3 class="font-bold text-emerald-400">Tham khảo giá</h3><button onclick="closeRefModal()"><i data-lucide="x" class="w-4 h-4 text-white"></i></button></div><div id="ref-results" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar"></div></div></div>
-    <div id="activation-modal" class="fixed inset-0 z-[999] bg-[#0f172a] flex items-center justify-center hidden"><div class="glass-panel w-full max-w-sm p-8 rounded-3xl text-center"><h2 class="text-2xl font-bold mb-2">Kích hoạt</h2><input id="activation-employee" type="text" placeholder="Mã NV" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 mb-3 text-center text-white"><input id="activation-key" type="text" placeholder="Key" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 mb-6 text-center text-white"><button onclick="activateApp()" class="w-full py-4 bg-emerald-600 rounded-xl font-bold">KÍCH HOẠT</button></div></div>
-    <div id="setup-lock-modal" class="fixed inset-0 z-[950] bg-[#0f172a] hidden flex items-center justify-center p-4"><div class="glass-panel w-full max-w-sm p-8 rounded-3xl text-center"><h2 class="text-xl font-bold mb-6">Tạo PIN mới</h2><input id="setup-pin" type="tel" maxlength="4" class="w-full bg-black/30 border border-white/10 rounded-xl py-4 text-center text-2xl font-bold text-white mb-4"><input id="setup-answer" type="text" placeholder="Mã NV (để khôi phục)" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-center text-white mb-4"><button onclick="saveSecuritySetup()" class="w-full py-3 bg-blue-600 rounded-xl font-bold">Lưu</button></div></div>
-    <div id="forgot-pin-modal" class="fixed inset-0 z-[960] bg-black/90 hidden flex items-center justify-center p-4"><div class="glass-panel w-full max-w-sm p-6 rounded-2xl text-center"><h3 class="font-bold text-lg mb-4 text-red-400">Khôi phục PIN</h3><input id="recovery-answer" type="text" placeholder="Nhập Mã NV" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 mb-4 text-center text-white"><div class="flex gap-3"><button onclick="document.getElementById('forgot-pin-modal').classList.add('hidden')" class="flex-1 py-3 bg-white/10 rounded-xl">Hủy</button><button onclick="checkRecovery()" class="flex-1 py-3 bg-red-600 rounded-xl">OK</button></div></div></div>
-    <div id="menu-overlay" onclick="toggleMenu()" class="fixed inset-0 z-[190] bg-black/50 hidden"></div>
-    <div id="settings-menu" class="fixed bottom-0 w-full z-[200] glass-panel rounded-t-3xl p-6 transform translate-y-full transition-transform duration-300 hidden pb-10"><h3 class="font-bold text-lg mb-4">Cài đặt</h3><div class="space-y-3"><div class="p-3 bg-white/5 rounded-xl"><p class="text-[10px] text-slate-400 font-bold">Link Drive Script</p><div class="flex gap-2"><input id="user-script-url" type="text" class="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs text-white"><button onclick="saveScriptUrl()" class="px-3 py-2 bg-emerald-600 rounded-lg text-xs font-bold">Lưu</button></div></div><button onclick="backupData()" class="w-full py-3 bg-blue-600/20 text-blue-400 rounded-xl font-bold border border-blue-600/30">Backup</button><label class="w-full py-3 bg-purple-600/20 text-purple-400 rounded-xl font-bold border border-purple-600/30 flex justify-center cursor-pointer">Restore<input type="file" accept=".cpro" class="hidden" onchange="restoreData(this)"></label><button onclick="openSecuritySetup()" class="w-full py-3 bg-white/5 rounded-xl font-bold border border-white/10">Đổi PIN</button><button onclick="resetAppData()" class="w-full py-3 bg-red-500/10 text-red-500 rounded-xl font-bold border border-red-500/20 mt-4">Reset App</button></div></div>
-
-    <input type="file" id="native-camera-profile" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'profile')">
-    <input type="file" id="native-camera-asset" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'asset')">
-
-    <!-- LIB -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    
+    <link rel="stylesheet" href="Css/style.css">
+</head>
+<body class="theme-midnight">
 
-    <!-- HỆ THỐNG KIỂM TRA LOADING SCRIPT (CỰC KỲ QUAN TRỌNG) -->
+    <div id="loader" class="fixed inset-0 z-[500] flex flex-col items-center justify-center p-6 text-center">
+        <div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4" style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div>
+        <p id="loader-text" class="text-xs font-bold tracking-widest uppercase opacity-70" style="color: var(--text-main)">Loading...</p>
+    </div>
+
+    <script src="Js/config.js"></script>
+    <script src="Js/database.js"></script>
+    <script src="Js/drive.js"></script>
+    <script src="Js/map.js"></script>
+    <script src="Js/security.js"></script>
+    <script src="Js/ui.js"></script>
+    
+    <script src="Js/app.js"></script>
+
     <script>
-        function showError(msg) {
-            document.getElementById('loader-error').classList.remove('hidden');
-            document.getElementById('loader-error').innerText = "LỖI: " + msg;
-            document.getElementById('debug-console').classList.remove('hidden');
-            document.getElementById('debug-msg').innerText = msg;
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(reg => {
+                    // Check update
+                    reg.update();
+                }).catch(err => console.log("SW Fail:", err));
+            });
         }
-    </script>
-
-    <!-- CORE MODULES -->
-    <script src="Js/config.js" onerror="showError('Thiếu file js/config.js')"></script>
-    <script src="Js/security.js" onerror="showError('Thiếu file js/security.js')"></script>
-    <script src="Js/database.js" onerror="showError('Thiếu file js/database.js')"></script>
-    <script src="Js/drive.js" onerror="showError('Thiếu file js/drive.js')"></script>
-    <script src="Js/map.js" onerror="showError('Thiếu file js/map.js')"></script>
-    <script src="Js/ui.js" onerror="showError('Thiếu file js/ui.js')"></script>
-    <script src="Js/app.js" onerror="showError('Thiếu file js/app.js')"></script>
-
-    <script>
-        // TẮT LOADER SAU 3S NẾU KHÔNG CÓ GÌ XẢY RA
-        setTimeout(() => {
-            const loader = document.getElementById('loader');
-            if(loader && !loader.classList.contains('hidden')) {
-                // Nếu chưa tắt nghĩa là App chưa init xong.
-                // Thử check bảo mật lần nữa
-                if(typeof checkSecurity === 'function') {
-                    checkSecurity();
-                    loader.classList.add('hidden');
-                } else {
-                    // Nếu vẫn không có hàm checkSecurity, nghĩa là load file thất bại toàn tập
-                    showError("Hệ thống chưa tải được Javascript!");
-                }
-            }
-        }, 3000);
     </script>
 </body>
 </html>
-
-
