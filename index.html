@@ -2,77 +2,52 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <!-- 1. VIEWPORT CHUẨN MOBILE (Chống zoom, hiển thị đúng tỉ lệ) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <!-- 2. CSP "NỚI LỎNG" (Cho phép HTTPS, data, blob để load Bản đồ, Ảnh, Script Google) -->
-    <meta http-equiv="Content-Security-Policy" 
-          content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; connect-src 'self' https:;">
-
     <title>ClientPro - Quản lý Hồ sơ</title>
 
-    <!-- 3. THƯ VIỆN GIAO DIỆN & BẢN ĐỒ -->
-    <!-- Tailwind CSS (Xử lý giao diện đẹp) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet CSS (Bản đồ) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Font chữ Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 
     <style>
-        /* CSS TÙY CHỈNH CHO APP */
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: white; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+        .glass-header { background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .glass-panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .glass-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); }
+        .glass-btn:active { background: rgba(255, 255, 255, 0.15); }
+        .app-screen { position: fixed; inset: 0; background: #0f172a; z-index: 50; transition: transform 0.3s ease; display: flex; flex-direction: column; }
         
-        /* Hiệu ứng kính (Glassmorphism) */
-        .glass-header { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.08); }
-        .glass-panel { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); }
-        .glass-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s; }
-        .glass-btn:active { transform: scale(0.96); background: rgba(255, 255, 255, 0.1); }
-        
-        /* Màn hình trượt */
-        .app-screen { position: fixed; inset: 0; background: #0f172a; z-index: 50; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; }
-        
-        /* Hiệu ứng Loading */
         .loader-spin { border: 3px solid rgba(255,255,255,0.1); border-left-color: #10b981; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
 
-        /* Marker Bản đồ */
+        /* Marker & Pin Dots */
         .marker-glow { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); animation: pulse-green 2s infinite; }
         .marker-approved { background: #10b981; }
-        .marker-pending { background: #6366f1; box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); animation: pulse-indigo 2s infinite; }
+        .marker-pending { background: #6366f1; animation: pulse-indigo 2s infinite; }
         @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
         @keyframes pulse-indigo { 0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); } 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); } }
-
-        /* Pin Dots */
         .pin-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); transition: all 0.2s; }
         .pin-dot.filled { background: #10b981; border-color: #10b981; box-shadow: 0 0 10px rgba(16,185,129,0.5); }
 
-        /* Toast Message */
-        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); padding: 12px 24px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); z-index: 9999; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); opacity: 0; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.3); pointer-events: none; }
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: #333; color: white; padding: 12px 24px; border-radius: 30px; z-index: 9999; transition: transform 0.3s; opacity: 0; display: flex; align-items: center; gap: 10px; }
         #toast.toast-show { transform: translateX(-50%) translateY(0); opacity: 1; }
-        
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 0px; }
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <!-- --- TOAST THÔNG BÁO --- -->
-    <div id="toast">
-        <i data-lucide="bell-ring" class="w-4 h-4 text-emerald-400"></i>
-        <span id="toast-msg">Thông báo hệ thống</span>
-    </div>
+    <div id="toast"><span id="toast-msg">Thông báo</span></div>
 
-    <!-- --- LOADING SCREEN --- -->
     <div id="loader" class="fixed inset-0 z-[100] bg-[#0f172a] flex flex-col items-center justify-center transition-opacity duration-300">
         <div class="loader-spin mb-4"></div>
         <p id="loader-text" class="text-xs font-bold text-slate-400 tracking-widest uppercase animate-pulse">Đang khởi động...</p>
+        <p id="loader-error" class="text-red-500 text-[10px] mt-4 hidden">Lỗi: Không tải được file JS!</p>
     </div>
 
-    <!-- --- MÀN HÌNH KHÓA (LOCK SCREEN) --- -->
     <div id="screen-lock" class="fixed inset-0 z-[90] bg-[#0f172a] flex flex-col items-center justify-center hidden">
-        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-8 shadow-2xl shadow-emerald-500/20">
+        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-8 shadow-2xl">
             <i data-lucide="lock" class="w-10 h-10 text-white"></i>
         </div>
         <h2 class="text-xl font-bold mb-8">Nhập mã PIN</h2>
@@ -80,134 +55,91 @@
             <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
         </div>
         <div class="grid grid-cols-3 gap-6 w-64">
-            <button onclick="enterPin('1')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">1</button>
-            <button onclick="enterPin('2')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">2</button>
-            <button onclick="enterPin('3')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">3</button>
-            <button onclick="enterPin('4')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">4</button>
-            <button onclick="enterPin('5')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">5</button>
-            <button onclick="enterPin('6')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">6</button>
-            <button onclick="enterPin('7')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">7</button>
-            <button onclick="enterPin('8')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">8</button>
-            <button onclick="enterPin('9')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">9</button>
-            <button onclick="forgotPin()" class="h-16 flex items-center justify-center text-xs text-slate-400 font-bold uppercase">Quên?</button>
-            <button onclick="enterPin('0')" class="h-16 rounded-full bg-white/5 text-xl font-bold active:bg-white/20">0</button>
+            <button onclick="enterPin('1')" class="h-16 rounded-full bg-white/5 text-xl font-bold">1</button>
+            <button onclick="enterPin('2')" class="h-16 rounded-full bg-white/5 text-xl font-bold">2</button>
+            <button onclick="enterPin('3')" class="h-16 rounded-full bg-white/5 text-xl font-bold">3</button>
+            <button onclick="enterPin('4')" class="h-16 rounded-full bg-white/5 text-xl font-bold">4</button>
+            <button onclick="enterPin('5')" class="h-16 rounded-full bg-white/5 text-xl font-bold">5</button>
+            <button onclick="enterPin('6')" class="h-16 rounded-full bg-white/5 text-xl font-bold">6</button>
+            <button onclick="enterPin('7')" class="h-16 rounded-full bg-white/5 text-xl font-bold">7</button>
+            <button onclick="enterPin('8')" class="h-16 rounded-full bg-white/5 text-xl font-bold">8</button>
+            <button onclick="enterPin('9')" class="h-16 rounded-full bg-white/5 text-xl font-bold">9</button>
+            <button onclick="forgotPin()" class="h-16 text-xs text-slate-400 font-bold uppercase">Quên?</button>
+            <button onclick="enterPin('0')" class="h-16 rounded-full bg-white/5 text-xl font-bold">0</button>
             <button onclick="clearPin()" class="h-16 flex items-center justify-center"><i data-lucide="delete" class="w-6 h-6 text-red-400"></i></button>
         </div>
     </div>
 
-    <!-- --- MÀN HÌNH CHÍNH (MAIN APP) --- -->
     <div id="app-container" class="h-full flex flex-col relative">
-        
-        <!-- Header -->
         <div class="glass-header px-4 pt-4 pb-2 z-10">
             <div class="flex justify-between items-center mb-4">
-                <div>
-                    <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-300">ClientPro</h1>
-                    <p id="current-weather" class="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Đang tải thời tiết...
-                    </p>
-                </div>
+                <h1 class="text-xl font-bold text-emerald-400">ClientPro</h1>
                 <div class="flex gap-2">
-                    <button onclick="toggleMap()" class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center active:scale-95 transition-transform border border-white/10"><i data-lucide="map" class="w-5 h-5 text-blue-400"></i></button>
-                    <button onclick="toggleMenu()" class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center active:scale-95 transition-transform border border-white/10"><i data-lucide="settings" class="w-5 h-5 text-slate-300"></i></button>
+                    <button onclick="toggleMap()" class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10"><i data-lucide="map" class="w-5 h-5 text-blue-400"></i></button>
+                    <button onclick="toggleMenu()" class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10"><i data-lucide="settings" class="w-5 h-5 text-slate-300"></i></button>
                 </div>
             </div>
-
-            <!-- Search & Tabs -->
             <div class="relative mb-3">
                 <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 text-slate-500"></i>
-                <input type="text" id="search-input" placeholder="Tìm kiếm khách hàng..." class="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-slate-600">
+                <input type="text" id="search-input" placeholder="Tìm kiếm..." class="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-emerald-500">
             </div>
-            
             <div class="flex p-1 bg-black/20 rounded-xl border border-white/5">
-                <button id="list-tab-pending" onclick="switchListTab('pending')" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 bg-white/10 text-white shadow-md border border-white/10">Thẩm định</button>
-                <button id="list-tab-approved" onclick="switchListTab('approved')" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 text-slate-400 hover:text-white">Đã duyệt</button>
+                <button id="list-tab-pending" onclick="switchListTab('pending')" class="flex-1 py-2 text-[10px] font-bold uppercase rounded-lg bg-white/10">Thẩm định</button>
+                <button id="list-tab-approved" onclick="switchListTab('approved')" class="flex-1 py-2 text-[10px] font-bold uppercase rounded-lg text-slate-400">Đã duyệt</button>
             </div>
         </div>
-
-        <!-- Customer List -->
-        <div id="customer-list" class="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24">
-            <!-- Dữ liệu sẽ được render tại đây -->
-        </div>
-
-        <!-- Floating Add Button -->
-        <button onclick="openModal()" class="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 flex items-center justify-center active:scale-90 transition-transform z-30 border border-emerald-400/50">
-            <i data-lucide="plus" class="w-7 h-7"></i>
-        </button>
-
-        <!-- Selection Bar (Ẩn hiện khi chọn nhiều) -->
-        <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 bg-[#0f172a] border-t border-white/10 p-4 transform translate-y-full transition-transform duration-300 z-40 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+        <div id="customer-list" class="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24"></div>
+        <button onclick="openModal()" class="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-emerald-500 text-white shadow-lg flex items-center justify-center z-30"><i data-lucide="plus" class="w-7 h-7"></i></button>
+        
+        <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 bg-[#0f172a] border-t border-white/10 p-4 transform translate-y-full transition-transform duration-300 z-40 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <button onclick="toggleCustSelectionMode()" class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
                 <span class="font-bold text-sm"><span id="cust-selection-count" class="text-emerald-400">0</span> đã chọn</span>
             </div>
             <div class="flex gap-2">
                 <button onclick="deleteSelectedCustomers()" class="px-4 py-2 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20">Xóa</button>
-                <button onclick="backupSelectedCustomers()" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold shadow-lg shadow-blue-500/20">Backup</button>
+                <button onclick="backupSelectedCustomers()" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold">Backup</button>
             </div>
         </div>
     </div>
 
-    <!-- --- CÁC MÀN HÌNH CON (SCREENS) --- -->
-
-    <!-- 1. MÀN HÌNH FOLDER CHI TIẾT KHÁCH HÀNG -->
     <div id="screen-folder" class="app-screen translate-x-full">
-        <!-- Header -->
         <div class="glass-header px-4 pt-3 pb-3 border-b border-white/10">
             <div class="flex items-center gap-3 mb-4">
-                <button onclick="closeFolder()" class="w-10 h-10 -ml-2 flex items-center justify-center text-slate-400 active:text-white"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
+                <button onclick="closeFolder()" class="w-10 h-10 -ml-2 flex items-center justify-center text-slate-400"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
                 <div class="flex-1 min-w-0">
-                    <h2 id="folder-customer-name" class="font-bold text-lg truncate">Tên Khách Hàng</h2>
-                    <div id="detail-status-badge" class="inline-flex"></div>
+                    <h2 id="folder-customer-name" class="font-bold text-lg truncate">Tên KH</h2>
+                    <div id="detail-status-badge"></div>
                 </div>
-                <div id="folder-avatar" class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-lg shadow-inner border border-white/20">A</div>
+                <div id="folder-avatar" class="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-lg">A</div>
             </div>
-            
             <div class="grid grid-cols-2 gap-3 mb-3">
-                <a id="btn-detail-call" href="#" class="glass-btn py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-green-400"><i data-lucide="phone" class="w-4 h-4"></i> Gọi điện</a>
-                <a id="btn-detail-zalo" href="#" target="_blank" class="glass-btn py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-blue-400"><i data-lucide="message-circle" class="w-4 h-4"></i> Zalo</a>
+                <a id="btn-detail-call" href="#" class="glass-btn py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-green-400"><i data-lucide="phone" class="w-4 h-4"></i> Gọi</a>
+                <a id="btn-detail-zalo" href="#" target="_blank" class="glass-btn py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-blue-400"><i data-lucide="message-circle" class="w-4 h-4"></i> Zalo</a>
             </div>
-
-            <!-- Drive Status Area -->
             <div id="drive-status-area" class="hidden mb-3"></div>
-
             <div class="flex p-1 bg-black/20 rounded-xl border border-white/5">
-                <button id="tab-btn-images" onclick="switchTab('images')" class="glass-tab-active flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all">Hồ sơ ảnh</button>
-                <button id="tab-btn-assets" onclick="switchTab('assets')" class="glass-tab-inactive flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all hover:bg-white/5">Tài sản (TSBĐ)</button>
+                <button id="tab-btn-images" onclick="switchTab('images')" class="glass-tab-active flex-1 py-2 text-xs font-bold uppercase rounded-lg">Ảnh</button>
+                <button id="tab-btn-assets" onclick="switchTab('assets')" class="glass-tab-inactive flex-1 py-2 text-xs font-bold uppercase rounded-lg">Tài sản</button>
             </div>
         </div>
-
-        <!-- Content -->
-        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24 bg-gradient-to-b from-[#0f172a] to-[#020617]">
-            <!-- Tab Images -->
+        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24">
             <div id="content-images" class="grid grid-cols-3 gap-2"></div>
-            <!-- Tab Assets -->
             <div id="content-assets" class="hidden pb-10"></div>
         </div>
-
-        <!-- Bottom Actions -->
         <div class="absolute bottom-0 left-0 right-0 p-4 glass-header border-t border-white/10 z-20">
-            <!-- Actions for Images -->
             <div id="actions-images" class="grid grid-cols-4 gap-2">
                 <button onclick="tryOpenCamera('profile')" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-emerald-400"><i data-lucide="camera" class="w-5 h-5"></i> Chụp</button>
-                <label class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-blue-400 cursor-pointer">
-                    <i data-lucide="image-plus" class="w-5 h-5"></i> Chọn
-                    <input type="file" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'profile')">
-                </label>
+                <label class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-blue-400 cursor-pointer"><i data-lucide="image-plus" class="w-5 h-5"></i> Chọn<input type="file" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'profile')"></label>
                 <button id="btn-upload-drive" onclick="uploadToGoogleDrive()" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-amber-400 hidden"><i data-lucide="cloud-upload" class="w-5 h-5"></i> Drive</button>
                 <button id="btn-select-mode" onclick="toggleSelectionMode()" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-slate-400"><i data-lucide="check-square" class="w-5 h-5"></i> Chọn</button>
             </div>
-            <!-- Actions for Assets -->
             <div id="actions-assets" class="hidden grid grid-cols-2 gap-3">
                 <button onclick="openAssetModal()" class="glass-btn h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-emerald-400"><i data-lucide="plus-circle" class="w-5 h-5"></i> Thêm TSBĐ</button>
-                <button onclick="openEditCustomerModal()" class="glass-btn h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-indigo-400"><i data-lucide="user-cog" class="w-5 h-5"></i> Sửa HS</button>
-                <div class="col-span-2 mt-1">
-                    <button onclick="deleteCurrentCustomer()" class="w-full py-3 rounded-xl bg-red-500/10 text-red-400 text-xs font-bold border border-red-500/20 flex items-center justify-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa hồ sơ này</button>
-                </div>
+                <button onclick="openEditCustomerModal()" class="glass-btn h-12 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-indigo-400"><i data-lucide="user-cog" class="w-5 h-5"></i> Sửa</button>
+                <div class="col-span-2 mt-1"><button onclick="deleteCurrentCustomer()" class="w-full py-3 rounded-xl bg-red-500/10 text-red-400 text-xs font-bold border border-red-500/20">Xóa hồ sơ này</button></div>
             </div>
         </div>
-        
-        <!-- Selection Bar for Images -->
         <div id="selection-bar" class="absolute bottom-0 left-0 right-0 bg-[#0f172a] border-t border-white/10 p-4 transform translate-y-full transition-transform duration-300 z-30 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <button onclick="toggleSelectionMode()" class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
@@ -220,271 +152,106 @@
         </div>
     </div>
 
-    <!-- 2. MÀN HÌNH GALLERY TÀI SẢN -->
     <div id="screen-asset-gallery" class="app-screen translate-x-full z-[60]">
         <div class="glass-header px-4 pt-3 pb-3 border-b border-white/10">
             <div class="flex items-center gap-3 mb-2">
-                <button onclick="closeAssetGallery()" class="w-10 h-10 -ml-2 flex items-center justify-center text-slate-400 active:text-white"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
-                <div class="flex-1 min-w-0">
-                    <h2 id="gallery-asset-name" class="font-bold text-sm truncate">Tên Tài Sản</h2>
-                    <p class="text-[10px] text-slate-400 uppercase tracking-wider">Kho ảnh chi tiết</p>
-                </div>
+                <button onclick="closeAssetGallery()" class="w-10 h-10 -ml-2 flex items-center justify-center text-slate-400"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
+                <div class="flex-1 min-w-0"><h2 id="gallery-asset-name" class="font-bold text-sm truncate">Tên TSBĐ</h2></div>
             </div>
-            
             <div class="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5 mb-3">
                 <div><p class="text-[10px] text-slate-500">Định giá</p><p id="gallery-asset-val" class="font-bold text-emerald-400">--</p></div>
-                <div class="h-8 w-px bg-white/10"></div>
                 <div><p class="text-[10px] text-slate-500">Vay tối đa</p><p id="gallery-asset-loan" class="font-bold text-blue-400">--</p></div>
             </div>
-
-            <!-- Asset Drive Status -->
             <div id="asset-drive-status-area" class="hidden mb-1"></div>
         </div>
-
         <div id="asset-gallery-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-3 gap-2 custom-scrollbar content-start"></div>
-
         <div class="p-4 glass-header border-t border-white/10 grid grid-cols-4 gap-2">
             <button onclick="tryOpenCamera('asset')" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-emerald-400"><i data-lucide="camera" class="w-5 h-5"></i> Chụp</button>
-            <label class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-blue-400 cursor-pointer">
-                <i data-lucide="image-plus" class="w-5 h-5"></i> Thêm
-                <input type="file" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'asset')">
-            </label>
+            <label class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-blue-400 cursor-pointer"><i data-lucide="image-plus" class="w-5 h-5"></i> Thêm<input type="file" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'asset')"></label>
             <button id="btn-asset-upload" onclick="uploadAssetToDrive()" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-amber-400 hidden"><i data-lucide="cloud-upload" class="w-5 h-5"></i> Drive</button>
             <button id="btn-select-mode-asset" onclick="toggleSelectionMode()" class="glass-btn h-12 rounded-xl flex flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase text-slate-400"><i data-lucide="check-square" class="w-5 h-5"></i> Chọn</button>
         </div>
     </div>
 
-    <!-- 3. MÀN HÌNH BẢN ĐỒ -->
     <div id="screen-map" class="app-screen translate-x-full z-[80]">
         <div id="map-container" class="absolute inset-0 z-0 bg-slate-800"></div>
-        <button onclick="toggleMap()" class="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/50 text-white backdrop-blur flex items-center justify-center z-10 border border-white/20"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
-        <button onclick="locateMe()" class="absolute bottom-8 right-4 w-12 h-12 rounded-full bg-blue-500 text-white shadow-lg shadow-blue-500/40 flex items-center justify-center z-10"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
+        <button onclick="toggleMap()" class="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center z-10"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
+        <button onclick="locateMe()" class="absolute bottom-8 right-4 w-12 h-12 rounded-full bg-blue-500 text-white shadow-lg flex items-center justify-center z-10"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
     </div>
 
-    <!-- --- CÁC MODAL (POPUP) --- -->
-
-    <!-- Modal Thêm/Sửa Khách Hàng -->
     <div id="add-modal" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-fade-in relative">
-            <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
-            <h3 id="modal-title-cust" class="text-xl font-bold mb-6 text-center">Khởi tạo hồ sơ</h3>
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400"><i data-lucide="x" class="w-6 h-6"></i></button>
+            <h3 id="modal-title-cust" class="text-xl font-bold mb-6 text-center">Hồ sơ mới</h3>
             <input type="hidden" id="edit-cust-id">
-            
             <div class="space-y-4">
-                <div class="relative">
-                    <i data-lucide="user" class="absolute left-3 top-3.5 w-5 h-5 text-slate-500"></i>
-                    <input id="new-name" type="text" placeholder="Họ và tên khách hàng" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:border-emerald-500 focus:outline-none text-white placeholder:text-slate-600">
-                </div>
-                <div class="relative">
-                    <i data-lucide="phone" class="absolute left-3 top-3.5 w-5 h-5 text-slate-500"></i>
-                    <input id="new-phone" type="tel" placeholder="Số điện thoại" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:border-emerald-500 focus:outline-none text-white placeholder:text-slate-600">
-                </div>
-                <div class="relative flex gap-2">
-                    <div class="relative flex-1">
-                        <i data-lucide="credit-card" class="absolute left-3 top-3.5 w-5 h-5 text-slate-500"></i>
-                        <input id="new-cccd" type="number" placeholder="Số CCCD/CMND" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:border-emerald-500 focus:outline-none text-white placeholder:text-slate-600">
-                    </div>
-                    <button onclick="openQrScanner()" class="w-12 rounded-xl bg-white/10 flex items-center justify-center border border-white/10 hover:bg-white/20"><i data-lucide="scan-line" class="w-5 h-5"></i></button>
-                </div>
-                
-                <button id="btn-save-cust" onclick="saveCustomer()" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-500 rounded-xl font-bold shadow-lg shadow-emerald-500/20 active:scale-95 transition-transform mt-2">Tạo hồ sơ</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Tài Sản -->
-    <div id="asset-modal" class="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="glass-panel w-full max-w-md sm:rounded-2xl rounded-t-3xl p-6 shadow-2xl animate-slide-up sm:animate-fade-in max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div class="flex justify-between items-center mb-6">
-                <h3 id="modal-title-asset" class="text-lg font-bold">Thêm TSBĐ</h3>
-                <button onclick="closeAssetModal()" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><i data-lucide="x" class="w-4 h-4"></i></button>
-            </div>
-            <input type="hidden" id="edit-asset-index">
-            <input type="hidden" id="asset-ocr-data"> <!-- Dữ liệu QR ẩn -->
-
-            <div class="space-y-4">
+                <input id="new-name" type="text" placeholder="Họ tên" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white">
+                <input id="new-phone" type="tel" placeholder="SĐT" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white">
                 <div class="flex gap-2">
-                    <input id="asset-name" type="text" placeholder="Tên tài sản (VD: Đất ở...)" class="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 focus:border-emerald-500 focus:outline-none text-white">
-                    <button onclick="openRedBookScanner()" class="w-12 rounded-xl bg-pink-500/20 text-pink-400 border border-pink-500/30 flex items-center justify-center"><i data-lucide="qr-code" class="w-5 h-5"></i></button>
+                    <input id="new-cccd" type="number" placeholder="CCCD" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white">
+                    <button onclick="openQrScanner()" class="w-12 rounded-xl bg-white/10 flex items-center justify-center"><i data-lucide="scan-line" class="w-5 h-5"></i></button>
                 </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <input id="asset-val" type="text" placeholder="Định giá (tỷ)" class="bg-black/30 border border-white/10 rounded-xl px-4 py-3 focus:border-emerald-500 focus:outline-none text-white text-center font-bold text-emerald-400">
-                    <input id="asset-loan" type="text" placeholder="Cho vay (tỷ)" class="bg-black/30 border border-white/10 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none text-white text-center font-bold text-blue-400">
-                </div>
-
-                <div class="grid grid-cols-3 gap-2">
-                    <input id="asset-area" type="number" placeholder="DT (m2)" class="bg-black/30 border border-white/10 rounded-xl px-2 py-3 text-center text-sm focus:outline-none focus:border-white/30">
-                    <input id="asset-width" type="number" placeholder="MT (m)" class="bg-black/30 border border-white/10 rounded-xl px-2 py-3 text-center text-sm focus:outline-none focus:border-white/30">
-                    <input id="asset-year" type="number" placeholder="Năm XD" class="bg-black/30 border border-white/10 rounded-xl px-2 py-3 text-center text-sm focus:outline-none focus:border-white/30">
-                </div>
-
-                <div class="relative">
-                    <input id="asset-link" type="text" placeholder="Dán link Google Maps..." class="w-full bg-black/30 border border-white/10 rounded-xl pl-10 pr-12 py-3 focus:border-indigo-500 focus:outline-none text-white text-sm">
-                    <i data-lucide="link" class="absolute left-3 top-3.5 w-4 h-4 text-slate-500"></i>
-                    <button onclick="getCurrentGPS()" class="absolute right-2 top-2 p-1.5 bg-blue-500 rounded-lg text-white hover:bg-blue-600"><i data-lucide="map-pin" class="w-4 h-4"></i></button>
-                </div>
-                
-                <textarea id="asset-onland" rows="2" placeholder="Mô tả công trình trên đất / Vị trí / Ngõ..." class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm focus:border-emerald-500 focus:outline-none text-white"></textarea>
-
-                <button id="btn-save-asset" onclick="saveAsset()" class="w-full py-3.5 bg-emerald-600 rounded-xl font-bold mt-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-transform">Lưu tài sản</button>
+                <button id="btn-save-cust" onclick="saveCustomer()" class="w-full py-3.5 bg-emerald-600 rounded-xl font-bold">Lưu</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal Tham khảo giá -->
-    <div id="ref-price-modal" class="fixed inset-0 z-[120] bg-black/90 hidden flex items-end sm:items-center justify-center">
-        <div class="glass-panel w-full max-w-md sm:rounded-2xl rounded-t-3xl h-[80vh] flex flex-col p-4 animate-slide-up">
-            <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-4">
-                <h3 class="font-bold text-lg text-emerald-400 flex items-center gap-2"><i data-lucide="radar" class="w-5 h-5"></i> So sánh giá lân cận</h3>
-                <button onclick="closeRefModal()" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><i data-lucide="x" class="w-4 h-4"></i></button>
-            </div>
-            <div id="ref-results" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar"></div>
-        </div>
-    </div>
-
-    <!-- Modal Quét QR -->
-    <div id="qr-modal" class="fixed inset-0 z-[200] bg-black hidden flex flex-col">
-        <div class="p-4 flex justify-between items-center z-10 bg-black/50 backdrop-blur">
-            <h3 class="font-bold text-white">Quét mã QR</h3>
-            <button onclick="closeQrScanner()" class="p-2 bg-white/10 rounded-full"><i data-lucide="x" class="w-6 h-6"></i></button>
-        </div>
-        <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-            <div id="qr-reader" class="w-full h-full object-cover"></div>
-            <div class="absolute inset-0 pointer-events-none border-[40px] border-black/60 flex items-center justify-center">
-                <div class="w-64 h-64 border-2 border-emerald-500 relative">
-                    <div class="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1"></div>
-                    <div class="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1"></div>
-                    <div class="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1"></div>
-                    <div class="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-500 -mb-1 -mr-1"></div>
-                    <div class="absolute inset-0 bg-emerald-500/10 animate-pulse"></div>
-                </div>
-            </div>
-        </div>
-        <div class="p-6 bg-black text-center text-slate-400 text-sm">
-            Di chuyển camera đến mã QR trên CCCD hoặc Bìa đỏ
-        </div>
-    </div>
-
-    <!-- Camera Modal (Webcam) -->
-    <div id="camera-modal" class="fixed inset-0 z-[200] bg-black hidden flex flex-col">
-        <video id="camera-feed" class="flex-1 object-cover w-full h-full" autoplay playsinline></video>
-        <canvas id="camera-canvas" class="hidden"></canvas>
-        <div class="absolute bottom-0 left-0 right-0 p-8 flex justify-center items-center gap-8 bg-gradient-to-t from-black to-transparent">
-            <button onclick="closeCamera()" class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
-            <button onclick="capturePhoto()" class="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center bg-white/20 active:scale-90 transition-transform"><div class="w-16 h-16 bg-white rounded-full"></div></button>
-            <div class="w-12"></div> <!-- Spacer -->
-        </div>
-    </div>
-
-    <!-- Lightbox (Xem ảnh full) -->
-    <div id="lightbox" class="fixed inset-0 z-[300] bg-black hidden flex flex-col transition-opacity duration-300">
-        <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 bg-gradient-to-b from-black/80 to-transparent">
-            <p id="lightbox-counter" class="text-white font-bold">1/1</p>
-            <button onclick="closeLightbox()" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white backdrop-blur"><i data-lucide="x" class="w-6 h-6"></i></button>
-        </div>
-        <div class="flex-1 flex items-center justify-center overflow-hidden relative">
-            <img id="lightbox-img" src="" class="max-w-full max-h-full object-contain transition-transform duration-200">
-        </div>
-        <div class="absolute bottom-0 left-0 right-0 p-6 flex justify-center gap-6 bg-gradient-to-t from-black/80 to-transparent pb-10">
-            <button onclick="navigateLightbox(-1)" class="p-4 bg-white/10 rounded-full hover:bg-white/20"><i data-lucide="chevron-left" class="w-6 h-6 text-white"></i></button>
-            <button onclick="deleteOpenedImage()" class="p-4 bg-red-500/20 rounded-full text-red-400 hover:bg-red-500/30 border border-red-500/30"><i data-lucide="trash-2" class="w-6 h-6"></i></button>
-            <button onclick="navigateLightbox(1)" class="p-4 bg-white/10 rounded-full hover:bg-white/20"><i data-lucide="chevron-right" class="w-6 h-6 text-white"></i></button>
-        </div>
-    </div>
-
-    <!-- Activation Modal (Lần đầu dùng) -->
-    <div id="activation-modal" class="fixed inset-0 z-[999] bg-[#0f172a] flex items-center justify-center hidden">
-        <div class="glass-panel w-full max-w-sm p-8 rounded-3xl text-center m-4 shadow-2xl border border-emerald-500/30">
-            <div class="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-400 animate-pulse">
-                <i data-lucide="shield-check" class="w-10 h-10"></i>
-            </div>
-            <h2 id="activation-title" class="text-2xl font-bold mb-2">Kích hoạt thiết bị</h2>
-            <p class="text-slate-400 text-sm mb-8">Nhập mã bản quyền và mã nhân viên để bắt đầu sử dụng.</p>
-            
-            <input id="activation-employee" type="text" placeholder="Mã Nhân Viên (VD: NV001)" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 mb-3 text-center text-white focus:border-emerald-500 outline-none uppercase font-bold tracking-wider">
-            <input id="activation-key" type="text" placeholder="License Key" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 mb-6 text-center text-white focus:border-emerald-500 outline-none">
-            
-            <button onclick="activateApp()" class="w-full py-4 bg-emerald-600 rounded-xl font-bold shadow-lg shadow-emerald-500/30 active:scale-95 transition-transform">KÍCH HOẠT NGAY</button>
-            <p class="mt-4 text-[10px] text-slate-500">Device ID: <span class="font-mono text-slate-400">AUTO-GEN</span></p>
-        </div>
-    </div>
-
-    <!-- Setup PIN Modal -->
-    <div id="setup-lock-modal" class="fixed inset-0 z-[950] bg-[#0f172a] hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-sm p-8 rounded-3xl text-center shadow-2xl">
-            <h2 class="text-xl font-bold mb-6">Thiết lập bảo mật</h2>
+    <div id="asset-modal" class="fixed inset-0 z-[110] bg-black/80 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex justify-between items-center mb-6"><h3 id="modal-title-asset" class="text-lg font-bold">Thêm TSBĐ</h3><button onclick="closeAssetModal()"><i data-lucide="x" class="w-4 h-4"></i></button></div>
+            <input type="hidden" id="edit-asset-index"><input type="hidden" id="asset-ocr-data">
             <div class="space-y-4">
-                <input id="setup-pin" type="tel" maxlength="4" placeholder="Nhập 4 số PIN mới" class="w-full bg-black/30 border border-white/10 rounded-xl py-4 text-center text-2xl tracking-[1em] font-bold text-white focus:border-emerald-500 outline-none">
-                <input id="setup-answer" type="text" placeholder="Mã Nhân Viên (để khôi phục)" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-center text-white focus:border-emerald-500 outline-none uppercase">
-                <button onclick="saveSecuritySetup()" class="w-full py-3 bg-blue-600 rounded-xl font-bold mt-2">Lưu thiết lập</button>
+                <div class="flex gap-2"><input id="asset-name" type="text" placeholder="Tên tài sản" class="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white"><button onclick="openRedBookScanner()" class="w-12 rounded-xl bg-pink-500/20"><i data-lucide="qr-code" class="w-5 h-5 text-pink-400"></i></button></div>
+                <div class="grid grid-cols-2 gap-3"><input id="asset-val" type="text" placeholder="Định giá" class="bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-center text-white"><input id="asset-loan" type="text" placeholder="Cho vay" class="bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-center text-white"></div>
+                <div class="grid grid-cols-3 gap-2"><input id="asset-area" type="number" placeholder="DT" class="bg-black/30 border border-white/10 rounded-xl px-2 py-3 text-center text-white"><input id="asset-width" type="number" placeholder="MT" class="bg-black/30 border border-white/10 rounded-xl px-2 py-3 text-center text-white"><input id="asset-year" type="number" placeholder="Năm" class="bg-black/30 border border-white/10 rounded-xl px-2 py-3 text-center text-white"></div>
+                <div class="relative"><input id="asset-link" type="text" placeholder="Link Map..." class="w-full bg-black/30 border border-white/10 rounded-xl pl-10 pr-12 py-3 text-white"><button onclick="getCurrentGPS()" class="absolute right-2 top-2 p-1.5 bg-blue-500 rounded-lg"><i data-lucide="map-pin" class="w-4 h-4 text-white"></i></button></div>
+                <textarea id="asset-onland" rows="2" placeholder="Mô tả..." class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-white"></textarea>
+                <button id="btn-save-asset" onclick="saveAsset()" class="w-full py-3.5 bg-emerald-600 rounded-xl font-bold">Lưu</button>
             </div>
         </div>
     </div>
 
-    <!-- Forgot PIN Modal -->
-    <div id="forgot-pin-modal" class="fixed inset-0 z-[960] bg-black/90 hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-sm p-6 rounded-2xl text-center">
-            <h3 class="font-bold text-lg mb-4 text-red-400">Khôi phục mã PIN</h3>
-            <p class="text-sm text-slate-400 mb-4">Nhập mã nhân viên của bạn để xác thực.</p>
-            <input id="recovery-answer" type="text" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 mb-4 text-center text-white uppercase font-bold">
-            <div class="flex gap-3">
-                <button onclick="document.getElementById('forgot-pin-modal').classList.add('hidden')" class="flex-1 py-3 bg-white/10 rounded-xl font-bold">Hủy</button>
-                <button onclick="checkRecovery()" class="flex-1 py-3 bg-red-600 rounded-xl font-bold">Xác nhận</button>
-            </div>
-        </div>
-    </div>
+    <div id="qr-modal" class="fixed inset-0 z-[200] bg-black hidden flex flex-col"><div id="qr-reader" class="w-full h-full object-cover"></div><button onclick="closeQrScanner()" class="absolute top-4 right-4 p-2 bg-white/20 rounded-full z-10"><i data-lucide="x" class="w-6 h-6"></i></button></div>
+    <div id="camera-modal" class="fixed inset-0 z-[200] bg-black hidden flex flex-col"><video id="camera-feed" class="flex-1 object-cover w-full h-full" autoplay playsinline></video><canvas id="camera-canvas" class="hidden"></canvas><div class="absolute bottom-0 w-full p-8 flex justify-center gap-8"><button onclick="closeCamera()" class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center"><i data-lucide="x" class="w-6 h-6"></i></button><button onclick="capturePhoto()" class="w-20 h-20 rounded-full border-4 border-white bg-white/20"></button></div></div>
+    <div id="lightbox" class="fixed inset-0 z-[300] bg-black hidden flex flex-col"><div class="absolute top-0 w-full p-4 flex justify-between"><p id="lightbox-counter" class="text-white">1/1</p><button onclick="closeLightbox()"><i data-lucide="x" class="w-6 h-6 text-white"></i></button></div><img id="lightbox-img" src="" class="max-w-full max-h-full object-contain m-auto"><div class="absolute bottom-0 w-full p-6 flex justify-center gap-6"><button onclick="deleteOpenedImage()" class="p-4 bg-red-500/20 rounded-full text-red-400"><i data-lucide="trash-2" class="w-6 h-6"></i></button></div></div>
+    <div id="ref-price-modal" class="fixed inset-0 z-[120] bg-black/90 hidden flex items-center justify-center"><div class="glass-panel w-full max-w-md h-[80vh] flex flex-col p-4"><div class="flex justify-between mb-4"><h3 class="font-bold text-emerald-400">Tham khảo giá</h3><button onclick="closeRefModal()"><i data-lucide="x" class="w-4 h-4 text-white"></i></button></div><div id="ref-results" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar"></div></div></div>
+    
+    <div id="activation-modal" class="fixed inset-0 z-[999] bg-[#0f172a] flex items-center justify-center hidden"><div class="glass-panel w-full max-w-sm p-8 rounded-3xl text-center"><h2 class="text-2xl font-bold mb-2">Kích hoạt</h2><input id="activation-employee" type="text" placeholder="Mã NV" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 mb-3 text-center text-white"><input id="activation-key" type="text" placeholder="Key" class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 mb-6 text-center text-white"><button onclick="activateApp()" class="w-full py-4 bg-emerald-600 rounded-xl font-bold">KÍCH HOẠT</button></div></div>
+    <div id="setup-lock-modal" class="fixed inset-0 z-[950] bg-[#0f172a] hidden flex items-center justify-center p-4"><div class="glass-panel w-full max-w-sm p-8 rounded-3xl text-center"><h2 class="text-xl font-bold mb-6">Tạo PIN mới</h2><input id="setup-pin" type="tel" maxlength="4" class="w-full bg-black/30 border border-white/10 rounded-xl py-4 text-center text-2xl font-bold text-white mb-4"><input id="setup-answer" type="text" placeholder="Mã NV (để khôi phục)" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-center text-white mb-4"><button onclick="saveSecuritySetup()" class="w-full py-3 bg-blue-600 rounded-xl font-bold">Lưu</button></div></div>
+    <div id="forgot-pin-modal" class="fixed inset-0 z-[960] bg-black/90 hidden flex items-center justify-center p-4"><div class="glass-panel w-full max-w-sm p-6 rounded-2xl text-center"><h3 class="font-bold text-lg mb-4 text-red-400">Khôi phục PIN</h3><input id="recovery-answer" type="text" placeholder="Nhập Mã NV" class="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 mb-4 text-center text-white"><div class="flex gap-3"><button onclick="document.getElementById('forgot-pin-modal').classList.add('hidden')" class="flex-1 py-3 bg-white/10 rounded-xl">Hủy</button><button onclick="checkRecovery()" class="flex-1 py-3 bg-red-600 rounded-xl">OK</button></div></div></div>
 
-    <!-- Menu Cài đặt -->
-    <div id="menu-overlay" onclick="toggleMenu()" class="fixed inset-0 z-[190] bg-black/50 backdrop-blur-sm hidden transition-opacity"></div>
-    <div id="settings-menu" class="fixed bottom-0 left-0 right-0 z-[200] glass-panel rounded-t-3xl p-6 transform transition-all duration-300 translate-y-full hidden pb-10">
-        <div class="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6"></div>
-        <h3 class="font-bold text-lg mb-4 px-2">Cài đặt & Tiện ích</h3>
-        <div class="grid grid-cols-4 gap-4 mb-6">
-            <button onclick="setTheme('theme-midnight')" class="theme-btn aspect-square rounded-xl bg-slate-800 border-2 border-transparent active:border-emerald-500"></button>
-            <button onclick="setTheme('theme-sunset')" class="theme-btn aspect-square rounded-xl bg-orange-900/50 border-2 border-transparent active:border-orange-500"></button>
-            <button onclick="setTheme('theme-ocean')" class="theme-btn aspect-square rounded-xl bg-blue-900/50 border-2 border-transparent active:border-blue-500"></button>
-            <button onclick="setTheme('theme-mint')" class="theme-btn aspect-square rounded-xl bg-emerald-900/50 border-2 border-transparent active:border-emerald-500"></button>
-        </div>
-        
-        <div class="space-y-3">
-            <div class="p-3 bg-white/5 rounded-xl border border-white/5">
-                <p class="text-[10px] text-slate-400 uppercase font-bold mb-1">Kết nối Drive Cá Nhân</p>
-                <div class="flex gap-2">
-                    <input id="user-script-url" type="text" placeholder="Dán link Google Apps Script..." class="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
-                    <button onclick="saveScriptUrl()" class="px-3 py-2 bg-emerald-600 rounded-lg text-xs font-bold">Lưu</button>
-                </div>
-            </div>
+    <div id="menu-overlay" onclick="toggleMenu()" class="fixed inset-0 z-[190] bg-black/50 hidden"></div>
+    <div id="settings-menu" class="fixed bottom-0 w-full z-[200] glass-panel rounded-t-3xl p-6 transform translate-y-full transition-transform duration-300 hidden pb-10"><h3 class="font-bold text-lg mb-4">Cài đặt</h3><div class="space-y-3"><div class="p-3 bg-white/5 rounded-xl"><p class="text-[10px] text-slate-400 font-bold">Link Drive Script</p><div class="flex gap-2"><input id="user-script-url" type="text" class="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xs text-white"><button onclick="saveScriptUrl()" class="px-3 py-2 bg-emerald-600 rounded-lg text-xs font-bold">Lưu</button></div></div><button onclick="backupData()" class="w-full py-3 bg-blue-600/20 text-blue-400 rounded-xl font-bold border border-blue-600/30">Backup</button><label class="w-full py-3 bg-purple-600/20 text-purple-400 rounded-xl font-bold border border-purple-600/30 flex justify-center cursor-pointer">Restore<input type="file" accept=".cpro" class="hidden" onchange="restoreData(this)"></label><button onclick="openSecuritySetup()" class="w-full py-3 bg-white/5 rounded-xl font-bold border border-white/10">Đổi PIN</button><button onclick="resetAppData()" class="w-full py-3 bg-red-500/10 text-red-500 rounded-xl font-bold border border-red-500/20 mt-4">Reset App</button></div></div>
 
-            <button onclick="backupData()" class="w-full py-3 bg-blue-600/20 text-blue-400 rounded-xl font-bold border border-blue-600/30 flex items-center justify-center gap-2"><i data-lucide="download-cloud" class="w-5 h-5"></i> Sao lưu dữ liệu (Backup)</button>
-            <label class="w-full py-3 bg-purple-600/20 text-purple-400 rounded-xl font-bold border border-purple-600/30 flex items-center justify-center gap-2 cursor-pointer">
-                <i data-lucide="upload-cloud" class="w-5 h-5"></i> Khôi phục (Restore)
-                <input type="file" accept=".cpro" class="hidden" onchange="restoreData(this)">
-            </label>
-            <button onclick="openSecuritySetup()" class="w-full py-3 bg-white/5 rounded-xl font-bold border border-white/10">Đổi mã PIN</button>
-            <button onclick="resetAppData()" class="w-full py-3 bg-red-500/10 text-red-500 rounded-xl font-bold border border-red-500/20 mt-4">Reset Ứng Dụng</button>
-        </div>
-    </div>
-
-    <!-- Hidden Inputs for Native Camera Fallback -->
     <input type="file" id="native-camera-profile" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'profile')">
     <input type="file" id="native-camera-asset" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'asset')">
 
-    <!-- 4. LOAD SCRIPT MODULES (Đúng thứ tự) -->
-    <!-- Thư viện ngoài -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" onerror="alert('Lỗi tải thư viện Crypto! Kiểm tra mạng.')"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
 
-    <!-- Modules nội bộ (Trong thư mục js/) -->
-    <script src="js/config.js"></script>     <!-- 1. Cấu hình -->
-    <script src="js/security.js"></script>   <!-- 2. Bảo mật -->
-    <script src="js/database.js"></script>   <!-- 3. Dữ liệu -->
-    <script src="js/drive.js"></script>      <!-- 4. Cloud -->
-    <script src="js/map.js"></script>        <!-- 5. Bản đồ -->
-    <script src="js/ui.js"></script>         <!-- 6. Giao diện -->
-    <script src="js/app.js"></script>        <!-- 7. Khởi chạy -->
+    <script src="js/config.js" onerror="document.getElementById('loader-error').classList.remove('hidden'); document.getElementById('loader-error').innerText='Thiếu file: js/config.js'"></script>
+    <script src="js/security.js" onerror="document.getElementById('loader-error').classList.remove('hidden'); document.getElementById('loader-error').innerText='Thiếu file: js/security.js'"></script>
+    <script src="js/database.js" onerror="document.getElementById('loader-error').classList.remove('hidden'); document.getElementById('loader-error').innerText='Thiếu file: js/database.js'"></script>
+    <script src="js/drive.js" onerror="document.getElementById('loader-error').classList.remove('hidden'); document.getElementById('loader-error').innerText='Thiếu file: js/drive.js'"></script>
+    <script src="js/map.js" onerror="document.getElementById('loader-error').classList.remove('hidden'); document.getElementById('loader-error').innerText='Thiếu file: js/map.js'"></script>
+    <script src="js/ui.js" onerror="document.getElementById('loader-error').classList.remove('hidden'); document.getElementById('loader-error').innerText='Thiếu file: js/ui.js'"></script>
+    <script src="js/app.js" onerror="document.getElementById('loader-error').classList.remove('hidden'); document.getElementById('loader-error').innerText='Thiếu file: js/app.js'"></script>
 
+    <script>
+        setTimeout(() => {
+            const loader = document.getElementById('loader');
+            if (loader && !loader.classList.contains('hidden')) {
+                // Nếu sau 5s vẫn load, force tắt loader và check security
+                loader.classList.add('hidden');
+                if (typeof checkSecurity === 'function') {
+                    checkSecurity();
+                } else {
+                    alert("Lỗi nghiêm trọng: Các file JS chưa được kết nối đúng cách! Vui lòng kiểm tra lại thư mục 'js'.");
+                }
+            }
+        }, 5000);
+    </script>
 </body>
 </html>
