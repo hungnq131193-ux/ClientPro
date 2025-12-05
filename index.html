@@ -19,11 +19,49 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     
     <script>console.warn = function() {};</script>
+ /* Hiệu ứng nhịp đập cho Logo chờ */
+@keyframes pulse-logo {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
     <style>
     /* --- Thay dòng @import cũ bằng dòng này --- */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     :root { --app-height: 100dvh; }
-    
+   <body class="theme-midnight"> <div id="custom-splash-screen" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #0f172a; z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s ease-out;">
+        <img src="./icon-512.png" style="width: 120px; height: 120px; border-radius: 24px; box-shadow: 0 0 40px rgba(0,0,0,0.5); animation: pulse-logo 2s infinite;">
+        
+        <h1 style="color: white; font-weight: 800; margin-top: 20px; font-size: 24px; letter-spacing: 1px;">ClientPro</h1>
+        <div style="width: 40px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin-top: 10px; overflow: hidden;">
+            <div style="width: 100%; height: 100%; background: #38bdf8; animation: pulse-logo 1s infinite; transform-origin: left;"></div>
+        </div>
+    </div>
+    ```
+
+### 3. Phần Javascript (Logic tự động tắt)
+Chèn đoạn này vào **cuối cùng** của thẻ `<body>`, ngay trước thẻ đóng `</body>`:
+
+```javascript
+<script>
+    // ... Các code script cũ của bạn ...
+
+    // Thêm đoạn này vào cuối cùng để xử lý tắt màn hình chờ
+    window.addEventListener('load', () => {
+        const splash = document.getElementById('custom-splash-screen');
+        if (splash) {
+            // Đợi 2 giây cho người dùng ngắm logo (cho cảm giác App xịn)
+            setTimeout(() => {
+                splash.style.opacity = '0'; // Làm mờ dần
+                setTimeout(() => {
+                    splash.style.display = 'none'; // Tắt hẳn để bấm được nút bên dưới
+                }, 500); // Khớp với thời gian transition 0.5s
+            }, 2000); 
+        }
+    });
+</script>
+</body>
+        
     /* --- 1. CẤU HÌNH CƠ BẢN --- */
     body {
         --text-main: #ffffff;
@@ -193,7 +231,6 @@
     <div id="setup-lock-modal" class="fixed inset-0 z-[310] bg-black/90 hidden flex items-center justify-center p-6 backdrop-blur-md">
         <div class="glass-panel w-full max-w-sm rounded-2xl p-8 shadow-2xl relative border border-white/10 modal-animate"><button onclick="closeSetupModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-6 h-6"></i></button><h2 class="text-xl font-bold mb-6 text-center tracking-tight" style="color: var(--text-main)">Thiết lập Bảo Mật</h2><div class="space-y-6"><div><label class="block text-xs font-bold uppercase mb-2 tracking-wider opacity-70" style="color: var(--text-sub)">Mã PIN mới (4 số)</label><input type="tel" id="setup-pin" maxlength="4" class="w-full border text-center text-3xl font-bold rounded-xl p-4 tracking-[0.5em] outline-none" style="border-color: var(--border-panel);" placeholder="••••"></div><div><label class="block text-xs font-bold uppercase mb-2 tracking-wider opacity-70" style="color: var(--text-sub)">Mã nhân viên (Để khôi phục)</label><input type="text" id="setup-answer" class="w-full border rounded-xl p-4 outline-none font-bold" style="border-color: var(--border-panel);" placeholder="Nhập mã nhân viên..."></div><button onclick="saveSecuritySetup()" class="w-full text-white font-bold py-4 rounded-xl mt-2 shadow-lg active:scale-95 transition-transform uppercase tracking-wide" style="background: var(--accent-gradient)">Lưu & Kích hoạt</button></div></div>
     </div>
-
     <!-- Modal kích hoạt thiết bị: hiển thị khi lần đầu sử dụng ứng dụng -->
     <div id="activation-modal" class="fixed inset-0 z-[305] bg-black/90 hidden flex items-center justify-center p-6 backdrop-blur-md">
         <div class="glass-panel w-full max-w-sm p-8 rounded-2xl shadow-2xl relative border border-white/10 modal-animate">
@@ -3740,6 +3777,22 @@ function renderRedBookInfo(info) { return ''; }
             });
         });
     }
+<script>
+    // ... các code khác của bạn ...
+
+    // Tự động tắt màn hình chờ sau khi tải trang xong
+    window.addEventListener('load', () => {
+        const splash = document.getElementById('custom-splash-screen');
+        // Đợi thêm 1.5 giây cho người dùng ngắm, rồi mờ dần
+        setTimeout(() => {
+            splash.style.opacity = '0';
+            // Sau khi mờ hẳn thì xóa khỏi giao diện để bấm được nút bên dưới
+            setTimeout(() => {
+                splash.style.display = 'none';
+            }, 500); // Thời gian này phải khớp với transition 0.5s ở CSS trên
+        }, 1500); 
+    });
+</script>    
 </script>
 </body>
 </html>
