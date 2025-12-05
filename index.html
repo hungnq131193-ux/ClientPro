@@ -220,7 +220,7 @@
     
     <div id="add-modal" class="fixed inset-0 z-40 bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative modal-animate">
-            <button onclick="closeModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <button onclick="history.back()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button>
             <h3 class="font-bold text-lg mb-6" id="modal-title-cust" style="color: var(--text-main)">Thông tin khách hàng</h3>
             <input type="hidden" id="edit-cust-id">
             <div class="space-y-5">
@@ -323,7 +323,7 @@
     
     <div id="ref-price-modal" class="fixed inset-0 z-[100] bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative border border-white/10 modal-animate">
-            <button onclick="closeRefModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <button onclick="history.back()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
             <h3 class="font-bold text-lg mb-4 text-emerald-400 flex items-center gap-2"><i data-lucide="radar" class="w-5 h-5"></i> Tham khảo giá</h3>
             <div id="ref-results" class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar"></div>
         </div>
@@ -380,7 +380,7 @@
 <!-- END DONATE MODAL -->
     <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 transform -translate-y-40 opacity-0 pointer-events-none border border-white/20 z-[400]"><i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i><span id="toast-msg" class="font-medium text-sm whitespace-nowrap">Thông báo</span></div>
     
-    <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button onclick="toggleCustSelectionMode()" class="p-2 rounded-full hover:bg-white/10 transition"><i data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count" class="text-lg font-bold" style="color: var(--accent)">0</span></span></div><div class="flex gap-3"><button onclick="backupSelectedCustomers()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="download" class="w-4 h-4"></i> Xuất</button><button onclick="deleteSelectedCustomers()" class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
+    <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button onclick="history.back()" class="p-2 rounded-full hover:bg-white/10 transition"><i data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count" class="text-lg font-bold" style="color: var(--accent)">0</span></span></div><div class="flex gap-3"><button onclick="backupSelectedCustomers()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="download" class="w-4 h-4"></i> Xuất</button><button onclick="deleteSelectedCustomers()" class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
     <div id="selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2" style="color: var(--text-main)">Đã chọn: <span id="selection-count" class="text-blue-400 font-bold text-lg">0</span> ảnh</div><div class="flex gap-3"><button onclick="shareSelectedImages()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="share-2" class="w-4 h-4"></i> Gửi</button><button onclick="deleteSelectedImages()" class="bg-red-600/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-600/20 text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
     
     <div id="loader" class="fixed inset-0 z-[500] flex flex-col items-center justify-center p-6 text-center"><div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4" style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div><p id="loader-text" class="text-xs font-bold tracking-widest uppercase opacity-70" style="color: var(--text-main)">Loading...</p></div>
@@ -3090,7 +3090,7 @@ function viewSavedOcr(assetId) {
 
             <div class="flex gap-3 mt-2">
                 <button onclick="copyToClipboard('${rawData.replace(/\n/g, '\\n')}')" class="flex-1 py-3 rounded-xl font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition border border-purple-500/30">Copy Tất Cả</button>
-                <button onclick="this.closest('.fixed').remove()" class="flex-1 py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
+                <button onclick="history.back('.fixed').remove()" class="flex-1 py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
             </div>
         </div>
     `;
@@ -3477,146 +3477,94 @@ function renderRedBookInfo(info) { return ''; }
             });
         });
     }
-<script>
-/* --- HỆ THỐNG ĐIỀU HƯỚNG THÔNG MINH (FIX ALL) --- */
-(function() {
-    // 1. Cấu hình danh sách các màn hình cần bắt sự kiện Back/Vuốt
-    // Priority: Thứ tự ưu tiên đóng (Cái nào hiện lên trên thì phải đóng trước)
-    const screens = [
-        { id: 'lightbox', check: (el) => !el.classList.contains('hidden'), close: () => closeLightbox() },
-        { id: 'qr-modal', check: (el) => !el.classList.contains('hidden'), close: () => closeQrScanner() },
-        { id: 'add-modal', check: (el) => !el.classList.contains('hidden'), close: () => closeModal() }, // Thêm mới KH
-        { id: 'ref-price-modal', check: (el) => !el.classList.contains('hidden'), close: () => closeRefModal() }, // Tham khảo giá
-        { id: 'asset-modal', check: (el) => !el.classList.contains('hidden'), close: () => closeAssetModal() }, // Thêm TSBĐ
-        { id: 'cust-selection-bar', check: (el) => !el.classList.contains('translate-y-full'), close: () => toggleCustSelectionMode() }, // Chọn KH
-        { id: 'selection-bar', check: (el) => !el.classList.contains('translate-y-full'), close: () => toggleSelectionMode() }, // Chọn Ảnh
-        { id: 'screen-map', check: (el) => !el.classList.contains('translate-x-full'), close: () => toggleMap() }, // Bản đồ
-        { id: 'screen-asset-gallery', check: (el) => !el.classList.contains('translate-x-full'), close: () => closeAssetGallery() }, // Kho ảnh TSBĐ
-        { id: 'screen-folder', check: (el) => !el.classList.contains('translate-x-full'), close: () => closeFolder() } // Hồ sơ chi tiết
-    ];
+/* --- BẮT ĐẦU CODE XỬ LÝ VUỐT BACK (PHIÊN BẢN CẬP NHẬT ĐẦY ĐỦ) --- */
 
-    // 2. Hàm đẩy lịch sử (Safe Push)
-    function pushState(key) {
-        history.pushState({ screen: key }, null, "");
+// 1. Hàm đẩy lịch sử
+function pushHistoryState(viewName) {
+    history.pushState({ view: viewName }, null, "#" + viewName);
+}
+
+// 2. Ghi đè các hàm MỞ để lưu lịch sử
+const _openFolder = openFolder;
+openFolder = function(id) { _openFolder(id); pushHistoryState('folder'); }
+
+const _openAssetGallery = openAssetGallery;
+openAssetGallery = function(id, name, idx) { _openAssetGallery(id, name, idx); pushHistoryState('gallery'); }
+
+const _toggleMap = toggleMap;
+toggleMap = function() {
+    const mapScreen = document.getElementById('screen-map');
+    if (mapScreen.classList.contains('translate-x-full')) pushHistoryState('map');
+    _toggleMap();
+}
+
+const _openLightbox = openLightbox;
+openLightbox = function(src, id, idx, list) { _openLightbox(src, id, idx, list); pushHistoryState('lightbox'); }
+
+// --- THÊM MỚI: Xử lý cho 4 nút anh vừa sửa ---
+const _openModal = openModal; // Thêm KH
+openModal = function() { _openModal(); pushHistoryState('add-cust'); }
+
+const _showRefModal = showRefModal; // Tham khảo giá
+showRefModal = function(res) { _showRefModal(res); pushHistoryState('ref-price'); }
+
+const _toggleCust = toggleCustSelectionMode; // Chọn KH
+toggleCustSelectionMode = function() {
+    // Chỉ push khi đang MỞ (từ ẩn sang hiện)
+    if (!isCustSelectionMode) pushHistoryState('select-cust');
+    _toggleCust(); 
+}
+
+const _viewSavedOcr = viewSavedOcr; // Thông tin Bìa đỏ
+viewSavedOcr = function(id) { _viewSavedOcr(id); pushHistoryState('ocr-info'); }
+
+
+// 3. BẮT SỰ KIỆN VUỐT BACK (POPSTATE)
+window.addEventListener('popstate', function(event) {
+    // 1. Lightbox
+    if (!document.getElementById('lightbox').classList.contains('hidden')) {
+        closeLightbox(); return;
+    }
+    // 2. QR Scanner
+    if (!document.getElementById('qr-modal').classList.contains('hidden')) {
+        closeQrScanner(); return;
+    }
+    // 3. Popup QR Bìa đỏ (Động)
+    const ocrPopup = document.querySelector('.fixed.inset-0.z-\\[300\\]');
+    if (ocrPopup) { ocrPopup.remove(); return; }
+
+    // 4. Modal Thêm Khách (Add)
+    if (!document.getElementById('add-modal').classList.contains('hidden')) {
+        closeModal(); return; // Gọi hàm đóng gốc (không gọi back nữa)
+    }
+    // 5. Modal Giá (Ref)
+    if (!document.getElementById('ref-price-modal').classList.contains('hidden')) {
+        closeRefModal(); return; // Gọi hàm đóng gốc
+    }
+    // 6. Thanh Chọn Khách
+    if (!document.getElementById('cust-selection-bar').classList.contains('translate-y-full')) {
+        toggleCustSelectionMode(); return; // Gọi hàm toggle gốc
     }
 
-    // 3. Ghi đè an toàn các hàm MỞ để kích hoạt lịch sử
-    // Lưu lại hàm gốc
-    const _orgOpenFolder = window.openFolder;
-    const _orgOpenAssetGallery = window.openAssetGallery;
-    const _orgToggleMap = window.toggleMap;
-    const _orgOpenModal = window.openModal; // Thêm KH
-    const _orgShowRefModal = window.showRefModal; // Giá
-    const _orgOpenAssetModal = window.openAssetModal; // TSBĐ
-    const _orgOpenQr = window.openQrScanner;
-    const _orgOpenRedBook = window.openRedBookScanner;
-    const _orgToggleCustSelect = window.toggleCustSelectionMode;
-
-    // Ghi đè để thêm Push State
-    window.openFolder = function(id) { _orgOpenFolder(id); pushState('folder'); };
-    window.openAssetGallery = function(id, name, idx) { _orgOpenAssetGallery(id, name, idx); pushState('gallery'); };
-    
-    // Map đặc biệt hơn vì dùng toggle
-    window.toggleMap = function() {
-        const isOpen = !document.getElementById('screen-map').classList.contains('translate-x-full');
-        if(!isOpen) pushState('map'); // Nếu đang đóng mà bấm mở -> Push
-        _orgToggleMap();
-    };
-
-    window.openModal = function() { _orgOpenModal(); pushState('add'); };
-    window.showRefModal = function(res) { _orgShowRefModal(res); pushState('ref'); };
-    window.openAssetModal = function() { _orgOpenAssetModal(); pushState('asset'); };
-    
-    window.openQrScanner = function() { _orgOpenQr(); pushState('qr'); };
-    window.openRedBookScanner = function() { _orgOpenRedBook(); pushState('qr-red'); };
-
-    window.toggleCustSelectionMode = function() {
-        // Nếu chưa mở -> Mở -> Push
-        if(!window.isCustSelectionMode) pushState('select-cust');
-        _orgToggleCustSelect();
-    };
-
-    // Riêng Popup QR Bìa đỏ (Do anh tạo bằng innerHTML động nên phải xử lý riêng)
-    const _orgViewSavedOcr = window.viewSavedOcr;
-    window.viewSavedOcr = function(id) {
-        _orgViewSavedOcr(id);
-        pushState('ocr-view');
-        // Tìm nút Đóng trong popup vừa tạo để gán lệnh Back
-        setTimeout(() => {
-            const overlays = document.querySelectorAll('.fixed.inset-0.z-\\[300\\]');
-            if(overlays.length > 0) {
-                const popup = overlays[overlays.length-1];
-                const btns = popup.querySelectorAll('button');
-                // Nút Đóng thường là nút cuối cùng
-                if(btns.length > 0) {
-                    const closeBtn = btns[btns.length-1];
-                    // Thay đổi hành vi nút đóng thành Back
-                    closeBtn.onclick = function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        history.back();
-                    };
-                }
-            }
-        }, 200);
-    };
-
-    // 4. Tự động sửa các nút "X" có sẵn trong HTML
-    // Thay vì anh phải sửa HTML, đoạn này sẽ tự tìm nút X và bảo nó: "Đừng đóng ngay, hãy Back đi"
-    setTimeout(() => {
-        // Map các nút đóng với ID modal tương ứng
-        const closeMap = [
-            { modal: 'add-modal', btnSelector: '#add-modal button.absolute' }, // Nút X thêm mới
-            { modal: 'ref-price-modal', btnSelector: '#ref-price-modal button.absolute' }, // Nút X giá
-            { modal: 'asset-modal', btnSelector: '#asset-modal button' } // Nút Hủy TSBĐ
-        ];
-
-        closeMap.forEach(item => {
-            const btn = document.querySelector(item.btnSelector);
-            if(btn) {
-                // Xóa onclick cũ trong HTML (clone node là cách nhanh nhất để xóa event inline)
-                const newBtn = btn.cloneNode(true);
-                btn.parentNode.replaceChild(newBtn, btn);
-                // Gán lệnh mới
-                newBtn.onclick = function() { history.back(); };
-            }
-        });
-        
-        // Sửa nút Back ở màn hình Map và Gallery (nếu chưa sửa)
-        const mapBack = document.querySelector('#screen-map button.absolute.top-4');
-        if(mapBack) mapBack.onclick = function() { history.back(); };
-        
-        const galleryBack = document.querySelector('#screen-asset-gallery button.rounded-full');
-        if(galleryBack) galleryBack.onclick = function() { history.back(); };
-
-    }, 1000); // Chờ 1s để đảm bảo giao diện đã render xong
-
-    // 5. XỬ LÝ SỰ KIỆN BACK / VUỐT (QUAN TRỌNG NHẤT)
-    window.addEventListener('popstate', function(event) {
-        // Tìm xem cái gì đang mở (theo thứ tự ưu tiên) và đóng nó
-        for (let s of screens) {
-            const el = document.getElementById(s.id);
-            if (el && s.check(el)) {
-                // Riêng Popup QR Bìa đỏ động
-                if(s.id === 'qr-overlay') { 
-                    const o = document.querySelector('.fixed.inset-0.z-\\[300\\]');
-                    if(o) o.remove();
-                } else {
-                    s.close(); // Gọi hàm đóng gốc của anh
-                }
-                return; // Đã đóng 1 cái thì dừng, không đóng tiếp cái dưới
-            }
-        }
-        
-        // Check riêng cho Popup QR Bìa đỏ (vì nó không có ID cố định)
-        const dynamicPopup = document.querySelector('.fixed.inset-0.z-\\[300\\]');
-        if(dynamicPopup) {
-            dynamicPopup.remove();
-        }
-    });
-
-})();
-</script>
+    // 7. Kho ảnh TSBĐ
+    if (!document.getElementById('screen-asset-gallery').classList.contains('translate-x-full')) {
+        document.getElementById('screen-asset-gallery').classList.add('translate-x-full');
+        currentAssetId = null; isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
+        return;
+    }
+    // 8. Hồ sơ
+    if (!document.getElementById('screen-folder').classList.contains('translate-x-full')) {
+        document.getElementById('screen-folder').classList.add('translate-x-full');
+        currentCustomerId = null; loadCustomers(document.getElementById('search-input').value);
+        return;
+    }
+    // 9. Map
+    if (!document.getElementById('screen-map').classList.contains('translate-x-full')) {
+        document.getElementById('screen-map').classList.add('translate-x-full');
+        return;
+    }
+});
+/* --- KẾT THÚC --- */
 </script>
 </body>
 </html>
