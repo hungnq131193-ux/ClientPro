@@ -3477,94 +3477,89 @@ function renderRedBookInfo(info) { return ''; }
             });
         });
     }
-/* --- BẮT ĐẦU CODE XỬ LÝ VUỐT BACK (PHIÊN BẢN CẬP NHẬT ĐẦY ĐỦ) --- */
+/* --- BẮT ĐẦU CODE XỬ LÝ VUỐT ĐỂ BACK (SWIPE TO BACK) --- */
 
-// 1. Hàm đẩy lịch sử
+// 1. Hàm đẩy lịch sử khi mở màn hình mới
 function pushHistoryState(viewName) {
     history.pushState({ view: viewName }, null, "#" + viewName);
 }
 
-// 2. Ghi đè các hàm MỞ để lưu lịch sử
-const _openFolder = openFolder;
-openFolder = function(id) { _openFolder(id); pushHistoryState('folder'); }
+// 2. Ghi đè các hàm mở màn hình để tự động lưu lịch sử
+// Lưu lại hàm gốc
+const originalOpenFolder = openFolder;
+const originalOpenAssetGallery = openAssetGallery;
+const originalToggleMap = toggleMap;
+const originalOpenLightbox = openLightbox;
 
-const _openAssetGallery = openAssetGallery;
-openAssetGallery = function(id, name, idx) { _openAssetGallery(id, name, idx); pushHistoryState('gallery'); }
+// Ghi đè hàm Mở Hồ Sơ
+openFolder = function(id) {
+    originalOpenFolder(id);
+    pushHistoryState('folder');
+}
 
-const _toggleMap = toggleMap;
+// Ghi đè hàm Mở Kho Ảnh TSBĐ
+openAssetGallery = function(id, name, idx) {
+    originalOpenAssetGallery(id, name, idx);
+    pushHistoryState('gallery');
+}
+
+// Ghi đè hàm Mở Map (Chỉ push khi mở, không push khi đóng)
 toggleMap = function() {
     const mapScreen = document.getElementById('screen-map');
-    if (mapScreen.classList.contains('translate-x-full')) pushHistoryState('map');
-    _toggleMap();
+    // Kiểm tra: Nếu đang ẩn (translate-x-full) nghĩa là sắp mở -> Push history
+    if (mapScreen.classList.contains('translate-x-full')) {
+        pushHistoryState('map');
+    }
+    originalToggleMap(); // Gọi hàm gốc để thực hiện mở/đóng
 }
 
-const _openLightbox = openLightbox;
-openLightbox = function(src, id, idx, list) { _openLightbox(src, id, idx, list); pushHistoryState('lightbox'); }
-
-// --- THÊM MỚI: Xử lý cho 4 nút anh vừa sửa ---
-const _openModal = openModal; // Thêm KH
-openModal = function() { _openModal(); pushHistoryState('add-cust'); }
-
-const _showRefModal = showRefModal; // Tham khảo giá
-showRefModal = function(res) { _showRefModal(res); pushHistoryState('ref-price'); }
-
-const _toggleCust = toggleCustSelectionMode; // Chọn KH
-toggleCustSelectionMode = function() {
-    // Chỉ push khi đang MỞ (từ ẩn sang hiện)
-    if (!isCustSelectionMode) pushHistoryState('select-cust');
-    _toggleCust(); 
+// Ghi đè hàm Mở Ảnh Phóng to (Lightbox)
+openLightbox = function(src, id, idx, list) {
+    originalOpenLightbox(src, id, idx, list);
+    pushHistoryState('lightbox');
 }
 
-const _viewSavedOcr = viewSavedOcr; // Thông tin Bìa đỏ
-viewSavedOcr = function(id) { _viewSavedOcr(id); pushHistoryState('ocr-info'); }
-
-
-// 3. BẮT SỰ KIỆN VUỐT BACK (POPSTATE)
+// 3. BẮT SỰ KIỆN KHI NGƯỜI DÙNG VUỐT BACK (HOẶC NHẤN NÚT BACK CỨNG)
 window.addEventListener('popstate', function(event) {
-    // 1. Lightbox
+    // Ưu tiên đóng theo thứ tự: Lightbox -> QR -> Gallery -> Folder -> Map
+    
+    // Đóng Lightbox ảnh phóng to
     if (!document.getElementById('lightbox').classList.contains('hidden')) {
-        closeLightbox(); return;
+        closeLightbox();
+        return;
     }
-    // 2. QR Scanner
+    
+    // Đóng QR Modal
     if (!document.getElementById('qr-modal').classList.contains('hidden')) {
-        closeQrScanner(); return;
-    }
-    // 3. Popup QR Bìa đỏ (Động)
-    const ocrPopup = document.querySelector('.fixed.inset-0.z-\\[300\\]');
-    if (ocrPopup) { ocrPopup.remove(); return; }
-
-    // 4. Modal Thêm Khách (Add)
-    if (!document.getElementById('add-modal').classList.contains('hidden')) {
-        closeModal(); return; // Gọi hàm đóng gốc (không gọi back nữa)
-    }
-    // 5. Modal Giá (Ref)
-    if (!document.getElementById('ref-price-modal').classList.contains('hidden')) {
-        closeRefModal(); return; // Gọi hàm đóng gốc
-    }
-    // 6. Thanh Chọn Khách
-    if (!document.getElementById('cust-selection-bar').classList.contains('translate-y-full')) {
-        toggleCustSelectionMode(); return; // Gọi hàm toggle gốc
+        closeQrScanner();
+        return;
     }
 
-    // 7. Kho ảnh TSBĐ
+    // Đóng Kho ảnh TSBĐ
     if (!document.getElementById('screen-asset-gallery').classList.contains('translate-x-full')) {
+        // Gọi hàm đóng gốc (trong code anh là set class translate-x-full)
         document.getElementById('screen-asset-gallery').classList.add('translate-x-full');
         currentAssetId = null; isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
         return;
     }
-    // 8. Hồ sơ
+
+    // Đóng Hồ sơ khách hàng
     if (!document.getElementById('screen-folder').classList.contains('translate-x-full')) {
+        // Gọi logic đóng folder như trong hàm closeFolder() của anh
         document.getElementById('screen-folder').classList.add('translate-x-full');
-        currentCustomerId = null; loadCustomers(document.getElementById('search-input').value);
+        currentCustomerId = null; 
+        loadCustomers(document.getElementById('search-input').value);
         return;
     }
-    // 9. Map
+
+    // Đóng Map
     if (!document.getElementById('screen-map').classList.contains('translate-x-full')) {
         document.getElementById('screen-map').classList.add('translate-x-full');
         return;
     }
 });
-/* --- KẾT THÚC --- */
+
+/* --- KẾT THÚC CODE VUỐT BACK --- */
 </script>
 </body>
 </html>
