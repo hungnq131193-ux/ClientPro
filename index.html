@@ -3423,6 +3423,271 @@ function handleRedBookResult(data) {
 function parseRedBookInfo(text) { return {}; }
 function renderRedBookInfo(info) { return ''; }
 </script>
+    <!-- History-based navigation enhancements for swipe-to-go-back support -->
+    <script>
+    (function() {
+        // Capture references to original functions so we can call them later without recursion.
+        const _org = {};
+        [
+            'openModal','closeModal','openFolder','closeFolder','openAssetGallery','closeAssetGallery',
+            'openAssetModal','openEditAssetModal','closeAssetModal','showRefModal','closeRefModal',
+            'toggleMap','openQrScanner','openRedBookScanner','closeQrScanner','toggleCustSelectionMode',
+            'toggleSelectionMode','viewSavedOcr','openLightbox','closeLightbox','openEditCustomerModal'
+        ].forEach(fn => {
+            if (typeof window[fn] === 'function') {
+                _org[fn] = window[fn];
+            }
+        });
+
+        // Helper to push a new history state. Uses a descriptive hash to aid debugging.
+        function pushState(stateObj, hash) {
+            try {
+                history.pushState(stateObj, null, hash);
+            } catch (e) {
+                // Some environments may block pushState; ignore silently.
+            }
+        }
+
+        // Override functions that open UI elements to push a history entry.
+        if (_org.openModal) {
+            window.openModal = function() {
+                _org.openModal.apply(this, arguments);
+                pushState({ screen: 'add-modal' }, '#add-modal');
+            };
+        }
+        if (_org.openEditCustomerModal) {
+            window.openEditCustomerModal = function() {
+                _org.openEditCustomerModal.apply(this, arguments);
+                pushState({ screen: 'add-modal' }, '#edit-customer');
+            };
+        }
+        if (_org.closeModal) {
+            window.closeModal = function() {
+                // When closing from UI, go back one history entry instead of closing immediately.
+                history.back();
+            };
+        }
+        if (_org.openFolder) {
+            window.openFolder = function(id) {
+                _org.openFolder.apply(this, arguments);
+                pushState({ screen: 'screen-folder', id: id }, '#folder-' + id);
+            };
+        }
+        if (_org.closeFolder) {
+            window.closeFolder = function() {
+                history.back();
+            };
+        }
+        if (_org.openAssetGallery) {
+            window.openAssetGallery = function(id, name, idx) {
+                _org.openAssetGallery.apply(this, arguments);
+                pushState({ screen: 'screen-asset-gallery', id: id }, '#asset-gallery-' + id);
+            };
+        }
+        if (_org.closeAssetGallery) {
+            window.closeAssetGallery = function() {
+                history.back();
+            };
+        }
+        if (_org.openAssetModal) {
+            window.openAssetModal = function() {
+                _org.openAssetModal.apply(this, arguments);
+                pushState({ screen: 'asset-modal' }, '#asset-modal');
+            };
+        }
+        if (_org.openEditAssetModal) {
+            window.openEditAssetModal = function() {
+                _org.openEditAssetModal.apply(this, arguments);
+                pushState({ screen: 'asset-modal' }, '#asset-modal');
+            };
+        }
+        if (_org.closeAssetModal) {
+            window.closeAssetModal = function() {
+                history.back();
+            };
+        }
+        if (_org.showRefModal) {
+            window.showRefModal = function() {
+                _org.showRefModal.apply(this, arguments);
+                pushState({ screen: 'ref-price-modal' }, '#ref-price-modal');
+            };
+        }
+        if (_org.closeRefModal) {
+            window.closeRefModal = function() {
+                history.back();
+            };
+        }
+        // Map toggling: open pushes a state, close triggers history.back()
+        if (_org.toggleMap) {
+            window.toggleMap = function() {
+                const mapScreen = document.getElementById('screen-map');
+                const isHidden = mapScreen && mapScreen.classList.contains('translate-x-full');
+                if (isHidden) {
+                    _org.toggleMap.apply(this, arguments);
+                    pushState({ screen: 'screen-map' }, '#screen-map');
+                } else {
+                    history.back();
+                }
+            };
+        }
+        // QR scanner openings
+        if (_org.openQrScanner) {
+            window.openQrScanner = function() {
+                _org.openQrScanner.apply(this, arguments);
+                pushState({ screen: 'qr-modal' }, '#qr-scanner');
+            };
+        }
+        if (_org.openRedBookScanner) {
+            window.openRedBookScanner = function() {
+                _org.openRedBookScanner.apply(this, arguments);
+                pushState({ screen: 'qr-modal' }, '#qr-redbook');
+            };
+        }
+        if (_org.closeQrScanner) {
+            window.closeQrScanner = function() {
+                history.back();
+            };
+        }
+        // Customer selection bar toggle
+        if (_org.toggleCustSelectionMode) {
+            window.toggleCustSelectionMode = function() {
+                const bar = document.getElementById('cust-selection-bar');
+                const visible = bar && !bar.classList.contains('translate-y-full');
+                if (!visible) {
+                    // Open bar normally then push state
+                    _org.toggleCustSelectionMode.apply(this, arguments);
+                    pushState({ screen: 'cust-selection-bar' }, '#cust-selection-bar');
+                } else {
+                    // Close via history
+                    history.back();
+                }
+            };
+        }
+        // Image selection bar toggle
+        if (_org.toggleSelectionMode) {
+            window.toggleSelectionMode = function() {
+                const bar = document.getElementById('selection-bar');
+                const visible = bar && !bar.classList.contains('translate-y-full');
+                if (!visible) {
+                    _org.toggleSelectionMode.apply(this, arguments);
+                    pushState({ screen: 'selection-bar' }, '#selection-bar');
+                } else {
+                    history.back();
+                }
+            };
+        }
+        // Lightbox open/close
+        if (_org.openLightbox) {
+            window.openLightbox = function(src, id, idx, list) {
+                _org.openLightbox.apply(this, arguments);
+                pushState({ screen: 'lightbox', id: id }, '#lightbox');
+            };
+        }
+        if (_org.closeLightbox) {
+            window.closeLightbox = function() {
+                history.back();
+            };
+        }
+        // Dynamic QR info popup: wrap viewSavedOcr
+        if (_org.viewSavedOcr) {
+            window.viewSavedOcr = function(assetId) {
+                _org.viewSavedOcr.apply(this, arguments);
+                pushState({ screen: 'qr-info', id: assetId }, '#qrinfo-' + assetId);
+                // After overlay is added to DOM, tag it and override its close button
+                setTimeout(() => {
+                    const overlays = document.querySelectorAll('div.fixed.inset-0');
+                    overlays.forEach(overlay => {
+                        if (!overlay.dataset || overlay.dataset.historyHandled) return;
+                        // Identify QR info by heading content
+                        if (overlay.innerHTML && overlay.innerHTML.includes('Thông tin QR')) {
+                            overlay.dataset.historyHandled = 'true';
+                            const buttons = overlay.querySelectorAll('button');
+                            buttons.forEach(btn => {
+                                const text = (btn.textContent || btn.innerText || '').trim();
+                                if (text === 'Đóng') {
+                                    btn.onclick = function(ev) {
+                                        ev.preventDefault();
+                                        history.back();
+                                    };
+                                }
+                            });
+                        }
+                    });
+                }, 0);
+            };
+        }
+        // Handle back/forward navigation by closing the topmost open UI element.
+        window.addEventListener('popstate', function() {
+            // 1. Dynamic QR popup
+            const dyn = document.querySelector('div[data-history-handled="true"]');
+            if (dyn) {
+                dyn.remove();
+                return;
+            }
+            // 2. Lightbox
+            const lb = document.getElementById('lightbox');
+            if (lb && !lb.classList.contains('hidden')) {
+                if (_org.closeLightbox) _org.closeLightbox();
+                return;
+            }
+            // 3. QR modal
+            const qrModal = document.getElementById('qr-modal');
+            if (qrModal && !qrModal.classList.contains('hidden')) {
+                if (_org.closeQrScanner) _org.closeQrScanner();
+                return;
+            }
+            // 4. Asset modal
+            const assetModal = document.getElementById('asset-modal');
+            if (assetModal && !assetModal.classList.contains('hidden')) {
+                if (_org.closeAssetModal) _org.closeAssetModal();
+                return;
+            }
+            // 5. Reference modal
+            const refModal = document.getElementById('ref-price-modal');
+            if (refModal && !refModal.classList.contains('hidden')) {
+                if (_org.closeRefModal) _org.closeRefModal();
+                return;
+            }
+            // 6. Add customer modal
+            const addModal = document.getElementById('add-modal');
+            if (addModal && !addModal.classList.contains('hidden')) {
+                if (_org.closeModal) _org.closeModal();
+                return;
+            }
+            // 7. Customer selection bar
+            const custBar = document.getElementById('cust-selection-bar');
+            if (custBar && !custBar.classList.contains('translate-y-full')) {
+                if (_org.toggleCustSelectionMode) _org.toggleCustSelectionMode();
+                return;
+            }
+            // 8. Image selection bar
+            const selBar = document.getElementById('selection-bar');
+            if (selBar && !selBar.classList.contains('translate-y-full')) {
+                if (_org.toggleSelectionMode) _org.toggleSelectionMode();
+                return;
+            }
+            // 9. Asset gallery screen
+            const ag = document.getElementById('screen-asset-gallery');
+            if (ag && !ag.classList.contains('translate-x-full')) {
+                if (_org.closeAssetGallery) _org.closeAssetGallery();
+                return;
+            }
+            // 10. Folder screen
+            const sf = document.getElementById('screen-folder');
+            if (sf && !sf.classList.contains('translate-x-full')) {
+                if (_org.closeFolder) _org.closeFolder();
+                return;
+            }
+            // 11. Map screen
+            const sm = document.getElementById('screen-map');
+            if (sm && !sm.classList.contains('translate-x-full')) {
+                if (_org.toggleMap) _org.toggleMap();
+                return;
+            }
+            // If none matched, no UI is open; do nothing.
+        });
+    })();
+    </script>
 <script>
     let newWorker;
 
@@ -3474,160 +3739,7 @@ function renderRedBookInfo(info) { return ''; }
                 refreshing = true;
             });
         });
-    <script>
-/* --- FINAL FIX: SWIPE TO BACK (CƠ CHẾ ĐỒNG BỘ 100%) --- */
-(function() {
-    // 1. Hàm lưu lịch sử
-    function pushState(id) {
-        history.pushState({ screen: id }, null, "#" + id);
     }
-
-    // 2. Lưu lại các hàm GỐC của anh (để dùng lại sau này)
-    const _org = {
-        openModal: window.openModal,           // Thêm KH
-        closeModal: window.closeModal,
-        showRefModal: window.showRefModal,     // Giá
-        closeRefModal: window.closeRefModal,
-        openAssetModal: window.openAssetModal, // TSBĐ
-        closeAssetModal: window.closeAssetModal,
-        openQr: window.openQrScanner,          // QR
-        closeQr: window.closeQrScanner,
-        openRedBook: window.openRedBookScanner,
-        
-        // Các hàm Toggle / Fullscreen
-        toggleMap: window.toggleMap,
-        toggleCust: window.toggleCustSelectionMode,
-        toggleImg: window.toggleSelectionMode,
-        openFolder: window.openFolder,
-        closeFolder: window.closeFolder,
-        openGallery: window.openAssetGallery,
-        closeGallery: window.closeAssetGallery,
-        openLightbox: window.openLightbox,
-        closeLightbox: window.closeLightbox,
-        viewOcr: window.viewSavedOcr
-    };
-
-    // 3. GHI ĐÈ HÀM "MỞ" -> Thêm bước "Ghi nhớ"
-    window.openModal = function() { _org.openModal(); pushState('add'); };
-    window.showRefModal = function(r) { _org.showRefModal(r); pushState('ref'); };
-    window.openAssetModal = function() { _org.openAssetModal(); pushState('asset'); };
-    window.openQrScanner = function() { _org.openQr(); pushState('qr'); };
-    window.openRedBookScanner = function() { _org.openRedBook(); pushState('qr-red'); };
-    window.openFolder = function(id) { _org.openFolder(id); pushState('folder'); };
-    window.openAssetGallery = function(id,n,i) { _org.openGallery(id,n,i); pushState('gallery'); };
-    window.openLightbox = function(s,i,x,l) { _org.openLightbox(s,i,x,l); pushState('lightbox'); };
-    
-    // Riêng Popup QR động
-    window.viewSavedOcr = function(id) {
-        _org.viewOcr(id);
-        pushState('ocr-view');
-        // Sửa nút Đóng trong Popup động này thành Back
-        setTimeout(() => {
-            const popup = document.querySelector('.fixed.inset-0.z-\\[300\\]');
-            if(popup) {
-                const btns = popup.querySelectorAll('button');
-                // Nút Đóng thường ở cuối
-                if(btns.length) btns[btns.length-1].onclick = function(e) {
-                    e.stopPropagation(); history.back();
-                };
-            }
-        }, 200);
-    };
-
-    // Hàm Toggle (Bản đồ, Chọn...) - Cần kiểm tra đang Đóng hay Mở
-    window.toggleMap = function() {
-        const el = document.getElementById('screen-map');
-        // Nếu đang ẨN (sắp Mở) -> Ghi nhớ. Nếu đang HIỆN (sắp Đóng) -> Back
-        if (el.classList.contains('translate-x-full')) { pushState('map'); _org.toggleMap(); }
-        else { history.back(); }
-    };
-
-    window.toggleCustSelectionMode = function() {
-        const el = document.getElementById('cust-selection-bar');
-        if (el.classList.contains('translate-y-full')) { pushState('cust-sel'); _org.toggleCust(); }
-        else { history.back(); }
-    };
-    
-    window.toggleSelectionMode = function() {
-        const el = document.getElementById('selection-bar');
-        if (el.classList.contains('translate-y-full')) { pushState('img-sel'); _org.toggleImg(); }
-        else { history.back(); }
-    };
-
-
-    // 4. GHI ĐÈ HÀM "ĐÓNG" -> Chuyển thành lệnh "Back"
-    // Khi anh bấm X, nó sẽ không đóng ngay mà gọi Back -> kích hoạt sự kiện số 5
-    window.closeModal = function() { history.back(); };
-    window.closeRefModal = function() { history.back(); };
-    window.closeAssetModal = function() { history.back(); };
-    window.closeQrScanner = function() { history.back(); };
-    window.closeFolder = function() { history.back(); };
-    window.closeAssetGallery = function() { history.back(); };
-    window.closeLightbox = function() { history.back(); };
-
-
-    // 5. TRÁI TIM HỆ THỐNG: XỬ LÝ KHI "QUAY LẠI" (Do Vuốt hoặc do bấm X ở bước 4)
-    window.addEventListener('popstate', function(event) {
-        // Kiểm tra từng màn hình, cái nào đang hiện thì đóng nó đi bằng hàm GỐC (_org)
-        
-        // 1. Lightbox
-        if (!document.getElementById('lightbox').classList.contains('hidden')) {
-            _org.closeLightbox();
-        }
-        // 2. QR Scanner
-        else if (!document.getElementById('qr-modal').classList.contains('hidden')) {
-            _org.closeQr();
-        }
-        // 3. Popup QR Bìa đỏ (Động)
-        else if (document.querySelector('.fixed.inset-0.z-\\[300\\]')) {
-            document.querySelector('.fixed.inset-0.z-\\[300\\]').remove();
-        }
-        // 4. Modal Thêm Mới
-        else if (!document.getElementById('add-modal').classList.contains('hidden')) {
-            _org.closeModal();
-        }
-        // 5. Modal Giá
-        else if (!document.getElementById('ref-price-modal').classList.contains('hidden')) {
-            _org.closeRefModal();
-        }
-        // 6. Modal TSBĐ
-        else if (!document.getElementById('asset-modal').classList.contains('hidden')) {
-            _org.closeAssetModal();
-        }
-        // 7. Chọn Khách
-        else if (!document.getElementById('cust-selection-bar').classList.contains('translate-y-full')) {
-            _org.toggleCust();
-        }
-        // 8. Chọn Ảnh
-        else if (!document.getElementById('selection-bar').classList.contains('translate-y-full')) {
-            _org.toggleImg();
-        }
-        // 9. Kho Ảnh TSBĐ
-        else if (!document.getElementById('screen-asset-gallery').classList.contains('translate-x-full')) {
-            _org.closeGallery();
-        }
-        // 10. Hồ Sơ
-        else if (!document.getElementById('screen-folder').classList.contains('translate-x-full')) {
-            _org.closeFolder();
-        }
-        // 11. Bản đồ
-        else if (!document.getElementById('screen-map').classList.contains('translate-x-full')) {
-            _org.toggleMap();
-        }
-    });
-
-    // 6. Fix nút Back trong Map và Gallery (Do nó gọi hàm Close, mà hàm Close đã bị ta đổi thành Back ở bước 4, nên OK)
-    // Nhưng để chắc chắn, ta gán lại onclick cho nó
-    window.addEventListener('load', () => {
-        const mapBack = document.querySelector('#screen-map button.absolute.top-4');
-        if(mapBack) mapBack.onclick = function() { history.back(); };
-        
-        const galleryBack = document.querySelector('#screen-asset-gallery button.rounded-full');
-        if(galleryBack) galleryBack.onclick = function() { history.back(); };
-    });
-
-})();
-</script>
 </script>
 </body>
 </html>
