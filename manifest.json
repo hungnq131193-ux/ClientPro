@@ -1,11 +1,10 @@
 {
-  "name": "ClientPro",
+  "name": "ClientPro Quản Lý Khách Hàng",
   "short_name": "ClientPro",
-  "theme_color": "#00346e",
-  "background_color": "#00346e",
+  "start_url": "./index.html",  
   "display": "standalone",
-  "start_url": "./",
-  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "icon-192.png",
@@ -15,11 +14,6 @@
     {
       "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "apple-touch-icon.png",
-      "sizes": "180x180",
       "type": "image/png"
     }
   ]
