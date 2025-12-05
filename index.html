@@ -41,9 +41,7 @@
         
         transition: background-color 0.2s ease, color 0.2s ease;
         -webkit-tap-highlight-color: transparent;
-    /* Sửa thành: */
-    overscroll-behavior: none;
-    /* Chặn cả kéo ngang và dọc của trình duyệt để xử lý mượt hơn */
+        overscroll-behavior-y: none;
         height: var(--app-height); width: 100vw; overflow: hidden; position: fixed;
     }
 
@@ -220,7 +218,7 @@
     
     <div id="add-modal" class="fixed inset-0 z-40 bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative modal-animate">
-            <button onclick="history.back()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <button onclick="closeModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button>
             <h3 class="font-bold text-lg mb-6" id="modal-title-cust" style="color: var(--text-main)">Thông tin khách hàng</h3>
             <input type="hidden" id="edit-cust-id">
             <div class="space-y-5">
@@ -323,7 +321,7 @@
     
     <div id="ref-price-modal" class="fixed inset-0 z-[100] bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative border border-white/10 modal-animate">
-            <button onclick="history.back()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <button onclick="closeRefModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
             <h3 class="font-bold text-lg mb-4 text-emerald-400 flex items-center gap-2"><i data-lucide="radar" class="w-5 h-5"></i> Tham khảo giá</h3>
             <div id="ref-results" class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar"></div>
         </div>
@@ -380,7 +378,7 @@
 <!-- END DONATE MODAL -->
     <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 transform -translate-y-40 opacity-0 pointer-events-none border border-white/20 z-[400]"><i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i><span id="toast-msg" class="font-medium text-sm whitespace-nowrap">Thông báo</span></div>
     
-    <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button onclick="history.back()" class="p-2 rounded-full hover:bg-white/10 transition"><i data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count" class="text-lg font-bold" style="color: var(--accent)">0</span></span></div><div class="flex gap-3"><button onclick="backupSelectedCustomers()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="download" class="w-4 h-4"></i> Xuất</button><button onclick="deleteSelectedCustomers()" class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
+    <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button onclick="toggleCustSelectionMode()" class="p-2 rounded-full hover:bg-white/10 transition"><i data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count" class="text-lg font-bold" style="color: var(--accent)">0</span></span></div><div class="flex gap-3"><button onclick="backupSelectedCustomers()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="download" class="w-4 h-4"></i> Xuất</button><button onclick="deleteSelectedCustomers()" class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
     <div id="selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2" style="color: var(--text-main)">Đã chọn: <span id="selection-count" class="text-blue-400 font-bold text-lg">0</span> ảnh</div><div class="flex gap-3"><button onclick="shareSelectedImages()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="share-2" class="w-4 h-4"></i> Gửi</button><button onclick="deleteSelectedImages()" class="bg-red-600/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-600/20 text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
     
     <div id="loader" class="fixed inset-0 z-[500] flex flex-col items-center justify-center p-6 text-center"><div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4" style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div><p id="loader-text" class="text-xs font-bold tracking-widest uppercase opacity-70" style="color: var(--text-main)">Loading...</p></div>
@@ -493,14 +491,14 @@
 
     <div id="screen-map" class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black">
         <div id="map-container"></div>
-        <button onclick="history.back()" class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
+        <button onclick="toggleMap()" class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
         <button onclick="locateMe()" class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
     </div>
 
     <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300" style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
         <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
     <div class="flex items-center justify-between mb-4">
-        <button onclick="history.back()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition" style="color: var(--text-main)">
+        <button onclick="closeFolder()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition" style="color: var(--text-main)">
             <i data-lucide="arrow-left" class="w-6 h-6"></i>
         </button>
         <div class="flex gap-2">
@@ -572,7 +570,7 @@
     </button>
 </div>
         </div> </div> <div id="screen-asset-gallery" class="app-container z-30 transform translate-x-full transition-transform duration-300" style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
-        <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full"><div class="flex items-center justify-between"><button onclick="history.back()" class="p-2 -ml-2 rounded-full hover:bg-white/10" style="color: var(--text-main)"><i data-lucide="arrow-left" class="w-6 h-6"></i></button><div class="flex items-center gap-3"><h2 id="gallery-asset-name" class="font-bold text-sm uppercase truncate max-w-[160px]" style="color: var(--text-main)">Chi tiết TSBĐ</h2><button onclick="toggleSelectionMode()" id="btn-select-mode-asset" class="px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-2 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub)"><i data-lucide="check-square" class="w-4 h-4"></i> Chọn</button></div></div><div class="flex gap-2 mt-3 text-xs justify-center w-full font-mono" style="color: var(--text-sub)"><span id="gallery-asset-val" class="px-3 py-1.5 rounded-lg border bg-black/20" style="border-color: var(--border-panel)">--</span><span id="gallery-asset-loan" class="px-3 py-1.5 rounded-lg border bg-blue-900/20 text-blue-400 border-blue-500/30">--</span></div></div>
+        <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full"><div class="flex items-center justify-between"><button onclick="closeAssetGallery()" class="p-2 -ml-2 rounded-full hover:bg-white/10" style="color: var(--text-main)"><i data-lucide="arrow-left" class="w-6 h-6"></i></button><div class="flex items-center gap-3"><h2 id="gallery-asset-name" class="font-bold text-sm uppercase truncate max-w-[160px]" style="color: var(--text-main)">Chi tiết TSBĐ</h2><button onclick="toggleSelectionMode()" id="btn-select-mode-asset" class="px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-2 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub)"><i data-lucide="check-square" class="w-4 h-4"></i> Chọn</button></div></div><div class="flex gap-2 mt-3 text-xs justify-center w-full font-mono" style="color: var(--text-sub)"><span id="gallery-asset-val" class="px-3 py-1.5 rounded-lg border bg-black/20" style="border-color: var(--border-panel)">--</span><span id="gallery-asset-loan" class="px-3 py-1.5 rounded-lg border bg-blue-900/20 text-blue-400 border-blue-500/30">--</span></div></div>
         <div id="asset-gallery-grid" class="scroll-area flex-1 img-grid-container content-start"></div>
         <div class="glass-panel border-t p-4 pb-8 flex flex-col gap-3 flex-none z-30" style="border-color: var(--border-panel)">
     
@@ -3090,7 +3088,7 @@ function viewSavedOcr(assetId) {
 
             <div class="flex gap-3 mt-2">
                 <button onclick="copyToClipboard('${rawData.replace(/\n/g, '\\n')}')" class="flex-1 py-3 rounded-xl font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition border border-purple-500/30">Copy Tất Cả</button>
-                <button onclick="history.back('.fixed').remove()" class="flex-1 py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
+                <button onclick="this.closest('.fixed').remove()" class="flex-1 py-3 rounded-xl font-bold bg-white/10 text-white hover:bg-white/20 transition">Đóng</button>
             </div>
         </div>
     `;
@@ -3476,90 +3474,197 @@ function renderRedBookInfo(info) { return ''; }
                 refreshing = true;
             });
         });
-    }
-/* --- BẮT ĐẦU CODE XỬ LÝ VUỐT ĐỂ BACK (SWIPE TO BACK) --- */
+  <script>
+/* --- HỆ THỐNG XỬ LÝ VUỐT BACK THÔNG MINH (AUTO-FIX V3) --- */
+(function() {
+    // Cờ hiệu: Báo cho App biết lệnh đóng này đến từ việc Vuốt/Back hay do người dùng bấm nút
+    let isBackNavigation = false;
 
-// 1. Hàm đẩy lịch sử khi mở màn hình mới
-function pushHistoryState(viewName) {
-    history.pushState({ view: viewName }, null, "#" + viewName);
-}
-
-// 2. Ghi đè các hàm mở màn hình để tự động lưu lịch sử
-// Lưu lại hàm gốc
-const originalOpenFolder = openFolder;
-const originalOpenAssetGallery = openAssetGallery;
-const originalToggleMap = toggleMap;
-const originalOpenLightbox = openLightbox;
-
-// Ghi đè hàm Mở Hồ Sơ
-openFolder = function(id) {
-    originalOpenFolder(id);
-    pushHistoryState('folder');
-}
-
-// Ghi đè hàm Mở Kho Ảnh TSBĐ
-openAssetGallery = function(id, name, idx) {
-    originalOpenAssetGallery(id, name, idx);
-    pushHistoryState('gallery');
-}
-
-// Ghi đè hàm Mở Map (Chỉ push khi mở, không push khi đóng)
-toggleMap = function() {
-    const mapScreen = document.getElementById('screen-map');
-    // Kiểm tra: Nếu đang ẩn (translate-x-full) nghĩa là sắp mở -> Push history
-    if (mapScreen.classList.contains('translate-x-full')) {
-        pushHistoryState('map');
-    }
-    originalToggleMap(); // Gọi hàm gốc để thực hiện mở/đóng
-}
-
-// Ghi đè hàm Mở Ảnh Phóng to (Lightbox)
-openLightbox = function(src, id, idx, list) {
-    originalOpenLightbox(src, id, idx, list);
-    pushHistoryState('lightbox');
-}
-
-// 3. BẮT SỰ KIỆN KHI NGƯỜI DÙNG VUỐT BACK (HOẶC NHẤN NÚT BACK CỨNG)
-window.addEventListener('popstate', function(event) {
-    // Ưu tiên đóng theo thứ tự: Lightbox -> QR -> Gallery -> Folder -> Map
-    
-    // Đóng Lightbox ảnh phóng to
-    if (!document.getElementById('lightbox').classList.contains('hidden')) {
-        closeLightbox();
-        return;
-    }
-    
-    // Đóng QR Modal
-    if (!document.getElementById('qr-modal').classList.contains('hidden')) {
-        closeQrScanner();
-        return;
+    // 1. Hàm lưu lịch sử
+    function pushState(key) {
+        history.pushState({ screen: key }, null, "#" + key);
     }
 
-    // Đóng Kho ảnh TSBĐ
-    if (!document.getElementById('screen-asset-gallery').classList.contains('translate-x-full')) {
-        // Gọi hàm đóng gốc (trong code anh là set class translate-x-full)
-        document.getElementById('screen-asset-gallery').classList.add('translate-x-full');
-        currentAssetId = null; isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
-        return;
-    }
+    // 2. DANH SÁCH CÁC HÀM CẦN GHI ĐÈ
+    // Logic: Nếu Mở -> Push History. Nếu Đóng -> Gọi Back() (chứ không đóng ngay).
 
-    // Đóng Hồ sơ khách hàng
-    if (!document.getElementById('screen-folder').classList.contains('translate-x-full')) {
-        // Gọi logic đóng folder như trong hàm closeFolder() của anh
-        document.getElementById('screen-folder').classList.add('translate-x-full');
-        currentCustomerId = null; 
-        loadCustomers(document.getElementById('search-input').value);
-        return;
-    }
+    // --- Nhóm A: Các Modal đơn giản (Chỉ có Mở và Đóng) ---
+    const modals = [
+        { open: 'openModal', close: 'closeModal', key: 'add-cust' },        // Thêm KH
+        { open: 'showRefModal', close: 'closeRefModal', key: 'ref-price' }, // Tham khảo giá
+        { open: 'openAssetModal', close: 'closeAssetModal', key: 'add-asset' }, // Thêm TSBĐ
+        { open: 'openQrScanner', close: 'closeQrScanner', key: 'qr-scan' }, // Quét QR
+        { open: 'openRedBookScanner', close: 'closeQrScanner', key: 'qr-red' } // Quét Bìa đỏ
+    ];
 
-    // Đóng Map
-    if (!document.getElementById('screen-map').classList.contains('translate-x-full')) {
-        document.getElementById('screen-map').classList.add('translate-x-full');
-        return;
-    }
-});
+    modals.forEach(m => {
+        const originalOpen = window[m.open];
+        const originalClose = window[m.close];
 
-/* --- KẾT THÚC CODE VUỐT BACK --- */
+        // Ghi đè hàm Mở
+        window[m.open] = function(...args) {
+            originalOpen.apply(this, args);
+            pushState(m.key);
+        };
+
+        // Ghi đè hàm Đóng
+        window[m.close] = function(...args) {
+            if (isBackNavigation) {
+                // Nếu lệnh đóng đến từ việc Vuốt -> Đóng thật
+                originalClose.apply(this, args);
+            } else {
+                // Nếu lệnh đóng đến từ việc bấm nút X -> Gọi lệnh Back để kích hoạt Vuốt
+                history.back();
+            }
+        };
+    });
+
+    // --- Nhóm B: Các màn hình Toggle (Bật/Tắt bằng 1 hàm) ---
+    // Bao gồm: Bản đồ (toggleMap), Chọn KH (toggleCustSelectionMode), Chọn Ảnh (toggleSelectionMode)
+    const toggles = [
+        { func: 'toggleMap', checkId: 'screen-map', checkClass: 'translate-x-full', key: 'map' },
+        { func: 'toggleCustSelectionMode', checkId: 'cust-selection-bar', checkClass: 'translate-y-full', key: 'select-cust' },
+        { func: 'toggleSelectionMode', checkId: 'selection-bar', checkClass: 'translate-y-full', key: 'select-img' }
+    ];
+
+    toggles.forEach(t => {
+        const originalToggle = window[t.func];
+        window[t.func] = function(...args) {
+            const el = document.getElementById(t.checkId);
+            // Kiểm tra xem đang Đóng hay Mở (dựa vào class ẩn)
+            const isCurrentlyClosed = el.classList.contains(t.checkClass);
+
+            if (isCurrentlyClosed) {
+                // Hành động MỞ -> Push History -> Mở thật
+                pushState(t.key);
+                originalToggle.apply(this, args);
+            } else {
+                // Hành động ĐÓNG
+                if (isBackNavigation) {
+                    originalToggle.apply(this, args); // Đóng thật
+                } else {
+                    history.back(); // Giả lập Back
+                }
+            }
+        };
+    });
+
+    // --- Nhóm C: Các màn hình Full (Hồ sơ, Gallery, Lightbox) ---
+    // Hồ sơ (Folder)
+    const _orgOpenFolder = window.openFolder;
+    const _orgCloseFolder = window.closeFolder;
+    window.openFolder = function(id) { _orgOpenFolder(id); pushState('folder'); };
+    window.closeFolder = function() { if(isBackNavigation) _orgCloseFolder(); else history.back(); };
+
+    // Kho ảnh (Gallery)
+    const _orgOpenGallery = window.openAssetGallery;
+    const _orgCloseGallery = window.closeAssetGallery;
+    window.openAssetGallery = function(id, name, idx) { _orgOpenGallery(id, name, idx); pushState('gallery'); };
+    window.closeAssetGallery = function() { if(isBackNavigation) _orgCloseGallery(); else history.back(); };
+
+    // Ảnh phóng to (Lightbox)
+    const _orgOpenLightbox = window.openLightbox;
+    const _orgCloseLightbox = window.closeLightbox;
+    window.openLightbox = function(s,i,x,l) { _orgOpenLightbox(s,i,x,l); pushState('lightbox'); };
+    window.closeLightbox = function() { if(isBackNavigation) _orgCloseLightbox(); else history.back(); };
+
+
+    // --- Nhóm D: Popup QR Bìa đỏ (Đặc biệt vì sinh ra động) ---
+    const _orgViewOcr = window.viewSavedOcr;
+    window.viewSavedOcr = function(id) {
+        _orgViewOcr(id);
+        pushState('ocr-info');
+        
+        // Tìm và chiếm quyền nút Đóng của Popup vừa sinh ra
+        setTimeout(() => {
+            const overlays = document.querySelectorAll('.fixed.inset-0.z-\\[300\\]');
+            if(overlays.length > 0) {
+                const popup = overlays[overlays.length-1];
+                // Tìm nút có chữ "Đóng" hoặc nút thứ 2
+                const btns = popup.querySelectorAll('button');
+                btns.forEach(btn => {
+                    if(btn.textContent.includes('Đóng') || btn.textContent.includes('Close')) {
+                        btn.onclick = function(e) {
+                            // Chặn hành động remove() cũ
+                            e.stopPropagation(); 
+                            history.back();
+                        }
+                    }
+                });
+            }
+        }, 100);
+    };
+
+
+    // 3. XỬ LÝ SỰ KIỆN VUỐT BACK (Trái tim của hệ thống)
+    window.addEventListener('popstate', function(event) {
+        // Bật cờ hiệu: "Đây là lệnh từ hệ thống, hãy đóng thật đi!"
+        isBackNavigation = true;
+
+        // Kiểm tra từng màn hình, cái nào đang mở thì đóng nó
+        // Ưu tiên theo thứ tự lớp phủ (Z-index cao đóng trước)
+
+        // 1. Lightbox
+        if (!document.getElementById('lightbox').classList.contains('hidden')) {
+            window.closeLightbox();
+        }
+        // 2. QR Scanner Modal
+        else if (!document.getElementById('qr-modal').classList.contains('hidden')) {
+            window.closeQrScanner();
+        }
+        // 3. Popup QR Bìa đỏ (Động)
+        else if (document.querySelector('.fixed.inset-0.z-\\[300\\]')) {
+            document.querySelector('.fixed.inset-0.z-\\[300\\]').remove();
+        }
+        // 4. Modal Thêm Mới
+        else if (!document.getElementById('add-modal').classList.contains('hidden')) {
+            window.closeModal();
+        }
+        // 5. Modal Tham Khảo Giá
+        else if (!document.getElementById('ref-price-modal').classList.contains('hidden')) {
+            window.closeRefModal();
+        }
+        // 6. Modal Thêm TSBĐ
+        else if (!document.getElementById('asset-modal').classList.contains('hidden')) {
+            window.closeAssetModal();
+        }
+        // 7. Thanh Chọn Khách
+        else if (!document.getElementById('cust-selection-bar').classList.contains('translate-y-full')) {
+            window.toggleCustSelectionMode();
+        }
+        // 8. Thanh Chọn Ảnh
+        else if (!document.getElementById('selection-bar').classList.contains('translate-y-full')) {
+            window.toggleSelectionMode();
+        }
+        // 9. Kho Ảnh TSBĐ
+        else if (!document.getElementById('screen-asset-gallery').classList.contains('translate-x-full')) {
+            window.closeAssetGallery();
+        }
+        // 10. Hồ sơ chi tiết
+        else if (!document.getElementById('screen-folder').classList.contains('translate-x-full')) {
+            window.closeFolder();
+        }
+        // 11. Bản đồ
+        else if (!document.getElementById('screen-map').classList.contains('translate-x-full')) {
+            window.toggleMap();
+        }
+
+        // Tắt cờ hiệu để trả lại trạng thái bình thường cho các nút bấm
+        setTimeout(() => { isBackNavigation = false; }, 50);
+    });
+
+    // 4. Tự động sửa nút Back ở màn hình Map và Gallery (nếu chưa sửa)
+    // Để đảm bảo nút mũi tên trên giao diện cũng hoạt động như nút Back vật lý
+    window.addEventListener('load', () => {
+        const mapBack = document.querySelector('#screen-map button.absolute.top-4');
+        if(mapBack) mapBack.setAttribute('onclick', 'history.back()');
+        
+        const galleryBack = document.querySelector('#screen-asset-gallery button.rounded-full');
+        if(galleryBack) galleryBack.setAttribute('onclick', 'history.back()');
+    });
+
+})();
+</script>
 </script>
 </body>
 </html>
