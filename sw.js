@@ -1,82 +1,72 @@
-const CACHE_NAME = 'clientpro-v1.0.1'; // Đã đổi lên v2 để reset cache
-const ASSETS_TO_CACHE = [
+// Đặt tên cache version mới để trình duyệt biết cần cập nhật
+const CACHE_NAME = 'clientpro-cache-v2';
+
+// Danh sách các file cần lưu vào bộ nhớ đệm
+const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
-  // Nếu bạn chưa có các file ảnh này, HÃY XÓA DÒNG TƯƠNG ỨNG ĐỂ TRÁNH LỖI
-  './icon-192.png', 
-  // './icon-512.png',      // Tạm comment nếu chưa có
-  // './apple-touch-icon.png', // Tạm comment nếu chưa có
-  // './splash-screen.png',    // Tạm comment nếu chưa có
+  './icon-192.png',
+  './icon-512.png',
   
-  // CACHE LUÔN CÁC THƯ VIỆN NGOÀI (QUAN TRỌNG)
-  'https://cdn.tailwindcss.com',
-  'https://unpkg.com/lucide@latest',
-  'https://unpkg.com/html5-qrcode',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js'
+  // Cập nhật đúng đường dẫn thư mục Css (Viết hoa chữ C)
+  './Css/style.css',
+  
+  // Cập nhật đúng đường dẫn thư mục Js (Viết hoa chữ J)
+  './Js/config.js',
+  './Js/database.js',
+  './Js/security.js',
+  './Js/drive.js',
+  './Js/map.js',
+  './Js/ui.js',
+  './Js/app.js',
+  
+  // Font Awesome (nếu muốn cache luôn)
+  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
 
-// Cài đặt
-self.addEventListener('install', event => {
-  self.skipWaiting(); // Kích hoạt ngay lập tức, không chờ
+// 1. Cài đặt Service Worker và Cache file
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      // Dùng return cache.addAll để bắt lỗi nếu file thiếu
-      return cache.addAll(ASSETS_TO_CACHE).catch(err => {
-         console.error('Lỗi khi cache files:', err);
-      });
-    })
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        console.log('Opened cache');
+        return cache.addAll(urlsToCache);
+      })
   );
+  // Ép SW mới kích hoạt ngay lập tức thay thế cái cũ
+  self.skipWaiting();
 });
 
-// Kích hoạt & Dọn dẹp cache cũ
-self.addEventListener('activate', event => {
+// 2. Kích hoạt và Xóa cache cũ
+self.addEventListener('activate', (event) => {
+  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.map(key => {
-          if (key !== CACHE_NAME) {
-            console.log('Xóa cache cũ:', key);
-            return caches.delete(key);
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheWhitelist.indexOf(cacheName) === -1) {
+            // Xóa cache cũ đi để nạp code mới
+            return caches.delete(cacheName);
           }
         })
-      )
-    ).then(() => self.clients.claim())
+      );
+    })
   );
+  self.clients.claim();
 });
 
-// Xử lý Fetch
-self.addEventListener('fetch', event => {
-  const request = event.request;
-  
-  // Bỏ qua các request POST hoặc chrome-extension (gây lỗi)
-  if (request.method !== 'GET' || !request.url.startsWith('http')) return;
-
-  // Chiến lược: Network First cho HTML (để luôn lấy code mới)
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-        return response;
-      }).catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
-  // Chiến lược: Cache First cho tài nguyên tĩnh (JS, CSS, Ảnh)
+// 3. Xử lý khi user mở App (Fetch strategy: Cache first, then Network)
+self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(request).then(cached => {
-      return cached || fetch(request).then(response => {
-        // Cho phép cache cả response từ CDN (opaque/cors)
-        if (response && response.status === 200) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+    caches.match(event.request)
+      .then((response) => {
+        // Nếu có trong cache thì dùng luôn (nhanh)
+        if (response) {
+          return response;
         }
-        return response;
-      });
-    })
+        // Nếu chưa có thì tải từ mạng
+        return fetch(event.request);
+      })
   );
 });
