@@ -1,5 +1,5 @@
 // ĐỔI TÊN CACHE ĐỂ ÉP CẬP NHẬT (Ví dụ: v3 -> v4)
-const CACHE_NAME = 'clientpro-cache-v4-fix-paths';
+const CACHE_NAME = 'clientpro-cache-v1.0';
 
 const urlsToCache = [
   './',
