@@ -1,58 +1,71 @@
-const CACHE_NAME = 'clientpro-v1.0.6';
+const CACHE_NAME = 'clientpro-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  // Các thư viện online mà App bạn đang dùng
-  'https://cdn.tailwindcss.com',
-  'https://unpkg.com/lucide@latest',
-  'https://unpkg.com/html5-qrcode',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap'
+  './apple-touch-icon.png',
+  './splash-screen.png'
 ];
 
-// 1. Cài đặt và lưu cache
-self.addEventListener('install', (event) => {
+// Cài đặt: lưu các file tĩnh vào cache
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('Đang cache dữ liệu...');
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS_TO_CACHE))
   );
-  self.skipWaiting();
 });
 
-// 2. Kích hoạt Service Worker
-self.addEventListener('activate', (event) => {
+// Kích hoạt: xoá cache cũ nếu phiên bản thay đổi
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.map(key => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
           }
         })
-      );
-    })
+      )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// 3. Xử lý khi mất mạng (Lấy từ Cache ra dùng)
-self.addEventListener('fetch', (event) => {
-  if (!event.request.url.startsWith('http')) return;
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      // Ưu tiên dùng cache nếu có
-      return cachedResponse || fetch(event.request).then((response) => {
+// Xử lý fetch
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  // Với các yêu cầu điều hướng (index.html): ưu tiên mạng, fallback cache khi offline
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          // cập nhật cache với phiên bản mới nhất của index.html
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put('./index.html', copy);
+          });
           return response;
-      }).catch(() => {
-          // Nếu mất mạng và không có cache, có thể trả về trang offline tùy chỉnh (nếu có)
-      });
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  // Các tài nguyên khác: Cache First
+  event.respondWith(
+    caches.match(request).then(cached => {
+      return (
+        cached ||
+        fetch(request).then(response => {
+          // lưu vào cache nếu là tài nguyên cùng nguồn
+          if (response && response.status === 200 && response.type === 'basic') {
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(request, response.clone());
+            });
+          }
+          return response;
+        })
+      );
     })
   );
 });
