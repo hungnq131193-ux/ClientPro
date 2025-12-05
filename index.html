@@ -3477,148 +3477,146 @@ function renderRedBookInfo(info) { return ''; }
             });
         });
     }
-/* --- BẮT ĐẦU CODE XỬ LÝ VUỐT BACK TOÀN DIỆN (FINAL VERSION) --- */
+<script>
+/* --- HỆ THỐNG ĐIỀU HƯỚNG THÔNG MINH (FIX ALL) --- */
+(function() {
+    // 1. Cấu hình danh sách các màn hình cần bắt sự kiện Back/Vuốt
+    // Priority: Thứ tự ưu tiên đóng (Cái nào hiện lên trên thì phải đóng trước)
+    const screens = [
+        { id: 'lightbox', check: (el) => !el.classList.contains('hidden'), close: () => closeLightbox() },
+        { id: 'qr-modal', check: (el) => !el.classList.contains('hidden'), close: () => closeQrScanner() },
+        { id: 'add-modal', check: (el) => !el.classList.contains('hidden'), close: () => closeModal() }, // Thêm mới KH
+        { id: 'ref-price-modal', check: (el) => !el.classList.contains('hidden'), close: () => closeRefModal() }, // Tham khảo giá
+        { id: 'asset-modal', check: (el) => !el.classList.contains('hidden'), close: () => closeAssetModal() }, // Thêm TSBĐ
+        { id: 'cust-selection-bar', check: (el) => !el.classList.contains('translate-y-full'), close: () => toggleCustSelectionMode() }, // Chọn KH
+        { id: 'selection-bar', check: (el) => !el.classList.contains('translate-y-full'), close: () => toggleSelectionMode() }, // Chọn Ảnh
+        { id: 'screen-map', check: (el) => !el.classList.contains('translate-x-full'), close: () => toggleMap() }, // Bản đồ
+        { id: 'screen-asset-gallery', check: (el) => !el.classList.contains('translate-x-full'), close: () => closeAssetGallery() }, // Kho ảnh TSBĐ
+        { id: 'screen-folder', check: (el) => !el.classList.contains('translate-x-full'), close: () => closeFolder() } // Hồ sơ chi tiết
+    ];
 
-// 1. Hàm hỗ trợ đẩy lịch sử
-function pushHistoryState(viewName) {
-    history.pushState({ view: viewName }, null, "#" + viewName);
-}
-
-// 2. Ghi đè các hàm MỞ để tự động lưu lịch sử
-// --- NHÓM 1: CÁC MÀN HÌNH CHÍNH ---
-const originalOpenFolder = openFolder;
-openFolder = function(id) { originalOpenFolder(id); pushHistoryState('folder'); }
-
-const originalOpenAssetGallery = openAssetGallery;
-openAssetGallery = function(id, name, idx) { originalOpenAssetGallery(id, name, idx); pushHistoryState('gallery'); }
-
-const originalToggleMap = toggleMap;
-toggleMap = function() {
-    const mapScreen = document.getElementById('screen-map');
-    // Chỉ push khi đang MỞ (từ ẩn sang hiện)
-    if (mapScreen.classList.contains('translate-x-full')) {
-        pushHistoryState('map');
+    // 2. Hàm đẩy lịch sử (Safe Push)
+    function pushState(key) {
+        history.pushState({ screen: key }, null, "");
     }
-    originalToggleMap();
-}
 
-const originalOpenLightbox = openLightbox;
-openLightbox = function(src, id, idx, list) { originalOpenLightbox(src, id, idx, list); pushHistoryState('lightbox'); }
+    // 3. Ghi đè an toàn các hàm MỞ để kích hoạt lịch sử
+    // Lưu lại hàm gốc
+    const _orgOpenFolder = window.openFolder;
+    const _orgOpenAssetGallery = window.openAssetGallery;
+    const _orgToggleMap = window.toggleMap;
+    const _orgOpenModal = window.openModal; // Thêm KH
+    const _orgShowRefModal = window.showRefModal; // Giá
+    const _orgOpenAssetModal = window.openAssetModal; // TSBĐ
+    const _orgOpenQr = window.openQrScanner;
+    const _orgOpenRedBook = window.openRedBookScanner;
+    const _orgToggleCustSelect = window.toggleCustSelectionMode;
 
-// --- NHÓM 2: CÁC MODAL ANH VỪA YÊU CẦU (Thêm Khách, Giá, QR, Chọn) ---
+    // Ghi đè để thêm Push State
+    window.openFolder = function(id) { _orgOpenFolder(id); pushState('folder'); };
+    window.openAssetGallery = function(id, name, idx) { _orgOpenAssetGallery(id, name, idx); pushState('gallery'); };
+    
+    // Map đặc biệt hơn vì dùng toggle
+    window.toggleMap = function() {
+        const isOpen = !document.getElementById('screen-map').classList.contains('translate-x-full');
+        if(!isOpen) pushState('map'); // Nếu đang đóng mà bấm mở -> Push
+        _orgToggleMap();
+    };
 
-// 2.1. Modal Khởi tạo hồ sơ
-const originalOpenModal = openModal;
-openModal = function() { originalOpenModal(); pushHistoryState('add-cust'); }
-// Ghi đè nút Đóng/X để nó gọi Back
-const originalCloseModal = closeModal;
-closeModal = function() { history.back(); }
+    window.openModal = function() { _orgOpenModal(); pushState('add'); };
+    window.showRefModal = function(res) { _orgShowRefModal(res); pushState('ref'); };
+    window.openAssetModal = function() { _orgOpenAssetModal(); pushState('asset'); };
+    
+    window.openQrScanner = function() { _orgOpenQr(); pushState('qr'); };
+    window.openRedBookScanner = function() { _orgOpenRedBook(); pushState('qr-red'); };
 
-// 2.2. Modal Tham khảo giá
-const originalShowRefModal = showRefModal;
-showRefModal = function(results) { originalShowRefModal(results); pushHistoryState('ref-price'); }
-const originalCloseRefModal = closeRefModal;
-closeRefModal = function() { history.back(); }
+    window.toggleCustSelectionMode = function() {
+        // Nếu chưa mở -> Mở -> Push
+        if(!window.isCustSelectionMode) pushState('select-cust');
+        _orgToggleCustSelect();
+    };
 
-// 2.3. Thanh Chọn Khách Hàng (Selection Bar)
-const originalToggleCust = toggleCustSelectionMode;
-toggleCustSelectionMode = function() {
-    // Nếu đang tắt -> Bấm để Mở -> Push state
-    if (!isCustSelectionMode) {
-        originalToggleCust();
-        pushHistoryState('selection');
-    } else {
-        // Nếu đang mở -> Bấm X -> Gọi Back
-        history.back();
-    }
-}
+    // Riêng Popup QR Bìa đỏ (Do anh tạo bằng innerHTML động nên phải xử lý riêng)
+    const _orgViewSavedOcr = window.viewSavedOcr;
+    window.viewSavedOcr = function(id) {
+        _orgViewSavedOcr(id);
+        pushState('ocr-view');
+        // Tìm nút Đóng trong popup vừa tạo để gán lệnh Back
+        setTimeout(() => {
+            const overlays = document.querySelectorAll('.fixed.inset-0.z-\\[300\\]');
+            if(overlays.length > 0) {
+                const popup = overlays[overlays.length-1];
+                const btns = popup.querySelectorAll('button');
+                // Nút Đóng thường là nút cuối cùng
+                if(btns.length > 0) {
+                    const closeBtn = btns[btns.length-1];
+                    // Thay đổi hành vi nút đóng thành Back
+                    closeBtn.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        history.back();
+                    };
+                }
+            }
+        }, 200);
+    };
 
-// 2.4. Popup QR Bìa đỏ (Dynamic HTML)
-const originalViewSavedOcr = viewSavedOcr;
-viewSavedOcr = function(assetId) {
-    originalViewSavedOcr(assetId); // Hiện popup
-    pushHistoryState('ocr-info');  // Lưu lịch sử
-
-    // Tìm và sửa nút "Đóng" trong popup vừa tạo
+    // 4. Tự động sửa các nút "X" có sẵn trong HTML
+    // Thay vì anh phải sửa HTML, đoạn này sẽ tự tìm nút X và bảo nó: "Đừng đóng ngay, hãy Back đi"
     setTimeout(() => {
-        // Tìm popup overlay (lớp phủ đen)
-        const overlays = document.querySelectorAll('.fixed.inset-0.z-\\[300\\]');
-        if (overlays.length > 0) {
-            const popup = overlays[overlays.length - 1];
-            // Tìm nút Đóng (thường là nút thứ 2 trong nhóm nút)
-            const closeBtn = popup.querySelectorAll('button')[1]; 
-            // Hoặc tìm nút chứa chữ "Đóng"
-            if (closeBtn && closeBtn.textContent.trim() === 'Đóng') {
-                closeBtn.onclick = function() { history.back(); };
+        // Map các nút đóng với ID modal tương ứng
+        const closeMap = [
+            { modal: 'add-modal', btnSelector: '#add-modal button.absolute' }, // Nút X thêm mới
+            { modal: 'ref-price-modal', btnSelector: '#ref-price-modal button.absolute' }, // Nút X giá
+            { modal: 'asset-modal', btnSelector: '#asset-modal button' } // Nút Hủy TSBĐ
+        ];
+
+        closeMap.forEach(item => {
+            const btn = document.querySelector(item.btnSelector);
+            if(btn) {
+                // Xóa onclick cũ trong HTML (clone node là cách nhanh nhất để xóa event inline)
+                const newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
+                // Gán lệnh mới
+                newBtn.onclick = function() { history.back(); };
+            }
+        });
+        
+        // Sửa nút Back ở màn hình Map và Gallery (nếu chưa sửa)
+        const mapBack = document.querySelector('#screen-map button.absolute.top-4');
+        if(mapBack) mapBack.onclick = function() { history.back(); };
+        
+        const galleryBack = document.querySelector('#screen-asset-gallery button.rounded-full');
+        if(galleryBack) galleryBack.onclick = function() { history.back(); };
+
+    }, 1000); // Chờ 1s để đảm bảo giao diện đã render xong
+
+    // 5. XỬ LÝ SỰ KIỆN BACK / VUỐT (QUAN TRỌNG NHẤT)
+    window.addEventListener('popstate', function(event) {
+        // Tìm xem cái gì đang mở (theo thứ tự ưu tiên) và đóng nó
+        for (let s of screens) {
+            const el = document.getElementById(s.id);
+            if (el && s.check(el)) {
+                // Riêng Popup QR Bìa đỏ động
+                if(s.id === 'qr-overlay') { 
+                    const o = document.querySelector('.fixed.inset-0.z-\\[300\\]');
+                    if(o) o.remove();
+                } else {
+                    s.close(); // Gọi hàm đóng gốc của anh
+                }
+                return; // Đã đóng 1 cái thì dừng, không đóng tiếp cái dưới
             }
         }
-    }, 100);
-}
+        
+        // Check riêng cho Popup QR Bìa đỏ (vì nó không có ID cố định)
+        const dynamicPopup = document.querySelector('.fixed.inset-0.z-\\[300\\]');
+        if(dynamicPopup) {
+            dynamicPopup.remove();
+        }
+    });
 
-// 3. XỬ LÝ SỰ KIỆN KHI NGƯỜI DÙNG VUỐT BACK (POPSTATE)
-// Hàm này sẽ tự động đóng cửa sổ đang mở tương ứng
-window.addEventListener('popstate', function(event) {
-    // Ưu tiên đóng các lớp phủ trên cùng trước (Z-index cao đến thấp)
-
-    // 1. Lightbox ảnh
-    if (!getEl('lightbox').classList.contains('hidden')) {
-        closeLightbox(); // Gọi hàm đóng gốc của lightbox (không gọi back nữa)
-        return;
-    }
-    
-    // 2. QR Scanner
-    if (!getEl('qr-modal').classList.contains('hidden')) {
-        closeQrScanner();
-        return;
-    }
-
-    // 3. Popup QR Bìa đỏ (Tìm div overlay và xóa)
-    const ocrPopup = document.querySelector('.fixed.inset-0.z-\\[300\\]');
-    if (ocrPopup) {
-        ocrPopup.remove();
-        return;
-    }
-
-    // 4. Modal Khởi tạo hồ sơ
-    if (!getEl('add-modal').classList.contains('hidden')) {
-        originalCloseModal(); // Gọi hàm gốc thực sự đóng
-        return;
-    }
-
-    // 5. Modal Tham khảo giá
-    if (!getEl('ref-price-modal').classList.contains('hidden')) {
-        originalCloseRefModal();
-        return;
-    }
-
-    // 6. Thanh Chọn Khách Hàng
-    if (!getEl('cust-selection-bar').classList.contains('translate-y-full')) {
-        originalToggleCust(); // Gọi hàm gốc để ẩn thanh này
-        return;
-    }
-
-    // 7. Kho Ảnh TSBĐ
-    if (!getEl('screen-asset-gallery').classList.contains('translate-x-full')) {
-        getEl('screen-asset-gallery').classList.add('translate-x-full');
-        currentAssetId = null; isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
-        return;
-    }
-
-    // 8. Hồ Sơ Khách Hàng
-    if (!getEl('screen-folder').classList.contains('translate-x-full')) {
-        getEl('screen-folder').classList.add('translate-x-full');
-        currentCustomerId = null; 
-        loadCustomers(getEl('search-input').value);
-        return;
-    }
-
-    // 9. Bản Đồ
-    if (!getEl('screen-map').classList.contains('translate-x-full')) {
-        getEl('screen-map').classList.add('translate-x-full');
-        return;
-    }
-});
-/* --- KẾT THÚC CODE VUỐT BACK --- */
+})();
+</script>
 </script>
 </body>
 </html>
