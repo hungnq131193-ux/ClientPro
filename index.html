@@ -2041,7 +2041,40 @@ async function capturePhoto() {
     // Lưu ảnh vào DB như cũ (hồ sơ / tài sản / bìa đỏ đều dùng chung)
     await saveImageToDB(rawBase64);
 }
-        function shareOpenedImage() { if(!currentImageBase64) return; fetch(currentImageBase64).then(res => res.blob()).then(blob => { if(navigator.canShare) navigator.share({files:[new File([blob], "evidence.jpg", {type:"image/jpeg"})]}); }); }
+        // --- HÀM XỬ LÝ CHO NÚT SHARE TRONG LIGHTBOX (Nút anh khoanh tròn) ---
+async function shareOpenedImage() {
+    // 1. Kiểm tra xem có đang mở ảnh không
+    if (!currentImageBase64) return;
+
+    try {
+        // 2. Chuyển đổi dữ liệu ảnh an toàn (Dùng hàm dataURLtoBlob có sẵn)
+        // Cách này KHÔNG dùng 'fetch', nên không bị chặn bởi CSP hay lỗi mạng
+        const blob = dataURLtoBlob(currentImageBase64);
+        
+        // 3. Tạo file ảo để chia sẻ
+        const file = new File([blob], `img_${Date.now()}.jpg`, { type: "image/jpeg" });
+
+        // 4. Cấu hình dữ liệu chia sẻ (Android yêu cầu phải có title/text)
+        const shareData = {
+            title: 'ClientPro Photo',
+            text: 'Ảnh từ ClientPro',
+            files: [file]
+        };
+
+        // 5. Kích hoạt tính năng chia sẻ của điện thoại
+        if (navigator.canShare && navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+        } else {
+            // Nếu điện thoại quá cũ không share được thì tự động tải ảnh về
+            const a = document.createElement('a');
+            a.href = currentImageBase64;
+            a.download = `img_${Date.now()}.jpg`;
+            a.click();
+        }
+    } catch (err) {
+        console.log("Người dùng hủy chia sẻ hoặc lỗi:", err);
+    }
+}
         function deleteOpenedImage() { if(confirm("Hủy chứng từ này?")) { db.transaction(['images'], 'readwrite').objectStore('images').delete(currentImageId).onsuccess = () => { closeLightbox(); if(currentAssetId && getEl('screen-asset-gallery').classList.contains('translate-x-full') === false) loadAssetImages(currentAssetId); else loadProfileImages(); }; } }
         function toggleMenu() { const m=getEl('settings-menu'); const o=getEl('menu-overlay'); if(m.classList.contains('hidden')){m.classList.remove('hidden');o.classList.remove('hidden'); setTimeout(()=>{m.classList.remove('scale-95','opacity-0');},10)}else{m.classList.add('scale-95','opacity-0'); setTimeout(()=>{m.classList.add('hidden');o.classList.add('hidden');},200)} }
         // ============================================================
