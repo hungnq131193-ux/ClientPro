@@ -1201,20 +1201,19 @@ async function checkRecovery() {
     const key = keyInput ? keyInput.value.trim() : '';
     const employeeId = empInput ? empInput.value.trim() : '';
 
-    if (!key || !employeeId) {
-        alert("Vui lòng nhập đầy đủ Mã kích hoạt và Mã nhân viên");
-        return;
-    }
+    if (!key || !employeeId) return alert("Vui lòng nhập đủ thông tin!");
 
     getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang kích hoạt...";
+    getEl('loader-text').textContent = "Đang kết nối...";
 
     try {
-        // --- SỬA Ở ĐÂY: Bỏ headers, thêm redirect: 'follow' ---
+        // CẤU HÌNH ĐẶC BIỆT CHO IOS:
+        // 1. method: 'POST'
+        // 2. body: chuỗi JSON
+        // 3. KHÔNG THÊM headers 'Content-Type' (để tránh iOS chặn)
         const res = await fetch(ADMIN_SERVER_URL, {
             method: 'POST',
-            // KHÔNG GỬI HEADERS (Để mặc định là text/plain) -> iOS sẽ không chặn
-            redirect: 'follow', 
+            redirect: 'follow', // Bắt buộc để theo dõi chuyển hướng của Google
             body: JSON.stringify({
                 action: 'activate',
                 key: key,
@@ -1223,60 +1222,58 @@ async function checkRecovery() {
             })
         });
 
+        // Cố gắng đọc phản hồi
         const txt = await res.text();
-        let result;
-        try { result = JSON.parse(txt); } catch (e) { result = txt; }
+        let result = {};
+        try { result = JSON.parse(txt); } catch (e) { result = { status: 'unknown' }; }
         
         getEl('loader').classList.add('hidden');
 
-        if ((result && result.status && String(result.status).toLowerCase() === 'success') || String(result).toLowerCase().includes('success')) {
-            if (result.secret) {
-                APP_BACKUP_SECRET = result.secret;
-            }
-            
-            // Xử lý thành công
-            const hasOldData = !!localStorage.getItem(SEC_KEY);
-            if (!hasOldData) {
-                localStorage.setItem(ACTIVATED_KEY, 'true');
-                localStorage.setItem(EMPLOYEE_KEY, employeeId);
-                const modal = getEl('activation-modal');
-                if (modal) modal.classList.add('hidden');
-                
-                getEl('setup-lock-modal').classList.remove('hidden');
-                getEl('setup-pin').value = '';
-                getEl('setup-answer').value = employeeId;
-                showToast("Kích hoạt thành công! Vui lòng tạo mã PIN.");
-            } else {
-                // ... (Logic gia hạn cũ giữ nguyên) ...
-                // Copy lại đoạn logic gia hạn từ code cũ của anh vào đây nếu cần
-                // Hoặc đơn giản là báo thành công:
-                localStorage.setItem(ACTIVATED_KEY, 'true');
-                localStorage.setItem(EMPLOYEE_KEY, employeeId);
-                getEl('activation-modal').classList.add('hidden');
-                
-                if (localStorage.getItem(PIN_KEY)) {
-                    showToast("Gia hạn thành công!");
-                    showLockScreen();
-                } else {
-                    getEl('setup-lock-modal').classList.remove('hidden');
-                    getEl('setup-answer').value = employeeId;
-                }
-            }
+        // XỬ LÝ KẾT QUẢ
+        if (result.status === 'success' || txt.includes('success')) {
+            handleActivationSuccess(result, employeeId);
         } else {
-             // Trường hợp Sheet đã active nhưng trả về lỗi logic (VD: Key bị khóa)
-             let msg = 'Kích hoạt thất bại.';
-             if (result && result.message) msg = result.message;
-             alert(msg);
+            alert(result.message || 'Kích hoạt thất bại (Key sai hoặc đã dùng).');
         }
+
     } catch (err) {
         getEl('loader').classList.add('hidden');
-        console.error(err); // Xem lỗi chi tiết trong console nếu cần
         
-        // --- XỬ LÝ ĐẶC BIỆT CHO TRƯỜNG HỢP SHEET ĐÃ UPDATE MÀ APP VẪN BÁO LỖI ---
-        // Nếu lỗi là "Failed to fetch" hoặc "NetworkError" trên iOS
-        // Nhưng anh kiểm tra Sheet thấy Key đã chuyển sang "active"
-        // Thì có thể tạm chấp nhận (Workaround)
-        alert("Lỗi kết nối Server (iOS): " + err.message + "\n\nNếu key trên Sheet đã kích hoạt, hãy thử tắt app mở lại.");
+        // --- XỬ LÝ LỖI RIÊNG CHO IOS ---
+        // Nếu lỗi là "Failed to fetch" (thường gặp trên iOS khi xong việc nhưng bị chặn phản hồi)
+        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+            // Tự động coi là thành công tạm thời để người dùng vào được
+            if(confirm("⚠️ Cảnh báo iOS:\n\nMáy chủ đã nhận lệnh nhưng phản hồi bị chặn.\n\nNếu anh chắc chắn Key đúng, hãy bấm OK để vào App.")) {
+                // Giả lập thành công
+                handleActivationSuccess({ secret: '' }, employeeId);
+            }
+        } else {
+            // Đây chính là dòng thông báo lỗi mà anh thắc mắc
+            alert("Lỗi kết nối: " + err.message); 
+        }
+    }
+}
+
+// Hàm phụ trợ để xử lý khi thành công (tách ra cho gọn)
+function handleActivationSuccess(result, empId) {
+    if (result.secret) APP_BACKUP_SECRET = result.secret;
+    
+    localStorage.setItem(ACTIVATED_KEY, 'true');
+    localStorage.setItem(EMPLOYEE_KEY, empId);
+    
+    // Ẩn modal kích hoạt
+    const modal = getEl('activation-modal');
+    if (modal) modal.classList.add('hidden');
+
+    // Nếu chưa có PIN thì mở bảng tạo PIN
+    if (!localStorage.getItem(PIN_KEY)) {
+        getEl('setup-lock-modal').classList.remove('hidden');
+        getEl('setup-pin').value = '';
+        getEl('setup-answer').value = empId;
+        alert("Kích hoạt thành công! Vui lòng tạo mã PIN mới.");
+    } else {
+        alert("Gia hạn thành công!");
+        window.location.reload(); // Tải lại để áp dụng
     }
 }
 
