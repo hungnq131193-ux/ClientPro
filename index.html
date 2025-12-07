@@ -1026,60 +1026,81 @@ async function renderMapMarkers() {
          */
         // --- HÀM CHECK BẢO MẬT MỚI (MỞ KHÓA SIÊU TỐC) ---
 async function checkSecurity() {
-    console.log("Đang kết nối Server lấy Key...");
+    console.log("--> Bắt đầu kết nối Server...");
     
     // 1. Kiểm tra thông tin định danh
     const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
     const activated = localStorage.getItem(ACTIVATED_KEY);
 
-    if (!activated || !storedEmp) {
-        // Nếu chưa kích hoạt thì không có gì để check
-        return false;
-    }
-
-    if (localStorage.getItem(PIN_KEY)) {
-        // Hiện màn hình khóa (nếu chưa hiện)
-        const lockScreen = getEl('screen-lock');
-        if (lockScreen && lockScreen.classList.contains('hidden')) {
-             showLockScreen();
-        }
-    }
+    // Nếu chưa kích hoạt thì coi như thất bại luôn
+    if (!activated || !storedEmp) return false;
 
     // 2. Gửi yêu cầu lên Server
     try {
         const query = `?action=check_status&employeeId=${encodeURIComponent(storedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-        
-        // Thêm timeout để không treo mãi
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
+        const targetUrl = ADMIN_SERVER_URL + query;
 
-        const res = await fetch(ADMIN_SERVER_URL + query, { signal: controller.signal });
+        // Tăng thời gian chờ lên 15 giây phòng mạng chậm
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const res = await fetch(targetUrl, { 
+            method: 'GET',
+            redirect: 'follow', // Quan trọng để Google Script chuyển hướng đúng
+            signal: controller.signal 
+        });
         clearTimeout(timeoutId);
 
-        const txt = await res.text();
-        let result = JSON.parse(txt);
+        if (!res.ok) {
+            alert(`Lỗi HTTP Server: ${res.status} ${res.statusText}`);
+            return false;
+        }
 
+        const txt = await res.text();
+        console.log("Server trả về:", txt); // Xem trong Console nếu cần
+
+        // Kiểm tra xem Server có trả về trang đăng nhập Google (HTML) thay vì JSON không
+        if (txt.trim().startsWith('<')) {
+            alert("LỖI QUYỀN TRUY CẬP!\n\nGoogle Script đang trả về trang Web (HTML) chứ không phải dữ liệu.\n\nNguyên nhân: Anh chưa chọn 'Who has access' là 'Anyone' (Bất kỳ ai) khi Deploy.\n\nHãy Deploy lại ngay!");
+            return false;
+        }
+
+        let result;
+        try {
+            result = JSON.parse(txt);
+        } catch (e) {
+            alert("Lỗi dữ liệu Server:\n" + txt.substring(0, 100) + "...");
+            return false;
+        }
+
+        // Xử lý kết quả logic
         if (result.status === 'locked') {
-            alert("Tài khoản bị khóa!");
+            alert("Tài khoản 'Hungnq14' đã bị khóa trên Server!");
             localStorage.clear();
             window.location.reload();
             return false;
         }
 
         if (result.secret) {
-            console.log("✅ Đã nhận Key thành công!");
-            APP_BACKUP_SECRET = result.secret; // Lưu vào RAM
+            // LẤY ĐƯỢC KEY THÀNH CÔNG!
+            APP_BACKUP_SECRET = result.secret; 
             if (!masterKey) masterKey = result.secret;
-            return true; // Báo cáo thành công
+            // Không lưu vào localStorage để đảm bảo Zero Trust
+            return true; 
+        } else {
+            alert("Server không trả về Secret Key!\nKiểm tra lại.");
+            return false;
         }
-
     } catch (err) {
-        console.error("Lỗi lấy Key:", err);
-        return false; // Báo cáo thất bại
+        console.error(err);
+        // Chỉ báo lỗi nếu không phải do user hủy
+        if (err.name !== 'AbortError') {
+             // Không alert ở đây nữa để tránh spam, hàm restore/backup sẽ lo việc báo lỗi
+        }
+        return false;
     }
-    
-    return false;
 }
+
         function openSecuritySetup() {
             // Mở giao diện thiết lập bảo mật mới. Không điền sẵn mã nhân viên vì dữ liệu trong localStorage đã được mã hóa.
             toggleMenu();
