@@ -2638,33 +2638,35 @@ function renderAssetDriveStatus(url) {
 }
 
 // 2. Logic tìm kiếm (Sử dụng Script cá nhân USER_SCRIPT_KEY)
-// --- SỬA LỖI 1: HÀM TÌM FOLDER TÀI SẢN (BẢN AN TOÀN - CHỐNG TREO) ---
+// --- FIX TOÀN DIỆN: TÌM KIẾM + GIẢI MÃ + NHẬP TAY (TÀI SẢN) ---
 async function reconnectAssetDriveFolder() {
+    // 1. Kiểm tra cấu hình
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) toggleMenu();
+        if (confirm("Chưa có Link Script! Vào cài đặt ngay?")) toggleMenu();
         return;
     }
     
-    // Kiểm tra dữ liệu đầu vào
     if (!currentCustomerData || !currentAssetId) return;
     const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
     if (assetIndex === -1) return;
 
-    // Bật Loading
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang tìm TSBĐ...";
+    // 2. Chuẩn bị dữ liệu (QUAN TRỌNG: PHẢI GIẢI MÃ TRƯỚC KHI TÌM)
+    // Lấy tên Tiếng Việt chuẩn để tìm trên Drive
+    const custNameRaw = decryptText(currentCustomerData.name) || currentCustomerData.name;
+    const assetNameRaw = decryptText(currentCustomerData.assets[assetIndex].name) || 'Tài sản';
     
-    // An toàn: Đảm bảo tên không bị null/undefined gây lỗi script
-    const custName = currentCustomerData.name || 'Unknown';
-    const assetName = currentCustomerData.assets[assetIndex].name || 'Asset';
-    const folderName = `${custName} - TSBĐ: ${assetName}`;
+    // Tên folder cần tìm: "Nguyễn Văn A - TSBĐ: Ô tô..."
+    const folderName = `${custNameRaw} - TSBĐ: ${assetNameRaw}`;
+
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang tìm: " + assetNameRaw;
 
     try {
-        // Gửi yêu cầu tìm kiếm
+        // 3. Gửi lệnh tìm kiếm
         const response = await fetch(userUrl, {
             method: "POST",
-            redirect: "follow", // Fix lỗi mạng
+            redirect: "follow",
             headers: { "Content-Type": "text/plain;charset=utf-8" },
             body: JSON.stringify({ action: 'search', folderName: folderName })
         });
@@ -2672,85 +2674,90 @@ async function reconnectAssetDriveFolder() {
         const result = await response.json();
 
         if (result.status === 'found') {
-            // Tìm thấy -> Bắt đầu lưu vào DB
-            const encLink = encryptText(result.url); 
-            
-            const tx = db.transaction(['customers'], 'readwrite');
-            const store = tx.objectStore('customers');
-            
-            // Xử lý lỗi DB (QUAN TRỌNG ĐỂ KHÔNG TREO)
-            tx.onerror = (err) => {
-                console.error("Lỗi DB:", err);
-                getEl('loader').classList.add('hidden'); // Tắt loader nếu lỗi DB
-                alert("Lỗi khi lưu dữ liệu vào máy!");
-            };
-
-            store.get(currentCustomerData.id).onsuccess = (e) => {
-                let dbRecord = e.target.result;
-                if (dbRecord && dbRecord.assets && dbRecord.assets[assetIndex]) {
-                    dbRecord.assets[assetIndex].driveLink = encLink;
-                    store.put(dbRecord);
-                }
-            };
-
-            // Lưu thành công
-            tx.oncomplete = () => {
-                currentCustomerData.assets[assetIndex].driveLink = result.url;
-                renderAssetDriveStatus(result.url);
-                
-                // Tắt loader và thông báo
-                getEl('loader').classList.add('hidden');
-                showToast("Đã kết nối lại!");
-            };
+            // ==> TRƯỜNG HỢP 1: TÌM THẤY TỰ ĐỘNG
+            updateAssetLink(assetIndex, result.url);
         } else {
-            // Không tìm thấy
+            // ==> TRƯỜNG HỢP 2: KHÔNG TÌM THẤY -> HỎI NHẬP TAY
             getEl('loader').classList.add('hidden');
-            alert("Không tìm thấy folder trên Drive:\n" + folderName);
+            if(confirm(`Không tìm thấy folder tự động.\n\nTên tìm: ${folderName}\n\nBạn có muốn DÁN LINK thủ công không?`)) {
+                manualInputAssetLink(assetIndex);
+            }
         }
     } catch (err) {
-        // Lỗi mạng hoặc lỗi Script
+        // ==> TRƯỜNG HỢP 3: LỖI MẠNG -> HỎI NHẬP TAY
         getEl('loader').classList.add('hidden');
-        console.error(err);
-        alert("Lỗi kết nối: " + err.message);
+        if(confirm(`Lỗi kết nối (${err.message}).\n\nBạn có muốn DÁN LINK thủ công để dùng luôn không?`)) {
+            manualInputAssetLink(assetIndex);
+        }
     }
 }
-// --- TÍNH NĂNG TÌM LẠI FOLDER THẤT LẠC ---
-// --- SỬA LỖI 2: HÀM TÌM FOLDER HỒ SƠ KHÁCH HÀNG ---
+
+// Hàm phụ: Nhập link tài sản thủ công
+function manualInputAssetLink(index) {
+    const link = prompt("Dán Link Folder Google Drive của tài sản này vào đây:");
+    if (link && link.includes("drive.google.com")) {
+        updateAssetLink(index, link);
+    } else if (link) {
+        alert("Link không hợp lệ! Phải là link Google Drive.");
+    }
+}
+
+// Hàm phụ: Lưu link vào DB
+function updateAssetLink(index, url) {
+    const encLink = encryptText(url);
+    const tx = db.transaction(['customers'], 'readwrite');
+    const store = tx.objectStore('customers');
+    
+    store.get(currentCustomerData.id).onsuccess = (e) => {
+        let dbRecord = e.target.result;
+        if (dbRecord && dbRecord.assets && dbRecord.assets[index]) {
+            dbRecord.assets[index].driveLink = encLink;
+            store.put(dbRecord);
+        }
+    };
+    
+    tx.oncomplete = () => {
+        currentCustomerData.assets[index].driveLink = url;
+        getEl('loader').classList.add('hidden');
+        renderAssetDriveStatus(url);
+        showToast("Đã cập nhật Link Folder!");
+    };
+}
+
+// --- FIX TOÀN DIỆN: TÌM KIẾM + GIẢI MÃ + NHẬP TAY (HỒ SƠ KH) ---
 async function reconnectDriveFolder() {
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (confirm("Chưa cấu hình Script! Vào cài đặt ngay?")) toggleMenu();
+        if (confirm("Chưa có Link Script! Vào cài đặt ngay?")) toggleMenu();
         return;
     }
     if (!currentCustomerData) return;
 
     getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang tìm trên Drive...";
+    getEl('loader-text').textContent = "Đang quét Drive...";
 
-    // --- SỬA LỖI LOGIC TÊN: Lấy trực tiếp, KHÔNG giải mã lại ---
-    const name = currentCustomerData.name;
-    const phone = currentCustomerData.phone;
-    const cccd = currentCustomerData.cccd;
+    // 1. Giải mã dữ liệu để lấy tên gốc
+    const name = decryptText(currentCustomerData.name) || currentCustomerData.name;
+    const phone = decryptText(currentCustomerData.phone) || currentCustomerData.phone;
+    const cccd = decryptText(currentCustomerData.cccd) || currentCustomerData.cccd;
 
+    // 2. Tạo danh sách các tên có thể xảy ra (Cũ & Mới)
     const possibleNames = [];
-    // Ưu tiên 1: Tên - CCCD
-    if (cccd) possibleNames.push(`${name} - ${cccd}`);
-    // Ưu tiên 2: Tên - SĐT
-    if (phone) possibleNames.push(`${name} - ${phone}`);
-    // Ưu tiên 3: Chỉ tìm theo Tên (Phòng trường hợp folder cũ đặt đơn giản)
-    possibleNames.push(`${name}`);
+    if (cccd) possibleNames.push(`${name} - ${cccd}`); // Chuẩn mới
+    if (phone) possibleNames.push(`${name} - ${phone}`); // Chuẩn dự phòng
+    possibleNames.push(`${name}`); // Chuẩn cũ (Chỉ có tên)
 
     let foundUrl = null;
 
-    // Thử tìm lần lượt các tên
+    // 3. Chạy vòng lặp tìm kiếm
     for (const folderName of possibleNames) {
         try {
-            getEl('loader-text').textContent = `Đang tìm: ${folderName}...`;
+            // Chỉ cập nhật text loading nếu chưa tìm thấy
+            if(!foundUrl) getEl('loader-text').textContent = `Tìm: ${folderName}...`;
             
-            // --- QUAN TRỌNG: Thêm redirect và headers ---
             const response = await fetch(userUrl, {
                 method: "POST",
-                redirect: "follow", // Fix lỗi mạng
+                redirect: "follow",
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
                 body: JSON.stringify({ action: 'search', folderName: folderName })
             });
@@ -2759,32 +2766,46 @@ async function reconnectDriveFolder() {
                 foundUrl = result.url;
                 break; // Tìm thấy thì dừng ngay
             }
-        } catch (e) {
-            console.warn("Lỗi tìm kiếm:", e);
-        }
+        } catch (e) { console.warn("Lỗi tìm:", e); }
     }
 
+    // 4. Xử lý kết quả
     if (foundUrl) {
-        // Cập nhật an toàn vào Database (đảm bảo vẫn giữ mã hóa)
-        const tx = db.transaction(['customers'], 'readwrite');
-        const store = tx.objectStore('customers');
-        store.get(currentCustomerData.id).onsuccess = (e) => {
-            let dbRecord = e.target.result;
-            if (dbRecord) {
-                dbRecord.driveLink = encryptText(foundUrl); // Mã hóa link
-                store.put(dbRecord);
-            }
-        };
-        tx.oncomplete = () => {
-            currentCustomerData.driveLink = foundUrl; // Cập nhật hiển thị
-            getEl('loader').classList.add('hidden');
-            renderDriveStatus(foundUrl);
-            showToast("Đã kết nối lại thành công!");
-        };
+        updateProfileLink(foundUrl);
     } else {
         getEl('loader').classList.add('hidden');
-        alert("Không tìm thấy folder nào khớp với Tên, CCCD hoặc SĐT.");
+        // Không tìm thấy -> Cho nhập tay
+        if(confirm(`Không tìm thấy folder tự động (đã thử 3 kiểu tên).\n\nBạn có muốn DÁN LINK thủ công không?`)) {
+            const link = prompt("Mở Drive App, copy link folder khách này và dán vào đây:");
+            if (link && link.includes("drive.google.com")) {
+                updateProfileLink(link);
+            } else if(link) {
+                alert("Link không đúng định dạng!");
+            }
+        }
     }
+}
+
+// Hàm phụ: Lưu link hồ sơ
+function updateProfileLink(url) {
+    const encLink = encryptText(url);
+    const tx = db.transaction(['customers'], 'readwrite');
+    const store = tx.objectStore('customers');
+    
+    store.get(currentCustomerData.id).onsuccess = (e) => {
+        let dbRecord = e.target.result;
+        if (dbRecord) {
+            dbRecord.driveLink = encLink;
+            store.put(dbRecord);
+        }
+    };
+    
+    tx.oncomplete = () => {
+        currentCustomerData.driveLink = url;
+        getEl('loader').classList.add('hidden');
+        renderDriveStatus(url);
+        showToast("Kết nối thành công!");
+    };
 }
 
 // ============================================================
