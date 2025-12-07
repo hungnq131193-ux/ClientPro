@@ -1026,56 +1026,59 @@ async function renderMapMarkers() {
          */
         // --- HÀM CHECK BẢO MẬT MỚI (MỞ KHÓA SIÊU TỐC) ---
 async function checkSecurity() {
-    // 1. Lấy thông tin định danh đã lưu trong máy (Key Kích hoạt / Mã NV)
-    const storedEmp = localStorage.getItem(EMPLOYEE_KEY); // Mã nhân viên
+    console.log("Đang kết nối Server lấy Key...");
+    
+    // 1. Kiểm tra thông tin định danh
+    const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
     const activated = localStorage.getItem(ACTIVATED_KEY);
 
-    // Nếu chưa kích hoạt bao giờ -> Dừng
     if (!activated || !storedEmp) {
-        // Hiện bảng nhập key kích hoạt
-        const modal = getEl('activation-modal');
-        if (modal) modal.classList.remove('hidden');
-        return;
+        // Nếu chưa kích hoạt thì không có gì để check
+        return false;
     }
 
-    // Nếu đã kích hoạt -> Hiện màn hình khóa PIN ngay cho người dùng đỡ đợi
-    // (Lúc này Key giải mã chưa về, nhưng cứ cho nhập PIN)
     if (localStorage.getItem(PIN_KEY)) {
-        showLockScreen();
+        // Hiện màn hình khóa (nếu chưa hiện)
+        const lockScreen = getEl('screen-lock');
+        if (lockScreen && lockScreen.classList.contains('hidden')) {
+             showLockScreen();
+        }
     }
 
-    // 2. Gửi yêu cầu lên Server (Âm thầm)
+    // 2. Gửi yêu cầu lên Server
     try {
-        // URL Web App Google Script của anh
         const query = `?action=check_status&employeeId=${encodeURIComponent(storedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
         
-        const res = await fetch(ADMIN_SERVER_URL + query);
+        // Thêm timeout để không treo mãi
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
+
+        const res = await fetch(ADMIN_SERVER_URL + query, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
         const txt = await res.text();
         let result = JSON.parse(txt);
 
         if (result.status === 'locked') {
-            // TRƯỜNG HỢP: Anh đã khóa từ xa
-            alert("Tài khoản này đã bị khóa quyền truy cập!");
-            localStorage.clear(); // Xóa sạch dữ liệu cục bộ
+            alert("Tài khoản bị khóa!");
+            localStorage.clear();
             window.location.reload();
-            return;
+            return false;
         }
 
-        // TRƯỜNG HỢP: Hợp lệ -> Server trả về 'secret'
         if (result.secret) {
-            console.log("Đã nhận Key bảo mật từ Server");
-            APP_BACKUP_SECRET = result.secret; // CHỈ LƯU VÀO RAM
-            
-            // Nếu anh dùng biến masterKey cho các việc khác thì gán luôn
-            if (!masterKey) masterKey = result.secret; 
+            console.log("✅ Đã nhận Key thành công!");
+            APP_BACKUP_SECRET = result.secret; // Lưu vào RAM
+            if (!masterKey) masterKey = result.secret;
+            return true; // Báo cáo thành công
         }
 
     } catch (err) {
-        console.log("Không kết nối được Server bảo mật: " + err.message);
-        // Ở đây là điểm yếu của mô hình này: 
-        // Nếu không có mạng -> Không có Key -> Không giải mã được file backup MỚI.
-        // Nhưng file backup CŨ (chưa mã hóa) thì hàm restoreData bên trên vẫn cho qua.
+        console.error("Lỗi lấy Key:", err);
+        return false; // Báo cáo thất bại
     }
+    
+    return false;
 }
         function openSecuritySetup() {
             // Mở giao diện thiết lập bảo mật mới. Không điền sẵn mã nhân viên vì dữ liệu trong localStorage đã được mã hóa.
@@ -2036,32 +2039,32 @@ async function shareOpenedImage() {
 }
         function deleteOpenedImage() { if(confirm("Hủy chứng từ này?")) { db.transaction(['images'], 'readwrite').objectStore('images').delete(currentImageId).onsuccess = () => { closeLightbox(); if(currentAssetId && getEl('screen-asset-gallery').classList.contains('translate-x-full') === false) loadAssetImages(currentAssetId); else loadProfileImages(); }; } }
         function toggleMenu() { const m=getEl('settings-menu'); const o=getEl('menu-overlay'); if(m.classList.contains('hidden')){m.classList.remove('hidden');o.classList.remove('hidden'); setTimeout(()=>{m.classList.remove('scale-95','opacity-0');},10)}else{m.classList.add('scale-95','opacity-0'); setTimeout(()=>{m.classList.add('hidden');o.classList.add('hidden');},200)} }
-        // ============================================================
-// ============================================================
-// BỘ HÀM KẾT NỐI GOOGLE DRIVE (ĐÃ FIX LỖI CORS & MOBILE)
-// ============================================================
-
-// 1. HÀM UPLOAD ẢNH HỒ SƠ (Profile)
-
-// 2. HÀM UPLOAD ẢNH TÀI SẢN (Asset)
-
-// 3. HÀM TÌM LẠI FOLDER HỒ SƠ (CÓ NHẬP TAY)
-
-// 4. HÀM TÌM LẠI FOLDER TÀI SẢN (CÓ NHẬP TAY)
-
-// HÀM BACKUP MỚI (CHỈ LƯU THÔNG TIN - LOẠI BỎ ẢNH & LINK)
 // ============================================================
 async function backupData() { 
-    if (!APP_BACKUP_SECRET) {
-        alert("BẢO MẬT: Không thể xuất file khi đang Offline hoặc chưa xác thực với Server.\n\nVui lòng kết nối mạng và mở lại App để hệ thống tải khóa bảo mật.");
-        return;
-    }
-    // Đóng menu và hiển thị loader
+    // Đóng menu
     toggleMenu(); 
+
+    // --- LOGIC MỚI: TỰ ĐỘNG LẤY KEY NẾU CHƯA CÓ ---
+    if (!APP_BACKUP_SECRET) {
+        getEl('loader').classList.remove('hidden');
+        getEl('loader-text').textContent = "Đang xin cấp quyền Backup...";
+        
+        // Gọi hàm checkSecurity để lấy Key về
+        const success = await checkSecurity();
+        
+        if (!success) {
+            getEl('loader').classList.add('hidden');
+            alert("LỖI BẢO MẬT: Server từ chối cấp Key hoặc lỗi mạng.\n\nKhông thể mã hóa file backup nếu thiếu Key này.");
+            return;
+        }
+    }
+
+    // Đến đây là chắc chắn đã có APP_BACKUP_SECRET
     getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đóng gói (Bảo mật)...";
+    getEl('loader-text').textContent = "Đang đóng gói & Mã hóa...";
+    
     try {
-        // Đọc toàn bộ khách hàng từ IndexedDB
+        // Đọc dữ liệu từ IndexedDB
         const customers = await new Promise((resolve, reject) => {
             const tx = db.transaction(['customers'], 'readonly');
             const store = tx.objectStore('customers');
@@ -2070,72 +2073,87 @@ async function backupData() {
             req.onerror = (e) => reject(e);
         });
 
-        // Chuẩn hoá dữ liệu: giải mã các trường cần thiết và loại bỏ driveLink
+        // Hàm helper: Giải mã tạm thời để chuẩn hóa (nếu đang lưu mã hóa trong DB)
+        // Lưu ý: Lúc backup ta cần đưa về dạng object chuẩn, sau đó mã hóa cả cục to
         const cleanCustomers = customers.map((c) => {
+            // Clone object
             const cust = JSON.parse(JSON.stringify(c));
-            // Giải mã các trường văn bản
-            cust.name = decryptText(cust.name);
-            cust.phone = decryptText(cust.phone);
-            cust.cccd = decryptText(cust.cccd);
-            // Loại bỏ liên kết Drive ở cấp khách hàng
+            
+            // Vì ta đang backup "nguyên cục" đã mã hóa trong DB, 
+            // nên ta có thể giữ nguyên trạng thái (đã mã hóa từng trường) 
+            // hoặc giải mã ra để xem (tùy nhu cầu). 
+            // Ở đây TỐT NHẤT là giữ nguyên dữ liệu thô trong DB để backup nhanh nhất.
+            // Chỉ cần xóa trường driveLink không cần thiết.
             cust.driveLink = null;
 
             if (cust.assets && Array.isArray(cust.assets)) {
                 cust.assets = cust.assets.map((a) => {
-                    const asset = JSON.parse(JSON.stringify(a));
-                    asset.name = decryptText(asset.name);
-                    asset.link = decryptText(asset.link);
-                    asset.valuation = decryptText(asset.valuation);
-                    asset.loanValue = decryptText(asset.loanValue);
-                    asset.area = decryptText(asset.area);
-                    asset.width = decryptText(asset.width);
-                    asset.onland = decryptText(asset.onland);
-                    asset.year = decryptText(asset.year);
-                    asset.ocrData = decryptText(asset.ocrData);
-                    // Loại bỏ liên kết Drive của tài sản
-                    asset.driveLink = null;
-                    return asset;
+                    a.driveLink = null;
+                    return a;
                 });
             }
             return cust;
         });
 
-        // Đóng gói dữ liệu xuất
+        // Lấy ảnh (nếu cần, nhưng thường backup file json thì bỏ ảnh cho nhẹ)
+        // Trong code cũ anh đang để images: [] (rỗng) -> OK
+        
         const dataToExport = {
             v: 1.0,
             customers: cleanCustomers,
-            images: [] // bỏ ảnh để giảm kích thước backup
+            images: [] 
         };
 
-        // Mã hóa toàn bộ dữ liệu bằng khóa bí mật
+        // --- MÃ HÓA TOÀN BỘ FILE BACKUP BẰNG KEY SERVER ---
+        // Đây là lớp bảo vệ thứ 2: Mã hóa cả file JSON
         const encrypted = CryptoJS.AES.encrypt(JSON.stringify(dataToExport), APP_BACKUP_SECRET).toString();
 
-        // Tạo file chứa dữ liệu đã mã hóa
+        // Tạo file
         const blob = new Blob([encrypted], {type: 'application/json'});
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `ClientPro_Backup_${Date.now()}.cpro`;
+        // Đặt tên file có ngày tháng
+        const date = new Date();
+        const dateStr = `${date.getDate()}${date.getMonth()+1}_${date.getHours()}${date.getMinutes()}`;
+        a.download = `ClientPro_Backup_${dateStr}.cpro`; // Đuôi .cpro cho chuyên nghiệp
         a.click();
 
-        showToast("Đã xuất file");
+        showToast("✅ Đã xuất file Backup an toàn");
     } catch(err) {
         console.error(err);
-        alert("Lỗi xuất file");
+        alert("Lỗi xuất file: " + err.message);
     } finally {
-        // Ẩn loader trong mọi trường hợp
         getEl('loader').classList.add('hidden');
     }
 }
-function restoreData(input) { 
+async function restoreData(input) { 
+    // Đóng menu cho gọn
     toggleMenu(); 
+    
     const f = input.files && input.files[0]; 
     if (!f) return;
     
-    // Reset input để chọn lại được file nếu cần
     const resetInput = () => { try { input.value = ''; } catch(e){} };
 
+    // --- LOGIC MỚI: KIỂM TRA KEY TRƯỚC KHI ĐỌC FILE ---
+    if (!APP_BACKUP_SECRET) {
+        getEl('loader').classList.remove('hidden');
+        getEl('loader-text').textContent = "Đang kết nối Server lấy Key...";
+        
+        // Gọi hàm checkSecurity và ĐỢI nó chạy xong
+        const success = await checkSecurity();
+        
+        if (!success) {
+            getEl('loader').classList.add('hidden');
+            alert("LỖI KẾT NỐI: Không lấy được Key bảo mật từ Server.\n\n- Kiểm tra mạng Internet.\n- Đảm bảo Google Script đã được Deploy lại.\n- Mã nhân viên: " + localStorage.getItem(EMPLOYEE_KEY));
+            resetInput();
+            return; // Dừng luôn, không đọc file nữa
+        }
+    }
+
+    // Nếu code chạy đến đây nghĩa là đã có APP_BACKUP_SECRET
     getEl('loader').classList.remove('hidden'); 
-    getEl('loader-text').textContent = "Đang phân tích dữ liệu...";
+    getEl('loader-text').textContent = "Đang giải mã dữ liệu...";
     
     const r = new FileReader(); 
     r.onload = async (e) => { 
@@ -2144,69 +2162,45 @@ function restoreData(input) {
             let data = null;
             let isOldFile = false;
 
-            // --- BƯỚC 1: KIỂM TRA ĐỊNH DẠNG FILE ---
-            
-            // Thử đọc như JSON thường (File cũ chưa mã hóa)
+            // 1. Thử đọc như file cũ (JSON thường)
             try {
-                // Nếu file bắt đầu bằng { hoặc [ thì khả năng cao là JSON thường
                 if (rawContent.trim().startsWith('{') || rawContent.trim().startsWith('[')) {
                     data = JSON.parse(rawContent);
-                    isOldFile = true; // Đánh dấu đây là file cũ
-                    console.log("Phát hiện file backup cũ (không mã hóa).");
+                    isOldFile = true;
                 }
-            } catch (ex) {
-                // Không phải JSON thường -> Chắc chắn là file đã mã hóa
-            }
+            } catch (ex) {}
 
-            // --- BƯỚC 2: XỬ LÝ NẾU LÀ FILE MÃ HÓA ---
+            // 2. Nếu không phải file cũ, thử giải mã bằng Key vừa lấy
             if (!data) {
-                // Nếu là file mã hóa, BẮT BUỘC phải có Key từ Server
-                if (!APP_BACKUP_SECRET) {
-                    throw new Error("BẢO MẬT: File này đã được mã hóa.\nApp chưa nhận được Key từ Server (do chưa kích hoạt hoặc lỗi mạng).\nVui lòng kiểm tra kết nối và thử lại.");
-                }
-
                 try {
                     const bytes = CryptoJS.AES.decrypt(String(rawContent), APP_BACKUP_SECRET);
                     const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
                     if (decryptedStr) data = JSON.parse(decryptedStr);
                 } catch(ex) {
-                    throw new Error("Mã giải mã sai! Có thể Key trên Server đã bị đổi.");
+                    throw new Error("Giải mã thất bại! Key Server không khớp với Key của file này.");
                 }
             }
 
-            if (!data) throw new Error("Dữ liệu không hợp lệ");
+            if (!data) throw new Error("Dữ liệu trống hoặc hỏng.");
 
-            // --- BƯỚC 3: GHI VÀO DATABASE (VÀ MÃ HÓA LUÔN ĐỂ BẢO MẬT VỀ SAU) ---
-            getEl('loader-text').textContent = "Đang khôi phục & Bảo mật hóa...";
+            // 3. Ghi vào Database
+            getEl('loader-text').textContent = "Đang khôi phục...";
             const tx = db.transaction(['customers', 'images'], 'readwrite');
             const custStore = tx.objectStore('customers');
             const imgStore = tx.objectStore('images');
 
-            // Hàm helper: Luôn đảm bảo dữ liệu khi vào DB phải được mã hóa
-            // Nếu APP_BACKUP_SECRET có (đã kết nối server) -> Dùng nó để mã hóa
-            // Nếu chưa có (đang offline restore file cũ) -> Tạm thời chưa mã hóa hoặc dùng key tạm (nhưng tốt nhất là cảnh báo)
-            
-            // *Lưu ý*: Để file cũ nạp vào biến thành file mới bảo mật, ta cần encryptText.
-            // Nhưng encryptText cần masterKey/APP_BACKUP_SECRET.
-            // Nếu restore file cũ mà chưa có mạng, ta chấp nhận lưu plain text, lần sau có mạng App sẽ tự mã hóa sau hoặc chấp nhận rủi ro offline.
-            
             const enc = (txt) => {
                 if (!txt) return '';
-                // Nếu chuỗi đã mã hóa (bắt đầu bằng U2F...) thì giữ nguyên
                 if (String(txt).startsWith('U2FsdGVk')) return txt;
-                // Nếu chưa mã hóa -> Mã hóa ngay (nếu có key)
                 return encryptText(txt); 
             };
 
-            // Ghi khách hàng
             (data.customers || []).forEach((c) => {
                 const cust = JSON.parse(JSON.stringify(c));
-                
-                // Tự động mã hóa các trường quan trọng khi nạp vào
                 cust.name = enc(cust.name);
                 cust.phone = enc(cust.phone);
                 cust.cccd = enc(cust.cccd);
-
+                // ... (Các trường assets giữ nguyên như code cũ) ...
                 if (cust.assets && Array.isArray(cust.assets)) {
                     cust.assets = cust.assets.map(a => {
                         a.name = enc(a.name);
@@ -2224,24 +2218,20 @@ function restoreData(input) {
                 custStore.put(cust);
             });
 
-            // Ghi ảnh
             (data.images || []).forEach(i => imgStore.put(i));
 
             tx.oncomplete = () => { 
                 getEl('loader').classList.add('hidden'); 
-                if (isOldFile) {
-                    alert("✅ Đã khôi phục file cũ thành công!\nDữ liệu đã được tự động mã hóa để bảo mật.");
-                } else {
-                    alert("✅ Đã khôi phục và giải mã dữ liệu thành công!"); 
-                }
+                alert("✅ Khôi phục thành công!"); 
                 loadCustomers(); 
                 resetInput();
             };
             tx.onerror = () => {
                 getEl('loader').classList.add('hidden');
-                alert("Lỗi khi ghi Database!");
+                alert("Lỗi ghi Database!");
                 resetInput();
             };
+
         } catch(err) { 
             getEl('loader').classList.add('hidden'); 
             alert("LỖI: " + err.message); 
@@ -2250,6 +2240,7 @@ function restoreData(input) {
     }; 
     r.readAsText(f); 
 }
+
         function resetAppData() { if(confirm("XÓA SẠCH dữ liệu?")) { localStorage.clear(); indexedDB.deleteDatabase(DB_NAME).onsuccess = () => { alert("Đã reset."); window.location.reload(); }; } }
         // =============== DONATE FEATURE ===============
 
@@ -2401,25 +2392,9 @@ function fallbackCopyDonate(text) {
             setWeatherText(`${temp}°C • ${desc}`);
         }
 
-        // ================== END WEATHER ==================
-    // --- LOGIC UPLOAD DRIVE & CẤU HÌNH ---
-// Removed saveScriptUrl and related DOMContentLoaded listener – Drive connection is disabled for offline mode.
-
-// 3. Hàm hiển thị nút mở Drive
-// Removed renderDriveStatus function – Drive UI is disabled.
-
-// --- LOGIC UPLOAD DRIVE CHO TÀI SẢN (TSBĐ) ---
-
-
-// 1. Cập nhật giao diện: Thêm nút Tìm kết nối cũ
-// Removed renderAssetDriveStatus function – Drive UI is disabled.
-
-// 2. Logic tìm kiếm (Sử dụng Script cá nhân USER_SCRIPT_KEY)
-
+        // ================== END WEATHER
 
 let currentOcrBase64 = null;
-
-
 
 // --- CẬP NHẬT REGEX THÔNG MINH (BẮT DÍNH LOẠI ĐẤT & SỐ BÌA) ---
 
@@ -2950,242 +2925,7 @@ function handleRedBookResult(data) {
 function parseRedBookInfo(text) { return {}; }
 function renderRedBookInfo(info) { return ''; }
 
-/* ================= REWRITTEN GOOGLE DRIVE FUNCTIONS DISABLED FOR OFFLINE MODE =================
-// Upload profile images to Google Drive
-async function uploadToGoogleDrive() {
-    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
-    if (!userUrl || userUrl.length < 10) {
-        if (confirm("Chưa cấu hình Link Script! Vào cài đặt ngay?")) toggleMenu();
-        return;
-    }
-    if (!currentCustomerData) return;
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang xử lý ảnh...";
-    const tx = db.transaction(['images'], 'readonly');
-    const index = tx.objectStore('images').index('customerId');
-    index.getAll(currentCustomerId).onsuccess = async (e) => {
-        const allImages = e.target.result || [];
-        const imagesToUpload = allImages.filter(img => !img.assetId);
-        if (imagesToUpload.length === 0) {
-            getEl('loader').classList.add('hidden');
-            alert("Không có ảnh hồ sơ nào để tải lên!");
-            return;
-        }
-        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`)) {
-            getEl('loader').classList.add('hidden');
-            return;
-        }
-        getEl('loader-text').textContent = "Đang đẩy lên Drive...";
-        const cName = decryptText(currentCustomerData.name) || currentCustomerData.name;
-        const cPhone = decryptText(currentCustomerData.phone) || currentCustomerData.phone;
-        const cCccd = decryptText(currentCustomerData.cccd) || currentCustomerData.cccd;
-        const folderName = `${cName} - ${cCccd || cPhone}`;
-        const payload = {
-            action: 'upload',
-            folderName: folderName,
-            images: imagesToUpload.map((img, idx) => ({ name: `hoso_${Date.now()}_${idx}.jpg`, data: img.data }))
-        };
-        try {
-            const response = await fetch(userUrl, {
-                method: "POST",
-                redirect: "follow",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
-                currentCustomerData.driveLink = result.url;
-                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
-                getEl('loader').classList.add('hidden');
-                renderDriveStatus(result.url);
-                showToast('✅ Upload thành công!');
-                if (confirm("Xóa ảnh trong App để nhẹ máy?")) {
-                    const txDel = db.transaction(['images'], 'readwrite');
-                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
-                    txDel.oncomplete = () => { loadProfileImages(); };
-                }
-            } else {
-                throw new Error(result.message || 'Lỗi Server');
-            }
-        } catch (err) {
-            getEl('loader').classList.add('hidden');
-            alert("Lỗi Upload: " + err.message);
-        }
-    };
-}
 
-// Upload asset images to Google Drive
-async function uploadAssetToDrive() {
-    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
-    if (!userUrl || userUrl.length < 10) {
-        if (confirm("Chưa cấu hình Link Script! Vào cài đặt ngay?")) toggleMenu();
-        return;
-    }
-    if (!currentCustomerData || !currentAssetId) return;
-    const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
-    if (assetIndex === -1) return;
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang xử lý...";
-    const tx = db.transaction(['images'], 'readonly');
-    const index = tx.objectStore('images').index('customerId');
-    index.getAll(currentCustomerId).onsuccess = async (e) => {
-        const allImages = e.target.result || [];
-        const imagesToUpload = allImages.filter(img => img.assetId === currentAssetId);
-        if (imagesToUpload.length === 0) {
-            getEl('loader').classList.add('hidden');
-            alert("Tài sản này chưa có ảnh!");
-            return;
-        }
-        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh tài sản?`)) {
-            getEl('loader').classList.add('hidden');
-            return;
-        }
-        getEl('loader-text').textContent = "Đang Upload TSBĐ...";
-        const cName = decryptText(currentCustomerData.name) || currentCustomerData.name;
-        const assetNameEnc = currentCustomerData.assets[assetIndex].name;
-        const aName = decryptText(assetNameEnc) || assetNameEnc;
-        const folderName = `${cName} - TSBĐ: ${aName}`;
-        const payload = {
-            action: 'upload',
-            folderName: folderName,
-            images: imagesToUpload.map((img, idx) => ({ name: `asset_${Date.now()}_${idx}.jpg`, data: img.data }))
-        };
-        try {
-            const response = await fetch(userUrl, {
-                method: "POST",
-                redirect: "follow",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
-                currentCustomerData.assets[assetIndex].driveLink = result.url;
-                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
-                getEl('loader').classList.add('hidden');
-                renderAssetDriveStatus(result.url);
-                showToast('✅ Upload tài sản thành công!');
-                if (confirm("Xóa ảnh gốc trong App để nhẹ máy?")) {
-                    const txDel = db.transaction(['images'], 'readwrite');
-                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
-                    txDel.oncomplete = () => { loadAssetImages(currentAssetId); };
-                }
-            } else {
-                throw new Error(result.message || 'Lỗi Server');
-            }
-        } catch (err) {
-            getEl('loader').classList.add('hidden');
-            alert("Lỗi Upload: " + err.message);
-        }
-    };
-}
-
-// Reconnect profile drive folder by searching possible names
-async function reconnectDriveFolder() {
-    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
-    if (!userUrl) {
-        alert("Chưa có Link Script");
-        return;
-    }
-    if (!currentCustomerData) return;
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang tìm...";
-    const name = decryptText(currentCustomerData.name) || currentCustomerData.name;
-    const phone = decryptText(currentCustomerData.phone) || currentCustomerData.phone;
-    const cccd = decryptText(currentCustomerData.cccd) || currentCustomerData.cccd;
-    const possibleNames = [];
-    if (name && cccd) possibleNames.push(`${name} - ${cccd}`);
-    if (name && phone) possibleNames.push(`${name} - ${phone}`);
-    if (name) possibleNames.push(`${name}`);
-    let foundUrl = null;
-    for (const folderName of possibleNames) {
-        try {
-            getEl('loader-text').textContent = `Tìm: ${folderName}...`;
-            const response = await fetch(userUrl, {
-                method: "POST",
-                redirect: "follow",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify({ action: 'search', folderName })
-            });
-            const result = await response.json();
-            if (result.status === 'found') {
-                foundUrl = result.url;
-                break;
-            }
-        } catch (err) {
-            console.log('Next search pattern...', err);
-        }
-    }
-    getEl('loader').classList.add('hidden');
-    if (foundUrl) {
-        currentCustomerData.driveLink = foundUrl;
-        db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
-        renderDriveStatus(foundUrl);
-        showToast('Đã tìm thấy folder Drive');
-    } else {
-        if (confirm("Không tìm thấy tự động. Bạn có muốn dán LINK thủ công?")) {
-            const link = prompt("Dán link folder vào đây:");
-            if (link && link.includes('http')) {
-                currentCustomerData.driveLink = link;
-                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
-                renderDriveStatus(link);
-                showToast('Đã lưu link Drive thủ công');
-            }
-        }
-    }
-}
-
-// Reconnect asset drive folder by searching decoded folder name
-async function reconnectAssetDriveFolder() {
-    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
-    if (!userUrl) return;
-    if (!currentCustomerData || !currentAssetId) return;
-    const idx = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
-    if (idx === -1) return;
-    const cName = decryptText(currentCustomerData.name) || currentCustomerData.name;
-    const assetNameEnc = currentCustomerData.assets[idx].name;
-    const aName = decryptText(assetNameEnc) || assetNameEnc;
-    const folderName = `${cName} - TSBĐ: ${aName}`;
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = `Đang tìm: ${aName}`;
-    try {
-        const response = await fetch(userUrl, {
-            method: "POST",
-            redirect: "follow",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ action: 'search', folderName })
-        });
-        const result = await response.json();
-        getEl('loader').classList.add('hidden');
-        if (result.status === 'found') {
-            currentCustomerData.assets[idx].driveLink = result.url;
-            db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
-            renderAssetDriveStatus(result.url);
-            showToast('Đã tìm thấy folder TSBĐ');
-        } else {
-            if (confirm("Không tìm thấy. Bạn có muốn dán LINK thủ công?")) {
-                const link = prompt("Dán link folder TSBĐ:");
-                if (link && link.includes('http')) {
-                    currentCustomerData.assets[idx].driveLink = link;
-                    db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
-                    renderAssetDriveStatus(link);
-                    showToast('Đã lưu link TSBĐ thủ công');
-                }
-            }
-        }
-    } catch (err) {
-        getEl('loader').classList.add('hidden');
-        if (confirm("Lỗi mạng. Bạn có muốn dán LINK thủ công?")) {
-            const link = prompt("Dán link folder TSBĐ:");
-            if (link && link.includes('http')) {
-                currentCustomerData.assets[idx].driveLink = link;
-                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
-                renderAssetDriveStatus(link);
-                showToast('Đã lưu link TSBĐ thủ công');
-            }
-        }
-    }
-}
-================= END OF REWRITTEN GOOGLE DRIVE FUNCTIONS DISABLED =================*/
 </script>
     <!-- History-based navigation enhancements for swipe-to-go-back support -->
     <script>
