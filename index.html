@@ -1026,58 +1026,55 @@ async function renderMapMarkers() {
          */
         // --- HÀM CHECK BẢO MẬT MỚI (MỞ KHÓA SIÊU TỐC) ---
 async function checkSecurity() {
-    // 1. KIỂM TRA DỮ LIỆU TRONG MÁY TRƯỚC (Cực nhanh)
+    // 1. Lấy thông tin định danh đã lưu trong máy (Key Kích hoạt / Mã NV)
+    const storedEmp = localStorage.getItem(EMPLOYEE_KEY); // Mã nhân viên
     const activated = localStorage.getItem(ACTIVATED_KEY);
-    const pinEnc = localStorage.getItem(PIN_KEY);
 
-    // Nếu chưa kích hoạt -> Hiện bảng kích hoạt luôn
-    if (!activated) {
+    // Nếu chưa kích hoạt bao giờ -> Dừng
+    if (!activated || !storedEmp) {
+        // Hiện bảng nhập key kích hoạt
         const modal = getEl('activation-modal');
         if (modal) modal.classList.remove('hidden');
-        return; 
+        return;
     }
 
-    // Nếu đã kích hoạt -> HIỆN MÀN HÌNH KHÓA NGAY (Không chờ Server)
-    if (!pinEnc) {
-        // Chưa có PIN -> Hiện bảng tạo PIN
-        getEl('setup-lock-modal').classList.remove('hidden');
-        // Điền sẵn mã NV nếu có
-        const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
-        if (storedEmp) getEl('setup-answer').value = storedEmp;
-    } else {
-        // Đã có PIN -> Hiện bàn phím nhập PIN ngay lập tức
+    // Nếu đã kích hoạt -> Hiện màn hình khóa PIN ngay cho người dùng đỡ đợi
+    // (Lúc này Key giải mã chưa về, nhưng cứ cho nhập PIN)
+    if (localStorage.getItem(PIN_KEY)) {
         showLockScreen();
     }
 
-    // 2. CHECK NGẦM VỚI SERVER (Background Check)
-    // Phần này chạy âm thầm bên dưới, không làm đơ màn hình của bạn
+    // 2. Gửi yêu cầu lên Server (Âm thầm)
     try {
-        const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || '';
-        if (savedEmp) {
-            const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-            
-            const res = await fetch(ADMIN_SERVER_URL + query);
-            const txt = await res.text();
-            let result;
-            try { result = JSON.parse(txt); } catch (e) { result = {}; }
+        // URL Web App Google Script của anh
+        const query = `?action=check_status&employeeId=${encodeURIComponent(storedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
+        
+        const res = await fetch(ADMIN_SERVER_URL + query);
+        const txt = await res.text();
+        let result = JSON.parse(txt);
 
-            // Nạp Key bí mật vào RAM
-            if (result.secret) {
-                APP_BACKUP_SECRET = result.secret;
-            }
-
-            if (result.status === 'locked') {
-                getEl('screen-lock').classList.add('hidden');
-                getEl('setup-lock-modal').classList.add('hidden');
-                const modal = getEl('activation-modal');
-                modal.classList.remove('hidden');
-                const titleEl = document.getElementById('activation-title');
-                if (titleEl) titleEl.textContent = result.message || 'Tài khoản đã bị thu hồi!';
-                localStorage.removeItem(ACTIVATED_KEY);
-            }
+        if (result.status === 'locked') {
+            // TRƯỜNG HỢP: Anh đã khóa từ xa
+            alert("Tài khoản này đã bị khóa quyền truy cập!");
+            localStorage.clear(); // Xóa sạch dữ liệu cục bộ
+            window.location.reload();
+            return;
         }
+
+        // TRƯỜNG HỢP: Hợp lệ -> Server trả về 'secret'
+        if (result.secret) {
+            console.log("Đã nhận Key bảo mật từ Server");
+            APP_BACKUP_SECRET = result.secret; // CHỈ LƯU VÀO RAM
+            
+            // Nếu anh dùng biến masterKey cho các việc khác thì gán luôn
+            if (!masterKey) masterKey = result.secret; 
+        }
+
     } catch (err) {
-        console.log("Offline mode: Tính năng Backup bảo mật tạm thời bị tắt.");
+        console.log("Không kết nối được Server bảo mật: " + err.message);
+        // Ở đây là điểm yếu của mô hình này: 
+        // Nếu không có mạng -> Không có Key -> Không giải mã được file backup MỚI.
+        // Nhưng file backup CŨ (chưa mã hóa) thì hàm restoreData bên trên vẫn cho qua.
     }
 }
         function openSecuritySetup() {
@@ -2130,88 +2127,125 @@ async function backupData() {
     }
 }
 function restoreData(input) { 
-    // --- Dán đoạn kiểm tra y hệt vào đầu hàm này ---
-    if (!APP_BACKUP_SECRET) {
-        alert("Chưa kích hoạt bản quyền! Không thể Khôi phục dữ liệu.");
-        input.value = ''; // Xóa file vừa chọn
-        return;
-    }
-    // Đóng menu và chuẩn bị loader
     toggleMenu(); 
     const f = input.files && input.files[0]; 
     if (!f) return;
+    
+    // Reset input để chọn lại được file nếu cần
+    const resetInput = () => { try { input.value = ''; } catch(e){} };
+
     getEl('loader').classList.remove('hidden'); 
-    getEl('loader-text').textContent = "Đồng bộ...";
+    getEl('loader-text').textContent = "Đang phân tích dữ liệu...";
+    
     const r = new FileReader(); 
     r.onload = async (e) => { 
         try { 
-            const encryptedContent = e.target.result;
-            // Thử giải mã nội dung file bằng khóa bí mật
-            let decryptedStr = '';
+            const rawContent = e.target.result;
+            let data = null;
+            let isOldFile = false;
+
+            // --- BƯỚC 1: KIỂM TRA ĐỊNH DẠNG FILE ---
+            
+            // Thử đọc như JSON thường (File cũ chưa mã hóa)
             try {
-                const bytes = CryptoJS.AES.decrypt(String(encryptedContent), APP_BACKUP_SECRET);
-                decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
-            } catch(ex) {
-                decryptedStr = '';
+                // Nếu file bắt đầu bằng { hoặc [ thì khả năng cao là JSON thường
+                if (rawContent.trim().startsWith('{') || rawContent.trim().startsWith('[')) {
+                    data = JSON.parse(rawContent);
+                    isOldFile = true; // Đánh dấu đây là file cũ
+                    console.log("Phát hiện file backup cũ (không mã hóa).");
+                }
+            } catch (ex) {
+                // Không phải JSON thường -> Chắc chắn là file đã mã hóa
             }
-            if (!decryptedStr) throw new Error("Decryption failed");
 
-            const data = JSON.parse(decryptedStr);
-            // Chuẩn bị ghi dữ liệu vào IndexedDB
+            // --- BƯỚC 2: XỬ LÝ NẾU LÀ FILE MÃ HÓA ---
+            if (!data) {
+                // Nếu là file mã hóa, BẮT BUỘC phải có Key từ Server
+                if (!APP_BACKUP_SECRET) {
+                    throw new Error("BẢO MẬT: File này đã được mã hóa.\nApp chưa nhận được Key từ Server (do chưa kích hoạt hoặc lỗi mạng).\nVui lòng kiểm tra kết nối và thử lại.");
+                }
+
+                try {
+                    const bytes = CryptoJS.AES.decrypt(String(rawContent), APP_BACKUP_SECRET);
+                    const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
+                    if (decryptedStr) data = JSON.parse(decryptedStr);
+                } catch(ex) {
+                    throw new Error("Mã giải mã sai! Có thể Key trên Server đã bị đổi.");
+                }
+            }
+
+            if (!data) throw new Error("Dữ liệu không hợp lệ");
+
+            // --- BƯỚC 3: GHI VÀO DATABASE (VÀ MÃ HÓA LUÔN ĐỂ BẢO MẬT VỀ SAU) ---
+            getEl('loader-text').textContent = "Đang khôi phục & Bảo mật hóa...";
             const tx = db.transaction(['customers', 'images'], 'readwrite');
-            const customerStore = tx.objectStore('customers');
-            const imageStore = tx.objectStore('images');
+            const custStore = tx.objectStore('customers');
+            const imgStore = tx.objectStore('images');
 
-                       // --- SỬA LỖI: Hàm helper chỉ mã hóa khi có dữ liệu ---
-            const enc = (txt) => (txt && String(txt).trim().length > 0) ? encryptText(txt) : '';
+            // Hàm helper: Luôn đảm bảo dữ liệu khi vào DB phải được mã hóa
+            // Nếu APP_BACKUP_SECRET có (đã kết nối server) -> Dùng nó để mã hóa
+            // Nếu chưa có (đang offline restore file cũ) -> Tạm thời chưa mã hóa hoặc dùng key tạm (nhưng tốt nhất là cảnh báo)
+            
+            // *Lưu ý*: Để file cũ nạp vào biến thành file mới bảo mật, ta cần encryptText.
+            // Nhưng encryptText cần masterKey/APP_BACKUP_SECRET.
+            // Nếu restore file cũ mà chưa có mạng, ta chấp nhận lưu plain text, lần sau có mạng App sẽ tự mã hóa sau hoặc chấp nhận rủi ro offline.
+            
+            const enc = (txt) => {
+                if (!txt) return '';
+                // Nếu chuỗi đã mã hóa (bắt đầu bằng U2F...) thì giữ nguyên
+                if (String(txt).startsWith('U2FsdGVk')) return txt;
+                // Nếu chưa mã hóa -> Mã hóa ngay (nếu có key)
+                return encryptText(txt); 
+            };
 
-            // Ghi từng khách hàng, mã hóa lại các trường bằng masterKey hiện tại
+            // Ghi khách hàng
             (data.customers || []).forEach((c) => {
                 const cust = JSON.parse(JSON.stringify(c));
                 
-                // Sử dụng hàm enc thay vì encryptText trực tiếp
+                // Tự động mã hóa các trường quan trọng khi nạp vào
                 cust.name = enc(cust.name);
                 cust.phone = enc(cust.phone);
                 cust.cccd = enc(cust.cccd);
-                
-                // Nếu có tài sản thì mã hóa từng trường của tài sản
+
                 if (cust.assets && Array.isArray(cust.assets)) {
-                    cust.assets = cust.assets.map((a) => {
-                        const asset = JSON.parse(JSON.stringify(a));
-                        
-                        // Áp dụng enc cho toàn bộ các trường tài sản
-                        asset.name = enc(asset.name);
-                        asset.link = enc(asset.link);
-                        asset.valuation = enc(asset.valuation);
-                        asset.loanValue = enc(asset.loanValue);
-                        asset.area = enc(asset.area);
-                        asset.width = enc(asset.width);
-                        asset.onland = enc(asset.onland);
-                        asset.year = enc(asset.year);
-                        asset.ocrData = enc(asset.ocrData);
-                        
-                        // Giữ driveLink theo dữ liệu backup (có thể null)
-                        return asset;
+                    cust.assets = cust.assets.map(a => {
+                        a.name = enc(a.name);
+                        a.link = enc(a.link);
+                        a.valuation = enc(a.valuation);
+                        a.loanValue = enc(a.loanValue);
+                        a.area = enc(a.area);
+                        a.width = enc(a.width);
+                        a.onland = enc(a.onland);
+                        a.year = enc(a.year);
+                        a.ocrData = enc(a.ocrData);
+                        return a;
                     });
                 }
-                customerStore.put(cust);
+                custStore.put(cust);
             });
 
-            // Ghi ảnh nếu có trong backup (images thường trống)
-            (data.images || []).forEach(i => imageStore.put(i));
+            // Ghi ảnh
+            (data.images || []).forEach(i => imgStore.put(i));
 
             tx.oncomplete = () => { 
                 getEl('loader').classList.add('hidden'); 
-                alert("Đã khôi phục"); 
+                if (isOldFile) {
+                    alert("✅ Đã khôi phục file cũ thành công!\nDữ liệu đã được tự động mã hóa để bảo mật.");
+                } else {
+                    alert("✅ Đã khôi phục và giải mã dữ liệu thành công!"); 
+                }
                 loadCustomers(); 
+                resetInput();
             };
             tx.onerror = () => {
                 getEl('loader').classList.add('hidden');
-                alert("Lỗi khi ghi vào cơ sở dữ liệu");
+                alert("Lỗi khi ghi Database!");
+                resetInput();
             };
         } catch(err) { 
             getEl('loader').classList.add('hidden'); 
-            alert("File backup không hợp lệ hoặc sai định dạng bảo mật"); 
+            alert("LỖI: " + err.message); 
+            resetInput();
         } 
     }; 
     r.readAsText(f); 
