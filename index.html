@@ -2132,6 +2132,12 @@ async function backupData() {
     }
 }
 function restoreData(input) { 
+    // --- Dán đoạn kiểm tra y hệt vào đầu hàm này ---
+    if (!APP_BACKUP_SECRET) {
+        alert("Chưa kích hoạt bản quyền! Không thể Khôi phục dữ liệu.");
+        input.value = ''; // Xóa file vừa chọn
+        return;
+    }
     // Đóng menu và chuẩn bị loader
     toggleMenu(); 
     const f = input.files && input.files[0]; 
@@ -2830,7 +2836,7 @@ async function uploadToGoogleDrive() {
     };
 }
 
-// --- CẬP NHẬT REGEX THÔNG MINH (V5: BẮT DÍNH LOẠI ĐẤT & SỐ BÌA) ---
+// --- CẬP NHẬT REGEX THÔNG MINH (BẮT DÍNH LOẠI ĐẤT & SỐ BÌA) ---
 
 function parseRedBookInfo(text) {
     // Trả về đối tượng rỗng (OCR parser đã bỏ)
