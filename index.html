@@ -3,15 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com;
-    style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com;
-    img-src 'self' data: blob: https://img.vietqr.io https://*.basemaps.cartocdn.com https://server.arcgisonline.com http://googleusercontent.com https://*.openstreetmap.org;
-    font-src 'self' data: https://fonts.gstatic.com;
-    connect-src 'self' https://script.google.com https://api.open-meteo.com;
-    worker-src 'self' blob:;
-">
     <title>ClientPro</title>
     <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -394,7 +385,7 @@
     
     <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleMenu()"></div>
     <div id="settings-menu" class="fixed top-20 right-4 w-80 glass-panel rounded-2xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
-        <div class="px-5 py-4 border-b border-white/5"><h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3><p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro v1.0</p></div>
+        <div class="px-5 py-4 border-b border-white/5"><h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3><p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro</p></div>
                 <div class="px-5 py-5 border-b border-white/5">
             <p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Chọn Giao diện</p>
             <div class="flex flex-wrap gap-4 justify-start">
@@ -423,12 +414,16 @@
         <div class="p-1.5 rounded-lg bg-pink-500/20 text-pink-400">
             <i data-lucide="heart" class="w-4 h-4"></i>
         </div>
-        Ủng hộ tác giả
+        Ủng hộ tác giả (Donate)
     </button>
     <!-- END NÚT DONATE -->
-<!--
-    Removed Google Drive connection UI to switch to offline storage mode.
--->
+<div class="w-full px-5 py-4 border-b border-white/5">
+    <p class="text-xs font-bold uppercase mb-2 opacity-60" style="color: var(--text-sub)">Kết nối Google Drive</p>
+    <div class="flex gap-2">
+        <input id="user-script-url" type="text" placeholder="Dán Link Apps Script..." class="flex-1 bg-black/30 border border-white/10 rounded-lg p-2 text-xs text-white outline-none">
+        <button onclick="saveScriptUrl()" class="p-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg font-bold hover:bg-blue-600/30"><i data-lucide="save" class="w-4 h-4"></i></button>
+    </div>
+</div>
 
     <label class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 cursor-pointer border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-orange-500/20 text-orange-400"><i data-lucide="refresh-cw" class="w-4 h-4"></i></div> Khôi phục (Update)<input type="file" id="restore-input" accept=".json" class="hidden" onchange="restoreData(this)"></label>
     <button onclick="resetAppData()" class="w-full text-left px-5 py-4 active:bg-red-500/10 flex items-center gap-3 text-sm font-bold text-red-400 transition-colors"><div class="p-1.5 rounded-lg bg-red-500/20"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div> Reset Ứng Dụng</button>
@@ -475,7 +470,7 @@
     <div class="flex gap-2">
         <div class="relative flex-1">
             <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50" style="color: var(--text-main)"></i>
-            <input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ (Tên, SĐT)" class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors" style="border-color: var(--border-panel); color: var(--text-main);">
+            <input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..." class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors" style="border-color: var(--border-panel); color: var(--text-main);">
         </div>
         <button onclick="toggleCustSelectionMode()" id="btn-cust-select" class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub);">
             <i data-lucide="list-checks" class="w-5 h-5"></i>
@@ -550,17 +545,19 @@
         <div id="content-images" class="scroll-area flex-1 img-grid-container content-start"></div>
         <div id="content-assets" class="hidden scroll-area flex-1 p-4 space-y-4"></div>
         <div class="glass-panel border-t p-4 pb-8 flex gap-3 flex-none z-30" style="border-color: var(--border-panel)"><div id="actions-images" class="w-full flex flex-col gap-3">
-    <!-- removed drive status area for offline mode -->
+    <div id="drive-status-area" class="hidden w-full"></div>
 
     <div class="flex gap-2 w-full">
     <button onclick="tryOpenCamera('profile')" class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20" style="background: var(--accent-gradient);">
         <i data-lucide="camera" class="w-5 h-5"></i> Chụp
     </button>
     
-    <!-- Upload to Drive button removed for offline mode -->
+    <button onclick="uploadToGoogleDrive()" id="btn-upload-drive" class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
+        <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up Drive
+    </button>
 
     <input type="file" id="native-camera-profile" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'profile')">
-    <label class="flex-1 glass-btn py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]" style="color: var(--text-sub)">
+    <label class="w-12 glass-btn py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]" style="color: var(--text-sub)">
         <i data-lucide="upload" class="w-5 h-5"></i>
         <input type="file" id="upload-input" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'profile')">
     </label>
@@ -577,18 +574,20 @@
         <div id="asset-gallery-grid" class="scroll-area flex-1 img-grid-container content-start"></div>
         <div class="glass-panel border-t p-4 pb-8 flex flex-col gap-3 flex-none z-30" style="border-color: var(--border-panel)">
     
-    <!-- removed asset drive status area for offline mode -->
+    <div id="asset-drive-status-area" class="hidden w-full"></div>
 
     <div class="flex gap-2 w-full">
     <button onclick="tryOpenCamera('asset')" class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] border border-white/20" style="background: var(--accent-gradient);">
         <i data-lucide="camera" class="w-5 h-5"></i> Chụp
     </button>
     
-    <!-- Upload asset to Drive button removed for offline mode -->
+    <button onclick="uploadAssetToDrive()" id="btn-asset-upload" class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
+        <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up
+    </button>
 
     <input type="file" id="native-camera-asset" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'asset')">
     
-    <label class="flex-1 glass-btn py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]" style="color: var(--text-sub)">
+    <label class="glass-btn w-12 py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]" style="color: var(--text-sub)">
         <i data-lucide="upload" class="w-5 h-5"></i>
         <input type="file" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'asset')">
     </label>
@@ -750,11 +749,11 @@
         }
         // --- WEATHER CONFIG (Open-Meteo: không cần API key) ---
 const WEATHER_STORAGE_KEY = 'app_weather_cache_v1';
-const WEATHER_CACHE_TTL = 30 * 60 * 1000; // 30 phút
+const WEATHER_CACHE_TTL = 15 * 60 * 1000; // 15 phút
 const SCRIPT_KEY = 'app_script_url';
 // --- CẤU HÌNH SERVER TRUNG TÂM ---
-const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbzROZgcIfVkhjP2G2QJMFZ6DfobWsPKAX5bpP5HRwpBNxkc3h_kfP4m-Keocp8GFariHQ/exec"; 
-// Removed USER_SCRIPT_KEY constant – no longer needed for offline mode.
+const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbw0e3GftH7hDQJo12uhlPWyZI-YkFTsx-wNEs2BOG4Cklp1oNgo8ryldtWYyyKFzS6cRA/exec"; 
+const USER_SCRIPT_KEY = 'app_user_script_url';
 // map weathercode -> text tiếng Việt đơn giản
 const WEATHER_CODE_TEXT = {
     0: 'Trời quang',
@@ -1026,81 +1025,60 @@ async function renderMapMarkers() {
          */
         // --- HÀM CHECK BẢO MẬT MỚI (MỞ KHÓA SIÊU TỐC) ---
 async function checkSecurity() {
-    console.log("--> Bắt đầu kết nối Server...");
-    
-    // 1. Kiểm tra thông tin định danh
-    const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
+    // 1. KIỂM TRA DỮ LIỆU TRONG MÁY TRƯỚC (Cực nhanh)
     const activated = localStorage.getItem(ACTIVATED_KEY);
+    const pinEnc = localStorage.getItem(PIN_KEY);
 
-    // Nếu chưa kích hoạt thì coi như thất bại luôn
-    if (!activated || !storedEmp) return false;
+    // Nếu chưa kích hoạt -> Hiện bảng kích hoạt luôn
+    if (!activated) {
+        const modal = getEl('activation-modal');
+        if (modal) modal.classList.remove('hidden');
+        return; 
+    }
 
-    // 2. Gửi yêu cầu lên Server
+    // Nếu đã kích hoạt -> HIỆN MÀN HÌNH KHÓA NGAY (Không chờ Server)
+    if (!pinEnc) {
+        // Chưa có PIN -> Hiện bảng tạo PIN
+        getEl('setup-lock-modal').classList.remove('hidden');
+        // Điền sẵn mã NV nếu có
+        const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
+        if (storedEmp) getEl('setup-answer').value = storedEmp;
+    } else {
+        // Đã có PIN -> Hiện bàn phím nhập PIN ngay lập tức
+        showLockScreen();
+    }
+
+    // 2. CHECK NGẦM VỚI SERVER (Background Check)
+    // Phần này chạy âm thầm bên dưới, không làm đơ màn hình của bạn
     try {
-        const query = `?action=check_status&employeeId=${encodeURIComponent(storedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-        const targetUrl = ADMIN_SERVER_URL + query;
+        const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || '';
+        if (savedEmp) {
+            const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
+            
+            const res = await fetch(ADMIN_SERVER_URL + query);
+            const txt = await res.text();
+            let result;
+            try { result = JSON.parse(txt); } catch (e) { result = {}; }
 
-        // Tăng thời gian chờ lên 15 giây phòng mạng chậm
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+            // Nạp Key bí mật vào RAM
+            if (result.secret) {
+                APP_BACKUP_SECRET = result.secret;
+            }
 
-        const res = await fetch(targetUrl, { 
-            method: 'GET',
-            redirect: 'follow', // Quan trọng để Google Script chuyển hướng đúng
-            signal: controller.signal 
-        });
-        clearTimeout(timeoutId);
-
-        if (!res.ok) {
-            alert(`Lỗi HTTP Server: ${res.status} ${res.statusText}`);
-            return false;
-        }
-
-        const txt = await res.text();
-        console.log("Server trả về:", txt); // Xem trong Console nếu cần
-
-        // Kiểm tra xem Server có trả về trang đăng nhập Google (HTML) thay vì JSON không
-        if (txt.trim().startsWith('<')) {
-            alert("LỖI QUYỀN TRUY CẬP!\n\nGoogle Script đang trả về trang Web (HTML) chứ không phải dữ liệu.\n\nNguyên nhân: Anh chưa chọn 'Who has access' là 'Anyone' (Bất kỳ ai) khi Deploy.\n\nHãy Deploy lại ngay!");
-            return false;
-        }
-
-        let result;
-        try {
-            result = JSON.parse(txt);
-        } catch (e) {
-            alert("Lỗi dữ liệu Server:\n" + txt.substring(0, 100) + "...");
-            return false;
-        }
-
-        // Xử lý kết quả logic
-        if (result.status === 'locked') {
-            alert("Tài khoản 'Hungnq14' đã bị khóa trên Server!");
-            localStorage.clear();
-            window.location.reload();
-            return false;
-        }
-
-        if (result.secret) {
-            // LẤY ĐƯỢC KEY THÀNH CÔNG!
-            APP_BACKUP_SECRET = result.secret; 
-            if (!masterKey) masterKey = result.secret;
-            // Không lưu vào localStorage để đảm bảo Zero Trust
-            return true; 
-        } else {
-            alert("Server không trả về Secret Key!\nKiểm tra lại.");
-            return false;
+            if (result.status === 'locked') {
+                getEl('screen-lock').classList.add('hidden');
+                getEl('setup-lock-modal').classList.add('hidden');
+                const modal = getEl('activation-modal');
+                modal.classList.remove('hidden');
+                const titleEl = document.getElementById('activation-title');
+                if (titleEl) titleEl.textContent = result.message || 'Tài khoản đã bị thu hồi!';
+                localStorage.removeItem(ACTIVATED_KEY);
+            }
         }
     } catch (err) {
-        console.error(err);
-        // Chỉ báo lỗi nếu không phải do user hủy
-        if (err.name !== 'AbortError') {
-             // Không alert ở đây nữa để tránh spam, hàm restore/backup sẽ lo việc báo lỗi
-        }
-        return false;
+        console.log("Offline mode: Tính năng Backup bảo mật tạm thời bị tắt.");
     }
 }
-
         function openSecuritySetup() {
             // Mở giao diện thiết lập bảo mật mới. Không điền sẵn mã nhân viên vì dữ liệu trong localStorage đã được mã hóa.
             toggleMenu();
@@ -1209,86 +1187,110 @@ async function checkRecovery() {
          * Sau khi server xác nhận thành công, lưu trạng thái kích hoạt và mã nhân viên vào localStorage rồi mở giao diện thiết lập PIN.
          */
         async function activateApp() {
-    const keyInput = getEl('activation-key');
-    const empInput = getEl('activation-employee');
-    const key = keyInput ? keyInput.value.trim() : '';
-    const employeeId = empInput ? empInput.value.trim() : '';
-
-    if (!key || !employeeId) return alert("Vui lòng nhập đủ thông tin!");
-
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang kết nối...";
-
-    try {
-        // CẤU HÌNH ĐẶC BIỆT CHO IOS:
-        // 1. method: 'POST'
-        // 2. body: chuỗi JSON
-        // 3. KHÔNG THÊM headers 'Content-Type' (để tránh iOS chặn)
-        const res = await fetch(ADMIN_SERVER_URL, {
-            method: 'POST',
-            redirect: 'follow', // Bắt buộc để theo dõi chuyển hướng của Google
-            body: JSON.stringify({
-                action: 'activate',
-                key: key,
-                employeeId: employeeId,
-                deviceInfo: navigator.userAgent
-            })
-        });
-
-        // Cố gắng đọc phản hồi
-        const txt = await res.text();
-        let result = {};
-        try { result = JSON.parse(txt); } catch (e) { result = { status: 'unknown' }; }
-        
-        getEl('loader').classList.add('hidden');
-
-        // XỬ LÝ KẾT QUẢ
-        if (result.status === 'success' || txt.includes('success')) {
-            handleActivationSuccess(result, employeeId);
-        } else {
-            alert(result.message || 'Kích hoạt thất bại (Key sai hoặc đã dùng).');
-        }
-
-    } catch (err) {
-        getEl('loader').classList.add('hidden');
-        
-        // --- XỬ LÝ LỖI RIÊNG CHO IOS ---
-        // Nếu lỗi là "Failed to fetch" (thường gặp trên iOS khi xong việc nhưng bị chặn phản hồi)
-        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-            // Tự động coi là thành công tạm thời để người dùng vào được
-            if(confirm("⚠️ Cảnh báo iOS:\n\nMáy chủ đã nhận lệnh nhưng phản hồi bị chặn.\n\nNếu anh chắc chắn Key đúng, hãy bấm OK để vào App.")) {
-                // Giả lập thành công
-                handleActivationSuccess({ secret: '' }, employeeId);
+            const keyInput = getEl('activation-key');
+            const empInput = getEl('activation-employee');
+            const key = keyInput ? keyInput.value.trim() : '';
+            const employeeId = empInput ? empInput.value.trim() : '';
+            if (!key || !employeeId) {
+                alert("Vui lòng nhập đầy đủ Mã kích hoạt và Mã nhân viên");
+                return;
             }
-        } else {
-            // Đây chính là dòng thông báo lỗi mà anh thắc mắc
-            alert("Lỗi kết nối: " + err.message); 
+            // Luôn sử dụng máy chủ quản trị trung tâm để xử lý kích hoạt
+            const scriptUrl = ADMIN_SERVER_URL;
+            // Tạo URL kèm tham số query để gọi Apps Script bằng phương thức GET
+            const query = `?action=activate&key=${encodeURIComponent(key)}&employeeId=${encodeURIComponent(employeeId)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
+            try {
+                const res = await fetch(scriptUrl + query);
+                // Một số Apps Script cần trả về JSON thuần. Nếu trả về text 'success', vẫn xử lý được.
+                let result;
+                // --- ĐOẠN CODE ĐÃ SỬA ---
+const txt = await res.text(); // Đọc dữ liệu ra text 1 lần duy nhất
+try {
+    result = JSON.parse(txt); // Thử chuyển nó sang JSON
+} catch (e) {
+    result = txt; // Nếu không chuyển được thì giữ nguyên là text
+}
+                // Kiểm tra thành công: server có thể trả về {status:'success'} hoặc 'success'
+                if ((result && result.status && String(result.status).toLowerCase() === 'success') || String(result).toLowerCase().includes('success')) {
+                    // Thành công: xử lý tùy theo máy mới hay tái kích hoạt
+                    if (result.secret) {
+                        APP_BACKUP_SECRET = result.secret;
+                        console.log("Đã nhận chìa khóa bảo mật từ Server");
+                    }
+                    const hasOldData = !!localStorage.getItem(SEC_KEY);
+                    if (!hasOldData) {
+                        // Trường hợp máy mới: Lưu trạng thái kích hoạt và yêu cầu tạo PIN mới
+                        localStorage.setItem(ACTIVATED_KEY, 'true');
+                        localStorage.setItem(EMPLOYEE_KEY, employeeId);
+                        const modal = getEl('activation-modal');
+                        if (modal) modal.classList.add('hidden');
+                        // Hiển thị thiết lập PIN
+                        getEl('setup-lock-modal').classList.remove('hidden');
+                        getEl('setup-pin').value = '';
+                        getEl('setup-answer').value = employeeId;
+                        showToast("Kích hoạt thành công! Vui lòng tạo mã PIN.");
+                    } else {
+                        // Tái kích hoạt trên máy đã có dữ liệu: xác thực mã nhân viên
+                        const encMaster = localStorage.getItem(SEC_KEY);
+                        let decrypted = '';
+                        try {
+                            const hashedAns = await hashString(employeeId);
+                            const bytes = CryptoJS.AES.decrypt(String(encMaster), hashedAns);
+                            decrypted = bytes.toString(CryptoJS.enc.Utf8);
+                        } catch (e) {
+                            decrypted = '';
+                        }
+                        if (decrypted && decrypted.startsWith('mk_')) {
+                            // Đúng nhân viên cũ: giữ nguyên masterKey và dữ liệu, gia hạn thành công
+                            masterKey = decrypted;
+                            localStorage.setItem(ACTIVATED_KEY, 'true');
+                            localStorage.setItem(EMPLOYEE_KEY, employeeId);
+                            const modal = getEl('activation-modal');
+                            if (modal) modal.classList.add('hidden');
+                            // Nếu đã có PIN, yêu cầu nhập PIN cũ để vào
+                            if (localStorage.getItem(PIN_KEY)) {
+                                showToast("Gia hạn thành công! Dữ liệu cũ vẫn an toàn.");
+                                showLockScreen();
+                            } else {
+                                // Nếu vì lý do nào đó không có PIN, cho tạo mới
+                                getEl('setup-lock-modal').classList.remove('hidden');
+                                getEl('setup-pin').value = '';
+                                getEl('setup-answer').value = employeeId;
+                                showToast("Gia hạn thành công! Tạo PIN mới.");
+                            }
+                        } else {
+                            // Nhân viên khác: cảnh báo và hỏi xác nhận để xóa dữ liệu cũ
+                            const confirmDel = confirm("Phát hiện dữ liệu của nhân viên khác. Tiếp tục sẽ XÓA SẠCH dữ liệu cũ. Đồng ý không?");
+                            if (confirmDel) {
+                                try {
+                                    // Xóa toàn bộ localStorage và CSDL
+                                    localStorage.clear();
+                                    indexedDB.deleteDatabase(DB_NAME);
+                                } catch (e) {}
+                                // Đặt lại masterKey và lưu trạng thái kích hoạt mới
+                                masterKey = null;
+                                localStorage.setItem(ACTIVATED_KEY, 'true');
+                                localStorage.setItem(EMPLOYEE_KEY, employeeId);
+                                const modal = getEl('activation-modal');
+                                if (modal) modal.classList.add('hidden');
+                                // Cho phép tạo PIN mới
+                                getEl('setup-lock-modal').classList.remove('hidden');
+                                getEl('setup-pin').value = '';
+                                getEl('setup-answer').value = employeeId;
+                                showToast("Đã kích hoạt cho người dùng mới, vui lòng tạo PIN.");
+                            }
+                            // Nếu không đồng ý, không làm gì cả
+                        }
+                    }
+                } else {
+                    let msg = 'Kích hoạt thất bại. Vui lòng kiểm tra Key của bạn.';
+                    if (result && result.message) msg = result.message;
+                    alert(msg);
+                }
+            } catch (err) {
+                alert("Lỗi kết nối: " + err.message);
+            }
         }
-    }
-}
-
-// Hàm phụ trợ để xử lý khi thành công (tách ra cho gọn)
-function handleActivationSuccess(result, empId) {
-    if (result.secret) APP_BACKUP_SECRET = result.secret;
-    
-    localStorage.setItem(ACTIVATED_KEY, 'true');
-    localStorage.setItem(EMPLOYEE_KEY, empId);
-    
-    // Ẩn modal kích hoạt
-    const modal = getEl('activation-modal');
-    if (modal) modal.classList.add('hidden');
-
-    // Nếu chưa có PIN thì mở bảng tạo PIN
-    if (!localStorage.getItem(PIN_KEY)) {
-        getEl('setup-lock-modal').classList.remove('hidden');
-        getEl('setup-pin').value = '';
-        getEl('setup-answer').value = empId;
-        alert("Kích hoạt thành công! Vui lòng tạo mã PIN mới.");
-    } else {
-        alert("Gia hạn thành công!");
-        window.location.reload(); // Tải lại để áp dụng
-    }
-}
 
         function setupSwipe() {
             const lb = getEl('lightbox'); let startX = 0; let endX = 0;
@@ -1481,7 +1483,10 @@ function handleActivationSuccess(result, empId) {
             if (!currentCustomerData.assets) currentCustomerData.assets = [];
             // Header: tên, SĐT, trạng thái
             renderFolderHeader(currentCustomerData);
-            // Drive status UI removed; no need to render status in offline mode
+            // ⭐ Quan trọng: hiển thị lại trạng thái Drive sau khi reload / restore
+            if (typeof renderDriveStatus === "function") {
+                renderDriveStatus(currentCustomerData.driveLink || null);
+            }
             // Reset chọn ảnh nếu có
             isSelectionMode = false;
             selectedImages.clear();
@@ -1702,13 +1707,16 @@ function referenceAssetPrice(assetIndex) {
         getEl('gallery-asset-val').textContent = decryptText(asset.valuation) || '--';
         getEl('gallery-asset-loan').textContent = decryptText(asset.loanValue) || '--';
         
-        // Drive status UI removed; no need to check Drive link for assets in offline mode
+        // Kiểm tra link Drive của tài sản
+        if (typeof renderAssetDriveStatus === "function") {
+            renderAssetDriveStatus(asset.driveLink);
+        }
     } else {
         // Fallback nếu không tìm thấy tài sản
         getEl('gallery-asset-name').textContent = name; // Dùng tạm tên truyền vào
         getEl('gallery-asset-val').textContent = '--';
         getEl('gallery-asset-loan').textContent = '--';
-        // Drive status UI removed; no Drive link to render in offline mode
+        if (typeof renderAssetDriveStatus === "function") renderAssetDriveStatus(null);
     }
     
     // Gọi hàm load ảnh
@@ -2024,68 +2032,23 @@ async function capturePhoto() {
     // Lưu ảnh vào DB như cũ (hồ sơ / tài sản / bìa đỏ đều dùng chung)
     await saveImageToDB(rawBase64);
 }
-        // --- HÀM XỬ LÝ CHO NÚT SHARE TRONG LIGHTBOX (Nút anh khoanh tròn) ---
-async function shareOpenedImage() {
-    // 1. Kiểm tra xem có đang mở ảnh không
-    if (!currentImageBase64) return;
-
-    try {
-        // 2. Chuyển đổi dữ liệu ảnh an toàn (Dùng hàm dataURLtoBlob có sẵn)
-        // Cách này KHÔNG dùng 'fetch', nên không bị chặn bởi CSP hay lỗi mạng
-        const blob = dataURLtoBlob(currentImageBase64);
-        
-        // 3. Tạo file ảo để chia sẻ
-        const file = new File([blob], `img_${Date.now()}.jpg`, { type: "image/jpeg" });
-
-        // 4. Cấu hình dữ liệu chia sẻ (Android yêu cầu phải có title/text)
-        const shareData = {
-            title: 'ClientPro Photo',
-            text: 'Ảnh từ ClientPro',
-            files: [file]
-        };
-
-        // 5. Kích hoạt tính năng chia sẻ của điện thoại
-        if (navigator.canShare && navigator.canShare(shareData)) {
-            await navigator.share(shareData);
-        } else {
-            // Nếu điện thoại quá cũ không share được thì tự động tải ảnh về
-            const a = document.createElement('a');
-            a.href = currentImageBase64;
-            a.download = `img_${Date.now()}.jpg`;
-            a.click();
-        }
-    } catch (err) {
-        console.log("Người dùng hủy chia sẻ hoặc lỗi:", err);
-    }
-}
+        function shareOpenedImage() { if(!currentImageBase64) return; fetch(currentImageBase64).then(res => res.blob()).then(blob => { if(navigator.canShare) navigator.share({files:[new File([blob], "evidence.jpg", {type:"image/jpeg"})]}); }); }
         function deleteOpenedImage() { if(confirm("Hủy chứng từ này?")) { db.transaction(['images'], 'readwrite').objectStore('images').delete(currentImageId).onsuccess = () => { closeLightbox(); if(currentAssetId && getEl('screen-asset-gallery').classList.contains('translate-x-full') === false) loadAssetImages(currentAssetId); else loadProfileImages(); }; } }
         function toggleMenu() { const m=getEl('settings-menu'); const o=getEl('menu-overlay'); if(m.classList.contains('hidden')){m.classList.remove('hidden');o.classList.remove('hidden'); setTimeout(()=>{m.classList.remove('scale-95','opacity-0');},10)}else{m.classList.add('scale-95','opacity-0'); setTimeout(()=>{m.classList.add('hidden');o.classList.add('hidden');},200)} }
+        // ============================================================
+// HÀM BACKUP MỚI (CHỈ LƯU THÔNG TIN - LOẠI BỎ ẢNH & LINK)
 // ============================================================
 async function backupData() { 
-    // Đóng menu
-    toggleMenu(); 
-
-    // --- LOGIC MỚI: TỰ ĐỘNG LẤY KEY NẾU CHƯA CÓ ---
     if (!APP_BACKUP_SECRET) {
-        getEl('loader').classList.remove('hidden');
-        getEl('loader-text').textContent = "Đang xin cấp quyền Backup...";
-        
-        // Gọi hàm checkSecurity để lấy Key về
-        const success = await checkSecurity();
-        
-        if (!success) {
-            getEl('loader').classList.add('hidden');
-            alert("LỖI BẢO MẬT: Server từ chối cấp Key hoặc lỗi mạng.\n\nKhông thể mã hóa file backup nếu thiếu Key này.");
-            return;
-        }
+        alert("BẢO MẬT: Không thể xuất file khi đang Offline hoặc chưa xác thực với Server.\n\nVui lòng kết nối mạng và mở lại App để hệ thống tải khóa bảo mật.");
+        return;
     }
-
-    // Đến đây là chắc chắn đã có APP_BACKUP_SECRET
+    // Đóng menu và hiển thị loader
+    toggleMenu(); 
     getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang đóng gói & Mã hóa...";
-    
+    getEl('loader-text').textContent = "Đóng gói (Bảo mật)...";
     try {
-        // Đọc dữ liệu từ IndexedDB
+        // Đọc toàn bộ khách hàng từ IndexedDB
         const customers = await new Promise((resolve, reject) => {
             const tx = db.transaction(['customers'], 'readonly');
             const store = tx.objectStore('customers');
@@ -2094,174 +2057,143 @@ async function backupData() {
             req.onerror = (e) => reject(e);
         });
 
-        // Hàm helper: Giải mã tạm thời để chuẩn hóa (nếu đang lưu mã hóa trong DB)
-        // Lưu ý: Lúc backup ta cần đưa về dạng object chuẩn, sau đó mã hóa cả cục to
+        // Chuẩn hoá dữ liệu: giải mã các trường cần thiết và loại bỏ driveLink
         const cleanCustomers = customers.map((c) => {
-            // Clone object
             const cust = JSON.parse(JSON.stringify(c));
-            
-            // Vì ta đang backup "nguyên cục" đã mã hóa trong DB, 
-            // nên ta có thể giữ nguyên trạng thái (đã mã hóa từng trường) 
-            // hoặc giải mã ra để xem (tùy nhu cầu). 
-            // Ở đây TỐT NHẤT là giữ nguyên dữ liệu thô trong DB để backup nhanh nhất.
-            // Chỉ cần xóa trường driveLink không cần thiết.
+            // Giải mã các trường văn bản
+            cust.name = decryptText(cust.name);
+            cust.phone = decryptText(cust.phone);
+            cust.cccd = decryptText(cust.cccd);
+            // Loại bỏ liên kết Drive ở cấp khách hàng
             cust.driveLink = null;
 
             if (cust.assets && Array.isArray(cust.assets)) {
                 cust.assets = cust.assets.map((a) => {
-                    a.driveLink = null;
-                    return a;
+                    const asset = JSON.parse(JSON.stringify(a));
+                    asset.name = decryptText(asset.name);
+                    asset.link = decryptText(asset.link);
+                    asset.valuation = decryptText(asset.valuation);
+                    asset.loanValue = decryptText(asset.loanValue);
+                    asset.area = decryptText(asset.area);
+                    asset.width = decryptText(asset.width);
+                    asset.onland = decryptText(asset.onland);
+                    asset.year = decryptText(asset.year);
+                    asset.ocrData = decryptText(asset.ocrData);
+                    // Loại bỏ liên kết Drive của tài sản
+                    asset.driveLink = null;
+                    return asset;
                 });
             }
             return cust;
         });
 
-        // Lấy ảnh (nếu cần, nhưng thường backup file json thì bỏ ảnh cho nhẹ)
-        // Trong code cũ anh đang để images: [] (rỗng) -> OK
-        
+        // Đóng gói dữ liệu xuất
         const dataToExport = {
             v: 1.0,
             customers: cleanCustomers,
-            images: [] 
+            images: [] // bỏ ảnh để giảm kích thước backup
         };
 
-        // --- MÃ HÓA TOÀN BỘ FILE BACKUP BẰNG KEY SERVER ---
-        // Đây là lớp bảo vệ thứ 2: Mã hóa cả file JSON
+        // Mã hóa toàn bộ dữ liệu bằng khóa bí mật
         const encrypted = CryptoJS.AES.encrypt(JSON.stringify(dataToExport), APP_BACKUP_SECRET).toString();
 
-        // Tạo file
+        // Tạo file chứa dữ liệu đã mã hóa
         const blob = new Blob([encrypted], {type: 'application/json'});
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        // Đặt tên file có ngày tháng
-        const date = new Date();
-        const dateStr = `${date.getDate()}${date.getMonth()+1}_${date.getHours()}${date.getMinutes()}`;
-        a.download = `ClientPro_Backup_${dateStr}.cpro`; // Đuôi .cpro cho chuyên nghiệp
+        a.download = `ClientPro_Backup_${Date.now()}.cpro`;
         a.click();
 
-        showToast("✅ Đã xuất file Backup an toàn");
+        showToast("Đã xuất file");
     } catch(err) {
         console.error(err);
-        alert("Lỗi xuất file: " + err.message);
+        alert("Lỗi xuất file");
     } finally {
+        // Ẩn loader trong mọi trường hợp
         getEl('loader').classList.add('hidden');
     }
 }
-async function restoreData(input) { 
-    // Đóng menu cho gọn
+function restoreData(input) { 
+    // Đóng menu và chuẩn bị loader
     toggleMenu(); 
-    
     const f = input.files && input.files[0]; 
     if (!f) return;
-    
-    const resetInput = () => { try { input.value = ''; } catch(e){} };
-
-    // --- LOGIC MỚI: KIỂM TRA KEY TRƯỚC KHI ĐỌC FILE ---
-    if (!APP_BACKUP_SECRET) {
-        getEl('loader').classList.remove('hidden');
-        getEl('loader-text').textContent = "Đang kết nối Server lấy Key...";
-        
-        // Gọi hàm checkSecurity và ĐỢI nó chạy xong
-        const success = await checkSecurity();
-        
-        if (!success) {
-            getEl('loader').classList.add('hidden');
-            alert("LỖI KẾT NỐI: Không lấy được Key bảo mật từ Server.\n\n- Kiểm tra mạng Internet.\n- Đảm bảo Google Script đã được Deploy lại.\n- Mã nhân viên: " + localStorage.getItem(EMPLOYEE_KEY));
-            resetInput();
-            return; // Dừng luôn, không đọc file nữa
-        }
-    }
-
-    // Nếu code chạy đến đây nghĩa là đã có APP_BACKUP_SECRET
     getEl('loader').classList.remove('hidden'); 
-    getEl('loader-text').textContent = "Đang giải mã dữ liệu...";
-    
+    getEl('loader-text').textContent = "Đồng bộ...";
     const r = new FileReader(); 
     r.onload = async (e) => { 
         try { 
-            const rawContent = e.target.result;
-            let data = null;
-            let isOldFile = false;
-
-            // 1. Thử đọc như file cũ (JSON thường)
+            const encryptedContent = e.target.result;
+            // Thử giải mã nội dung file bằng khóa bí mật
+            let decryptedStr = '';
             try {
-                if (rawContent.trim().startsWith('{') || rawContent.trim().startsWith('[')) {
-                    data = JSON.parse(rawContent);
-                    isOldFile = true;
-                }
-            } catch (ex) {}
-
-            // 2. Nếu không phải file cũ, thử giải mã bằng Key vừa lấy
-            if (!data) {
-                try {
-                    const bytes = CryptoJS.AES.decrypt(String(rawContent), APP_BACKUP_SECRET);
-                    const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
-                    if (decryptedStr) data = JSON.parse(decryptedStr);
-                } catch(ex) {
-                    throw new Error("Giải mã thất bại! Key Server không khớp với Key của file này.");
-                }
+                const bytes = CryptoJS.AES.decrypt(String(encryptedContent), APP_BACKUP_SECRET);
+                decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
+            } catch(ex) {
+                decryptedStr = '';
             }
+            if (!decryptedStr) throw new Error("Decryption failed");
 
-            if (!data) throw new Error("Dữ liệu trống hoặc hỏng.");
-
-            // 3. Ghi vào Database
-            getEl('loader-text').textContent = "Đang khôi phục...";
+            const data = JSON.parse(decryptedStr);
+            // Chuẩn bị ghi dữ liệu vào IndexedDB
             const tx = db.transaction(['customers', 'images'], 'readwrite');
-            const custStore = tx.objectStore('customers');
-            const imgStore = tx.objectStore('images');
+            const customerStore = tx.objectStore('customers');
+            const imageStore = tx.objectStore('images');
 
-            const enc = (txt) => {
-                if (!txt) return '';
-                if (String(txt).startsWith('U2FsdGVk')) return txt;
-                return encryptText(txt); 
-            };
+                       // --- SỬA LỖI: Hàm helper chỉ mã hóa khi có dữ liệu ---
+            const enc = (txt) => (txt && String(txt).trim().length > 0) ? encryptText(txt) : '';
 
+            // Ghi từng khách hàng, mã hóa lại các trường bằng masterKey hiện tại
             (data.customers || []).forEach((c) => {
                 const cust = JSON.parse(JSON.stringify(c));
+                
+                // Sử dụng hàm enc thay vì encryptText trực tiếp
                 cust.name = enc(cust.name);
                 cust.phone = enc(cust.phone);
                 cust.cccd = enc(cust.cccd);
-                // ... (Các trường assets giữ nguyên như code cũ) ...
+                
+                // Nếu có tài sản thì mã hóa từng trường của tài sản
                 if (cust.assets && Array.isArray(cust.assets)) {
-                    cust.assets = cust.assets.map(a => {
-                        a.name = enc(a.name);
-                        a.link = enc(a.link);
-                        a.valuation = enc(a.valuation);
-                        a.loanValue = enc(a.loanValue);
-                        a.area = enc(a.area);
-                        a.width = enc(a.width);
-                        a.onland = enc(a.onland);
-                        a.year = enc(a.year);
-                        a.ocrData = enc(a.ocrData);
-                        return a;
+                    cust.assets = cust.assets.map((a) => {
+                        const asset = JSON.parse(JSON.stringify(a));
+                        
+                        // Áp dụng enc cho toàn bộ các trường tài sản
+                        asset.name = enc(asset.name);
+                        asset.link = enc(asset.link);
+                        asset.valuation = enc(asset.valuation);
+                        asset.loanValue = enc(asset.loanValue);
+                        asset.area = enc(asset.area);
+                        asset.width = enc(asset.width);
+                        asset.onland = enc(asset.onland);
+                        asset.year = enc(asset.year);
+                        asset.ocrData = enc(asset.ocrData);
+                        
+                        // Giữ driveLink theo dữ liệu backup (có thể null)
+                        return asset;
                     });
                 }
-                custStore.put(cust);
+                customerStore.put(cust);
             });
 
-            (data.images || []).forEach(i => imgStore.put(i));
+            // Ghi ảnh nếu có trong backup (images thường trống)
+            (data.images || []).forEach(i => imageStore.put(i));
 
             tx.oncomplete = () => { 
                 getEl('loader').classList.add('hidden'); 
-                alert("✅ Khôi phục thành công!"); 
+                alert("Đã khôi phục"); 
                 loadCustomers(); 
-                resetInput();
             };
             tx.onerror = () => {
                 getEl('loader').classList.add('hidden');
-                alert("Lỗi ghi Database!");
-                resetInput();
+                alert("Lỗi khi ghi vào cơ sở dữ liệu");
             };
-
         } catch(err) { 
             getEl('loader').classList.add('hidden'); 
-            alert("LỖI: " + err.message); 
-            resetInput();
+            alert("File backup không hợp lệ hoặc sai định dạng bảo mật"); 
         } 
     }; 
     r.readAsText(f); 
 }
-
         function resetAppData() { if(confirm("XÓA SẠCH dữ liệu?")) { localStorage.clear(); indexedDB.deleteDatabase(DB_NAME).onsuccess = () => { alert("Đã reset."); window.location.reload(); }; } }
         // =============== DONATE FEATURE ===============
 
@@ -2413,11 +2345,474 @@ function fallbackCopyDonate(text) {
             setWeatherText(`${temp}°C • ${desc}`);
         }
 
-        // ================== END WEATHER
+        // ================== END WEATHER ==================
+    // --- LOGIC UPLOAD DRIVE & CẤU HÌNH ---
+function saveScriptUrl() {
+    const url = getEl('user-script-url').value.trim();
+    if (!url.startsWith('https://script.google.com/')) {
+        alert("Link không đúng định dạng!");
+        return;
+    }
+    // Lưu link Script cá nhân vào localStorage với key mới
+    localStorage.setItem(USER_SCRIPT_KEY, url);
+    showToast("Đã lưu kết nối Drive cá nhân");
+}
+document.addEventListener('DOMContentLoaded', () => {
+    const savedUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if(savedUrl) getEl('user-script-url').value = savedUrl;
+});
+
+// 2. Hàm Upload chính
+async function uploadToGoogleDrive() {
+    // Dùng Script cá nhân cho việc upload ảnh hồ sơ. Kiểm tra xem user đã cấu hình link hay chưa.
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
+    
+    if (!currentCustomerData) return;
+
+    // Lấy ảnh từ Database
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang kiểm tra ảnh...";
+    
+    const tx = db.transaction(['images'], 'readonly');
+    const store = tx.objectStore('images');
+    const index = store.index('customerId');
+
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        // Lọc: Chỉ lấy ảnh chưa được gắn vào Asset (ảnh hồ sơ)
+        let imagesToUpload = allImages.filter(img => !img.assetId);
+
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Không có ảnh nào để tải lên!");
+        }
+
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh lên Google Drive?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang tải lên Cloud...";
+
+        // Chuẩn bị gói dữ liệu
+        const payload = {
+            // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
+            folderName: `${currentCustomerData.name} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `img_${Date.now()}_${idx}.jpg`,
+                data: img.data
+            }))
+        };
+
+        try {
+            // Gửi request (no-cors để tránh lỗi trình duyệt chặn, nhưng script google phải set JSONP hoặc text)
+            // Lưu ý: Fetch POST tới Google Script đôi khi cần xử lý kỹ.
+            // Dùng cách gửi tiêu chuẩn:
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                // Lưu link và dọn dẹp
+                currentCustomerData.driveLink = result.url;
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                renderDriveStatus(result.url); // Hiển thị nút mở Drive
+                
+                // Hỏi xóa ảnh gốc
+                if(confirm("✅ UPLOAD THÀNH CÔNG!\n\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => {
+                        loadProfileImages(); // Làm mới lưới ảnh (trống trơn)
+                        showToast("Đã dọn dẹp bộ nhớ");
+                    };
+                }
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            console.error(err);
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi Upload: " + err.message + "\nKiểm tra lại Link Script hoặc Mạng.");
+        }
+    };
+}
+
+// 3. Hàm hiển thị nút mở Drive
+function renderDriveStatus(url) {
+    const area = getEl('drive-status-area');
+    const btnUp = getEl('btn-upload-drive');
+    
+    if (!area) return;
+    
+    if (url && url.length > 5) {
+        // ĐÃ CÓ LINK → hiện nút Mở Drive
+        area.classList.remove('hidden');
+        area.innerHTML = `
+      <a href="${url}" target="_blank"
+         class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold
+                flex items-center justify-center gap-2 shadow-lg mb-1
+                animate-fade-in border border-emerald-400/30">
+        <i data-lucide="external-link" class="w-5 h-5"></i> Mở Folder Ảnh
+      </a>
+      <p class="text-[10px] text-center text-emerald-400/70 italic mb-2">
+        Đã đồng bộ lên Cloud
+      </p>
+    `;
+        
+        if (btnUp) btnUp.classList.remove('hidden'); // vẫn cho phép upload thêm
+    } else {
+        // CHƯA CÓ LINK → hiện nút tìm lại + nút upload
+        area.classList.remove('hidden');
+        area.innerHTML = `
+      <button onclick="reconnectDriveFolder()"
+              class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600
+                     rounded-lg text-xs font-medium text-slate-300
+                     flex items-center justify-center gap-2 hover:bg-slate-700 transition">
+        <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
+      </button>
+    `;
+        if (btnUp) btnUp.classList.remove('hidden');
+    }
+    
+    if (window.lucide) lucide.createIcons();
+}
+
+// --- LOGIC UPLOAD DRIVE CHO TÀI SẢN (TSBĐ) ---
+
+async function uploadAssetToDrive() {
+    // Lấy link Script cá nhân
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
+    
+    if (!currentCustomerData || !currentAssetId) return;
+
+    // Tìm xem đang thao tác với Tài sản nào trong mảng assets
+    const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
+    if (assetIndex === -1) return;
+    const currentAsset = currentCustomerData.assets[assetIndex];
+
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang lấy ảnh TSBĐ...";
+
+    const tx = db.transaction(['images'], 'readonly');
+    const store = tx.objectStore('images');
+    const index = store.index('customerId'); // Lấy tất cả ảnh của khách này trước
+
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        
+        // LỌC QUAN TRỌNG: Chỉ lấy ảnh có assetId TRÙNG VỚI assetId hiện tại
+        let imagesToUpload = allImages.filter(img => img.assetId === currentAssetId);
+
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Tài sản này chưa có ảnh nào!");
+        }
+
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh của tài sản "${currentAsset.name}" lên Drive?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang Upload TSBĐ...";
+
+        // Đặt tên Folder: [Tên Khách] - [Tên Tài Sản]
+        // Ví dụ: Nguyen Van A - Nhà Đất 50m2
+        const folderName = `${currentCustomerData.name} - TSBĐ: ${currentAsset.name}`;
+
+        const payload = {
+            folderName: folderName,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `asset_img_${Date.now()}_${idx}.jpg`,
+                data: img.data
+            }))
+        };
+
+        try {
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                // 1. Lưu Link vào đúng đối tượng Asset
+                currentCustomerData.assets[assetIndex].driveLink = result.url;
+                
+                // 2. Cập nhật Database
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                
+                // 3. Cập nhật giao diện
+                renderAssetDriveStatus(result.url);
+                
+                // 4. Hỏi xóa ảnh
+                if(confirm("✅ TSBĐ ĐÃ LÊN MÂY!\n\nXóa ảnh gốc trong máy để nhẹ bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => {
+                        loadAssetImages(currentAssetId); // Load lại lưới ảnh (trống)
+                        showToast("Đã dọn dẹp ảnh TSBĐ");
+                    };
+                }
+            } else {
+                throw new Error(result.message);
+            }
+
+        } catch (err) {
+            console.error(err);
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi: " + err.message);
+        }
+    };
+}
+
+// 1. Cập nhật giao diện: Thêm nút Tìm kết nối cũ
+function renderAssetDriveStatus(url) {
+    const area = getEl('asset-drive-status-area');
+    const btnUp = getEl('btn-asset-upload');
+    if (!area) return;
+    area.classList.remove('hidden');
+
+    if (url && url.length > 5) {
+        // Đã có link -> Hiện nút mở
+        area.innerHTML = `
+            <a href="${url}" target="_blank" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border border-teal-400/30">
+                <i data-lucide="external-link" class="w-5 h-5"></i> Xem Folder TSBĐ
+            </a>`;
+        if (btnUp) btnUp.classList.remove('hidden');
+    } else {
+        // Chưa có link -> Hiện nút TÌM LẠI
+        area.innerHTML = `
+            <button onclick="reconnectAssetDriveFolder()" class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
+                <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
+            </button>`;
+        if (btnUp) btnUp.classList.remove('hidden');
+    }
+    if(window.lucide) lucide.createIcons();
+}
+
+// 2. Logic tìm kiếm (Sử dụng Script cá nhân USER_SCRIPT_KEY)
+async function reconnectAssetDriveFolder() {
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) toggleMenu();
+        return;
+    }
+    
+    if (!currentCustomerData || !currentAssetId) return;
+    const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
+    if (assetIndex === -1) return;
+
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang tìm TSBĐ...";
+    
+    const folderName = `${currentCustomerData.name} - TSBĐ: ${currentCustomerData.assets[assetIndex].name}`;
+
+    try {
+        const response = await fetch(userUrl, {
+            method: "POST",
+            body: JSON.stringify({ action: 'search', folderName: folderName })
+        });
+        const result = await response.json();
+
+        if (result.status === 'found') {
+            // Mã hóa link tìm được trước khi lưu vào DB
+            const encLink = encryptText(result.url); 
+            
+            const tx = db.transaction(['customers'], 'readwrite');
+            const store = tx.objectStore('customers');
+            store.get(currentCustomerData.id).onsuccess = (e) => {
+                let dbRecord = e.target.result;
+                if (dbRecord && dbRecord.assets && dbRecord.assets[assetIndex]) {
+                    dbRecord.assets[assetIndex].driveLink = encLink;
+                    store.put(dbRecord);
+                }
+            };
+            tx.oncomplete = () => {
+                currentCustomerData.assets[assetIndex].driveLink = result.url; // Cập nhật hiển thị
+                getEl('loader').classList.add('hidden');
+                renderAssetDriveStatus(result.url);
+                showToast("Đã kết nối lại!");
+            };
+        } else {
+            getEl('loader').classList.add('hidden');
+            alert("Không tìm thấy folder: " + folderName);
+        }
+    } catch (err) {
+        getEl('loader').classList.add('hidden');
+        alert("Lỗi: " + err.message);
+    }
+}
+// --- TÍNH NĂNG TÌM LẠI FOLDER THẤT LẠC ---
+async function reconnectDriveFolder() {
+    // Lấy link Script cá nhân; nếu chưa cấu hình thì nhắc người dùng cài đặt
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Chưa cấu hình Script! Vào cài đặt ngay?")) toggleMenu();
+        return;
+    }
+    // Không có dữ liệu khách hàng hiện tại thì dừng
+    if (!currentCustomerData) return;
+
+    // Hiển thị loader và cập nhật thông báo
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang tìm trên Drive...";
+
+    // Lấy thông tin tên, SĐT và CCCD sau khi giải mã (hàm decryptText sẽ trả lại nguyên bản nếu đầu vào đã giải mã)
+    const name = currentCustomerData.name;
+    const phone = decryptText(currentCustomerData.phone);
+    const cccd = decryptText(currentCustomerData.cccd);
+
+    // Tạo danh sách tên thư mục có thể có: ưu tiên theo CCCD trước, sau đó là SĐT
+    const possibleNames = [];
+    if (cccd) possibleNames.push(`${name} - ${cccd}`);
+    if (phone) possibleNames.push(`${name} - ${phone}`);
+
+    let foundUrl = null;
+
+    // Thử tìm lần lượt các tên trong danh sách
+    for (const folderName of possibleNames) {
+        try {
+            getEl('loader-text').textContent = `Đang tìm: ${folderName}...`;
+            const response = await fetch(userUrl, {
+                method: "POST",
+                body: JSON.stringify({ action: 'search', folderName: folderName })
+            });
+            const result = await response.json();
+            if (result.status === 'found') {
+                foundUrl = result.url;
+                break;
+            }
+        } catch (e) {
+            console.warn("Lỗi tìm kiếm:", e);
+        }
+    }
+
+    // Nếu tìm thấy thì lưu và cập nhật giao diện, ngược lại báo lỗi
+    if (foundUrl) {
+        currentCustomerData.driveLink = foundUrl;
+        const tx = db.transaction(['customers'], 'readwrite');
+        tx.objectStore('customers').put(currentCustomerData).onsuccess = () => {
+            getEl('loader').classList.add('hidden');
+            renderDriveStatus(foundUrl);
+            showToast("Đã kết nối lại thành công!");
+        };
+    } else {
+        getEl('loader').classList.add('hidden');
+        alert("Không tìm thấy folder nào khớp với Tên + CCCD hoặc Tên + SĐT.");
+    }
+}
+// ============================================================
+// LOGIC KẾT NỐI GOOGLE APPS SCRIPT (OCR & UPLOAD)
+// ============================================================
+
+// Link Script mặc định đã bị loại bỏ trong mô hình "Quản lý tập trung - Lưu trữ phân tán".
+// Vui lòng cấu hình link Script cá nhân của bạn trong phần Cài đặt (lưu bằng USER_SCRIPT_KEY). Không dùng biến mặc định nữa.
 
 let currentOcrBase64 = null;
 
-// --- CẬP NHẬT REGEX THÔNG MINH (BẮT DÍNH LOẠI ĐẤT & SỐ BÌA) ---
+// 1. Mở Modal OCR
+// Removed OCR modal handlers and OCR execution functions as OCR is no longer used
+
+// 4. HÀM UPLOAD ẢNH (Gửi mảng ảnh lên Google Script)
+async function uploadToGoogleDrive() {
+    // Sử dụng Script cá nhân của người dùng. Nếu chưa cấu hình, hướng dẫn người dùng vào Cài đặt
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
+    if (!currentCustomerData) return;
+
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang kiểm tra ảnh...";
+    
+    const tx = db.transaction(['images'], 'readonly');
+    const index = tx.objectStore('images').index('customerId');
+
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        let imagesToUpload = allImages.filter(img => !img.assetId);
+
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Không có ảnh nào để tải lên!");
+        }
+
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang Upload lên Drive...";
+
+        // Đóng gói mảng ảnh
+        const payload = {
+            action: 'upload',
+            // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
+            folderName: `${currentCustomerData.name} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `hoso_${Date.now()}_${idx}.jpg`,
+                data: img.data
+            }))
+        };
+
+        try {
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                currentCustomerData.driveLink = result.url;
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                renderDriveStatus(result.url);
+                
+                if(confirm("✅ Upload thành công!\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => { loadProfileImages(); };
+                }
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi Upload: " + err.message);
+        }
+    };
+}
+
+// --- CẬP NHẬT REGEX THÔNG MINH (V5: BẮT DÍNH LOẠI ĐẤT & SỐ BÌA) ---
 
 function parseRedBookInfo(text) {
     // Trả về đối tượng rỗng (OCR parser đã bỏ)
@@ -2465,7 +2860,89 @@ function renderRedBookInfo(info) {
 
 
 
+// --- LOGIC UPLOAD ẢNH HỒ SƠ ---
+async function uploadToGoogleDrive() {
+    // Lấy link Script cá nhân cho upload tài sản
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
+    
+    if (!currentCustomerData) return;
 
+    // 1. Lấy ảnh từ Database
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang kiểm tra ảnh...";
+    
+    const tx = db.transaction(['images'], 'readonly');
+    const store = tx.objectStore('images');
+    const index = store.index('customerId');
+
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        // Lấy ảnh hồ sơ (không có assetId)
+        let imagesToUpload = allImages.filter(img => !img.assetId);
+
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Không có ảnh hồ sơ nào để tải lên!");
+        }
+
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang đẩy lên Google Drive...";
+
+        // 2. Chuẩn bị gói dữ liệu
+        const payload = {
+            action: 'upload', // <--- Báo cho Script biết là muốn Upload
+            // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
+            folderName: `${currentCustomerData.name} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `hoso_${Date.now()}_${idx}.jpg`,
+                data: img.data // Gửi cả mảng ảnh đi 1 lần
+            }))
+        };
+
+        try {
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                // Lưu link Folder
+                currentCustomerData.driveLink = result.url;
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                renderDriveStatus(result.url);
+                
+                if(confirm("✅ Đã Upload xong!\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => {
+                        loadProfileImages();
+                        showToast("Đã dọn dẹp bộ nhớ");
+                    };
+                }
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi Upload: " + err.message);
+        }
+    };
+}
 
 // --- CẬP NHẬT REGEX V7: CHIẾN THUẬT "CHẶN ĐUÔI" (FIX LỖI DÍNH DÒNG) ---
 function parseRedBookInfo(text) {
@@ -2945,324 +3422,14 @@ function handleRedBookResult(data) {
 // Stubbed functions to override removed OCR utilities (in case leftover calls exist)
 function parseRedBookInfo(text) { return {}; }
 function renderRedBookInfo(info) { return ''; }
-
-
 </script>
-    <!-- History-based navigation enhancements for swipe-to-go-back support -->
-    <script>
-    (function() {
-        // Capture references to original functions so we can call them later without recursion.
-        const _org = {};
-        [
-            'openModal','closeModal','openFolder','closeFolder','openAssetGallery','closeAssetGallery',
-            'openAssetModal','openEditAssetModal','closeAssetModal','showRefModal','closeRefModal',
-            'toggleMap','openQrScanner','openRedBookScanner','closeQrScanner','toggleCustSelectionMode',
-            'toggleSelectionMode','viewSavedOcr','openLightbox','closeLightbox','openEditCustomerModal'
-        ].forEach(fn => {
-            if (typeof window[fn] === 'function') {
-                _org[fn] = window[fn];
-            }
-        });
-
-        // Helper to push a new history state. Uses a descriptive hash to aid debugging.
-        function pushState(stateObj, hash) {
-            try {
-                history.pushState(stateObj, null, hash);
-            } catch (e) {
-                // Some environments may block pushState; ignore silently.
-            }
-        }
-
-        // Override functions that open UI elements to push a history entry.
-        if (_org.openModal) {
-            window.openModal = function() {
-                _org.openModal.apply(this, arguments);
-                pushState({ screen: 'add-modal' }, '#add-modal');
-            };
-        }
-        if (_org.openEditCustomerModal) {
-            window.openEditCustomerModal = function() {
-                _org.openEditCustomerModal.apply(this, arguments);
-                pushState({ screen: 'add-modal' }, '#edit-customer');
-            };
-        }
-        if (_org.closeModal) {
-            window.closeModal = function() {
-                // When closing from UI, go back one history entry instead of closing immediately.
-                history.back();
-            };
-        }
-        if (_org.openFolder) {
-            window.openFolder = function(id) {
-                _org.openFolder.apply(this, arguments);
-                pushState({ screen: 'screen-folder', id: id }, '#folder-' + id);
-            };
-        }
-        if (_org.closeFolder) {
-            window.closeFolder = function() {
-                history.back();
-            };
-        }
-        if (_org.openAssetGallery) {
-            window.openAssetGallery = function(id, name, idx) {
-                _org.openAssetGallery.apply(this, arguments);
-                pushState({ screen: 'screen-asset-gallery', id: id }, '#asset-gallery-' + id);
-            };
-        }
-        if (_org.closeAssetGallery) {
-            window.closeAssetGallery = function() {
-                history.back();
-            };
-        }
-        if (_org.openAssetModal) {
-            window.openAssetModal = function() {
-                _org.openAssetModal.apply(this, arguments);
-                pushState({ screen: 'asset-modal' }, '#asset-modal');
-            };
-        }
-        if (_org.openEditAssetModal) {
-            window.openEditAssetModal = function() {
-                _org.openEditAssetModal.apply(this, arguments);
-                pushState({ screen: 'asset-modal' }, '#asset-modal');
-            };
-        }
-        if (_org.closeAssetModal) {
-            window.closeAssetModal = function() {
-                history.back();
-            };
-        }
-        if (_org.showRefModal) {
-            window.showRefModal = function() {
-                _org.showRefModal.apply(this, arguments);
-                pushState({ screen: 'ref-price-modal' }, '#ref-price-modal');
-            };
-        }
-        if (_org.closeRefModal) {
-            window.closeRefModal = function() {
-                history.back();
-            };
-        }
-        // Map toggling: open pushes a state, close triggers history.back()
-        if (_org.toggleMap) {
-            window.toggleMap = function() {
-                const mapScreen = document.getElementById('screen-map');
-                const isHidden = mapScreen && mapScreen.classList.contains('translate-x-full');
-                if (isHidden) {
-                    _org.toggleMap.apply(this, arguments);
-                    pushState({ screen: 'screen-map' }, '#screen-map');
-                } else {
-                    history.back();
-                }
-            };
-        }
-        // QR scanner openings
-        if (_org.openQrScanner) {
-            window.openQrScanner = function() {
-                _org.openQrScanner.apply(this, arguments);
-                pushState({ screen: 'qr-modal' }, '#qr-scanner');
-            };
-        }
-        if (_org.openRedBookScanner) {
-            window.openRedBookScanner = function() {
-                _org.openRedBookScanner.apply(this, arguments);
-                pushState({ screen: 'qr-modal' }, '#qr-redbook');
-            };
-        }
-        if (_org.closeQrScanner) {
-            window.closeQrScanner = function() {
-                history.back();
-            };
-        }
-        // Customer selection bar toggle
-        if (_org.toggleCustSelectionMode) {
-            window.toggleCustSelectionMode = function() {
-                const bar = document.getElementById('cust-selection-bar');
-                const visible = bar && !bar.classList.contains('translate-y-full');
-                if (!visible) {
-                    // Open bar normally then push state
-                    _org.toggleCustSelectionMode.apply(this, arguments);
-                    pushState({ screen: 'cust-selection-bar' }, '#cust-selection-bar');
-                } else {
-                    // Close via history
-                    history.back();
-                }
-            };
-        }
-        // Image selection bar toggle
-        if (_org.toggleSelectionMode) {
-            window.toggleSelectionMode = function() {
-                const bar = document.getElementById('selection-bar');
-                const visible = bar && !bar.classList.contains('translate-y-full');
-                if (!visible) {
-                    _org.toggleSelectionMode.apply(this, arguments);
-                    pushState({ screen: 'selection-bar' }, '#selection-bar');
-                } else {
-                    history.back();
-                }
-            };
-        }
-        // Lightbox open/close
-        if (_org.openLightbox) {
-            window.openLightbox = function(src, id, idx, list) {
-                _org.openLightbox.apply(this, arguments);
-                pushState({ screen: 'lightbox', id: id }, '#lightbox');
-            };
-        }
-        if (_org.closeLightbox) {
-            window.closeLightbox = function() {
-                history.back();
-            };
-        }
-        // Dynamic QR info popup: wrap viewSavedOcr
-        if (_org.viewSavedOcr) {
-            window.viewSavedOcr = function(assetId) {
-                _org.viewSavedOcr.apply(this, arguments);
-                pushState({ screen: 'qr-info', id: assetId }, '#qrinfo-' + assetId);
-                // After overlay is added to DOM, tag it and override its close button
-                setTimeout(() => {
-                    const overlays = document.querySelectorAll('div.fixed.inset-0');
-                    overlays.forEach(overlay => {
-                        if (!overlay.dataset || overlay.dataset.historyHandled) return;
-                        // Identify QR info by heading content
-                        if (overlay.innerHTML && overlay.innerHTML.includes('Thông tin QR')) {
-                            overlay.dataset.historyHandled = 'true';
-                            const buttons = overlay.querySelectorAll('button');
-                            buttons.forEach(btn => {
-                                const text = (btn.textContent || btn.innerText || '').trim();
-                                if (text === 'Đóng') {
-                                    btn.onclick = function(ev) {
-                                        ev.preventDefault();
-                                        history.back();
-                                    };
-                                }
-                            });
-                        }
-                    });
-                }, 0);
-            };
-        }
-        // Handle back/forward navigation by closing the topmost open UI element.
-        window.addEventListener('popstate', function() {
-            // 1. Dynamic QR popup
-            const dyn = document.querySelector('div[data-history-handled="true"]');
-            if (dyn) {
-                dyn.remove();
-                return;
-            }
-            // 2. Lightbox
-            const lb = document.getElementById('lightbox');
-            if (lb && !lb.classList.contains('hidden')) {
-                if (_org.closeLightbox) _org.closeLightbox();
-                return;
-            }
-            // 3. QR modal
-            const qrModal = document.getElementById('qr-modal');
-            if (qrModal && !qrModal.classList.contains('hidden')) {
-                if (_org.closeQrScanner) _org.closeQrScanner();
-                return;
-            }
-            // 4. Asset modal
-            const assetModal = document.getElementById('asset-modal');
-            if (assetModal && !assetModal.classList.contains('hidden')) {
-                if (_org.closeAssetModal) _org.closeAssetModal();
-                return;
-            }
-            // 5. Reference modal
-            const refModal = document.getElementById('ref-price-modal');
-            if (refModal && !refModal.classList.contains('hidden')) {
-                if (_org.closeRefModal) _org.closeRefModal();
-                return;
-            }
-            // 6. Add customer modal
-            const addModal = document.getElementById('add-modal');
-            if (addModal && !addModal.classList.contains('hidden')) {
-                if (_org.closeModal) _org.closeModal();
-                return;
-            }
-            // 7. Customer selection bar
-            const custBar = document.getElementById('cust-selection-bar');
-            if (custBar && !custBar.classList.contains('translate-y-full')) {
-                if (_org.toggleCustSelectionMode) _org.toggleCustSelectionMode();
-                return;
-            }
-            // 8. Image selection bar
-            const selBar = document.getElementById('selection-bar');
-            if (selBar && !selBar.classList.contains('translate-y-full')) {
-                if (_org.toggleSelectionMode) _org.toggleSelectionMode();
-                return;
-            }
-            // 9. Asset gallery screen
-            const ag = document.getElementById('screen-asset-gallery');
-            if (ag && !ag.classList.contains('translate-x-full')) {
-                if (_org.closeAssetGallery) _org.closeAssetGallery();
-                return;
-            }
-            // 10. Folder screen
-            const sf = document.getElementById('screen-folder');
-            if (sf && !sf.classList.contains('translate-x-full')) {
-                if (_org.closeFolder) _org.closeFolder();
-                return;
-            }
-            // 11. Map screen
-            const sm = document.getElementById('screen-map');
-            if (sm && !sm.classList.contains('translate-x-full')) {
-                if (_org.toggleMap) _org.toggleMap();
-                return;
-            }
-            // If none matched, no UI is open; do nothing.
-        });
-    })();
-    </script>
 <script>
-    let newWorker;
-
-    function showUpdateToast() {
-        const toast = document.getElementById('toast');
-        const msg = document.getElementById('toast-msg');
-        if (toast && msg) {
-            msg.textContent = "Đang cập nhật phiên bản mới...";
-            toast.classList.add('toast-show');
-            
-            // Xóa cache cũ để tránh xung đột
-            if ('caches' in window) {
-                caches.keys().then((names) => {
-                    names.forEach(name => caches.delete(name));
-                });
-            }
-            
-            // Reload sau 2 giây
-            setTimeout(() => {
-                window.location.reload(true);
-            }, 2000);
-        }
-    }
-
+    // Đăng ký PWA Service Worker
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js').then(reg => {
-                
-                // 1. Kiểm tra updates ngay lập tức
-                reg.update();
-
-                // 2. Nếu tìm thấy bản mới đang cài đặt
-                reg.addEventListener('updatefound', () => {
-                    newWorker = reg.installing;
-                    newWorker.addEventListener('statechange', () => {
-                        // Nếu cài xong và đang chờ kích hoạt
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            showUpdateToast();
-                        }
-                    });
-                });
-            });
-
-            // 3. Nếu phát hiện controller thay đổi (nghĩa là đã update xong) thì reload trang
-            let refreshing;
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (refreshing) return;
-                window.location.reload();
-                refreshing = true;
-            });
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('Service Worker đã sẵn sàng!', reg))
+                .catch(err => console.log('Lỗi Service Worker:', err));
         });
     }
 </script>
