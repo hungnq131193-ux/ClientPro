@@ -903,7 +903,17 @@ initWeather();
             getEl('search-input').addEventListener('input', e => loadCustomers(e.target.value));
             setupSwipe();
         });
-
+    document.addEventListener('DOMContentLoaded', () => {
+    lucide.createIcons();
+    const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+    window.addEventListener('resize', setAppHeight);
+    setAppHeight();
+    
+    // ... (các code cũ của bạn: theme, weather, indexedDB...)
+    
+    // THÊM DÒNG NÀY VÀO:
+    initSwipeGestures();
+});
         // --- MAP FUNCTIONS ---
         function toggleMap() {
             const mapScreen = getEl('screen-map');
@@ -3450,6 +3460,87 @@ function handleRedBookResult(data) {
 // Stubbed functions to override removed OCR utilities (in case leftover calls exist)
 function parseRedBookInfo(text) { return {}; }
 function renderRedBookInfo(info) { return ''; }
+// ============================================================
+// TÍNH NĂNG VUỐT MÉP TRÁI ĐỂ QUAY LẠI (SWIPE BACK GESTURE)
+// ============================================================
+function initSwipeGestures() {
+    // Danh sách các màn hình cần hỗ trợ vuốt
+    const screens = [
+        { id: 'screen-folder', closeAction: closeFolder },
+        { id: 'screen-asset-gallery', closeAction: closeAssetGallery },
+        { id: 'screen-map', closeAction: toggleMap }
+    ];
+
+    screens.forEach(screen => {
+        const el = document.getElementById(screen.id);
+        if (!el) return;
+
+        let startX = 0;
+        let isDragging = false;
+        const edgeThreshold = 40; // Chỉ bắt đầu vuốt nếu chạm vào 40px mép trái
+
+        el.addEventListener('touchstart', (e) => {
+            // Chỉ nhận 1 ngón tay
+            if (e.touches.length !== 1) return;
+            
+            const touchX = e.touches[0].clientX;
+            
+            // QUAN TRỌNG: Chỉ kích hoạt khi vuốt từ mép trái màn hình
+            // Để tránh xung đột với việc cuộn ngang trong danh sách ảnh hoặc map
+            if (touchX > edgeThreshold) return;
+
+            startX = touchX;
+            isDragging = true;
+            
+            // Tắt transition để màn hình đi theo ngón tay ngay lập tức (không bị trễ)
+            el.style.transition = 'none';
+        }, { passive: true });
+
+        el.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            
+            const currentX = e.touches[0].clientX;
+            const delta = currentX - startX;
+
+            // Chỉ cho phép kéo sang phải (delta > 0)
+            if (delta > 0) {
+                // Ngăn trình duyệt reload hoặc back native nếu cần (tuỳ browser)
+                // e.preventDefault(); // Lưu ý: passive: false mới dùng được cái này, nhưng ở đây ta dùng passive true để mượt hơn
+                
+                // Di chuyển màn hình theo ngón tay
+                // Sử dụng transform trực tiếp để GPU xử lý mượt mà
+                el.style.transform = `translateX(${delta}px)`;
+            }
+        }, { passive: true });
+
+        el.addEventListener('touchend', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            // Khôi phục lại transition để có hiệu ứng bật lại hoặc đóng mượt mà
+            el.style.transition = '';
+
+            const endX = e.changedTouches[0].clientX;
+            const delta = endX - startX;
+
+            // Nếu kéo quá 120px thì đóng luôn
+            if (delta > 120) {
+                // Đẩy màn hình ra xa hẳn để tránh giật
+                el.style.transform = `translateX(100%)`; 
+                
+                // Gọi hàm đóng của app
+                setTimeout(() => {
+                    screen.closeAction();
+                    // Reset style để lần sau mở lại nó về vị trí đúng (do class CSS quản lý)
+                    setTimeout(() => { el.style.transform = ''; }, 300);
+                }, 50);
+            } else {
+                // Nếu kéo chưa đủ xa thì bật ngược lại (Snap back)
+                el.style.transform = '';
+            }
+        }, { passive: true });
+    });
+}
 </script>
 <script>
     // Đăng ký PWA Service Worker
