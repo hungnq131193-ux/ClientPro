@@ -133,7 +133,12 @@
     .glass-header { background: var(--header-bg); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); border-bottom: 1px solid var(--border-panel); z-index: 40; will-change: transform; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
     
     @media (max-width: 768px) { .glass-panel { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); } .glass-header { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); } }
-    @keyframes modalPop { 0% { transform: scale(0.96) translateY(10px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } } .modal-animate { animation: modalPop 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; will-change: transform, opacity; } .app-container { height: 100%; width: 100%; display: flex; flex-direction: column; overflow: hidden; position: absolute; top: 0; left: 0; backface-visibility: hidden; transform: translate3d(0,0,0); z-index: 1; } .scroll-area { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; padding-bottom: 140px; } .custom-scrollbar::-webkit-scrollbar { width: 3px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; } input, select, textarea { color: var(--text-main) !important; background: var(--input-bg) !important; transition: all 0.2s ease; } input:focus { border-color: var(--accent) !important; background: rgba(0,0,0,0.4) !important; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); } input::placeholder { color: var(--text-sub) !important; opacity: 0.5; } .img-grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; } .img-wrapper { position: relative; width: 100%; padding-bottom: 100%; height: 0; overflow: hidden; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid var(--border-panel); background: rgba(255,255,255,0.03); transition: transform 0.2s; will-change: transform; } .img-wrapper:active { transform: scale(0.96); } .img-wrapper img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; } #loader { backdrop-filter: blur(8px); background: rgba(0,0,0,0.6); z-index: 200; } #toast { transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s; z-index: 400; will-change: transform, opacity; } .toast-show { transform: translateX(-50%) translateY(0) !important; opacity: 1 !important; } .keypad-btn { width: 72px; height: 72px; border-radius: 50%; font-size: 26px; font-weight: 600; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; transition: background 0.2s; margin: 0 auto; color: white; backdrop-filter: blur(5px); } .keypad-btn:active { background: rgba(255,255,255,0.2); transform: scale(0.95); } .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--text-sub); transition: all 0.2s; } .pin-dot.filled { background: var(--accent); border-color: var(--accent); transform: scale(1.1); } .theme-btn { width: 42px; height: 42px; border-radius: 12px; border: 2px solid transparent; cursor: pointer; transition: transform 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); } .theme-btn.active { transform: scale(1.1); border-color: white; box-shadow: 0 0 12px rgba(255,255,255,0.4); } .select-ring { width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; position: absolute; top: 6px; right: 6px; z-index: 20; } .select-ring svg { opacity: 0; transform: scale(0.5); transition: all 0.2s; } .selected .select-ring { background: var(--accent); border-color: var(--accent); } .selected .select-ring svg { opacity: 1; transform: scale(1); } .glass-panel.selected { border-color: var(--accent) !important; background: rgba(99, 102, 241, 0.1) !important; box-shadow: 0 0 0 1px var(--accent); } #map-container { width: 100%; height: 100%; z-index: 1; } .leaflet-popup-content-wrapper { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(16px) saturate(180%); color: white; border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); padding: 0; } .leaflet-popup-tip { background: rgba(15, 23, 42, 0.9); } .leaflet-popup-content { margin: 0; width: 260px !important; } .leaflet-container a.leaflet-popup-close-button { color: #fff; padding: 8px; font-size: 20px; } .map-popup-card { padding: 12px; } .map-popup-img { width: 100%; height: 120px; border-radius: 8px; object-fit: cover; margin-bottom: 8px; background: #222; } .map-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; display: inline-block; margin-bottom: 4px; } .map-tag.approved { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); } .map-tag.pending { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); } .marker-glow { width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); position: relative; } .marker-glow::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; border-radius: 50%; animation: pulse 2s infinite; opacity: 0.5; z-index: -1; } .marker-approved { background: #10b981; } .marker-approved::after { background: #10b981; box-shadow: 0 0 15px #10b981; } .marker-pending { background: #f59e0b; } .marker-pending::after { background: #f59e0b; box-shadow: 0 0 15px #f59e0b; } @keyframes pulse { 0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; } 100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; } } .leaflet-control-layers { background: rgba(15, 23, 42, 0.9) !important; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2) !important; color: white !important; border-radius: 12px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; } .transition-transform { transition-property: transform; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+    @keyframes modalPop { 0% { transform: scale(0.96) translateY(10px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } } .modal-animate { animation: modalPop 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; will-change: transform, opacity; } ..app-container { 
+    height: 100%; width: 100%; display: flex; flex-direction: column; overflow: hidden; position: absolute; top: 0; left: 0; backface-visibility: hidden; transform: translate3d(0,0,0); z-index: 1; 
+    /* 👇 THÊM DÒNG NÀY ĐỂ KÍCH HOẠT VUỐT TRÊN PWA/CHROME 👇 */
+    touch-action: pan-y pinch-zoom; 
+}
+  .scroll-area { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; padding-bottom: 140px; } .custom-scrollbar::-webkit-scrollbar { width: 3px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; } input, select, textarea { color: var(--text-main) !important; background: var(--input-bg) !important; transition: all 0.2s ease; } input:focus { border-color: var(--accent) !important; background: rgba(0,0,0,0.4) !important; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); } input::placeholder { color: var(--text-sub) !important; opacity: 0.5; } .img-grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; } .img-wrapper { position: relative; width: 100%; padding-bottom: 100%; height: 0; overflow: hidden; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid var(--border-panel); background: rgba(255,255,255,0.03); transition: transform 0.2s; will-change: transform; } .img-wrapper:active { transform: scale(0.96); } .img-wrapper img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; } #loader { backdrop-filter: blur(8px); background: rgba(0,0,0,0.6); z-index: 200; } #toast { transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s; z-index: 400; will-change: transform, opacity; } .toast-show { transform: translateX(-50%) translateY(0) !important; opacity: 1 !important; } .keypad-btn { width: 72px; height: 72px; border-radius: 50%; font-size: 26px; font-weight: 600; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; transition: background 0.2s; margin: 0 auto; color: white; backdrop-filter: blur(5px); } .keypad-btn:active { background: rgba(255,255,255,0.2); transform: scale(0.95); } .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--text-sub); transition: all 0.2s; } .pin-dot.filled { background: var(--accent); border-color: var(--accent); transform: scale(1.1); } .theme-btn { width: 42px; height: 42px; border-radius: 12px; border: 2px solid transparent; cursor: pointer; transition: transform 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); } .theme-btn.active { transform: scale(1.1); border-color: white; box-shadow: 0 0 12px rgba(255,255,255,0.4); } .select-ring { width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; position: absolute; top: 6px; right: 6px; z-index: 20; } .select-ring svg { opacity: 0; transform: scale(0.5); transition: all 0.2s; } .selected .select-ring { background: var(--accent); border-color: var(--accent); } .selected .select-ring svg { opacity: 1; transform: scale(1); } .glass-panel.selected { border-color: var(--accent) !important; background: rgba(99, 102, 241, 0.1) !important; box-shadow: 0 0 0 1px var(--accent); } #map-container { width: 100%; height: 100%; z-index: 1; } .leaflet-popup-content-wrapper { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(16px) saturate(180%); color: white; border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); padding: 0; } .leaflet-popup-tip { background: rgba(15, 23, 42, 0.9); } .leaflet-popup-content { margin: 0; width: 260px !important; } .leaflet-container a.leaflet-popup-close-button { color: #fff; padding: 8px; font-size: 20px; } .map-popup-card { padding: 12px; } .map-popup-img { width: 100%; height: 120px; border-radius: 8px; object-fit: cover; margin-bottom: 8px; background: #222; } .map-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; display: inline-block; margin-bottom: 4px; } .map-tag.approved { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); } .map-tag.pending { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); } .marker-glow { width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); position: relative; } .marker-glow::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; border-radius: 50%; animation: pulse 2s infinite; opacity: 0.5; z-index: -1; } .marker-approved { background: #10b981; } .marker-approved::after { background: #10b981; box-shadow: 0 0 15px #10b981; } .marker-pending { background: #f59e0b; } .marker-pending::after { background: #f59e0b; box-shadow: 0 0 15px #f59e0b; } @keyframes pulse { 0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; } 100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; } } .leaflet-control-layers { background: rgba(15, 23, 42, 0.9) !important; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2) !important; color: white !important; border-radius: 12px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; } .transition-transform { transition-property: transform; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
     /* --- 5. GLASS EFFECT UTILS (THÊM MỚI) --- */
 .glass-btn {
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
@@ -871,49 +876,139 @@ const DONATE_DEFAULT_DESC = 'Ung ho tac gia ClientPro';
         // --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
 // Removed enhanceDocumentWithAI as OCR is no longer used
 
-        document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
-            const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
-            window.addEventListener('resize', setAppHeight); setAppHeight();
-let savedTheme = localStorage.getItem(THEME_KEY);
-// Danh sách các theme hợp lệ hiện tại
-const validThemes = ['theme-midnight', 'theme-sunset', 'theme-ocean', 'theme-mint', 'theme-royal'];
-
-// Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về Midnight
-if (!validThemes.includes(savedTheme)) {
-    savedTheme = 'theme-midnight';
-}
-
-setTheme(savedTheme);
-
-            setTheme(savedTheme);
-// 🌤 Khởi động thời tiết
-initWeather();
-            
-            const req = indexedDB.open(DB_NAME, 3);
-            req.onupgradeneeded = e => { 
-                db = e.target.result; 
-                if(!db.objectStoreNames.contains('customers')) db.createObjectStore('customers', {keyPath:'id'});
-                let imgStore;
-                if(!db.objectStoreNames.contains('images')) imgStore = db.createObjectStore('images', {keyPath:'id'});
-                else imgStore = e.target.transaction.objectStore('images');
-                if(!imgStore.indexNames.contains('customerId')) imgStore.createIndex('customerId', 'customerId', {unique: false});
-            };
-            req.onsuccess = e => { db = e.target.result; loadCustomers(); getEl('loader').classList.add('hidden'); checkSecurity(); };
-            getEl('search-input').addEventListener('input', e => loadCustomers(e.target.value));
-            setupSwipe();
-        });
+            // --- ĐOẠN CODE KHỞI CHẠY CHUẨN (ĐÃ GỘP VÀ TỐI ƯU PWA) ---
     document.addEventListener('DOMContentLoaded', () => {
-    lucide.createIcons();
-    const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
-    window.addEventListener('resize', setAppHeight);
-    setAppHeight();
+        lucide.createIcons();
+        const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+        window.addEventListener('resize', setAppHeight);
+        setAppHeight();
+        
+        // 1. Cài đặt Giao diện (Theme)
+        let savedTheme = localStorage.getItem(THEME_KEY);
+        const validThemes = ['theme-midnight', 'theme-sunset', 'theme-ocean', 'theme-mint', 'theme-royal'];
+        if (!validThemes.includes(savedTheme)) savedTheme = 'theme-midnight';
+        setTheme(savedTheme);
+        
+        // 2. Khởi động Thời tiết
+        initWeather();
+        
+        // 3. Kết nối Database
+        const req = indexedDB.open(DB_NAME, 3);
+        req.onupgradeneeded = e => {
+            db = e.target.result;
+            if (!db.objectStoreNames.contains('customers')) db.createObjectStore('customers', { keyPath: 'id' });
+            let imgStore;
+            if (!db.objectStoreNames.contains('images')) imgStore = db.createObjectStore('images', { keyPath: 'id' });
+            else imgStore = e.target.transaction.objectStore('images');
+            if (!imgStore.indexNames.contains('customerId')) imgStore.createIndex('customerId', 'customerId', { unique: false });
+        };
+        req.onsuccess = e => {
+            db = e.target.result;
+            loadCustomers();
+            getEl('loader').classList.add('hidden');
+            checkSecurity();
+        };
+        
+        // 4. Đăng ký các sự kiện
+        getEl('search-input').addEventListener('input', e => loadCustomers(e.target.value));
+        setupSwipe(); // Swipe xem ảnh (Lightbox)
+        
+        // 5. KÍCH HOẠT VUỐT BACK (2 CHIỀU)
+        try {
+            initSwipeGestures();
+            console.log("Swipe gestures activated (Pro Mode)");
+        } catch (e) { console.error("Gesture error:", e); }
+    });
     
-    // ... (các code cũ của bạn: theme, weather, indexedDB...)
-    
-    // THÊM DÒNG NÀY VÀO:
-    initSwipeGestures();
-});
+    // --- HÀM XỬ LÝ VUỐT BACK 2 CHIỀU (TRÁI & PHẢI) ---
+    function initSwipeGestures() {
+        const screens = [
+            { id: 'screen-folder', closeAction: closeFolder },
+            { id: 'screen-asset-gallery', closeAction: closeAssetGallery },
+            { id: 'screen-map', closeAction: toggleMap }
+        ];
+        
+        screens.forEach(screen => {
+            const el = document.getElementById(screen.id);
+            if (!el) return;
+            
+            let startX = 0;
+            let startY = 0;
+            let isDragging = false;
+            let side = null;
+            const edgeThreshold = 35; // Vùng mép màn hình (px)
+            
+            el.addEventListener('touchstart', (e) => {
+                if (e.touches.length !== 1) return;
+                
+                const touchX = e.touches[0].clientX;
+                const touchY = e.touches[0].clientY;
+                const w = window.innerWidth;
+                
+                // Kiểm tra xem chạm vào mép nào
+                if (touchX < edgeThreshold) side = 'left';
+                else if (touchX > w - edgeThreshold) side = 'right';
+                else return;
+                
+                startX = touchX;
+                startY = touchY;
+                isDragging = true;
+                
+                // Chỉ tắt hiệu ứng nếu vuốt từ trái (để kéo mượt)
+                if (side === 'left') el.style.transition = 'none';
+            }, { passive: true });
+            
+            el.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                
+                const currentX = e.touches[0].clientX;
+                const currentY = e.touches[0].clientY;
+                
+                // CHỐNG NHẦM: Nếu cuộn dọc nhiều hơn ngang -> Hủy vuốt Back
+                if (Math.abs(currentY - startY) > Math.abs(currentX - startX)) {
+                    isDragging = false;
+                    el.style.transform = '';
+                    el.style.transition = '';
+                    return;
+                }
+                
+                const delta = currentX - startX;
+                
+                // Mép trái: Kéo màn hình đi theo ngón tay
+                if (side === 'left' && delta > 0) {
+                    el.style.transform = `translateX(${delta}px)`;
+                }
+                // Mép phải: Không kéo (chỉ chờ thả tay)
+            }, { passive: true });
+            
+            el.addEventListener('touchend', (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                el.style.transition = ''; // Bật lại hiệu ứng
+                
+                const endX = e.changedTouches[0].clientX;
+                const delta = endX - startX;
+                
+                if (side === 'left') {
+                    // Trái sang phải > 100px -> Đóng
+                    if (delta > 100) {
+                        el.style.transform = `translateX(100%)`;
+                        setTimeout(() => {
+                            screen.closeAction();
+                            setTimeout(() => { el.style.transform = ''; }, 300);
+                        }, 50);
+                    } else {
+                        el.style.transform = ''; // Quay về cũ
+                    }
+                } else if (side === 'right') {
+                    // Phải sang trái < -60px -> Đóng
+                    if (delta < -60) {
+                        screen.closeAction();
+                    }
+                }
+            }, { passive: true });
+        });
+    }
         // --- MAP FUNCTIONS ---
         function toggleMap() {
             const mapScreen = getEl('screen-map');
