@@ -20,6 +20,11 @@
     
     <script src="assets/head.js"></script>
     <link rel="stylesheet" href="assets/styles.css">
+    <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
+<style>
+  html, body { overscroll-behavior-x: contain; }
+  body { touch-action: pan-y; }
+</style>
 </head>
 <body class="theme-midnight">
     <div id="screen-lock" class="fixed inset-0 z-[300] flex flex-col items-center justify-center p-6 hidden" style="background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(20px);">
@@ -510,6 +515,7 @@
 <script src="assets/08_qr_info_and_missing.js"></script>
 <script src="assets/09_qr_scanner_camera.js"></script>
 <script src="assets/10_bootstrap.js"></script>
+<script src="assets/11_edge_back_swipe.js"></script>
 <script src="assets/pwa.js"></script>
 </body>
 </html>
