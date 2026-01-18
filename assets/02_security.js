@@ -136,7 +136,9 @@ async function checkSecurity() {
   try {
     const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || "";
     if (savedEmp) {
-      const query = `?action=check_status&employeeId=${encodeURIComponent( savedEmp )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
+      // Server có ràng buộc theo deviceId, vì vậy check_status phải kèm deviceId để nhận đúng secret
+      const deviceId = getDeviceId();
+      const query = `?action=check_status&employeeId=${encodeURIComponent( savedEmp )}&deviceId=${encodeURIComponent( deviceId )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
 
       const res = await fetch(ADMIN_SERVER_URL + query);
       const txt = await res.text();
@@ -144,22 +146,39 @@ async function checkSecurity() {
       try {
         result = JSON.parse(txt);
       } catch (e) {
-        result = {};
+        result = txt;
       }
 
       // Nạp Key bí mật vào RAM
-      if (result.secret) {
+      // Nạp Key bí mật vào RAM (hỗ trợ cả trường hợp server trả về text)
+      if (result && typeof result === "object" && result.secret) {
         APP_BACKUP_SECRET = result.secret;
+      } else if (typeof result === "string") {
+        const m = result.match(
+          /"secret"\s*:\s*"([^"]+)"|secret\s*[:=]\s*([A-Za-z0-9_\-\.]+)/i
+        );
+        const secret = m ? m[1] || m[2] : "";
+        if (secret) APP_BACKUP_SECRET = secret;
       }
 
-      if (result.status === "locked") {
+      const status =
+        result && typeof result === "object" && result.status
+          ? String(result.status).toLowerCase()
+          : typeof result === "string" &&
+            result.toLowerCase().includes("locked")
+          ? "locked"
+          : "";
+      const msg =
+        result && typeof result === "object" && result.message
+          ? result.message
+          : "";
+      if (status === "locked") {
         getEl("screen-lock").classList.add("hidden");
         getEl("setup-lock-modal").classList.add("hidden");
         const modal = getEl("activation-modal");
         modal.classList.remove("hidden");
         const titleEl = document.getElementById("activation-title");
-        if (titleEl)
-          titleEl.textContent = result.message || "Tài khoản đã bị thu hồi!";
+        if (titleEl) titleEl.textContent = msg || "Tài khoản đã bị thu hồi!";
         localStorage.removeItem(ACTIVATED_KEY);
       }
     }
@@ -168,76 +187,73 @@ async function checkSecurity() {
   }
 }
 
-// ============================================================
-// PHƯƠNG ÁN 1: MỖI LẦN BACKUP/RESTORE ĐỀU VERIFY LẠI VỚI SERVER
-// - Tránh lỗi mất APP_BACKUP_SECRET do PWA/SW reload
-// - Đảm bảo key/device còn hiệu lực tại thời điểm thao tác
-// Trả về: { ok: boolean, message?: string }
-// ============================================================
+/** * BẢO MẬT BACKUP V1 (Phương án 1): * Mỗi lần người dùng bấm Backup/Restore, gọi lại server để: * - xác thực trạng thái key/device hiện tại * - nhận lại APP_BACKUP_SECRET (khóa mã hóa file backup) * Nếu không nhận được secret thì coi như không đủ quyền backup/restore. */
 async function ensureBackupSecret() {
-  // Chỉ cho phép khi đã kích hoạt
-  const activated = localStorage.getItem(ACTIVATED_KEY);
-  const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || "";
-  if (!activated || !savedEmp) {
-    return {
-      ok: false,
-      message: "Ứng dụng chưa được kích hoạt hoặc thiếu mã nhân viên.",
-    };
+  const employeeId = localStorage.getItem(EMPLOYEE_KEY) || "";
+  if (!employeeId) {
+    return { ok: false, message: "Chưa có mã nhân viên." };
   }
 
-  const deviceId = getDeviceId();
-  const query = `?action=check_status&employeeId=${encodeURIComponent( savedEmp )}&deviceId=${encodeURIComponent(deviceId)}&deviceInfo=${encodeURIComponent( navigator.userAgent )}`;
+  // Nếu offline thì không thể xin secret
+  if (!navigator.onLine) {
+    return { ok: false, message: "Thiết bị đang Offline." };
+  }
 
   try {
-    const res = await fetch(ADMIN_SERVER_URL + query);
+    const deviceId = getDeviceId();
+    const query = `?action=check_status&employeeId=${encodeURIComponent( employeeId )}&deviceId=${encodeURIComponent(deviceId)}&deviceInfo=${encodeURIComponent( navigator.userAgent )}`;
+    const res = await fetch(ADMIN_SERVER_URL + query, { cache: "no-store" });
     const txt = await res.text();
     let result;
     try {
       result = JSON.parse(txt);
     } catch (e) {
-      result = {};
+      result = txt;
     }
 
-    // Nếu bị khóa/thu hồi
-    if (result && result.status === "locked") {
+    // Nếu bị thu hồi quyền -> thu hồi kích hoạt ngay
+    const status =
+      result && typeof result === "object" && result.status
+        ? String(result.status).toLowerCase()
+        : typeof result === "string" && result.toLowerCase().includes("locked")
+        ? "locked"
+        : "";
+    if (status === "locked") {
       try {
-        getEl("screen-lock").classList.add("hidden");
-        getEl("setup-lock-modal").classList.add("hidden");
-        const modal = getEl("activation-modal");
-        if (modal) modal.classList.remove("hidden");
-        const titleEl = document.getElementById("activation-title");
-        if (titleEl)
-          titleEl.textContent = result.message || "Tài khoản đã bị thu hồi!";
+        localStorage.removeItem(ACTIVATED_KEY);
       } catch (e) {}
-      localStorage.removeItem(ACTIVATED_KEY);
+      const modal = getEl("activation-modal");
+      if (modal) modal.classList.remove("hidden");
+      const titleEl = document.getElementById("activation-title");
+      if (titleEl)
+        titleEl.textContent = result.message || "Tài khoản đã bị thu hồi!";
       return {
         ok: false,
-        message:
-          result && result.message
-            ? result.message
-            : "Tài khoản đã bị thu hồi.",
+        message: result.message || "Tài khoản đã bị thu hồi.",
       };
     }
 
-    // Nạp secret mới vào RAM
-    if (result && result.secret) {
-      APP_BACKUP_SECRET = result.secret;
+    // Nhận secret
+    // Nhận secret (hỗ trợ cả trường hợp server trả về text)
+    let secret = "";
+    if (result && typeof result === "object" && result.secret)
+      secret = result.secret;
+    if (!secret && typeof result === "string") {
+      const m = result.match(
+        /"secret"\s*:\s*"([^"]+)"|secret\s*[:=]\s*([A-Za-z0-9_\-\.]+)/i
+      );
+      secret = m ? m[1] || m[2] : "";
+    }
+    if (secret) {
+      APP_BACKUP_SECRET = secret;
+      return { ok: true };
     }
 
-    if (!APP_BACKUP_SECRET) {
-      return {
-        ok: false,
-        message: "Không nhận được khóa bảo mật từ server. Vui lòng thử lại.",
-      };
-    }
-
-    return { ok: true };
-  } catch (err) {
-    // Offline hoặc bị chặn mạng
+    return { ok: false, message: "Không nhận được khóa bảo mật từ server." };
+  } catch (e) {
     return {
       ok: false,
-      message:
-        "Không thể xác thực với server. Vui lòng kiểm tra mạng và thử lại.",
+      message: "Không thể kết nối server để lấy khóa bảo mật.",
     };
   }
 }
