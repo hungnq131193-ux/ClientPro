@@ -136,9 +136,8 @@ async function checkSecurity() {
   try {
     const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || "";
     if (savedEmp) {
-      // Server có ràng buộc theo deviceId, vì vậy check_status phải kèm deviceId để nhận đúng secret
-      const deviceId = getDeviceId();
-      const query = `?action=check_status&employeeId=${encodeURIComponent( savedEmp )}&deviceId=${encodeURIComponent( deviceId )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
+      // Theo bản index trước đó chạy ổn: check_status chỉ cần employeeId + deviceInfo
+      const query = `?action=check_status&employeeId=${encodeURIComponent( savedEmp )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
 
       const res = await fetch(ADMIN_SERVER_URL + query);
       const txt = await res.text();
@@ -200,8 +199,8 @@ async function ensureBackupSecret() {
   }
 
   try {
-    const deviceId = getDeviceId();
-    const query = `?action=check_status&employeeId=${encodeURIComponent( employeeId )}&deviceId=${encodeURIComponent(deviceId)}&deviceInfo=${encodeURIComponent( navigator.userAgent )}`;
+    // Theo bản index trước đó chạy ổn: check_status chỉ cần employeeId + deviceInfo
+    const query = `?action=check_status&employeeId=${encodeURIComponent( employeeId )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
     const res = await fetch(ADMIN_SERVER_URL + query, { cache: "no-store" });
     const txt = await res.text();
     let result;
