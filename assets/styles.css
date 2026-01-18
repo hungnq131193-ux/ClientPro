@@ -1,395 +1,62 @@
-/* =========================================================
-   ClientPro / ClientPro UI - styles.css (Rebuilt for PWA)
-   - Optimized for iOS Safari/PWA + Android Chrome
-   - Stable viewport height, safe-area support
-   - Smooth interactions, reduced jank on low-end devices
-   - Keep legacy selectors to avoid breaking existing UI
-   - Expanded theme library
-========================================================= */
-
-/* 0) Font */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
-/* =========================================================
-   1) Design Tokens
-========================================================= */
+/* --- Thay dòng @import cũ bằng dòng này --- */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 :root {
-  /* Viewport height token (JS can override; CSS fallback below) */
   --app-height: 100dvh;
-
-  /* Safe area (iOS) */
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-
-  /* Typography */
-  --font-main: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  --text-main: #ffffff;
-  --text-sub: rgba(226, 232, 240, 0.82);
-  --text-dim: rgba(226, 232, 240, 0.62);
-
-  /* Spacing */
-  --space-1: 6px;
-  --space-2: 10px;
-  --space-3: 14px;
-  --space-4: 18px;
-  --space-5: 24px;
-
-  /* Radius */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 28px;
-
-  /* Borders */
-  --border-weak: rgba(255, 255, 255, 0.12);
-  --border-mid: rgba(255, 255, 255, 0.18);
-  --border-strong: rgba(255, 255, 255, 0.25);
-
-  /* Shadows */
-  --shadow-sm: 0 2px 10px rgba(0,0,0,0.18);
-  --shadow-md: 0 8px 28px rgba(0,0,0,0.28);
-  --shadow-lg: 0 18px 55px rgba(0,0,0,0.38);
-
-  /* Motion */
-  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
-  --dur-fast: 140ms;
-  --dur-normal: 220ms;
-  --dur-slow: 320ms;
-
-  /* Blur (tunable for performance) */
-  --blur-panel: 18px;
-  --blur-header: 14px;
-  --blur-lite: 10px;
-
-  /* Z-index system */
-  --z-base: 1;
-  --z-panel: 10;
-  --z-header: 40;
-  --z-overlay: 120;
-  --z-modal: 200;
-  --z-toast: 400;
-
-  /* Default Theme (fallback) */
-  --bg-base: #0b1220;
-  --bg-mesh:
-    radial-gradient(at 0% 0%, rgba(56,189,248,0.18) 0px, transparent 55%),
-    radial-gradient(at 100% 100%, rgba(168,85,247,0.16) 0px, transparent 55%),
-    radial-gradient(at 50% 50%, rgba(34,197,94,0.10) 0px, transparent 60%);
-  --bg-panel: rgba(15, 23, 42, 0.72);
-  --header-bg: rgba(11, 18, 32, 0.88);
-  --border-panel: rgba(148, 163, 184, 0.18);
-  --input-bg: rgba(2, 6, 23, 0.35);
-
-  --accent: #38bdf8;
-  --accent-2: #a855f7;
-  --accent-gradient: linear-gradient(135deg, rgba(56,189,248,1) 0%, rgba(168,85,247,1) 100%);
-
-  /* Focus ring */
-  --ring: 0 0 0 3px rgba(56, 189, 248, 0.22);
 }
 
-/* =========================================================
-   2) iOS PWA Height Fallback
-   -webkit-fill-available helps older iOS Safari
-========================================================= */
-@supports (-webkit-touch-callout: none) {
-  :root { --app-height: -webkit-fill-available; }
-}
-
-html, body {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  -webkit-text-size-adjust: 100%;
-}
-
-/* =========================================================
-   3) Global Base (IMPORTANT for iOS keyboard stability)
-   Avoid fixed body; fix app container instead.
-========================================================= */
+/* --- 1. CẤU HÌNH CƠ BẢN --- */
 body {
-  font-family: var(--font-main);
+  --text-main: #ffffff;
+  --text-sub: #cbd5e1;
+
+  font-family: "Inter", sans-serif;
   color: var(--text-main);
 
+  /* Mesh Gradient Background */
   background-color: var(--bg-base);
   background-image: var(--bg-mesh);
   background-attachment: fixed;
   background-size: cover;
   background-repeat: no-repeat;
 
+  transition: background-color 0.2s ease, color 0.2s ease;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
-
-  position: relative;
-  overflow: hidden;
-
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  transition: background-color var(--dur-normal) var(--ease-standard),
-              color var(--dur-normal) var(--ease-standard);
-}
-
-/* Optional helper */
-.pwa-safe {
-  padding-top: var(--safe-top);
-  padding-right: var(--safe-right);
-  padding-bottom: var(--safe-bottom);
-  padding-left: var(--safe-left);
-}
-
-/* Reduce motion */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Reduce transparency (where supported) */
-@media (prefers-reduced-transparency: reduce) {
-  .glass-panel, .glass-header {
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-  }
-}
-
-/* =========================================================
-   4) App Wrapper + Scroll Area
-========================================================= */
-.app-container {
-  position: fixed;
-  inset: 0;
   height: var(--app-height);
   width: 100vw;
-
-  display: flex;
-  flex-direction: column;
-
   overflow: hidden;
-  transform: translate3d(0,0,0);
-  backface-visibility: hidden;
-  z-index: var(--z-base);
+  position: fixed;
 }
 
-/* Smooth scroll inside the app */
-.scroll-area {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-
-  padding-bottom: calc(140px + var(--safe-bottom));
-  padding-left: var(--safe-left);
-  padding-right: var(--safe-right);
-
-  transform: translateZ(0);
-}
-
-/* Minimal scrollbar */
-.custom-scrollbar::-webkit-scrollbar { width: 3px; }
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.16);
-  border-radius: 2px;
-}
-
-/* =========================================================
-   5) Glass System
-========================================================= */
-.glass-panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-panel);
-  box-shadow: var(--shadow-md);
-  position: relative;
-  z-index: var(--z-panel);
-
-  transform: translateZ(0);
-
-  -webkit-backdrop-filter: blur(var(--blur-panel)) saturate(170%);
-  backdrop-filter: blur(var(--blur-panel)) saturate(170%);
-}
-
-.glass-header {
-  background: var(--header-bg);
-  border-bottom: 1px solid var(--border-panel);
-  z-index: var(--z-header);
-  box-shadow: 0 6px 22px rgba(0,0,0,0.22);
-
-  -webkit-backdrop-filter: blur(var(--blur-header)) saturate(170%);
-  backdrop-filter: blur(var(--blur-header)) saturate(170%);
-}
-
-/* Backdrop fallback */
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .glass-panel { background: rgba(15, 23, 42, 0.90); }
-  .glass-header { background: rgba(11, 18, 32, 0.94); }
-}
-
-/* Mobile performance tuning */
-@media (max-width: 768px) {
-  :root { --blur-panel: 12px; --blur-header: 10px; }
-}
-@media (max-width: 480px) {
-  .glass-panel, .glass-header {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-  .glass-panel { background: rgba(15, 23, 42, 0.86); }
-  .glass-header { background: rgba(11, 18, 32, 0.92); }
-}
-
-/* =========================================================
-   6) Inputs (iOS anti-zoom)
-   iOS zooms on focus if font-size < 16px
-========================================================= */
-input, select, textarea {
-  color: var(--text-main) !important;
-  background: var(--input-bg) !important;
-
-  border: 1px solid rgba(255,255,255,0.12) !important;
-  border-radius: var(--radius-sm);
-  outline: none;
-
-  font-size: 16px; /* iOS anti-zoom */
-  line-height: 1.25;
-
-  transition: transform var(--dur-fast) var(--ease-soft),
-              background var(--dur-normal) var(--ease-standard),
-              border-color var(--dur-normal) var(--ease-standard),
-              box-shadow var(--dur-normal) var(--ease-standard);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  input, select, textarea { font-size: 14px; } /* desktop can be smaller */
-}
-
-input::placeholder, textarea::placeholder {
-  color: var(--text-dim) !important;
-  opacity: 0.65;
-}
-
-input:focus, select:focus, textarea:focus {
-  border-color: var(--accent) !important;
-  background: rgba(0,0,0,0.30) !important;
-  box-shadow: var(--ring);
-}
-
-/* =========================================================
-   7) Buttons / Tabs (legacy names preserved)
-========================================================= */
-.glass-btn {
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  background: rgba(255, 255, 255, 0.06);
-
-  -webkit-backdrop-filter: blur(var(--blur-lite));
-  backdrop-filter: blur(var(--blur-lite));
-
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.10), 0 2px 8px rgba(0,0,0,0.18);
-
-  transition: transform var(--dur-fast) var(--ease-soft),
-              background var(--dur-normal) var(--ease-standard),
-              box-shadow var(--dur-normal) var(--ease-standard),
-              border-color var(--dur-normal) var(--ease-standard);
-}
-
-.glass-btn:active {
-  background: rgba(255, 255, 255, 0.11);
-  transform: scale(0.985);
-}
-
-/* Desktop hover only */
-@media (hover: hover) and (pointer: fine) {
-  .glass-btn:hover {
-    background: rgba(255,255,255,0.12);
-    border-color: rgba(255,255,255,0.22) !important;
-    box-shadow: 0 10px 24px rgba(0,0,0,0.22);
-    transform: translateY(-1px);
-  }
-}
-
-.glass-tab-active {
-  background: rgba(255, 255, 255, 0.10) !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
-  box-shadow: 0 8px 22px rgba(0,0,0,0.16);
-  color: white !important;
-}
-
-.glass-tab-inactive {
-  border: 1px solid transparent !important;
-  color: var(--text-sub) !important;
-  opacity: 0.68;
-}
-
-/* Accent glow utility */
-.accent-glow {
-  box-shadow: 0 0 0 1px var(--accent), 0 0 14px rgba(0,0,0,0.18);
-}
-
-/* =========================================================
-   8) Modal + Toast
-========================================================= */
-@keyframes modalPop {
-  0% { transform: translateY(10px) scale(0.98); opacity: 0; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
-}
-.modal-animate {
-  animation: modalPop var(--dur-slow) var(--ease-soft) forwards;
-}
-
-#loader {
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  background: rgba(0,0,0,0.60);
-  z-index: var(--z-modal);
-}
-
-#toast {
-  transition: transform var(--dur-slow) var(--ease-soft),
-              opacity var(--dur-normal) var(--ease-standard);
-  z-index: var(--z-toast);
-  will-change: transform, opacity;
-}
-
-.toast-show {
-  transform: translateX(-50%) translateY(0) !important;
-  opacity: 1 !important;
-}
-
-/* =========================================================
-   9) VietinBank 3D Logo block (legacy)
-========================================================= */
+/* --- 2. STYLE CHO LOGO VIETINBANK 3D --- */
 .vietin-logo-container {
   display: flex;
   align-items: center;
   gap: 10px;
-
-  background: rgba(255, 255, 255, 0.10);
-  -webkit-backdrop-filter: blur(12px);
+  /* Khối kính nổi */
+  background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
-
+  -webkit-backdrop-filter: blur(12px);
   padding: 6px 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  box-shadow: var(--shadow-sm);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
 }
-
 .vietin-logo-img {
   width: 36px;
   height: auto;
-  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.30));
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
 }
-
-.vietin-text-group { display: flex; flex-direction: column; line-height: 1; }
+.vietin-text-group {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
 .vietin-brand {
   font-weight: 800;
   font-size: 15px;
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.32);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 .vietin-sub {
   font-size: 8px;
@@ -400,480 +67,590 @@ input:focus, select:focus, textarea:focus {
   margin-top: 2px;
 }
 
-/* =========================================================
-   10) Profile Glass Box (legacy)
-========================================================= */
-.profile-glass-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  position: relative;
+/* --- 3. BỘ THEME MESH GRADIENT (MÀU LOANG & DỄ ĐỌC) --- */
 
-  background: rgba(255, 255, 255, 0.10);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-
-  padding: 16px 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: var(--shadow-sm);
-
-  width: 100%;
-  margin-bottom: 16px;
+/* 1. SIGNATURE (Xanh Vietin Đậm) */
+body.theme-midnight {
+  --bg-base: #00346e;
+  /* Màu loang 3 điểm: Xanh đậm - Xanh sáng - Tím than */
+  --bg-mesh: radial-gradient(
+      at 0% 0%,
+      hsla(210, 100%, 30%, 0.7) 0px,
+      transparent 50%
+    ),
+    radial-gradient(
+      at 100% 100%,
+      hsla(200, 100%, 40%, 0.5) 0px,
+      transparent 50%
+    ),
+    radial-gradient(at 50% 50%, hsla(220, 100%, 20%, 0.8) 0px, transparent 50%);
+  --bg-panel: rgba(10, 35, 70, 0.75); /* Kính đậm để nổi chữ trắng */
+  --header-bg: rgba(5, 25, 60, 0.9);
+  --border-panel: rgba(100, 200, 255, 0.2);
+  --input-bg: rgba(0, 20, 50, 0.5);
+  --accent: #38bdf8;
+  --accent-gradient: linear-gradient(135deg, #005b9f 0%, #38bdf8 100%);
 }
 
-/* =========================================================
-   11) Image Grid (legacy)
-========================================================= */
+/* 2. DYNAMIC (Đỏ Trầm) */
+body.theme-sunset {
+  --bg-base: #5c0000;
+  --bg-mesh: radial-gradient(
+      at 10% 20%,
+      hsla(350, 90%, 35%, 0.6) 0px,
+      transparent 50%
+    ),
+    radial-gradient(at 90% 80%, hsla(0, 80%, 25%, 0.7) 0px, transparent 50%);
+  --bg-panel: rgba(80, 10, 20, 0.75);
+  --header-bg: rgba(60, 5, 10, 0.9);
+  --border-panel: rgba(255, 150, 150, 0.2);
+  --input-bg: rgba(60, 10, 10, 0.5);
+  --accent: #ff6b6b;
+  --accent-gradient: linear-gradient(135deg, #da251d 0%, #ff6b6b 100%);
+}
+
+/* 3. DIGITAL (Xanh Teal) */
+body.theme-ocean {
+  --bg-base: #004d40;
+  --bg-mesh: radial-gradient(
+      at 0% 0%,
+      hsla(180, 80%, 30%, 0.6) 0px,
+      transparent 50%
+    ),
+    radial-gradient(at 100% 100%, hsla(170, 90%, 25%, 0.7) 0px, transparent 50%);
+  --bg-panel: rgba(0, 60, 70, 0.75);
+  --header-bg: rgba(0, 45, 55, 0.9);
+  --border-panel: rgba(100, 255, 255, 0.2);
+  --input-bg: rgba(0, 40, 50, 0.5);
+  --accent: #22d3ee;
+  --accent-gradient: linear-gradient(135deg, #00838f 0%, #22d3ee 100%);
+}
+
+/* 4. PREMIUM (Xanh Đen Navy) */
+body.theme-mint {
+  --bg-base: #0f172a;
+  --bg-mesh: radial-gradient(
+    at 50% 0%,
+    hsla(220, 60%, 25%, 0.5) 0px,
+    transparent 60%
+  );
+  --bg-panel: rgba(30, 41, 59, 0.8);
+  --header-bg: rgba(15, 23, 42, 0.95);
+  --border-panel: rgba(148, 163, 184, 0.2);
+  --input-bg: rgba(30, 41, 59, 0.6);
+  --accent: #38bdf8;
+  --accent-gradient: linear-gradient(135deg, #1e293b 0%, #38bdf8 100%);
+}
+
+/* 5. PRIORITY (Vàng Gold) */
+body.theme-royal {
+  --bg-base: #3f2e00;
+  --bg-mesh: radial-gradient(
+      at 100% 0%,
+      hsla(45, 90%, 35%, 0.5) 0px,
+      transparent 50%
+    ),
+    radial-gradient(at 0% 100%, hsla(35, 100%, 25%, 0.6) 0px, transparent 50%);
+  --bg-panel: rgba(60, 45, 10, 0.75);
+  --header-bg: rgba(45, 30, 5, 0.9);
+  --border-panel: rgba(255, 215, 0, 0.25);
+  --input-bg: rgba(50, 35, 0, 0.5);
+  --accent: #ffd700;
+  --accent-gradient: linear-gradient(135deg, #b45309 0%, #ffd700 100%);
+}
+
+/* --- 3B. THEME MỞ RỘNG (THÊM) --- */
+
+/* 6. AURORA (Xanh ngọc - Tím) */
+body.theme-aurora {
+  --bg-base: #061226;
+  --bg-mesh: radial-gradient(
+      at 20% 0%,
+      hsla(190, 95%, 45%, 0.55) 0px,
+      transparent 55%
+    ),
+    radial-gradient(at 90% 20%, hsla(270, 95%, 55%, 0.45) 0px, transparent 55%),
+    radial-gradient(at 10% 100%, hsla(210, 95%, 45%, 0.35) 0px, transparent 60%);
+  --bg-panel: rgba(10, 20, 40, 0.72);
+  --header-bg: rgba(6, 18, 38, 0.9);
+  --border-panel: rgba(34, 211, 238, 0.2);
+  --input-bg: rgba(10, 20, 40, 0.55);
+  --accent: #22d3ee;
+  --accent-gradient: linear-gradient(135deg, #22d3ee 0%, #a855f7 100%);
+}
+
+/* 7. GRAPHITE (Xám lạnh - Tối giản) */
+body.theme-graphite {
+  --bg-base: #0b1220;
+  --bg-mesh: radial-gradient(
+      at 0% 0%,
+      hsla(215, 30%, 28%, 0.55) 0px,
+      transparent 55%
+    ),
+    radial-gradient(
+      at 100% 100%,
+      hsla(220, 25%, 18%, 0.75) 0px,
+      transparent 55%
+    );
+  --bg-panel: rgba(15, 23, 42, 0.78);
+  --header-bg: rgba(2, 6, 23, 0.92);
+  --border-panel: rgba(148, 163, 184, 0.18);
+  --input-bg: rgba(15, 23, 42, 0.55);
+  --accent: #94a3b8;
+  --accent-gradient: linear-gradient(135deg, #334155 0%, #94a3b8 100%);
+}
+
+/* 8. VIOLET (Tím - Hồng) */
+body.theme-violet {
+  --bg-base: #170a2b;
+  --bg-mesh: radial-gradient(
+      at 10% 20%,
+      hsla(275, 95%, 55%, 0.55) 0px,
+      transparent 55%
+    ),
+    radial-gradient(at 90% 80%, hsla(330, 90%, 60%, 0.45) 0px, transparent 55%);
+  --bg-panel: rgba(30, 12, 55, 0.72);
+  --header-bg: rgba(20, 6, 38, 0.9);
+  --border-panel: rgba(168, 85, 247, 0.22);
+  --input-bg: rgba(30, 12, 55, 0.55);
+  --accent: #a855f7;
+  --accent-gradient: linear-gradient(135deg, #a855f7 0%, #f472b6 100%);
+}
+
+/* 9. EMERALD (Xanh lá - Xanh ngọc) */
+body.theme-emerald {
+  --bg-base: #022c22;
+  --bg-mesh: radial-gradient(
+      at 0% 0%,
+      hsla(160, 90%, 35%, 0.55) 0px,
+      transparent 55%
+    ),
+    radial-gradient(at 100% 100%, hsla(190, 90%, 45%, 0.4) 0px, transparent 55%);
+  --bg-panel: rgba(2, 44, 34, 0.7);
+  --header-bg: rgba(1, 30, 24, 0.9);
+  --border-panel: rgba(16, 185, 129, 0.22);
+  --input-bg: rgba(2, 44, 34, 0.52);
+  --accent: #10b981;
+  --accent-gradient: linear-gradient(135deg, #10b981 0%, #22d3ee 100%);
+}
+
+/* 10. SAKURA (Hồng - Pastel) */
+body.theme-sakura {
+  --bg-base: #2a0b18;
+  --bg-mesh: radial-gradient(
+      at 20% 10%,
+      hsla(350, 95%, 65%, 0.5) 0px,
+      transparent 55%
+    ),
+    radial-gradient(at 90% 70%, hsla(320, 90%, 60%, 0.4) 0px, transparent 55%);
+  --bg-panel: rgba(45, 10, 25, 0.7);
+  --header-bg: rgba(35, 6, 18, 0.9);
+  --border-panel: rgba(251, 113, 133, 0.22);
+  --input-bg: rgba(45, 10, 25, 0.52);
+  --accent: #fb7185;
+  --accent-gradient: linear-gradient(135deg, #fb7185 0%, #f472b6 100%);
+}
+
+/* 11. SOLAR (Cam - Vàng) */
+body.theme-solar {
+  --bg-base: #2b1400;
+  --bg-mesh: radial-gradient(
+      at 15% 15%,
+      hsla(25, 95%, 55%, 0.55) 0px,
+      transparent 55%
+    ),
+    radial-gradient(at 90% 85%, hsla(45, 95%, 55%, 0.45) 0px, transparent 55%);
+  --bg-panel: rgba(45, 20, 0, 0.72);
+  --header-bg: rgba(35, 15, 0, 0.9);
+  --border-panel: rgba(245, 158, 11, 0.25);
+  --input-bg: rgba(45, 20, 0, 0.55);
+  --accent: #f59e0b;
+  --accent-gradient: linear-gradient(135deg, #fb923c 0%, #f59e0b 100%);
+}
+
+/* 12. MONO (Đen - Trắng) */
+body.theme-mono {
+  --bg-base: #0b0f19;
+  --bg-mesh: radial-gradient(
+      at 0% 0%,
+      hsla(220, 15%, 18%, 0.7) 0px,
+      transparent 55%
+    ),
+    radial-gradient(at 100% 100%, hsla(0, 0%, 100%, 0.08) 0px, transparent 55%);
+  --bg-panel: rgba(17, 24, 39, 0.78);
+  --header-bg: rgba(0, 0, 0, 0.88);
+  --border-panel: rgba(255, 255, 255, 0.12);
+  --input-bg: rgba(17, 24, 39, 0.55);
+  --accent: #e5e7eb;
+  --accent-gradient: linear-gradient(135deg, #111827 0%, #e5e7eb 100%);
+}
+
+/* 4. GLASS & UTILS */
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border-panel);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 10;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+.glass-header {
+  background: var(--header-bg);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid var(--border-panel);
+  z-index: 40;
+  will-change: transform;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+  .glass-panel {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .glass-header {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+}
+@keyframes modalPop {
+  0% {
+    transform: scale(0.96) translateY(10px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+.modal-animate {
+  animation: modalPop 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+.app-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+  left: 0;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  z-index: 1;
+}
+.scroll-area {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding-bottom: 140px;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+input,
+select,
+textarea {
+  color: var(--text-main) !important;
+  background: var(--input-bg) !important;
+  transition: all 0.2s ease;
+}
+input:focus {
+  border-color: var(--accent) !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+input::placeholder {
+  color: var(--text-sub) !important;
+  opacity: 0.5;
+}
 .img-grid-container {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-
   padding: 12px;
-  padding-left: calc(12px + var(--safe-left));
-  padding-right: calc(12px + var(--safe-right));
 }
-
 .img-wrapper {
   position: relative;
   width: 100%;
   padding-bottom: 100%;
   height: 0;
   overflow: hidden;
-
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.22);
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   border: 1px solid var(--border-panel);
-  background: rgba(255,255,255,0.03);
-
-  transition: transform var(--dur-fast) var(--ease-soft);
-  transform: translateZ(0);
+  background: rgba(255, 255, 255, 0.03);
+  transition: transform 0.2s;
+  will-change: transform;
 }
-
-.img-wrapper:active { transform: scale(0.975); }
-
+.img-wrapper:active {
+  transform: scale(0.96);
+}
 .img-wrapper img {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-
-/* =========================================================
-   12) Select Ring + Selected (legacy)
-========================================================= */
-.select-ring {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid white;
-  background: rgba(0,0,0,0.42);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 20;
+#loader {
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 200;
 }
-
-.select-ring svg {
-  opacity: 0;
-  transform: scale(0.5);
-  transition: all var(--dur-fast) var(--ease-soft);
+#toast {
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+    opacity 0.3s;
+  z-index: 400;
+  will-change: transform, opacity;
 }
-
-.selected .select-ring {
-  background: var(--accent);
-  border-color: var(--accent);
+.toast-show {
+  transform: translateX(-50%) translateY(0) !important;
+  opacity: 1 !important;
 }
-
-.selected .select-ring svg {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.glass-panel.selected {
-  border-color: var(--accent) !important;
-  background: rgba(56, 189, 248, 0.10) !important;
-  box-shadow: 0 0 0 1px var(--accent), 0 10px 30px rgba(0,0,0,0.22);
-}
-
-/* =========================================================
-   13) Keypad (legacy)
-========================================================= */
 .keypad-btn {
   width: 72px;
   height: 72px;
   border-radius: 50%;
   font-size: 26px;
   font-weight: 600;
-
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
-
-  transition: transform var(--dur-fast) var(--ease-soft),
-              background var(--dur-normal) var(--ease-standard);
+  transition: background 0.2s;
   margin: 0 auto;
   color: white;
-
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(5px);
 }
-
-.keypad-btn:active { background: rgba(255,255,255,0.20); transform: scale(0.965); }
-
+.keypad-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(0.95);
+}
 .pin-dot {
   width: 14px;
   height: 14px;
   border-radius: 50%;
   border: 2px solid var(--text-sub);
-  transition: all var(--dur-fast) var(--ease-soft);
+  transition: all 0.2s;
 }
-
 .pin-dot.filled {
   background: var(--accent);
   border-color: var(--accent);
-  transform: scale(1.08);
+  transform: scale(1.1);
 }
-
-/* =========================================================
-   14) Theme Buttons (legacy)
-========================================================= */
 .theme-btn {
   width: 42px;
   height: 42px;
   border-radius: 12px;
   border: 2px solid transparent;
   cursor: pointer;
-
-  transition: transform var(--dur-fast) var(--ease-soft),
-              box-shadow var(--dur-normal) var(--ease-standard),
-              border-color var(--dur-normal) var(--ease-standard);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.30);
+  transition: transform 0.2s;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
-
 .theme-btn.active {
-  transform: scale(1.08);
+  transform: scale(1.1);
   border-color: white;
-  box-shadow: 0 0 14px rgba(255,255,255,0.35);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
 }
-
-/* =========================================================
-   15) Map Styles (Leaflet) (legacy)
-========================================================= */
-#map-container { width: 100%; height: 100%; z-index: var(--z-base); }
-
+.select-ring {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 20;
+}
+.select-ring svg {
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s;
+}
+.selected .select-ring {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.selected .select-ring svg {
+  opacity: 1;
+  transform: scale(1);
+}
+.glass-panel.selected {
+  border-color: var(--accent) !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+#map-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
 .leaflet-popup-content-wrapper {
-  background: rgba(15, 23, 42, 0.92);
-  -webkit-backdrop-filter: blur(16px) saturate(170%);
-  backdrop-filter: blur(16px) saturate(170%);
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(16px) saturate(180%);
   color: white;
-
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 16px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
   padding: 0;
 }
-
-.leaflet-popup-tip { background: rgba(15, 23, 42, 0.92); }
-.leaflet-popup-content { margin: 0; width: 260px !important; }
-.leaflet-container a.leaflet-popup-close-button { color: #fff; padding: 8px; font-size: 20px; }
-
-.map-popup-card { padding: 12px; }
-
+.leaflet-popup-tip {
+  background: rgba(15, 23, 42, 0.9);
+}
+.leaflet-popup-content {
+  margin: 0;
+  width: 260px !important;
+}
+.leaflet-container a.leaflet-popup-close-button {
+  color: #fff;
+  padding: 8px;
+  font-size: 20px;
+}
+.map-popup-card {
+  padding: 12px;
+}
 .map-popup-img {
   width: 100%;
   height: 120px;
-  border-radius: 10px;
+  border-radius: 8px;
   object-fit: cover;
   margin-bottom: 8px;
   background: #222;
 }
-
 .map-tag {
   font-size: 10px;
   padding: 2px 6px;
-  border-radius: 6px;
-  font-weight: 800;
+  border-radius: 4px;
+  font-weight: 700;
   text-transform: uppercase;
   display: inline-block;
-  margin-bottom: 6px;
-  letter-spacing: 0.6px;
+  margin-bottom: 4px;
 }
-
 .map-tag.approved {
-  background: rgba(16, 185, 129, 0.18);
+  background: rgba(16, 185, 129, 0.2);
   color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.28);
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
-
 .map-tag.pending {
-  background: rgba(245, 158, 11, 0.18);
+  background: rgba(245, 158, 11, 0.2);
   color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.28);
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
-
 .marker-glow {
   width: 20px;
   height: 20px;
   border-radius: 50%;
   border: 2px solid white;
-  box-shadow: 0 0 10px rgba(0,0,0,0.50);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
   position: relative;
 }
-
 .marker-glow::after {
-  content: '';
+  content: "";
   position: absolute;
-  inset: -2px;
-  border-radius: 999px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
   animation: pulse 2s infinite;
-  opacity: 0.45;
+  opacity: 0.5;
   z-index: -1;
 }
-
-.marker-approved { background: #10b981; }
-.marker-approved::after { background: rgba(16,185,129,0.55); box-shadow: 0 0 18px rgba(16,185,129,0.55); }
-.marker-pending { background: #f59e0b; }
-.marker-pending::after { background: rgba(245,158,11,0.55); box-shadow: 0 0 18px rgba(245,158,11,0.55); }
-
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 0.72; }
-  100% { transform: scale(2.45); opacity: 0; }
+.marker-approved {
+  background: #10b981;
 }
-
+.marker-approved::after {
+  background: #10b981;
+  box-shadow: 0 0 15px #10b981;
+}
+.marker-pending {
+  background: #f59e0b;
+}
+.marker-pending::after {
+  background: #f59e0b;
+  box-shadow: 0 0 15px #f59e0b;
+}
+@keyframes pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
 .leaflet-control-layers {
-  background: rgba(15, 23, 42, 0.92) !important;
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(15, 23, 42, 0.9) !important;
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,0.20) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
   color: white !important;
   border-radius: 12px !important;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.30) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
 }
-
-/* Utility (legacy) */
 .transition-transform {
   transition-property: transform;
-  transition-timing-function: var(--ease-standard);
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 300ms;
 }
-
-/* =========================================================
-   16) Theme Library (Expanded)
-   Existing names preserved: midnight, sunset, ocean, mint, royal
-   Added: aurora, graphite, violet, emerald, sakura, solar, mono
-========================================================= */
-
-/* 1) Midnight (Signature) */
-body.theme-midnight {
-  --bg-base: #00346e;
-  --bg-mesh:
-    radial-gradient(at 0% 0%, hsla(210, 100%, 30%, 0.60) 0px, transparent 55%),
-    radial-gradient(at 100% 100%, hsla(200, 100%, 40%, 0.45) 0px, transparent 55%),
-    radial-gradient(at 50% 50%, hsla(220, 100%, 20%, 0.70) 0px, transparent 60%);
-  --bg-panel: rgba(10, 35, 70, 0.72);
-  --header-bg: rgba(5, 25, 60, 0.90);
-  --border-panel: rgba(100, 200, 255, 0.20);
-  --input-bg: rgba(0, 20, 50, 0.42);
-  --accent: #38bdf8;
-  --accent-2: #60a5fa;
-  --accent-gradient: linear-gradient(135deg, #005b9f 0%, #38bdf8 100%);
-  --ring: 0 0 0 3px rgba(56, 189, 248, 0.22);
+/* --- 5. GLASS EFFECT UTILS (THÊM MỚI) --- */
+.glass-btn {
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
 }
-
-/* 2) Sunset (Dynamic) */
-body.theme-sunset {
-  --bg-base: #5c0000;
-  --bg-mesh:
-    radial-gradient(at 10% 20%, hsla(350, 90%, 35%, 0.55) 0px, transparent 55%),
-    radial-gradient(at 90% 80%, hsla(0, 80%, 25%, 0.65) 0px, transparent 55%),
-    radial-gradient(at 50% 50%, hsla(10, 90%, 20%, 0.60) 0px, transparent 60%);
-  --bg-panel: rgba(80, 10, 20, 0.74);
-  --header-bg: rgba(60, 5, 10, 0.90);
-  --border-panel: rgba(255, 150, 150, 0.20);
-  --input-bg: rgba(60, 10, 10, 0.42);
-  --accent: #ff6b6b;
-  --accent-2: #fb7185;
-  --accent-gradient: linear-gradient(135deg, #da251d 0%, #ff6b6b 100%);
-  --ring: 0 0 0 3px rgba(255, 107, 107, 0.22);
+.glass-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(0.98);
 }
-
-/* 3) Ocean (Digital) */
-body.theme-ocean {
-  --bg-base: #004d40;
-  --bg-mesh:
-    radial-gradient(at 0% 0%, hsla(180, 80%, 30%, 0.55) 0px, transparent 55%),
-    radial-gradient(at 100% 100%, hsla(170, 90%, 25%, 0.65) 0px, transparent 55%),
-    radial-gradient(at 50% 50%, hsla(160, 90%, 18%, 0.55) 0px, transparent 60%);
-  --bg-panel: rgba(0, 60, 70, 0.74);
-  --header-bg: rgba(0, 45, 55, 0.90);
-  --border-panel: rgba(100, 255, 255, 0.18);
-  --input-bg: rgba(0, 40, 50, 0.42);
-  --accent: #22d3ee;
-  --accent-2: #2dd4bf;
-  --accent-gradient: linear-gradient(135deg, #00838f 0%, #22d3ee 100%);
-  --ring: 0 0 0 3px rgba(34, 211, 238, 0.22);
+/* Hiệu ứng tab kính */
+.glass-tab-active {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  color: white !important;
 }
-
-/* 4) Mint (Premium Navy) */
-body.theme-mint {
-  --bg-base: #0f172a;
-  --bg-mesh:
-    radial-gradient(at 50% 0%, hsla(220, 60%, 25%, 0.45) 0px, transparent 60%),
-    radial-gradient(at 0% 100%, hsla(200, 80%, 25%, 0.20) 0px, transparent 55%);
-  --bg-panel: rgba(30, 41, 59, 0.78);
-  --header-bg: rgba(15, 23, 42, 0.94);
-  --border-panel: rgba(148, 163, 184, 0.18);
-  --input-bg: rgba(30, 41, 59, 0.46);
-  --accent: #38bdf8;
-  --accent-2: #a855f7;
-  --accent-gradient: linear-gradient(135deg, #1e293b 0%, #38bdf8 100%);
-  --ring: 0 0 0 3px rgba(56, 189, 248, 0.20);
+.glass-tab-inactive {
+  border: 1px solid transparent !important;
+  color: var(--text-sub) !important;
+  opacity: 0.6;
 }
-
-/* 5) Royal (Gold) */
-body.theme-royal {
-  --bg-base: #3f2e00;
-  --bg-mesh:
-    radial-gradient(at 100% 0%, hsla(45, 90%, 35%, 0.45) 0px, transparent 55%),
-    radial-gradient(at 0% 100%, hsla(35, 100%, 25%, 0.55) 0px, transparent 55%),
-    radial-gradient(at 50% 50%, hsla(50, 90%, 20%, 0.50) 0px, transparent 60%);
-  --bg-panel: rgba(60, 45, 10, 0.74);
-  --header-bg: rgba(45, 30, 5, 0.90);
-  --border-panel: rgba(255, 215, 0, 0.22);
-  --input-bg: rgba(50, 35, 0, 0.42);
-  --accent: #ffd700;
-  --accent-2: #fb923c;
-  --accent-gradient: linear-gradient(135deg, #b45309 0%, #ffd700 100%);
-  --ring: 0 0 0 3px rgba(255, 215, 0, 0.20);
-}
-
-/* 6) Aurora */
-body.theme-aurora {
-  --bg-base: #070a1a;
-  --bg-mesh:
-    radial-gradient(at 10% 10%, rgba(34, 211, 238, 0.22) 0px, transparent 55%),
-    radial-gradient(at 90% 20%, rgba(168, 85, 247, 0.20) 0px, transparent 55%),
-    radial-gradient(at 40% 90%, rgba(16, 185, 129, 0.16) 0px, transparent 60%);
-  --bg-panel: rgba(10, 16, 35, 0.72);
-  --header-bg: rgba(7, 10, 26, 0.90);
-  --border-panel: rgba(148, 163, 184, 0.16);
-  --input-bg: rgba(2, 6, 23, 0.40);
-  --accent: #22d3ee;
-  --accent-2: #a855f7;
-  --accent-gradient: linear-gradient(135deg, #22d3ee 0%, #a855f7 100%);
-  --ring: 0 0 0 3px rgba(34, 211, 238, 0.20);
-}
-
-/* 7) Graphite (Enterprise) */
-body.theme-graphite {
-  --bg-base: #0a0f14;
-  --bg-mesh:
-    radial-gradient(at 0% 0%, rgba(255,255,255,0.08) 0px, transparent 55%),
-    radial-gradient(at 100% 100%, rgba(255,255,255,0.06) 0px, transparent 55%),
-    radial-gradient(at 50% 50%, rgba(56,189,248,0.10) 0px, transparent 60%);
-  --bg-panel: rgba(17, 24, 39, 0.78);
-  --header-bg: rgba(10, 15, 20, 0.92);
-  --border-panel: rgba(255, 255, 255, 0.14);
-  --input-bg: rgba(2, 6, 23, 0.44);
-  --accent: #38bdf8;
-  --accent-2: #94a3b8;
-  --accent-gradient: linear-gradient(135deg, #0f172a 0%, #38bdf8 100%);
-  --ring: 0 0 0 3px rgba(56, 189, 248, 0.18);
-}
-
-/* 8) Violet */
-body.theme-violet {
-  --bg-base: #14002a;
-  --bg-mesh:
-    radial-gradient(at 0% 10%, rgba(168, 85, 247, 0.24) 0px, transparent 55%),
-    radial-gradient(at 100% 90%, rgba(56, 189, 248, 0.14) 0px, transparent 55%),
-    radial-gradient(at 40% 60%, rgba(244, 114, 182, 0.14) 0px, transparent 60%);
-  --bg-panel: rgba(33, 10, 59, 0.72);
-  --header-bg: rgba(20, 0, 42, 0.90);
-  --border-panel: rgba(216, 180, 254, 0.16);
-  --input-bg: rgba(2, 6, 23, 0.40);
-  --accent: #a855f7;
-  --accent-2: #f472b6;
-  --accent-gradient: linear-gradient(135deg, #a855f7 0%, #f472b6 100%);
-  --ring: 0 0 0 3px rgba(168, 85, 247, 0.20);
-}
-
-/* 9) Emerald */
-body.theme-emerald {
-  --bg-base: #031b14;
-  --bg-mesh:
-    radial-gradient(at 0% 0%, rgba(16,185,129,0.22) 0px, transparent 55%),
-    radial-gradient(at 100% 100%, rgba(34,211,238,0.12) 0px, transparent 55%),
-    radial-gradient(at 60% 40%, rgba(34,197,94,0.12) 0px, transparent 60%);
-  --bg-panel: rgba(5, 32, 24, 0.74);
-  --header-bg: rgba(3, 27, 20, 0.90);
-  --border-panel: rgba(52, 211, 153, 0.16);
-  --input-bg: rgba(2, 6, 23, 0.40);
-  --accent: #10b981;
-  --accent-2: #22d3ee;
-  --accent-gradient: linear-gradient(135deg, #10b981 0%, #22d3ee 100%);
-  --ring: 0 0 0 3px rgba(16, 185, 129, 0.20);
-}
-
-/* 10) Sakura */
-body.theme-sakura {
-  --bg-base: #160911;
-  --bg-mesh:
-    radial-gradient(at 10% 20%, rgba(244,114,182,0.22) 0px, transparent 55%),
-    radial-gradient(at 90% 80%, rgba(251,113,133,0.16) 0px, transparent 55%),
-    radial-gradient(at 50% 50%, rgba(56,189,248,0.10) 0px, transparent 60%);
-  --bg-panel: rgba(36, 12, 24, 0.74);
-  --header-bg: rgba(22, 9, 17, 0.90);
-  --border-panel: rgba(251, 113, 133, 0.16);
-  --input-bg: rgba(2, 6, 23, 0.40);
-  --accent: #fb7185;
-  --accent-2: #f472b6;
-  --accent-gradient: linear-gradient(135deg, #fb7185 0%, #f472b6 100%);
-  --ring: 0 0 0 3px rgba(251, 113, 133, 0.20);
-}
-
-/* 11) Solar */
-body.theme-solar {
-  --bg-base: #1b0b02;
-  --bg-mesh:
-    radial-gradient(at 0% 0%, rgba(251,146,60,0.22) 0px, transparent 55%),
-    radial-gradient(at 100% 100%, rgba(245,158,11,0.18) 0px, transparent 55%),
-    radial-gradient(at 60% 40%, rgba(56,189,248,0.10) 0px, transparent 60%);
-  --bg-panel: rgba(41, 16, 4, 0.74);
-  --header-bg: rgba(27, 11, 2, 0.92);
-  --border-panel: rgba(251, 146, 60, 0.18);
-  --input-bg: rgba(2, 6, 23, 0.40);
-  --accent: #fb923c;
-  --accent-2: #f59e0b;
-  --accent-gradient: linear-gradient(135deg, #fb923c 0%, #f59e0b 100%);
-  --ring: 0 0 0 3px rgba(251, 146, 60, 0.20);
-}
-
-/* 12) Mono */
-body.theme-mono {
-  --bg-base: #050505;
-  --bg-mesh:
-    radial-gradient(at 0% 0%, rgba(255,255,255,0.10) 0px, transparent 55%),
-    radial-gradient(at 100% 100%, rgba(255,255,255,0.07) 0px, transparent 55%),
-    radial-gradient(at 50% 50%, rgba(255,255,255,0.05) 0px, transparent 60%);
-  --bg-panel: rgba(18, 18, 18, 0.82);
-  --header-bg: rgba(5, 5, 5, 0.94);
-  --border-panel: rgba(255, 255, 255, 0.14);
-  --input-bg: rgba(0, 0, 0, 0.40);
-  --accent: #ffffff;
-  --accent-2: #94a3b8;
-  --accent-gradient: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
-  --ring: 0 0 0 3px rgba(255, 255, 255, 0.16);
+/* --- 6. PROFILE GLASS BOX (Thêm mới) --- */
+.profile-glass-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  /* Copy hiệu ứng từ logo VietinBank */
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 16px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  margin-bottom: 16px; /* Cách các nút bên dưới ra */
 }
