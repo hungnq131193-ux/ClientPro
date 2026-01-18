@@ -2,6 +2,10 @@
   Edge back-swipe (Android-like)
   - Swipe from left edge -> trigger app "back" behavior.
   - Additive only: no existing logic is modified.
+
+  NOTE (Android Chrome): Edge-swipe can trigger browser back/exit. We mitigate via:
+  1) preventing default on the horizontal gesture when it starts at the edge, and
+  2) trapping popstate with a lightweight history sentinel (so the app handles "back").
 */
 (function () {
   'use strict';
@@ -80,12 +84,6 @@
       return callIfFn('closeFolder') || (get('screen-folder').classList.add('translate-x-full'), true);
     }
 
-    // Fallback: browser history (if used)
-    if (window.history && window.history.length > 1) {
-      window.history.back();
-      return true;
-    }
-
     return false;
   }
 
@@ -112,6 +110,10 @@
     const t = e.changedTouches[0];
     if (t.clientX > EDGE_PX) return;
     if (shouldIgnoreTarget(e.target)) return;
+
+    // In Chrome on Android, edge-swipe can be interpreted as browser "Back".
+    // We try to claim the gesture early.
+    if (e.cancelable) e.preventDefault();
 
     tracking = true;
     decided = false;
@@ -164,10 +166,33 @@
   }
 
   function init() {
-    document.addEventListener('touchstart', onStart, { passive: true });
+    // passive:false is required so we can preventDefault() on edge-gesture.
+    document.addEventListener('touchstart', onStart, { passive: false });
     document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend', onEnd, { passive: true });
     document.addEventListener('touchcancel', function () { tracking = false; }, { passive: true });
+
+    // History sentinel: lets the app consume "back" instead of Chrome exiting.
+    // This also improves behavior for the Android hardware back button.
+    try {
+      const SENTINEL_STATE = { __clientpro_edge_back: 1 };
+      // Only push once per page load.
+      if (!history.state || !history.state.__clientpro_edge_back) {
+        history.pushState(SENTINEL_STATE, document.title, location.href);
+      }
+
+      window.addEventListener('popstate', function () {
+        // Try to close app overlays/panels first.
+        const ok = runBackAction();
+        if (ok) {
+          // Re-arm sentinel so user stays inside app.
+          history.pushState(SENTINEL_STATE, document.title, location.href);
+        }
+        // If ok === false, allow normal back (exit) behavior.
+      });
+    } catch (_) {
+      // Ignore if History API is unavailable.
+    }
   }
 
   if (document.readyState === 'loading') {
