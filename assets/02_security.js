@@ -194,30 +194,32 @@ async function ensureBackupSecret() {
   }
 
   // Nếu offline thì không thể xin secret
-  if (!navigator.onLine) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
     return { ok: false, message: "Thiết bị đang Offline." };
   }
 
   try {
-    // Theo bản index trước đó chạy ổn: check_status chỉ cần employeeId + deviceInfo
+    // Đồng bộ hoàn toàn với bản index(7) chạy ổn:
+    // check_status chỉ gửi employeeId + deviceInfo, không gửi deviceId
     const query = `?action=check_status&employeeId=${encodeURIComponent( employeeId )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-    const res = await fetch(ADMIN_SERVER_URL + query, { cache: "no-store" });
+
+    // Không truyền options để tránh khác biệt hành vi cache/redirect trên một số WebView/PWA
+    const res = await fetch(ADMIN_SERVER_URL + query);
     const txt = await res.text();
+
     let result;
     try {
       result = JSON.parse(txt);
     } catch (e) {
-      result = txt;
+      result = {};
     }
 
     // Nếu bị thu hồi quyền -> thu hồi kích hoạt ngay
-    const status =
-      result && typeof result === "object" && result.status
-        ? String(result.status).toLowerCase()
-        : typeof result === "string" && result.toLowerCase().includes("locked")
-        ? "locked"
-        : "";
-    if (status === "locked") {
+    if (
+      result &&
+      typeof result === "object" &&
+      String(result.status || "").toLowerCase() === "locked"
+    ) {
       try {
         localStorage.removeItem(ACTIVATED_KEY);
       } catch (e) {}
@@ -233,20 +235,18 @@ async function ensureBackupSecret() {
     }
 
     // Nhận secret
-    // Nhận secret (hỗ trợ cả trường hợp server trả về text)
-    let secret = "";
-    if (result && typeof result === "object" && result.secret)
-      secret = result.secret;
-    if (!secret && typeof result === "string") {
-      const m = result.match(
-        /"secret"\s*:\s*"([^"]+)"|secret\s*[:=]\s*([A-Za-z0-9_\-\.]+)/i
-      );
-      secret = m ? m[1] || m[2] : "";
-    }
-    if (secret) {
-      APP_BACKUP_SECRET = secret;
+    if (result && typeof result === "object" && result.secret) {
+      APP_BACKUP_SECRET = result.secret;
       return { ok: true };
     }
+
+    // Log để chẩn đoán (không ảnh hưởng UI)
+    try {
+      console.log(
+        "[ensureBackupSecret] Server response (no secret):",
+        txt && txt.length > 300 ? txt.slice(0, 300) + "..." : txt
+      );
+    } catch (e) {}
 
     return { ok: false, message: "Không nhận được khóa bảo mật từ server." };
   } catch (e) {
