@@ -1,25 +1,26 @@
 /*
-  Edge back-swipe (Android-like)
-  - Swipe from left edge -> trigger app "back" behavior.
-  - Additive only: no existing logic is modified.
+  Edge back-swipe (Android-like) for Chrome Android
+  - Left edge swipe right  => BACK
+  - Right edge swipe left  => BACK
+  - Prevents browser back as much as possible (history sentinel + preventDefault)
+  - Closes overlays/panels even if IDs differ via generic fallback.
 
-  NOTE (Android Chrome): Edge-swipe can trigger browser back/exit. We mitigate via:
-  1) preventing default on the horizontal gesture when it starts at the edge, and
-  2) trapping popstate with a lightweight history sentinel (so the app handles "back").
+  Additive only: does not modify existing app logic.
 */
 (function () {
   'use strict';
 
   // --- Gesture tuning ---
-  const EDGE_PX = 24;            // touch must start within this left-edge band
+  const EDGE_PX = 24;            // touch must start within left/right edge band
   const TRIGGER_PX = 90;         // minimum horizontal travel to trigger
-  const MAX_OFF_AXIS_PX = 60;    // maximum vertical drift allowed
+  const MAX_OFF_AXIS_PX = 70;    // max vertical drift allowed
   const MIN_INTENT_PX = 10;      // movement before locking intent
-  const COOLDOWN_MS = 500;       // prevent double-trigger
+  const MAX_GESTURE_MS = 800;    // gesture time limit
+  const COOLDOWN_MS = 450;       // prevent double-trigger
 
   const get = (id) => (typeof window.getEl === 'function' ? window.getEl(id) : document.getElementById(id));
   const hasClass = (el, cls) => !!(el && el.classList && el.classList.contains(cls));
-  const isHidden = (el) => !el || hasClass(el, 'hidden');
+  const isHidden = (el) => !el || hasClass(el, 'hidden') || el.getAttribute('aria-hidden') === 'true';
   const isSlideHidden = (el) => !el || hasClass(el, 'translate-x-full');
   const isVisibleModal = (id) => !isHidden(get(id));
   const isVisibleSlide = (id) => !isSlideHidden(get(id));
@@ -33,13 +34,123 @@
     return false;
   }
 
+  function shouldIgnoreTarget(t) {
+    if (!t) return false;
+    const el = t.closest
+      ? t.closest('input, textarea, select, [contenteditable="true"], .no-edge-back, [data-edge-back="ignore"]')
+      : null;
+    return !!el;
+  }
+
+  // -------- Generic fallback: close the top-most overlay/dialog/panel --------
+  function isElementVisible(el) {
+    if (!el) return false;
+    if (el === document.body || el === document.documentElement) return false;
+    const st = window.getComputedStyle(el);
+    if (!st) return false;
+    if (st.display === 'none' || st.visibility === 'hidden' || Number(st.opacity) === 0) return false;
+    if (el.getAttribute('aria-hidden') === 'true') return false;
+    const rect = el.getBoundingClientRect();
+    if (!rect || rect.width < 2 || rect.height < 2) return false;
+    return true;
+  }
+
+  function zIndexOf(el) {
+    const st = window.getComputedStyle(el);
+    const z = st ? st.zIndex : 'auto';
+    const n = Number(z);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function findTopOverlayCandidate() {
+    // Common patterns for modals/overlays/panels
+    const selectors = [
+      '[role="dialog"]',
+      '[aria-modal="true"]',
+      '.modal',
+      '.dialog',
+      '.overlay',
+      '.backdrop',
+      '.sheet',
+      '.drawer',
+      '.bottom-sheet',
+      '[data-modal]',
+      '[data-overlay]',
+      '[data-dialog]'
+    ].join(',');
+
+    const list = Array.from(document.querySelectorAll(selectors))
+      .filter(isElementVisible);
+
+    if (!list.length) return null;
+
+    // choose highest z-index, tie-breaker by DOM order (later tends to be on top)
+    list.sort((a, b) => {
+      const dz = zIndexOf(a) - zIndexOf(b);
+      if (dz !== 0) return dz;
+      return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+    });
+
+    return list[list.length - 1] || null;
+  }
+
+  function tryClickCloseIn(el) {
+    if (!el) return false;
+    const closeSelectors = [
+      '[data-close]',
+      '[data-dismiss]',
+      '[data-action="close"]',
+      '[aria-label="Close"]',
+      '[aria-label="close"]',
+      '.close',
+      '.btn-close',
+      '.modal-close',
+      '.dialog-close',
+      '.overlay-close'
+    ].join(',');
+
+    const btn = el.querySelector(closeSelectors);
+    if (btn && isElementVisible(btn)) {
+      btn.click();
+      return true;
+    }
+    return false;
+  }
+
+  function tryEscapeClose() {
+    // Many libraries close modal on Escape.
+    const ev = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true });
+    document.dispatchEvent(ev);
+  }
+
+  function genericCloseTopOverlayOrPanel() {
+    const top = findTopOverlayCandidate();
+    if (!top) return false;
+
+    // try standard close buttons first
+    if (tryClickCloseIn(top)) return true;
+
+    // try escape-driven close
+    tryEscapeClose();
+
+    // if still visible, last resort: force-hide (non-destructive in most SPA)
+    // only apply if it looks like a modal/overlay element
+    if (isElementVisible(top)) {
+      top.classList.add('hidden');
+      top.setAttribute('aria-hidden', 'true');
+      return true;
+    }
+    return true;
+  }
+
+  // -------- App-specific back action: keep your existing priority logic --------
   function runBackAction() {
-    // Do not allow gesture to dismiss security/activation overlays.
+    // Prevent dismissing security/activation overlays if present
     if (isVisibleModal('screen-lock') || isVisibleModal('activation-modal') || isVisibleModal('setup-lock-modal')) {
       return false;
     }
 
-    // High-priority overlays
+    // Known overlays (keep your current mapping)
     if (isVisibleModal('qr-modal')) {
       return callIfFn('closeQrScanner') || (get('qr-modal').classList.add('hidden'), true);
     }
@@ -73,7 +184,7 @@
       return callIfFn('closeForgotModal') || (get('forgot-pin-modal').classList.add('hidden'), true);
     }
 
-    // Slide screens (panels)
+    // Slide panels
     if (isVisibleSlide('screen-asset-gallery')) {
       return callIfFn('closeAssetGallery') || (get('screen-asset-gallery').classList.add('translate-x-full'), true);
     }
@@ -84,20 +195,16 @@
       return callIfFn('closeFolder') || (get('screen-folder').classList.add('translate-x-full'), true);
     }
 
-    return false;
+    // Fallback: close any top-most overlay/panel even if IDs differ
+    return genericCloseTopOverlayOrPanel();
   }
 
-  function shouldIgnoreTarget(t) {
-    if (!t) return false;
-    const el = t.closest
-      ? t.closest('input, textarea, select, [contenteditable="true"], .no-edge-back, [data-edge-back="ignore"]')
-      : null;
-    return !!el;
-  }
-
+  // -------- Gesture handling (both edges) --------
   let tracking = false;
   let decided = false;
   let horizontal = false;
+  let fromLeftEdge = false;
+  let fromRightEdge = false;
   let sx = 0;
   let sy = 0;
   let st = 0;
@@ -108,11 +215,15 @@
     if (!e.changedTouches || e.changedTouches.length !== 1) return;
 
     const t = e.changedTouches[0];
-    if (t.clientX > EDGE_PX) return;
+    const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+
+    fromLeftEdge = t.clientX <= EDGE_PX;
+    fromRightEdge = (vw - t.clientX) <= EDGE_PX;
+
+    if (!fromLeftEdge && !fromRightEdge) return;
     if (shouldIgnoreTarget(e.target)) return;
 
-    // In Chrome on Android, edge-swipe can be interpreted as browser "Back".
-    // We try to claim the gesture early.
+    // Claim gesture early to reduce browser "back"
     if (e.cancelable) e.preventDefault();
 
     tracking = true;
@@ -135,17 +246,16 @@
       if (Math.abs(dx) < MIN_INTENT_PX && Math.abs(dy) < MIN_INTENT_PX) return;
       decided = true;
 
-      if (dx > 0 && Math.abs(dx) > Math.abs(dy)) {
-        horizontal = true;
-      } else {
+      // left edge: must go right; right edge: must go left
+      if (fromLeftEdge && dx > 0 && Math.abs(dx) > Math.abs(dy)) horizontal = true;
+      else if (fromRightEdge && dx < 0 && Math.abs(dx) > Math.abs(dy)) horizontal = true;
+      else {
         tracking = false;
         return;
       }
     }
 
-    if (horizontal && e.cancelable) {
-      e.preventDefault();
-    }
+    if (horizontal && e.cancelable) e.preventDefault();
   }
 
   function onEnd(e) {
@@ -159,48 +269,40 @@
     const dy = t.clientY - sy;
     const dt = Date.now() - st;
 
-    if (dx >= TRIGGER_PX && Math.abs(dy) <= MAX_OFF_AXIS_PX && dt <= 700) {
+    const passTime = dt <= MAX_GESTURE_MS;
+    const passAxis = Math.abs(dy) <= MAX_OFF_AXIS_PX;
+
+    const passDistance =
+      (fromLeftEdge && dx >= TRIGGER_PX) ||
+      (fromRightEdge && dx <= -TRIGGER_PX);
+
+    if (passTime && passAxis && passDistance) {
       const ok = runBackAction();
       if (ok) cooldownUntil = Date.now() + COOLDOWN_MS;
     }
   }
 
   function init() {
-    // passive:false is required so we can preventDefault() on edge-gesture.
     document.addEventListener('touchstart', onStart, { passive: false });
     document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend', onEnd, { passive: true });
     document.addEventListener('touchcancel', function () { tracking = false; }, { passive: true });
 
-    // History sentinel: lets the app consume "back" instead of Chrome exiting.
-    // This also improves behavior for the Android hardware back button.
+    // History sentinel: helps keep user inside app for browser back & hardware back
     try {
       const SENTINEL_STATE = { __clientpro_edge_back: 1 };
-      // Only push once per page load.
       if (!history.state || !history.state.__clientpro_edge_back) {
         history.pushState(SENTINEL_STATE, document.title, location.href);
       }
-
       window.addEventListener('popstate', function () {
-        // Try to close app overlays/panels first.
         const ok = runBackAction();
-        if (ok) {
-          // Re-arm sentinel so user stays inside app.
-          history.pushState(SENTINEL_STATE, document.title, location.href);
-        }
-        // If ok === false, allow normal back (exit) behavior.
+        if (ok) history.pushState(SENTINEL_STATE, document.title, location.href);
       });
-    } catch (_) {
-      // Ignore if History API is unavailable.
-    }
+    } catch (_) {}
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 
-  // Optional debug hook
   window.__edgeBackSwipe = { runBackAction };
 })();
