@@ -759,25 +759,20 @@ function toggleMenu() {
 // HÀM BACKUP MỚI (CHỈ LƯU THÔNG TIN - LOẠI BỎ ẢNH & LINK)
 // ============================================================
 async function backupData() {
-  // PHƯƠNG ÁN 1: Mỗi lần Backup sẽ xác thực lại với Server để lấy APP_BACKUP_SECRET
+  // Phương án 1: mỗi lần bấm Backup sẽ verify lại và xin secret từ server
   if (typeof ensureBackupSecret === "function") {
-    const chk = await ensureBackupSecret();
-    if (!chk || !chk.ok) {
+    const sec = await ensureBackupSecret();
+    if (!sec || !sec.ok || !APP_BACKUP_SECRET) {
       alert(
-        chk && chk.message
-          ? chk.message
-          : "BẢO MẬT: Không thể xác thực với Server."
+        `BẢO MẬT: ${ sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật." }\n\nVui lòng kết nối mạng và thử lại.`
       );
       return;
     }
-  } else {
-    // Fallback an toàn nếu vì lý do nào đó hàm chưa được nạp
-    if (!APP_BACKUP_SECRET) {
-      alert(
-        "BẢO MẬT: Không thể xuất file khi đang Offline hoặc chưa xác thực với Server.\n\nVui lòng kết nối mạng và mở lại App để hệ thống tải khóa bảo mật."
-      );
-      return;
-    }
+  } else if (!APP_BACKUP_SECRET) {
+    alert(
+      "BẢO MẬT: Không thể xuất file khi đang Offline hoặc chưa xác thực với Server.\n\nVui lòng kết nối mạng và mở lại App để hệ thống tải khóa bảo mật."
+    );
+    return;
   }
   // Đóng menu và hiển thị loader
   toggleMenu();
@@ -857,23 +852,21 @@ async function restoreData(input) {
   toggleMenu();
   const f = input.files && input.files[0];
   if (!f) return;
+  getEl("loader").classList.remove("hidden");
+  getEl("loader-text").textContent = "Xác thực bảo mật...";
 
-  // PHƯƠNG ÁN 1: Mỗi lần Restore sẽ xác thực lại với Server để lấy APP_BACKUP_SECRET
+  // Phương án 1: mỗi lần bấm Restore sẽ verify lại và xin secret từ server
   if (typeof ensureBackupSecret === "function") {
-    const chk = await ensureBackupSecret();
-    if (!chk || !chk.ok) {
+    const sec = await ensureBackupSecret();
+    if (!sec || !sec.ok || !APP_BACKUP_SECRET) {
+      getEl("loader").classList.add("hidden");
       alert(
-        chk && chk.message
-          ? chk.message
-          : "BẢO MẬT: Không thể xác thực với Server."
+        `BẢO MẬT: ${ sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật." }\n\nVui lòng kết nối mạng và thử lại.`
       );
-      try {
-        input.value = "";
-      } catch (e) {}
       return;
     }
   }
-  getEl("loader").classList.remove("hidden");
+
   getEl("loader-text").textContent = "Đồng bộ...";
   const r = new FileReader();
   r.onload = async (e) => {
