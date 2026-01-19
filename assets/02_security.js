@@ -3,7 +3,10 @@
 // Sử dụng masterKey cho cơ chế mã hóa toàn bộ dữ liệu và khôi phục bằng mã nhân viên.
 let masterKey = null;
 /** * Hằng số bí mật dùng để mã hóa/giải mã dữ liệu backup. * Cần giữ bí mật chuỗi này để đảm bảo file backup không thể đọc được nếu không có khóa. */
+// Legacy secret (passphrase) for old backups. New backups use global KDATA issued by GAS.
 let APP_BACKUP_SECRET = "";
+// New: Global KDATA from GAS (base64url, no padding). This is the material for AES-GCM key.
+let APP_BACKUP_KDATA_B64U = "";
 
 /** * Compute a SHA-256 hash of the provided PIN string and return it as a hex string. * Uses the Web Crypto API for consistent hashing. * @param {string} pin * @returns {Promise<string>} */
 async function hashString(str) {
@@ -36,6 +39,17 @@ function _b64DecodeToBytes(b64) {
   return out;
 }
 
+// base64url (RFC 4648) -> Uint8Array
+function _b64uDecodeToBytes(b64u) {
+  let s = String(b64u || "").replace(/-/g, "+").replace(/_/g, "/");
+  const pad = s.length % 4;
+  if (pad === 2) s += "==";
+  else if (pad === 3) s += "=";
+  else if (pad === 1) throw new Error("INVALID_B64U");
+  return _b64DecodeToBytes(s);
+}
+
+// Legacy: derive AES-GCM key from passphrase (old backup format)
 async function _deriveAesGcmKeyFromSecret(secret) {
   const enc = new TextEncoder();
   const material = enc.encode(String(secret || ""));
@@ -43,9 +57,16 @@ async function _deriveAesGcmKeyFromSecret(secret) {
   return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
-async function encryptBackupPayload(plaintext, secret, meta = null) {
-  if (!secret) throw new Error("MISSING_BACKUP_SECRET");
-  const key = await _deriveAesGcmKeyFromSecret(secret);
+// New: import AES-GCM key from global KDATA (32 bytes raw)
+async function _deriveAesGcmKeyFromKdataB64u(kdata_b64u) {
+  const raw = _b64uDecodeToBytes(kdata_b64u);
+  if (!raw || raw.length !== 32) throw new Error("KDATA_INVALID_LEN");
+  return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+async function encryptBackupPayload(plaintext, kdata_b64u, meta = null) {
+  if (!kdata_b64u) throw new Error("MISSING_BACKUP_KDATA");
+  const key = await _deriveAesGcmKeyFromKdataB64u(kdata_b64u);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const enc = new TextEncoder();
   const ptBytes = enc.encode(String(plaintext || ""));
@@ -66,7 +87,7 @@ async function encryptBackupPayload(plaintext, secret, meta = null) {
   return JSON.stringify(envelope);
 }
 
-async function decryptBackupPayload(content, secret) {
+async function decryptBackupPayload(content, kdata_b64u) {
   const s = String(content || "").trim();
   if (!s) throw new Error("EMPTY_CIPHER");
 
@@ -75,8 +96,8 @@ async function decryptBackupPayload(content, secret) {
     let env = null;
     try { env = JSON.parse(s); } catch (e) { env = null; }
     if (env && env.magic === "CLIENTPRO_CPB" && env.alg === "A256GCM" && env.iv && env.ct) {
-      if (!secret) throw new Error("MISSING_BACKUP_SECRET");
-      const key = await _deriveAesGcmKeyFromSecret(secret);
+      if (!kdata_b64u) throw new Error("MISSING_BACKUP_KDATA");
+      const key = await _deriveAesGcmKeyFromKdataB64u(kdata_b64u);
       const iv = _b64DecodeToBytes(env.iv);
       const ct = _b64DecodeToBytes(env.ct);
       let ptBuf;
@@ -96,9 +117,10 @@ async function decryptBackupPayload(content, secret) {
   }
 
   // Legacy format: CryptoJS.AES(passphrase)
-  if (typeof CryptoJS !== "undefined" && CryptoJS.AES && secret) {
+  // Legacy format: CryptoJS.AES(passphrase) - only works if you still provide the legacy secret.
+  if (typeof CryptoJS !== "undefined" && CryptoJS.AES && APP_BACKUP_SECRET) {
     try {
-      const bytes = CryptoJS.AES.decrypt(String(s), String(secret));
+      const bytes = CryptoJS.AES.decrypt(String(s), String(APP_BACKUP_SECRET));
       const plaintext = bytes.toString(CryptoJS.enc.Utf8);
       if (plaintext) return { plaintext, envelope: { magic: "LEGACY_CJS", v: 1 } };
     } catch (e) {}
@@ -256,17 +278,8 @@ async function checkSecurity() {
         result = txt;
       }
 
-      // Nạp Key bí mật vào RAM
-      // Nạp Key bí mật vào RAM (hỗ trợ cả trường hợp server trả về text)
-      if (result && typeof result === "object" && result.secret) {
-        APP_BACKUP_SECRET = result.secret;
-      } else if (typeof result === "string") {
-        const m = result.match(
-          /"secret"\s*:\s*"([^"]+)"|secret\s*[:=]\s*([A-Za-z0-9_\-\.]+)/i
-        );
-        const secret = m ? m[1] || m[2] : "";
-        if (secret) APP_BACKUP_SECRET = secret;
-      }
+      // NOTE: GAS v6+ no longer returns a fixed "secret" for backup.
+      // Backup/restore will fetch GLOBAL KDATA on-demand via ensureBackupSecret() (issue_kdata).
 
       const status =
         result && typeof result === "object" && result.status
@@ -294,99 +307,72 @@ async function checkSecurity() {
   }
 }
 
-/** * BẢO MẬT BACKUP V1 (Phương án 1): * Mỗi lần người dùng bấm Backup/Restore, gọi lại server để: * - xác thực trạng thái key/device hiện tại * - nhận lại APP_BACKUP_SECRET (khóa mã hóa file backup) * Nếu không nhận được secret thì coi như không đủ quyền backup/restore. */
+/**
+ * BẢO MẬT BACKUP V2:
+ * - Không nhận "secret" cố định từ server nữa.
+ * - Mỗi lần Backup/Restore sẽ:
+ *   (1) check_status: phát hiện LOCKED và thu hồi quyền ngay
+ *   (2) issue_kdata (POST): nhận GLOBAL KDATA (base64url) để derive AES-GCM key
+ * Nếu không nhận được kdata_b64u => coi như không đủ quyền backup/restore.
+ */
 async function ensureBackupSecret() {
   const employeeId = localStorage.getItem(EMPLOYEE_KEY) || "";
-  if (!employeeId) {
-    return { ok: false, message: "Chưa có mã nhân viên." };
-  }
+  if (!employeeId) return { ok: false, message: "Chưa có mã nhân viên." };
 
-  // Nếu offline thì không thể xin secret
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     return { ok: false, message: "Thiết bị đang Offline." };
   }
 
+  const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
+  const deviceInfo = (typeof navigator !== "undefined" && navigator.userAgent) ? navigator.userAgent : "Unknown";
+
   try {
-    // Đồng bộ hoàn toàn với bản index(7) chạy ổn:
-    // check_status chỉ gửi employeeId + deviceInfo, không gửi deviceId
-    const query = `?action=check_status&employeeId=${encodeURIComponent( employeeId )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
+    // 1) check_status (GET) - chỉ để phát hiện locked
+    const q = `?action=check_status&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}&deviceInfo=${encodeURIComponent(deviceInfo)}`;
+    const stRes = await fetch(ADMIN_SERVER_URL + q);
+    const stTxt = await stRes.text();
+    let st;
+    try { st = JSON.parse(stTxt); } catch (e) { st = stTxt; }
 
-    // Không truyền options để tránh khác biệt hành vi cache/redirect trên một số WebView/PWA
-    const res = await fetch(ADMIN_SERVER_URL + query);
-    const txt = await res.text();
-
-    // Hỗ trợ cả 2 trường hợp Apps Script trả về JSON hoặc plain text
-    let result;
-    try {
-      result = JSON.parse(txt);
-    } catch (e) {
-      result = txt;
-    }
-
-    // Nếu bị thu hồi quyền -> thu hồi kích hoạt ngay
     const statusStr =
-      result && typeof result === "object" && result.status
-        ? String(result.status).toLowerCase()
-        : typeof result === "string" && result.toLowerCase().includes("locked")
+      st && typeof st === "object" && st.status
+        ? String(st.status).toLowerCase()
+        : typeof st === "string" && st.toLowerCase().includes("locked")
         ? "locked"
         : "";
+
     if (statusStr === "locked") {
-      try {
-        localStorage.removeItem(ACTIVATED_KEY);
-      } catch (e) {}
+      try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
       const modal = getEl("activation-modal");
       if (modal) modal.classList.remove("hidden");
       const titleEl = document.getElementById("activation-title");
-      if (titleEl)
-        titleEl.textContent =
-          (result && typeof result === "object" && result.message
-            ? result.message
-            : "Tài khoản đã bị thu hồi!");
-      return {
-        ok: false,
-        message:
-          (result && typeof result === "object" && result.message
-            ? result.message
-            : "Tài khoản đã bị thu hồi."),
-      };
+      const msg = (st && typeof st === "object" && st.message) ? st.message : "Tài khoản đã bị thu hồi!";
+      if (titleEl) titleEl.textContent = msg;
+      return { ok: false, message: msg };
     }
 
-    // Nhận secret (tương thích nhiều kiểu trả về)
-    let secret = "";
-    if (result && typeof result === "object") {
-      secret =
-        result.secret ||
-        (result.data && result.data.secret) ||
-        (result.payload && result.payload.secret) ||
-        result.backupSecret ||
-        result.key ||
-        "";
-    } else if (typeof result === "string") {
-      const m = result.match(
-        /"secret"\s*:\s*"([^"]+)"|secret\s*[:=]\s*([A-Za-z0-9_\-\.]+)/i
-      );
-      secret = m ? m[1] || m[2] : "";
-    }
+    // 2) issue_kdata (POST) - nhận kdata_b64u
+    const kdRes = await fetch(ADMIN_SERVER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "issue_kdata", employeeId, deviceId }),
+    });
+    const kdTxt = await kdRes.text();
+    let kd;
+    try { kd = JSON.parse(kdTxt); } catch (e) { kd = null; }
 
-    if (secret) {
-      APP_BACKUP_SECRET = secret;
+    if (kd && kd.status === "success" && kd.kdata_b64u) {
+      APP_BACKUP_KDATA_B64U = String(kd.kdata_b64u);
       return { ok: true };
     }
 
-    // Log để chẩn đoán (không ảnh hưởng UI)
     try {
-      console.log(
-        "[ensureBackupSecret] Server response (no secret):",
-        txt && txt.length > 300 ? txt.slice(0, 300) + "..." : txt
-      );
+      console.log("[ensureBackupSecret] issue_kdata failed:", kdTxt && kdTxt.length > 300 ? kdTxt.slice(0, 300) + "..." : kdTxt);
     } catch (e) {}
 
-    return { ok: false, message: "Không nhận được khóa bảo mật từ server." };
+    return { ok: false, message: "Không lấy được khóa KDATA từ server." };
   } catch (e) {
-    return {
-      ok: false,
-      message: "Không thể kết nối server để lấy khóa bảo mật.",
-    };
+    return { ok: false, message: "Không thể kết nối server để lấy khóa KDATA." };
   }
 }
 function openSecuritySetup() {
@@ -564,10 +550,7 @@ async function activateApp() {
       String(result).toLowerCase().includes("success")
     ) {
       // Thành công: xử lý tùy theo máy mới hay tái kích hoạt
-      if (result.secret) {
-        APP_BACKUP_SECRET = result.secret;
-        console.log("Đã nhận chìa khóa bảo mật từ Server");
-      }
+      // NOTE: GAS v6+ does not return backup secret on activation. Backup/restore will fetch KDATA on-demand.
       const hasOldData = !!localStorage.getItem(SEC_KEY);
       if (!hasOldData) {
         // Trường hợp máy mới: Lưu trạng thái kích hoạt và yêu cầu tạo PIN mới

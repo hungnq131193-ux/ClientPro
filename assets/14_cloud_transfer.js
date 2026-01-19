@@ -64,7 +64,7 @@
     const requireSecret = (o.requireSecret !== false);
     if (requireSecret && typeof ensureBackupSecret === 'function') {
       const sec = await ensureBackupSecret();
-      if (!sec || !sec.ok || !APP_BACKUP_SECRET) {
+      if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
         throw new Error(sec && sec.message ? sec.message : 'Không thể xác thực');
       }
     }

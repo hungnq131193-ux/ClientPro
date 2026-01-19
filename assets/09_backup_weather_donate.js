@@ -178,7 +178,7 @@ async function restoreBackupFromApp(id) {
   // Phương án 1: mỗi lần Restore sẽ verify lại và xin secret từ server
   if (typeof ensureBackupSecret === "function") {
     const sec = await ensureBackupSecret();
-    if (!sec || !sec.ok || !APP_BACKUP_SECRET) {
+    if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
       alert(
         `BẢO MẬT: ${sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật."}\n\nVui lòng kết nối mạng và thử lại.`
       );
@@ -213,7 +213,7 @@ async function _restoreFromEncryptedContent(encryptedContent) {
   let decryptedStr = "";
   try {
     if (typeof decryptBackupPayload === 'function') {
-      const out = await decryptBackupPayload(String(encryptedContent || ''), APP_BACKUP_SECRET);
+      const out = await decryptBackupPayload(String(encryptedContent || ''), APP_BACKUP_KDATA_B64U);
       decryptedStr = out && out.plaintext ? out.plaintext : '';
     }
   } catch (e) {
@@ -271,13 +271,13 @@ async function backupData() {
   // Phương án 1: mỗi lần bấm Backup sẽ verify lại và xin secret từ server
   if (typeof ensureBackupSecret === "function") {
     const sec = await ensureBackupSecret();
-    if (!sec || !sec.ok || !APP_BACKUP_SECRET) {
+    if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
       alert(
         `BẢO MẬT: ${sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật."}\n\nVui lòng kết nối mạng và thử lại.`
       );
       return;
     }
-  } else if (!APP_BACKUP_SECRET) {
+  } else if (!APP_BACKUP_KDATA_B64U) {
     alert(
       "BẢO MẬT: Không thể backup khi đang Offline hoặc chưa xác thực với Server.\n\nVui lòng kết nối mạng và mở lại App để hệ thống tải khóa bảo mật."
     );
@@ -343,9 +343,10 @@ async function backupData() {
     }
 
     // Mã hóa toàn bộ dữ liệu bằng AES-256-GCM (có xác thực anti-tamper)
-    const encrypted = (typeof encryptBackupPayload === 'function')
-      ? await encryptBackupPayload(rawStr, APP_BACKUP_SECRET, { type: 'full_backup' })
-      : CryptoJS.AES.encrypt(rawStr, APP_BACKUP_SECRET).toString();
+    if (typeof encryptBackupPayload !== 'function') {
+      throw new Error('Thiếu cơ chế mã hóa WebCrypto');
+    }
+    const encrypted = await encryptBackupPayload(rawStr, APP_BACKUP_KDATA_B64U, { type: 'full_backup' });
 
     // Chuẩn hóa tên file
     const deviceId = typeof getDeviceId === "function" ? getDeviceId() : "device";
@@ -398,7 +399,7 @@ async function restoreData(input) {
   // Phương án 1: mỗi lần bấm Restore sẽ verify lại và xin secret từ server
   if (typeof ensureBackupSecret === "function") {
     const sec = await ensureBackupSecret();
-    if (!sec || !sec.ok || !APP_BACKUP_SECRET) {
+    if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
       getEl("loader").classList.add("hidden");
       alert(
         `BẢO MẬT: ${ sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật." }\n\nVui lòng kết nối mạng và thử lại.`

@@ -26,25 +26,24 @@
         async function sendSelectedCustomersToUser() {
             if (selectedCustomers.size === 0) return alert('Chưa chọn KH');
 
-            // Gate bảo mật: bắt buộc xin secret từ server trước khi đóng gói
+            // Gate bảo mật: bắt buộc xin GLOBAL KDATA từ server trước khi đóng gói
             if (typeof ensureBackupSecret === 'function') {
                 const sec = await ensureBackupSecret();
-                // Lưu ý: APP_BACKUP_SECRET được khai báo bằng "let" ở scope global -> KHÔNG nằm trên window.
-                // Backup toàn bộ đang dùng biến APP_BACKUP_SECRET trực tiếp, nên luồng gửi KH phải đồng bộ y hệt.
-                if (!sec || !sec.ok || !APP_BACKUP_SECRET) {
+                // Lưu ý: APP_BACKUP_KDATA_B64U được khai báo bằng "let" ở scope global -> KHÔNG nằm trên window.
+                if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
                     alert(
                         `BẢO MẬT: ${sec && sec.message ? sec.message : 'Không thể lấy khóa bảo mật.'}\n\nVui lòng kết nối mạng và thử lại.`
                     );
                     return;
                 }
-            } else if (!APP_BACKUP_SECRET) {
+            } else if (!APP_BACKUP_KDATA_B64U) {
                 alert('BẢO MẬT: Không thể gửi khi đang Offline hoặc chưa xác thực với Server.');
                 return;
             }
 
-            // Ưu tiên AES-GCM WebCrypto (encryptBackupPayload). Nếu không có, fallback CryptoJS legacy.
-            if (typeof encryptBackupPayload !== 'function' && (!window.CryptoJS || !CryptoJS.AES)) {
-                alert('Thiếu cơ chế mã hóa (WebCrypto/CryptoJS).');
+                // Ưu tiên AES-GCM WebCrypto (encryptBackupPayload).
+                if (typeof encryptBackupPayload !== 'function') {
+                    alert('Thiếu cơ chế mã hóa (WebCrypto).');
                 return;
             }
 
@@ -96,9 +95,7 @@
                 const rawStr = JSON.stringify(exportPayload);
                 const hashNew = (typeof hashString === 'function') ? await hashString(rawStr) : '';
 
-                const encrypted = (typeof encryptBackupPayload === 'function')
-                    ? await encryptBackupPayload(rawStr, APP_BACKUP_SECRET, { type: 'partial_customers', count: custIds.length })
-                    : CryptoJS.AES.encrypt(rawStr, APP_BACKUP_SECRET).toString();
+                const encrypted = await encryptBackupPayload(rawStr, APP_BACKUP_KDATA_B64U, { type: 'partial_customers', count: custIds.length });
 
                 // Sanity check: tuyệt đối không gửi plaintext JSON khách hàng
                 if (!encrypted || (/("customers"\s*:)/.test(encrypted) && !/"magic"\s*:\s*"CLIENTPRO_CPB"/.test(encrypted))) {
