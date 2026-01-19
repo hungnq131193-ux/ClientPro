@@ -9,15 +9,15 @@
  * - GET  ?action=list_users&employeeId=...&deviceId=...&deviceInfo=...
  *      -> { ok:true, users:[{deviceId, employeeId, name}] }
  * - POST action=upload_backup
- *      body: { from:{employeeId,deviceId}, to:{deviceId}, filename, encrypted, size, hash, createdAt, expiresAt }
- *      -> { ok:true, backupId }
+ *      body: { employeeId, deviceId, toEmployeeId, cipher_b64, filename, size, hash, createdAt, expiresAt }
+ *      -> { status:'success', transferId, expiresAt, ... }
  * - GET  ?action=list_inbox&employeeId=...&deviceId=...&deviceInfo=...
- *      -> { ok:true, items:[{backupId, fromName, fromEmployeeId, fromDeviceId, filename, size, createdAt, expiresAt}] }
- * - GET  ?action=download_backup&employeeId=...&deviceId=...&backupId=...
- *      -> { ok:true, encrypted, meta:{...} }
+ *      -> { status:'success', inbox:[{transferId, fromEmployeeId, filename, size, createdAt, expiresAt, ...}] }
+ * - GET  ?action=download_backup&employeeId=...&deviceId=...&transferId=...
+ *      -> { status:'success', cipher_b64, filename, ... }
  * - POST action=delete_backup
- *      body: { employeeId, deviceId, backupId }
- *      -> { ok:true }
+ *      body: { employeeId, deviceId, transferId }
+ *      -> { status:'success' }
  *
  * Note: Server must enforce auth (same logic as check_status/activate).
  */
@@ -129,7 +129,14 @@
   async function pickUserOverlay() {
     const users = await listUsers();
     const selfDev = getDeviceIdSafe();
-    const filtered = (users || []).filter(u => String(u.deviceId || '') !== String(selfDev));
+    const selfEmp = getEmployeeId();
+    const filtered = (users || []).filter(u => {
+      if (!u) return false;
+      // Prefer employeeId as stable identity (server may not expose deviceId)
+      if (selfEmp && u.employeeId && String(u.employeeId).trim().toUpperCase() === String(selfEmp).trim().toUpperCase()) return false;
+      if (u.deviceId && String(u.deviceId).trim() === String(selfDev).trim()) return false;
+      return true;
+    });
 
     if (!filtered.length) {
       alert('Không có user nào khác trong hệ thống.');
@@ -166,11 +173,11 @@
       const searchEl = overlay.querySelector('#ctUserSearch');
 
       function rowHtml(u) {
-        const name = esc(u.name || u.displayName || '---');
+        const name = esc(u.name || u.displayName || u.employeeId || '---');
         const emp = esc(u.employeeId || '');
-        const dev = esc(u.deviceId || '');
+        const dev = esc(u.deviceId || u.deviceIdHint || '');
         return `
-          <button type="button" class="w-full text-left p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition flex items-center gap-3" data-dev="${dev}">
+          <button type="button" class="w-full text-left p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition flex items-center gap-3" data-emp="${emp}">
             <div class="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-300 font-black">U</div>
             <div class="flex-1 min-w-0">
               <div class="font-bold truncate" style="color: var(--text-main)">${name}</div>
@@ -186,17 +193,17 @@
         return filtered.filter(u => {
           const name = String(u.name || u.displayName || '').toLowerCase();
           const emp = String(u.employeeId || '').toLowerCase();
-          const dev = String(u.deviceId || '').toLowerCase();
+          const dev = String(u.deviceId || u.deviceIdHint || '').toLowerCase();
           return name.includes(q) || emp.includes(q) || dev.includes(q);
         });
       }
 
       function draw(items) {
         listEl.innerHTML = items.map(rowHtml).join('');
-        Array.from(listEl.querySelectorAll('button[data-dev]')).forEach(btn => {
+        Array.from(listEl.querySelectorAll('button[data-emp]')).forEach(btn => {
           btn.addEventListener('click', () => {
-            const dev = btn.getAttribute('data-dev');
-            const u = filtered.find(x => String(x.deviceId) === String(dev));
+            const emp = btn.getAttribute('data-emp');
+            const u = filtered.find(x => String(x.employeeId) === String(emp));
             close(u || null);
           });
         });
@@ -218,23 +225,21 @@
 
   async function uploadBackupToUser(targetUser, backupRec) {
     await ensureAuthOrThrow();
-    if (!targetUser || !targetUser.deviceId) throw new Error('Thiếu user đích');
+    if (!targetUser || !targetUser.employeeId) throw new Error('Thiếu user đích');
     if (!backupRec || !backupRec.encrypted) throw new Error('Thiếu dữ liệu backup');
 
     if (backupRec.size && backupRec.size > MAX_SEND_BYTES) {
       throw new Error('Backup quá lớn để gửi trực tiếp. Hãy Xuất file .cpb và gửi qua Zalo/Email.');
     }
 
+    // IMPORTANT: Use "simple request" Content-Type to avoid CORS preflight blocking on GAS WebApp.
+    // Also align payload with GAS normalizer: toEmployeeId + cipher_b64.
     const payload = {
-      from: {
-        employeeId: getEmployeeId(),
-        deviceId: getDeviceIdSafe(),
-      },
-      to: {
-        deviceId: String(targetUser.deviceId),
-      },
+      employeeId: getEmployeeId(),
+      deviceId: getDeviceIdSafe(),
+      toEmployeeId: String(targetUser.employeeId || '').trim(),
       filename: backupRec.filename || `CLIENTPRO_BK_${Date.now()}.cpb`,
-      encrypted: String(backupRec.encrypted || ''),
+      cipher_b64: String(backupRec.encrypted || ''),
       size: Number(backupRec.size || 0),
       hash: String(backupRec.hash || ''),
       createdAt: Number(backupRec.createdAt || now()),
@@ -243,16 +248,15 @@
 
     const res = await fetchJSON(serverUrl(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'upload_backup', ...payload }),
     });
 
-    if (res && (res.ok || res.status === 'success') && (res.backupId || (res.data && res.data.backupId))) {
-      return res.backupId || res.data.backupId;
+    if (res && (res.status === 'success' || res.ok === true) && (res.transferId || (res.data && res.data.transferId))) {
+      return res.transferId || (res.data ? res.data.transferId : null);
     }
-
-    if (res && res.ok) return true;
-    throw new Error(res && res.message ? res.message : 'Không gửi được backup');
+    if (res && (res.status === 'success' || res.ok === true)) return true;
+    throw new Error(res && res.message ? res.message : 'Không gửi được bản ghi');
   }
 
   async function listInbox() {
@@ -262,35 +266,42 @@
     const info = encodeURIComponent(navigator.userAgent || '');
     const url = `${serverUrl()}?action=list_inbox&employeeId=${emp}&deviceId=${dev}&deviceInfo=${info}`;
     const res = await fetchJSON(url, { method: 'GET' });
-    const items = (res && Array.isArray(res.items)) ? res.items
+    // Support both legacy {items:[...]} and new {inbox:[...]}
+    const items = (res && Array.isArray(res.inbox)) ? res.inbox
+      : (res && Array.isArray(res.items)) ? res.items
+      : (res && res.data && Array.isArray(res.data.inbox)) ? res.data.inbox
       : (res && res.data && Array.isArray(res.data.items)) ? res.data.items
       : [];
     return items;
   }
 
-  async function downloadInboxItem(backupId) {
+  async function downloadInboxItem(transferId) {
     await ensureAuthOrThrow();
     const emp = encodeURIComponent(getEmployeeId());
     const dev = encodeURIComponent(getDeviceIdSafe());
-    const url = `${serverUrl()}?action=download_backup&employeeId=${emp}&deviceId=${dev}&backupId=${encodeURIComponent(String(backupId))}`;
+    const url = `${serverUrl()}?action=download_backup&employeeId=${emp}&deviceId=${dev}&transferId=${encodeURIComponent(String(transferId))}`;
     const res = await fetchJSON(url, { method: 'GET' });
-    const encrypted = res && res.encrypted ? res.encrypted : (res && res.data && res.data.encrypted ? res.data.encrypted : '');
-    if (!encrypted) throw new Error('Không tải được nội dung backup');
-    return { encrypted, meta: res.meta || (res.data ? res.data.meta : null) || null };
+    const cipher = (res && (res.cipher_b64 || res.encrypted))
+      ? (res.cipher_b64 || res.encrypted)
+      : (res && res.data && (res.data.cipher_b64 || res.data.encrypted))
+        ? (res.data.cipher_b64 || res.data.encrypted)
+        : '';
+    if (!cipher) throw new Error('Không tải được nội dung bản ghi');
+    return { encrypted: cipher, meta: res.meta || (res.data ? res.data.meta : null) || null };
   }
 
-  async function deleteInboxItem(backupId) {
+  async function deleteInboxItem(transferId) {
     await ensureAuthOrThrow();
     const body = {
       action: 'delete_backup',
       employeeId: getEmployeeId(),
       deviceId: getDeviceIdSafe(),
-      backupId: String(backupId),
+      transferId: String(transferId),
     };
     try {
       await fetchJSON(serverUrl(), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(body),
       });
       return true;
@@ -353,8 +364,8 @@
               <div class="text-[11px] mt-1 opacity-70" style="color: var(--text-sub)">Từ: <span class="font-bold" style="color:#60a5fa">${fromName}</span> • ${created} • ${size}</div>
             </div>
             <div class="flex gap-2 flex-shrink-0">
-              <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(16,185,129,0.15); color: #34d399;" onclick="CloudTransferUI.acceptAndRestore('${esc(it.backupId || it.id || '')}')">Nhận & Restore</button>
-              <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(239,68,68,0.15); color: #f87171;" onclick="CloudTransferUI.dismiss('${esc(it.backupId || it.id || '')}')">Bỏ qua</button>
+              <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(16,185,129,0.15); color: #34d399;" onclick="CloudTransferUI.acceptAndRestore('${esc(it.transferId || it.backupId || it.id || '')}')">Nhận & Restore</button>
+              <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(239,68,68,0.15); color: #f87171;" onclick="CloudTransferUI.dismiss('${esc(it.transferId || it.backupId || it.id || '')}')">Bỏ qua</button>
             </div>
           </div>
         </div>
@@ -364,7 +375,7 @@
 
   function hashInboxIds(items) {
     try {
-      const ids = (items || []).map(x => String(x.backupId || x.id || '')).filter(Boolean).sort();
+      const ids = (items || []).map(x => String(x.transferId || x.backupId || x.id || '')).filter(Boolean).sort();
       return ids.join('|');
     } catch (e) {
       return '';
@@ -392,7 +403,7 @@
         const newest = items.slice().sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))[0];
         if (newest) {
           localStorage.setItem(LS_PENDING_NOTICE, JSON.stringify({
-            backupId: newest.backupId || newest.id || '',
+            transferId: newest.transferId || newest.backupId || newest.id || '',
             fromName: newest.fromName || newest.fromEmployeeId || newest.fromDeviceId || 'User',
             filename: newest.filename || '',
           }));
@@ -426,7 +437,7 @@
   function buildReceiveNotice(payload) {
     const fromName = esc(payload.fromName || 'user');
     const filename = esc(payload.filename || 'backup');
-    const backupId = esc(payload.backupId || '');
+    const transferId = esc(payload.transferId || payload.backupId || '');
 
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 z-[10080] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4';
@@ -456,7 +467,7 @@
     overlay.querySelector('[data-act="accept"]').addEventListener('click', async () => {
       try {
         overlay.remove();
-        await CloudTransferUI.acceptAndRestore(backupId);
+        await CloudTransferUI.acceptAndRestore(transferId);
       } catch (err) {
         alert(err && err.message ? err.message : 'Không thể restore');
       }
@@ -465,8 +476,8 @@
     return overlay;
   }
 
-  async function acceptAndRestoreById(backupId) {
-    if (!backupId) throw new Error('Thiếu mã bản ghi');
+  async function acceptAndRestoreById(transferId) {
+    if (!transferId) throw new Error('Thiếu mã bản ghi');
 
     // Confirm and show loader
     if (!confirm('Nhận và Restore bản ghi này?')) return;
@@ -481,7 +492,7 @@
     await ensureAuthOrThrow();
 
     if (loaderText) loaderText.textContent = 'Đang tải bản ghi...';
-    const dl = await downloadInboxItem(backupId);
+    const dl = await downloadInboxItem(transferId);
 
     if (loaderText) loaderText.textContent = 'Đang restore...';
 
@@ -493,14 +504,14 @@
     }
 
     // Best-effort delete on server (still auto-delete in 24h)
-    await deleteInboxItem(backupId);
+    await deleteInboxItem(transferId);
 
     // Clear pending notice if it matches
     try {
       const p = localStorage.getItem(LS_PENDING_NOTICE);
       if (p) {
         const obj = JSON.parse(p);
-        if (obj && String(obj.backupId) === String(backupId)) {
+        if (obj && String(obj.transferId || obj.backupId) === String(transferId)) {
           localStorage.removeItem(LS_PENDING_NOTICE);
         }
       }
@@ -517,10 +528,10 @@
     if (loader) loader.classList.add('hidden');
   }
 
-  async function dismissItem(backupId) {
-    if (!backupId) return;
+  async function dismissItem(transferId) {
+    if (!transferId) return;
     if (!confirm('Bỏ qua bản ghi này? (Có thể tự xóa sau 24h)')) return;
-    await deleteInboxItem(backupId);
+    await deleteInboxItem(transferId);
     await CloudTransferUI.renderInbox();
   }
 
@@ -615,7 +626,7 @@
         if (raw) payload = JSON.parse(raw);
       } catch (e) { payload = null; }
 
-      if (!payload || !payload.backupId) return;
+      if (!payload || !(payload.transferId || payload.backupId)) return;
 
       // avoid stacking multiple overlays
       if (document.getElementById('cloud-recv-notice')) return;
