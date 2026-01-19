@@ -29,13 +29,15 @@
             // Gate bảo mật: bắt buộc xin secret từ server trước khi đóng gói
             if (typeof ensureBackupSecret === 'function') {
                 const sec = await ensureBackupSecret();
-                if (!sec || !sec.ok || !window.APP_BACKUP_SECRET) {
+                // Lưu ý: APP_BACKUP_SECRET được khai báo bằng "let" ở scope global -> KHÔNG nằm trên window.
+                // Backup toàn bộ đang dùng biến APP_BACKUP_SECRET trực tiếp, nên luồng gửi KH phải đồng bộ y hệt.
+                if (!sec || !sec.ok || !APP_BACKUP_SECRET) {
                     alert(
                         `BẢO MẬT: ${sec && sec.message ? sec.message : 'Không thể lấy khóa bảo mật.'}\n\nVui lòng kết nối mạng và thử lại.`
                     );
                     return;
                 }
-            } else if (!window.APP_BACKUP_SECRET) {
+            } else if (!APP_BACKUP_SECRET) {
                 alert('BẢO MẬT: Không thể gửi khi đang Offline hoặc chưa xác thực với Server.');
                 return;
             }
@@ -92,7 +94,7 @@
 
                 const rawStr = JSON.stringify(exportPayload);
                 const hashNew = (typeof hashString === 'function') ? await hashString(rawStr) : '';
-                const encrypted = CryptoJS.AES.encrypt(rawStr, window.APP_BACKUP_SECRET).toString();
+                const encrypted = CryptoJS.AES.encrypt(rawStr, APP_BACKUP_SECRET).toString();
 
                 // Sanity check: tuyệt đối không gửi plaintext
                 if (!encrypted || /\{\s*"/.test(encrypted)) {
