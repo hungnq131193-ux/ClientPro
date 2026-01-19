@@ -30,10 +30,11 @@
       #${MODAL_ID} .row .spacer{flex:1}
       #${MODAL_ID} select,#${MODAL_ID} input[type="file"]{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e5e7eb;border-radius:12px;padding:9px 10px}
       #${MODAL_ID} .hint{font-size:12px;color:rgba(229,231,235,.75)}
-      #${MODAL_ID} #qrBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:12px}
+      /* Larger QR for higher payload capacity */
+      #${MODAL_ID} #qrBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;margin-top:12px}
       #${MODAL_ID} .qr-frame{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);border-radius:16px;padding:10px}
       #${MODAL_ID} .qr-label{font-weight:700;font-size:12px;color:rgba(229,231,235,.85);margin-bottom:8px;display:flex;justify-content:space-between}
-      #${MODAL_ID} .qr-holder{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:14px;padding:10px}
+      #${MODAL_ID} .qr-holder{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:14px;padding:14px}
       @media (max-width:480px){
         #${MODAL_ID} #qrBox{grid-template-columns:1fr}
       }
@@ -64,17 +65,12 @@
           </select>
 
           <button class="btn primary" id="qrCreateBtn" type="button">Tạo QR</button>
-          <button class="btn" id="qrShareBtn" type="button">Gửi QR</button>
-          <button class="btn" id="qrDownloadBtn" type="button">Lưu ảnh</button>
-        </div>
-
-        <div class="row">
-          <label class="hint">Restore QR bằng ảnh (máy B):</label>
-          <input id="qrImgInput" type="file" accept="image/*" multiple />
+          <button class="btn" id="qrShareBtn" type="button">Gửi qua Zalo/Mail</button>
+          <button class="btn" id="qrDownloadBtn" type="button">Lưu ảnh QR</button>
         </div>
 
         <div class="hint">
-          Gợi ý: Nếu dữ liệu lớn, app sẽ tự chia nhiều QR. Bạn có thể bấm “Gửi QR” để xuất ảnh và gửi qua Zalo/Mail.
+          Gợi ý: QR chỉ chứa dữ liệu đã mã hóa. Nếu dữ liệu lớn, app sẽ tự chia nhiều QR. Bạn có thể bấm “Gửi qua Zalo/Mail” để chia sẻ trực tiếp hoặc tự tải ảnh để gửi.
         </div>
 
         <div id="qrBox"></div>
@@ -122,22 +118,6 @@
         }
       } catch (err) {
         alert('Không thể lưu ảnh QR: ' + (err && err.message ? err.message : err));
-      }
-    });
-
-    modal.querySelector('#qrImgInput').addEventListener('change', async (e) => {
-      const files = e.target.files;
-      if (!files || !files.length) return;
-      try {
-        if (typeof window.handleQrImageUpload === 'function') {
-          await window.handleQrImageUpload(files);
-        } else {
-          alert('Thiếu handleQrImageUpload(). Hãy đảm bảo qrUI.js đã được load.');
-        }
-      } catch (err) {
-        alert('Không thể đọc ảnh QR: ' + (err && err.message ? err.message : err));
-      } finally {
-        e.target.value = '';
       }
     });
 

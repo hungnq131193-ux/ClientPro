@@ -6,8 +6,10 @@
  * QR content is ciphertext only.
  */
 (function () {
-  const DEFAULT_MAX_QR_TEXT = 2400; // conservative for scanning stability from screen
-  const META_OVERHEAD = 220;        // wrapper JSON overhead estimate
+  // Increase per-QR capacity so a single QR can carry multiple customers on typical datasets.
+  // Still chunk automatically if payload exceeds this threshold.
+  const DEFAULT_MAX_QR_TEXT = 3200; // higher capacity; UI renders QR larger for scan stability
+  const META_OVERHEAD = 240;        // wrapper JSON overhead estimate
 
   function assertDeps() {
     if (typeof CryptoJS === 'undefined') {

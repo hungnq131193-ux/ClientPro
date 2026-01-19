@@ -75,7 +75,8 @@
       if (!customerIds.length) return alert('Chưa chọn khách hàng');
     }
 
-    const chunks = await QRTransferEncode.create({ scope, customerIds });
+    // Larger QR + lower error correction to carry more data (still ciphertext-only).
+    const chunks = await QRTransferEncode.create({ scope, customerIds, maxQrText: 3200 });
     const box = document.getElementById('qrBox');
     if (!box) throw new Error('Thiếu #qrBox');
 
@@ -100,9 +101,9 @@
 
       new QRCode(holder, {
         text: JSON.stringify(c),
-        width: 220,
-        height: 220,
-        correctLevel: QRCode.CorrectLevel.M
+        width: 320,
+        height: 320,
+        correctLevel: QRCode.CorrectLevel.L
       });
 
       uiState.frames.push(frame);
