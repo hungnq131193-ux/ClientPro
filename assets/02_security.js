@@ -178,6 +178,21 @@ function decryptCustomerObject(cust) {
   return cust;
 }
 
+/**
+ * Giải mã tối thiểu để hiển thị danh sách (nhanh hơn đáng kể với dữ liệu lớn).
+ * Không giải mã assets để tránh giật/đơ khi tìm kiếm hoặc chuyển tab.
+ * @param {Object} cust
+ * @returns {Object}
+ */
+function decryptCustomerSummary(cust) {
+  if (!cust) return cust;
+  cust.name = decryptText(cust.name);
+  cust.phone = decryptText(cust.phone);
+  cust.cccd = decryptText(cust.cccd);
+  // driveLink không cần cho list, chỉ giữ nguyên để dùng khi mở folder
+  return cust;
+}
+
 /** * Escape HTML special characters in a string to mitigate XSS risks when inserting into innerHTML. * @param {string} str * @returns {string} */
 function escapeHTML(str) {
   if (str === undefined || str === null) return "";

@@ -152,11 +152,12 @@
             const tx = db.transaction(['customers'], 'readonly');
             tx.objectStore('customers').getAll().onsuccess = (e) => {
                 let list = e.target.result || [];
-                // Giải mã đầy đủ từng khách hàng trước khi lọc hoặc tìm kiếm
+                // Tối ưu: chỉ giải mã trường cần thiết cho LIST để tránh giật/đơ (assets sẽ giải mã khi mở folder)
                 list.forEach(c => {
                     if (!c.assets) c.assets = [];
                     if (!c.status) c.status = 'pending';
-                    decryptCustomerObject(c);
+                    if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(c);
+                    else decryptCustomerObject(c);
                 });
                 // Lọc theo tab trạng thái
                 list = list.filter(c => c.status === activeListTab);
@@ -178,6 +179,7 @@
     
     const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
     
+    const frag = document.createDocumentFragment();
     list.forEach(c => {
         const isApproved = activeListTab === 'approved'; 
         const el = document.createElement('div');
@@ -215,8 +217,10 @@
                 <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-10 h-10 flex items-center justify-center text-blue-400 rounded-xl"><i data-lucide="message-circle" class="w-5 h-5"></i></a>
                 <a href="tel:${c.phone}" class="action-btn glass-btn w-10 h-10 flex items-center justify-center text-green-400 rounded-xl"><i data-lucide="phone" class="w-5 h-5"></i></a>
             </div>`;
-        listEl.appendChild(el);
-    }); lucide.createIcons();
+        frag.appendChild(el);
+    });
+    listEl.appendChild(frag);
+    lucide.createIcons();
 }
 
         function openModal() {

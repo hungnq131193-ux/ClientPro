@@ -94,8 +94,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {}
   };
-  getEl("search-input").addEventListener("input", (e) =>
-    loadCustomers(e.target.value)
-  );
+  // Debounce search to avoid decrypt + render on every single keystroke (mượt hơn với danh sách lớn)
+  const onSearchInput = (e) => loadCustomers(e.target.value);
+  getEl("search-input").addEventListener("input", (typeof debounce === 'function') ? debounce(onSearchInput, 180) : onSearchInput);
   setupSwipe();
 });
