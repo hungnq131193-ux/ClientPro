@@ -517,6 +517,8 @@
 <script src="assets/07_drive.js"></script>
     <script src="assets/08_qr_info_and_missing.js"></script>
     <!-- QR Transfer Backup modules (isolated) -->
+    <script src="assets/12_backup_core.js"></script>
+    <script src="assets/13_ui_select_customers.js"></script>
     <script src="assets/qrCrypto.js"></script>
     <script src="assets/qrEncode.js"></script>
     <script src="assets/qrDecode.js"></script>
@@ -549,13 +551,6 @@
         <label class="flex-1 py-2.5 rounded-xl font-bold text-center cursor-pointer border" style="border-color: var(--border-panel); color: var(--text-main); background: rgba(255,255,255,0.04);">
           Nhập file .cpb
           <input type="file" id="restore-input-2" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)" />
-        </label>
-      </div>
-
-      <div class="px-5 py-3 flex gap-2 border-b border-white/10">
-        <label class="w-full py-2.5 rounded-xl font-bold text-center cursor-pointer bg-emerald-600 hover:bg-emerald-500 transition text-white flex items-center justify-center gap-2">
-          <i data-lucide="image" class="w-5 h-5"></i> Restore QR (Chọn ảnh từ thư viện)
-          <input type="file" accept="image/*" multiple class="hidden" onchange="handleQrImageUpload(this.files); this.value='';" />
         </label>
       </div>
 
