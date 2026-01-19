@@ -95,6 +95,14 @@ async function openBackupManager() {
   _closeMenuIfOpen();
   const modal = getEl("backup-manager-modal");
   if (modal) modal.classList.remove("hidden");
+
+  // Prefetch cloud-transfer user list for faster "Gửi" flow (non-blocking)
+  try {
+    if (window.CloudTransferUI && typeof window.CloudTransferUI.prefetchUsers === 'function') {
+      window.CloudTransferUI.prefetchUsers();
+    }
+  } catch (e) {}
+
   await renderBackupList();
   if (window.lucide) lucide.createIcons();
 }

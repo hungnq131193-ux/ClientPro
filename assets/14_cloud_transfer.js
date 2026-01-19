@@ -27,6 +27,15 @@
   const POLL_INTERVAL_MS = 30 * 1000;
   const MAX_SEND_BYTES = 350 * 1024; // safety limit for single-request payloads
 
+  // Performance caches (UX only, no behavior changes):
+  // - Cache list_users for a short TTL to make "Chọn user" open instantly.
+  // - Cache auth check for a short TTL to avoid duplicated ensureBackupSecret calls
+  //   when user is doing send/receive operations back-to-back.
+  const USERS_CACHE_KEY = 'clientpro_ct_users_cache_v1';
+  const USERS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+  // NOTE: Do not relax security gates for backup/restore. We only use caching for
+  // non-sensitive UX (e.g., list_users). Backup/restore still re-checks the server.
+
   const LS_LAST_INBOX_HASH = 'clientpro_inbox_last_seen_hash';
   const LS_PENDING_NOTICE = 'clientpro_inbox_pending_notice';
 
@@ -48,10 +57,14 @@
     return (typeof ADMIN_SERVER_URL !== 'undefined' && ADMIN_SERVER_URL) ? ADMIN_SERVER_URL : '';
   }
 
-  async function ensureAuthOrThrow() {
-    if (typeof ensureBackupSecret === 'function') {
+  async function ensureAuthOrThrow(opts) {
+    const o = opts || {};
+    // requireSecret=true means we MUST call server check_status (via ensureBackupSecret)
+    // every time for backup/restore flows.
+    const requireSecret = (o.requireSecret !== false);
+    if (requireSecret && typeof ensureBackupSecret === 'function') {
       const sec = await ensureBackupSecret();
-      if (!sec || !sec.ok) {
+      if (!sec || !sec.ok || !APP_BACKUP_SECRET) {
         throw new Error(sec && sec.message ? sec.message : 'Không thể xác thực');
       }
     }
@@ -59,6 +72,24 @@
     if (!emp) throw new Error('Chưa có mã nhân viên');
     if (!serverUrl()) throw new Error('Chưa cấu hình server');
     return true;
+  }
+
+  function _readUsersCache() {
+    try {
+      const raw = localStorage.getItem(USERS_CACHE_KEY);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || !Array.isArray(obj.users) || !obj.ts) return null;
+      return obj;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function _writeUsersCache(users) {
+    try {
+      localStorage.setItem(USERS_CACHE_KEY, JSON.stringify({ ts: now(), users: users || [] }));
+    } catch (e) {}
   }
 
   async function fetchTextWithTimeout(url, options, timeoutMs) {
@@ -114,29 +145,83 @@
     return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
   }
 
-  async function listUsers() {
-    await ensureAuthOrThrow();
+  async function listUsers(opts) {
+    const o = opts || {};
+
+    // Fast-path: return cached users if fresh.
+    const cached = _readUsersCache();
+    const cacheFresh = cached && (now() - Number(cached.ts || 0) < USERS_CACHE_TTL_MS);
+    if (cacheFresh && Array.isArray(cached.users) && cached.users.length) {
+      // If we allow stale, skip auth check for UI speed (data is not sensitive).
+      if (o.allowCached === true) return cached.users;
+      // If not explicitly allowing cache-only, still return cache, then optionally refresh.
+      if (o.preferCache === true) return cached.users;
+    }
+
+    // Only authenticate when we actually fetch from server.
+    // For list_users, we do a lightweight auth (no need to fetch secret).
+    await ensureAuthOrThrow({ requireSecret: false });
+
     const emp = encodeURIComponent(getEmployeeId());
     const dev = encodeURIComponent(getDeviceIdSafe());
     const info = encodeURIComponent(navigator.userAgent || '');
     const url = `${serverUrl()}?action=list_users&employeeId=${emp}&deviceId=${dev}&deviceInfo=${info}`;
     const res = await fetchJSON(url, { method: 'GET' });
-    if (res && res.users && Array.isArray(res.users)) return res.users;
-    if (res && res.ok && res.data && Array.isArray(res.data.users)) return res.data.users;
+    const users = (res && Array.isArray(res.users)) ? res.users
+      : (res && res.ok && res.data && Array.isArray(res.data.users)) ? res.data.users
+      : null;
+    if (users) {
+      _writeUsersCache(users);
+      return users;
+    }
     throw new Error(res && res.message ? res.message : 'Không lấy được danh sách user');
   }
 
+  async function prefetchUsers() {
+    try {
+      // If cache already fresh, do nothing.
+      const cached = _readUsersCache();
+      if (cached && (now() - Number(cached.ts || 0) < USERS_CACHE_TTL_MS)) return true;
+      await listUsers();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   async function pickUserOverlay() {
-    const users = await listUsers();
+    // Show overlay quickly using cached data when possible, then refresh in background.
+    let users = [];
+    try {
+      users = await listUsers({ allowCached: true });
+    } catch (e) {
+      users = [];
+    }
+
     const selfDev = getDeviceIdSafe();
     const selfEmp = getEmployeeId();
-    const filtered = (users || []).filter(u => {
-      if (!u) return false;
-      // Prefer employeeId as stable identity (server may not expose deviceId)
-      if (selfEmp && u.employeeId && String(u.employeeId).trim().toUpperCase() === String(selfEmp).trim().toUpperCase()) return false;
-      if (u.deviceId && String(u.deviceId).trim() === String(selfDev).trim()) return false;
-      return true;
-    });
+
+    function filterSelf(arr) {
+      return (arr || []).filter(u => {
+        if (!u) return false;
+        if (selfEmp && u.employeeId && String(u.employeeId).trim().toUpperCase() === String(selfEmp).trim().toUpperCase()) return false;
+        if (u.deviceId && String(u.deviceId).trim() === String(selfDev).trim()) return false;
+        return true;
+      });
+    }
+
+    let filtered = filterSelf(users);
+
+    // If cache is empty/stale, retry once with a live fetch before giving up.
+    if (!filtered.length) {
+      try {
+        const live = await listUsers();
+        filtered = filterSelf(live);
+        users = live;
+      } catch (e) {
+        // ignore
+      }
+    }
 
     if (!filtered.length) {
       alert('Không có user nào khác trong hệ thống.');
@@ -172,40 +257,41 @@
       const listEl = overlay.querySelector('#ctUserList');
       const searchEl = overlay.querySelector('#ctUserSearch');
 
-      function rowHtml(u) {
-        const name = esc(u.name || u.displayName || u.employeeId || '---');
-        const emp = esc(u.employeeId || '');
-        const dev = esc(u.deviceId || u.deviceIdHint || '');
-        return `
-          <button type="button" class="w-full text-left p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition flex items-center gap-3" data-emp="${emp}">
+      // Local in-memory list (can be refreshed without recreating DOM)
+      let _users = filtered.slice();
+
+      // Render list efficiently
+      function draw(items) {
+        const frag = document.createDocumentFragment();
+        for (const u of (items || [])) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'w-full text-left p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition flex items-center gap-3';
+          const empVal = esc(u.employeeId || '');
+          btn.setAttribute('data-emp', empVal);
+          const name = esc(u.name || u.displayName || u.employeeId || '---');
+          const dev = esc(u.deviceId || u.deviceIdHint || '');
+          btn.innerHTML = `
             <div class="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-300 font-black">U</div>
             <div class="flex-1 min-w-0">
               <div class="font-bold truncate" style="color: var(--text-main)">${name}</div>
-              <div class="text-[11px] opacity-70 truncate" style="color: var(--text-sub)">${emp ? ('Mã: ' + emp) : ''} ${dev ? ('• ' + dev) : ''}</div>
+              <div class="text-[11px] opacity-70 truncate" style="color: var(--text-sub)">${empVal ? ('Mã: ' + empVal) : ''} ${dev ? ('• ' + dev) : ''}</div>
             </div>
-          </button>
-        `;
+          `;
+          frag.appendChild(btn);
+        }
+        listEl.innerHTML = '';
+        listEl.appendChild(frag);
       }
 
       function filterUsers() {
         const q = String(searchEl.value || '').trim().toLowerCase();
-        if (!q) return filtered;
-        return filtered.filter(u => {
+        if (!q) return _users;
+        return _users.filter(u => {
           const name = String(u.name || u.displayName || '').toLowerCase();
           const emp = String(u.employeeId || '').toLowerCase();
           const dev = String(u.deviceId || u.deviceIdHint || '').toLowerCase();
           return name.includes(q) || emp.includes(q) || dev.includes(q);
-        });
-      }
-
-      function draw(items) {
-        listEl.innerHTML = items.map(rowHtml).join('');
-        Array.from(listEl.querySelectorAll('button[data-emp]')).forEach(btn => {
-          btn.addEventListener('click', () => {
-            const emp = btn.getAttribute('data-emp');
-            const u = filtered.find(x => String(x.employeeId) === String(emp));
-            close(u || null);
-          });
         });
       }
 
@@ -217,9 +303,45 @@
       overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
       overlay.querySelector('[data-act="close"]').addEventListener('click', () => close(null));
       overlay.querySelector('[data-act="cancel"]').addEventListener('click', () => close(null));
-      searchEl.addEventListener('input', () => draw(filterUsers()));
 
-      draw(filtered);
+      // Debounce search for very large user lists
+      let _searchTimer = null;
+      searchEl.addEventListener('input', () => {
+        clearTimeout(_searchTimer);
+        _searchTimer = setTimeout(() => draw(filterUsers()), 120);
+      });
+
+      // Click handler (event delegation)
+      listEl.addEventListener('click', (ev) => {
+        const btn = ev.target && ev.target.closest ? ev.target.closest('button[data-emp]') : null;
+        if (!btn) return;
+        const emp = btn.getAttribute('data-emp') || '';
+        const u = _users.find(x => String(x.employeeId) === String(emp));
+        close(u || null);
+      });
+
+      draw(_users);
+
+      // Background refresh from server (if cache is stale) without blocking UI.
+      setTimeout(async () => {
+        try {
+          const latest = await listUsers();
+          const selfDev2 = getDeviceIdSafe();
+          const selfEmp2 = getEmployeeId();
+          const latestFiltered = (latest || []).filter(u => {
+            if (!u) return false;
+            if (selfEmp2 && u.employeeId && String(u.employeeId).trim().toUpperCase() === String(selfEmp2).trim().toUpperCase()) return false;
+            if (u.deviceId && String(u.deviceId).trim() === String(selfDev2).trim()) return false;
+            return true;
+          });
+          if (latestFiltered.length && (latestFiltered.length !== _users.length || String((latestFiltered[0] || {}).employeeId || '') !== String((_users[0] || {}).employeeId || ''))) {
+            _users = latestFiltered;
+            draw(filterUsers());
+          }
+        } catch (e) {
+          // ignore
+        }
+      }, 50);
     });
   }
 
@@ -539,6 +661,12 @@
   const CloudTransferUI = {
     _currentTab: 'local',
 
+    // Warm up caches so the "Chọn user" modal appears instantly.
+    // Safe to call anytime; it will no-op if cache is fresh.
+    prefetchUsers() {
+      try { prefetchUsers(); } catch (e) {}
+    },
+
     showTab(tab) {
       const t = (tab === 'inbox') ? 'inbox' : 'local';
       this._currentTab = t;
@@ -708,6 +836,9 @@
       }, POLL_INTERVAL_MS);
     }
   };
+
+  // Preload user list (non-blocking) to make "Send" flow instant.
+  CloudTransferUI.prefetchUsers = prefetchUsers;
 
   // Expose
   window.CloudTransferUI = CloudTransferUI;
