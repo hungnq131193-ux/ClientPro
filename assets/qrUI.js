@@ -1,151 +1,217 @@
 /*
  * qrUI.js
- * UI glue for QR Transfer Backup
+ * UI glue for Transfer Backup (Text chunks)
+ * - No QR image generation/decoding.
+ * - Chunks are JSON strings (ciphertext-only) that user can Copy/Share/Paste.
  */
 (function () {
-  const uiState = { chunks: [], frames: [] };
+  const uiState = {
+    chunks: [],
+    scope: 'all',
+    customerIds: [],
+    activeTransferId: ''
+  };
 
-  function reset() {
+  function $(sel) { return document.querySelector(sel); }
+
+  function resetCreated() {
     uiState.chunks = [];
-    uiState.frames = [];
+    uiState.activeTransferId = '';
+    const box = document.getElementById('qrBox');
+    if (box) box.innerHTML = '';
+    const meta = document.getElementById('qrMeta');
+    if (meta) meta.textContent = '';
   }
 
-  function getQrBinaryEl(frame) {
-    return frame.querySelector('canvas') || frame.querySelector('img');
-  }
-
-  function canvasToBlob(canvas) {
-    return new Promise((resolve) => {
-      try {
-        canvas.toBlob((b) => resolve(b), 'image/png');
-      } catch (e) {
-        resolve(null);
-      }
+  function stringifyChunk(c) {
+    // Keep stable ordering for readability
+    return JSON.stringify({
+      transfer_id: c.transfer_id,
+      index: c.index,
+      total: c.total,
+      createdAt: c.createdAt,
+      scope: c.scope,
+      data: c.data
     });
   }
 
-  async function frameToBlob(frame) {
-    const el = getQrBinaryEl(frame);
-    if (!el) throw new Error('Không tìm thấy QR trong khung');
-    if (el.tagName && el.tagName.toLowerCase() == 'canvas') {
-      const blob = await canvasToBlob(el);
-      if (!blob) throw new Error('Không thể xuất ảnh QR');
-      return blob;
+  function renderChunks(chunks) {
+    const box = document.getElementById('qrBox');
+    if (!box) throw new Error('Thiếu #qrBox');
+    box.innerHTML = '';
+
+    chunks.forEach((c) => {
+      const str = stringifyChunk(c);
+
+      const frame = document.createElement('div');
+      frame.className = 'txt-frame';
+
+      const head = document.createElement('div');
+      head.className = 'txt-label';
+      head.innerHTML = `<span>ĐOẠN ${c.index}/${c.total}</span><span class="muted">${c.transfer_id}</span>`;
+
+      const ta = document.createElement('textarea');
+      ta.className = 'txt-area';
+      ta.readOnly = true;
+      ta.value = str;
+      ta.rows = 5;
+
+      const actions = document.createElement('div');
+      actions.className = 'txt-actions';
+
+      const btnCopy = document.createElement('button');
+      btnCopy.type = 'button';
+      btnCopy.className = 'btn';
+      btnCopy.textContent = 'Copy đoạn';
+      btnCopy.addEventListener('click', async () => {
+        await copyText(str);
+        toast('Đã copy đoạn ' + c.index + '/' + c.total);
+      });
+
+      const btnShare = document.createElement('button');
+      btnShare.type = 'button';
+      btnShare.className = 'btn';
+      btnShare.textContent = 'Gửi';
+      btnShare.addEventListener('click', async () => {
+        await shareText(str);
+      });
+
+      actions.appendChild(btnCopy);
+      actions.appendChild(btnShare);
+
+      frame.appendChild(head);
+      frame.appendChild(ta);
+      frame.appendChild(actions);
+      box.appendChild(frame);
+    });
+  }
+
+  async function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
     }
-    const src = el.getAttribute('src') || '';
-    const resp = await fetch(src);
-    return await resp.blob();
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
   }
 
-  function downloadBlob(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-  }
-
-  async function exportFiles() {
-    const blobs = [];
-    const files = [];
-    const ts = Date.now();
-
-    for (let i = 0; i < uiState.frames.length; i++) {
-      const blob = await frameToBlob(uiState.frames[i]);
-      blobs.push(blob);
-      const name = 'CLIENTPRO_QR_' + ts + '_p' + (i + 1) + '_of_' + uiState.frames.length + '.png';
+  async function shareText(text) {
+    if (navigator.share) {
       try {
-        files.push(new File([blob], name, { type: 'image/png' }));
+        await navigator.share({
+          title: 'ClientPro Transfer Backup',
+          text
+        });
+        return;
       } catch (e) {
-        // Older browsers might not support File; keep blobs for download fallback
+        // user cancelled or not supported
       }
     }
+    await copyText(text);
+    alert('Thiết bị không hỗ trợ chia sẻ trực tiếp. App đã copy nội dung để bạn dán qua Zalo/Mail.');
+  }
 
-    return { blobs, files };
+  function toast(msg) {
+    if (typeof showToast === 'function') return showToast(msg);
+    // fallback
+    try { console.log('[toast]', msg); } catch (e) {}
+  }
+
+  function parseChunksFromText(raw) {
+    const text = (raw || '').trim();
+    if (!text) return [];
+
+    // 1) If user pasted multiple JSON lines
+    const lines = text.split(/\n+/).map(s => s.trim()).filter(Boolean);
+    const chunks = [];
+    const tryParse = (s) => {
+      try { return JSON.parse(s); } catch (e) { return null; }
+    };
+
+    if (lines.length > 1) {
+      for (const ln of lines) {
+        const obj = tryParse(ln);
+        if (obj) chunks.push(obj);
+      }
+      if (chunks.length) return chunks;
+    }
+
+    // 2) If user pasted a JSON array
+    const obj = tryParse(text);
+    if (Array.isArray(obj)) return obj;
+    if (obj && typeof obj === 'object') return [obj];
+    return [];
   }
 
   window.openQrTransferBackup = async function () {
-    const scope = (document.querySelector('#qrScope') && document.querySelector('#qrScope').value) || 'all';
+    resetCreated();
+
+    const scope = ($('#qrScope') && $('#qrScope').value) || 'all';
     let customerIds = [];
     if (scope === 'customers') {
       customerIds = await UISelectCustomers.pickIds();
       if (!customerIds.length) return alert('Chưa chọn khách hàng');
     }
 
-    // Larger QR + lower error correction to carry more data (still ciphertext-only).
-    const chunks = await QRTransferEncode.create({ scope, customerIds, maxQrText: 3200 });
-    const box = document.getElementById('qrBox');
-    if (!box) throw new Error('Thiếu #qrBox');
+    // Text transfer allows bigger chunks (copy/paste friendly)
+    const chunks = await QRTransferEncode.create({ scope, customerIds, maxQrText: 12000 });
 
-    reset();
     uiState.chunks = chunks;
-    box.innerHTML = '';
+    uiState.scope = scope;
+    uiState.customerIds = customerIds;
+    uiState.activeTransferId = (chunks[0] && chunks[0].transfer_id) ? chunks[0].transfer_id : '';
 
-    chunks.forEach((c) => {
-      const frame = document.createElement('div');
-      frame.className = 'qr-frame';
-
-      const label = document.createElement('div');
-      label.className = 'qr-label';
-      label.textContent = 'PHẦN ' + c.index + '/' + c.total;
-
-      const holder = document.createElement('div');
-      holder.className = 'qr-holder';
-
-      frame.appendChild(label);
-      frame.appendChild(holder);
-      box.appendChild(frame);
-
-      new QRCode(holder, {
-        text: JSON.stringify(c),
-        width: 320,
-        height: 320,
-        correctLevel: QRCode.CorrectLevel.L
-      });
-
-      uiState.frames.push(frame);
-    });
-  };
-
-  window.shareQrTransfer = async function () {
-    if (!uiState.frames.length) return alert('Chưa có QR để gửi');
-    const { blobs, files } = await exportFiles();
-
-    if (navigator.share && navigator.canShare && files.length && navigator.canShare({ files })) {
-      await navigator.share({
-        title: 'ClientPro QR Backup',
-        text: 'ClientPro QR Backup (ciphertext)',
-        files
-      });
-      return;
+    const meta = document.getElementById('qrMeta');
+    if (meta) {
+      meta.textContent = uiState.activeTransferId
+        ? ('Transfer ID: ' + uiState.activeTransferId + ' • ' + chunks.length + ' đoạn')
+        : ('' + chunks.length + ' đoạn');
     }
 
-    // Fallback: download images so user can attach to Zalo/Mail
-    blobs.forEach((b, idx) => {
-      downloadBlob(b, 'CLIENTPRO_QR_part_' + (idx + 1) + '_of_' + blobs.length + '.png');
-    });
-    alert('Thiết bị không hỗ trợ chia sẻ trực tiếp. App đã tự tải ảnh QR để bạn gửi qua Zalo/Mail.');
+    renderChunks(chunks);
   };
 
-  window.downloadQrTransfer = async function () {
-    if (!uiState.frames.length) return alert('Chưa có QR để lưu');
-    const { blobs } = await exportFiles();
-    blobs.forEach((b, idx) => {
-      downloadBlob(b, 'CLIENTPRO_QR_part_' + (idx + 1) + '_of_' + blobs.length + '.png');
-    });
+  window.copyAllTransferText = async function () {
+    if (!uiState.chunks.length) return alert('Chưa có dữ liệu để copy');
+    const all = uiState.chunks.map(stringifyChunk).join('\n');
+    await copyText(all);
+    alert('Đã copy toàn bộ (' + uiState.chunks.length + ' đoạn). Dán sang máy B để nhận.');
   };
 
-  window.handleQrImageUpload = async function (files) {
-    if (!files || !files.length) return;
-    if (typeof QRImageDecoder === 'undefined' || typeof QRImageDecoder.decode !== 'function') {
-      throw new Error('Thiếu QRImageDecoder.decode()');
+  window.shareAllTransferText = async function () {
+    if (!uiState.chunks.length) return alert('Chưa có dữ liệu để gửi');
+    const all = uiState.chunks.map(stringifyChunk).join('\n');
+    await shareText(all);
+  };
+
+  window.importTransferText = async function () {
+    const ta = document.getElementById('qrImportText');
+    const raw = ta ? ta.value : '';
+    const chunks = parseChunksFromText(raw);
+    if (!chunks.length) return alert('Nội dung dán không hợp lệ. Hãy copy đúng JSON của đoạn Transfer.');
+
+    // Hook progress to UI
+    const statusEl = document.getElementById('qrImportStatus');
+    if (window.QRTransferDecode && typeof window.QRTransferDecode.onProgress === 'function') {
+      window.QRTransferDecode.onProgress((p) => {
+        if (!statusEl) return;
+        statusEl.textContent = 'Đang nhận: ' + p.received + '/' + p.total + ' (Transfer ' + p.transfer_id + ')';
+      });
     }
-    for (const f of files) {
-      const txt = await QRImageDecoder.decode(f);
-      await QRTransferDecode.input(JSON.parse(txt));
+
+    try {
+      for (const c of chunks) {
+        await QRTransferDecode.input(c);
+      }
+      if (statusEl) statusEl.textContent = 'Đã nhận xong. Nếu đủ đoạn app sẽ tự restore.';
+    } catch (err) {
+      throw err;
     }
   };
 })();

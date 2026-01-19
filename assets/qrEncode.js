@@ -5,7 +5,10 @@
 (function () {
   window.QRTransferEncode = {
     async create({ scope = 'all', customerIds = [], maxQrText } = {}) {
-      await ensureBackupSecret();
+      const sec = await ensureBackupSecret();
+      if (!sec || sec.ok === false) {
+        throw new Error((sec && sec.message) ? sec.message : 'Không nhận được khóa bảo mật từ server.');
+      }
 
       let data;
       if (scope === 'customers') {

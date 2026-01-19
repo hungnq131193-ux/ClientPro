@@ -1,18 +1,18 @@
 /**
  * 09_qr_modal.js
- * QR Transfer modal UI (create / import)
- * - Uses app-like "glass" styling.
- * - Hooks:
- *   - window.openQrTransferBackup()
- *   - window.handleQrImageUpload(files)
- *   - window.shareQrTransfer()
- *   - window.downloadQrTransfer()
+ * Transfer Backup modal UI (Text chunks only)
+ * - Create: generates ciphertext chunks and shows Copy/Share controls
+ * - Receive: paste chunks (one or many) and restore
+ *
+ * Hooks required:
+ *   - window.openQrTransferBackup()          (create)
+ *   - window.copyAllTransferText()           (copy all)
+ *   - window.shareAllTransferText()          (share all)
+ *   - window.importTransferText()            (receive)
  */
 (function () {
   const MODAL_ID = 'qrModal';
   const STYLE_ID = 'qrModalStyle';
-
-  let activeTab = 'create'; // 'create' | 'import'
 
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -25,28 +25,27 @@
         background:rgba(15,23,42,.92);color:#e5e7eb;border:1px solid rgba(255,255,255,.10);box-shadow:0 18px 60px rgba(0,0,0,.35)}
       #${MODAL_ID} .head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
       #${MODAL_ID} .title{font-weight:800;font-size:16px;letter-spacing:.2px}
-      #${MODAL_ID} .tabs{display:flex;gap:8px;margin:6px 0 12px}
-      #${MODAL_ID} .tab{appearance:none;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e5e7eb;border-radius:999px;padding:7px 10px;font-weight:800;font-size:12px;cursor:pointer}
-      #${MODAL_ID} .tab.active{background:rgba(59,130,246,.22);border-color:rgba(59,130,246,.35)}
       #${MODAL_ID} .btn{appearance:none;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);color:#e5e7eb;border-radius:12px;padding:9px 12px;cursor:pointer}
       #${MODAL_ID} .btn.primary{background:rgba(16,185,129,.20);border-color:rgba(16,185,129,.35)}
       #${MODAL_ID} .btn.danger{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.35)}
+      #${MODAL_ID} .btn.ghost{background:transparent}
       #${MODAL_ID} .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0}
-      #${MODAL_ID} .row .spacer{flex:1}
-      #${MODAL_ID} select,#${MODAL_ID} input[type="file"]{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e5e7eb;border-radius:12px;padding:9px 10px}
+      #${MODAL_ID} .tabs{display:flex;gap:8px;margin:6px 0 12px}
+      #${MODAL_ID} .tab{padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);cursor:pointer;font-weight:700;font-size:12px;opacity:.8}
+      #${MODAL_ID} .tab.active{opacity:1;background:rgba(59,130,246,.18);border-color:rgba(59,130,246,.35)}
+      #${MODAL_ID} select{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e5e7eb;border-radius:12px;padding:9px 10px}
       #${MODAL_ID} .hint{font-size:12px;color:rgba(229,231,235,.75)}
+      #${MODAL_ID} .meta{font-size:12px;color:rgba(229,231,235,.85);margin-top:6px}
+      #${MODAL_ID} #qrBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;margin-top:12px}
+      #${MODAL_ID} .txt-frame{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);border-radius:16px;padding:10px}
+      #${MODAL_ID} .txt-label{font-weight:700;font-size:12px;color:rgba(229,231,235,.90);margin-bottom:8px;display:flex;justify-content:space-between;gap:10px}
+      #${MODAL_ID} .txt-label .muted{opacity:.7;font-weight:600}
+      #${MODAL_ID} .txt-area{width:100%;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:#e5e7eb;border-radius:12px;padding:10px;font-size:12px;line-height:1.35;white-space:pre-wrap;word-break:break-all}
+      #${MODAL_ID} .txt-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap}
+      #${MODAL_ID} .import-area{width:100%;min-height:140px}
       #${MODAL_ID} .section{display:none}
       #${MODAL_ID} .section.show{display:block}
-      #${MODAL_ID} .import-box{border:1px dashed rgba(255,255,255,.18);background:rgba(255,255,255,.04);border-radius:16px;padding:14px}
-      #${MODAL_ID} .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:800}
-      /* Larger QR for higher payload capacity */
-      #${MODAL_ID} #qrBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;margin-top:12px}
-      #${MODAL_ID} .qr-frame{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);border-radius:16px;padding:10px}
-      #${MODAL_ID} .qr-label{font-weight:700;font-size:12px;color:rgba(229,231,235,.85);margin-bottom:8px;display:flex;justify-content:space-between}
-      #${MODAL_ID} .qr-holder{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:14px;padding:14px}
-      @media (max-width:480px){
-        #${MODAL_ID} #qrBox{grid-template-columns:1fr}
-      }
+      @media (max-width:480px){ #${MODAL_ID} #qrBox{grid-template-columns:1fr} }
     `;
     document.head.appendChild(style);
   }
@@ -60,20 +59,21 @@
     modal = document.createElement('div');
     modal.id = MODAL_ID;
     modal.innerHTML = `
-      <div class="panel" role="dialog" aria-modal="true" aria-label="QR Transfer Backup">
+      <div class="panel" role="dialog" aria-modal="true" aria-label="Transfer Backup">
         <div class="head">
-          <div class="title">QR Transfer Backup</div>
+          <div>
+            <div class="title">Transfer Backup (Text)</div>
+            <div class="hint">Dữ liệu là ciphertext đã mã hóa. Người ngoài copy cũng không đọc được.</div>
+          </div>
           <button class="btn danger" id="qrModalCloseBtn" type="button">Đóng</button>
         </div>
 
         <div class="tabs">
-          <button class="tab" id="qrTabCreate" type="button">Tạo QR</button>
-          <button class="tab" id="qrTabImport" type="button">Nhận QR</button>
-          <div class="spacer"></div>
-          <div class="pill" id="qrImportStatus" style="opacity:.9;display:none">Chưa có dữ liệu</div>
+          <button type="button" class="tab active" data-tab="create">Tạo Transfer</button>
+          <button type="button" class="tab" data-tab="receive">Nhận Transfer</button>
         </div>
 
-        <div class="section" id="qrSectionCreate">
+        <div id="qrCreateSection" class="section show">
           <div class="row">
             <label class="hint">Chế độ:</label>
             <select id="qrScope">
@@ -81,34 +81,27 @@
               <option value="customers">Backup khách hàng đã chọn</option>
             </select>
 
-            <button class="btn primary" id="qrCreateBtn" type="button">Tạo QR</button>
-            <button class="btn" id="qrShareBtn" type="button">Gửi qua Zalo/Mail</button>
-            <button class="btn" id="qrDownloadBtn" type="button">Lưu ảnh QR</button>
+            <button class="btn primary" id="qrCreateBtn" type="button">Tạo</button>
+            <button class="btn" id="qrCopyAllBtn" type="button">Copy tất cả</button>
+            <button class="btn" id="qrShareAllBtn" type="button">Gửi tất cả</button>
           </div>
 
           <div class="hint">
-            QR chỉ chứa dữ liệu đã mã hóa (ciphertext). Nếu dữ liệu lớn, app sẽ tự chia nhiều QR. Bạn có thể dùng nút “Gửi qua Zalo/Mail” để chia sẻ nhanh.
+            Máy A: bấm Tạo, sau đó Copy/Gửi. Máy B: chuyển sang tab Nhận Transfer và dán nội dung.
           </div>
-
+          <div class="meta" id="qrMeta"></div>
           <div id="qrBox"></div>
         </div>
 
-        <div class="section" id="qrSectionImport">
-          <div class="import-box">
-            <div class="hint" style="margin-bottom:10px">
-              Máy B: hãy <b>chọn ảnh QR từ thư viện</b> (không cần camera). Nếu QR bị chia nhiều phần, hãy chọn lần lượt tất cả ảnh.
-            </div>
-
-            <label class="btn primary" style="display:inline-block">
-              Chọn ảnh QR
-              <input type="file" id="qrImportInput" accept="image/*" multiple style="display:none" />
-            </label>
-            <button class="btn" id="qrImportClear" type="button">Xóa trạng thái</button>
-
-            <div class="hint" style="margin-top:12px">
-              Lưu ý: App sẽ tự thu thập đủ các phần QR, sau đó kiểm tra quyền và khôi phục dữ liệu theo cơ chế an toàn (transactional).
-            </div>
+        <div id="qrReceiveSection" class="section">
+          <div class="hint">Dán 1 đoạn hoặc nhiều đoạn (mỗi đoạn là 1 dòng JSON). App sẽ tự ghép đủ và restore.</div>
+          <div class="row">
+            <button class="btn primary" id="qrImportBtn" type="button">Nhận</button>
+            <button class="btn ghost" id="qrClearImportBtn" type="button">Xóa nội dung</button>
+            <div class="spacer"></div>
+            <div class="hint" id="qrImportStatus"></div>
           </div>
+          <textarea id="qrImportText" class="txt-area import-area" placeholder='Dán nội dung Transfer tại đây...'></textarea>
         </div>
       </div>
     `;
@@ -121,6 +114,18 @@
     });
     modal.querySelector('#qrModalCloseBtn').addEventListener('click', closeQrModal);
 
+    // Tabs
+    const tabs = Array.from(modal.querySelectorAll('.tab'));
+    const createSec = modal.querySelector('#qrCreateSection');
+    const recvSec = modal.querySelector('#qrReceiveSection');
+    function setTab(name) {
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      createSec.classList.toggle('show', name === 'create');
+      recvSec.classList.toggle('show', name === 'receive');
+    }
+    tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+    // Actions
     modal.querySelector('#qrCreateBtn').addEventListener('click', async () => {
       try {
         if (typeof window.openQrTransferBackup === 'function') {
@@ -129,117 +134,58 @@
           alert('Thiếu openQrTransferBackup(). Hãy đảm bảo qrUI.js đã được load.');
         }
       } catch (err) {
-        alert('Không thể tạo QR: ' + (err && err.message ? err.message : err));
+        alert('Không thể tạo Transfer: ' + (err && err.message ? err.message : err));
       }
     });
 
-    modal.querySelector('#qrShareBtn').addEventListener('click', async () => {
+    modal.querySelector('#qrCopyAllBtn').addEventListener('click', async () => {
       try {
-        if (typeof window.shareQrTransfer === 'function') {
-          await window.shareQrTransfer();
+        if (typeof window.copyAllTransferText === 'function') {
+          await window.copyAllTransferText();
         } else {
-          alert('Thiếu shareQrTransfer(). Hãy đảm bảo qrUI.js đã được load.');
+          alert('Thiếu copyAllTransferText().');
         }
       } catch (err) {
-        alert('Không thể gửi QR: ' + (err && err.message ? err.message : err));
+        alert('Không thể copy: ' + (err && err.message ? err.message : err));
       }
     });
 
-    modal.querySelector('#qrDownloadBtn').addEventListener('click', async () => {
+    modal.querySelector('#qrShareAllBtn').addEventListener('click', async () => {
       try {
-        if (typeof window.downloadQrTransfer === 'function') {
-          await window.downloadQrTransfer();
+        if (typeof window.shareAllTransferText === 'function') {
+          await window.shareAllTransferText();
         } else {
-          alert('Thiếu downloadQrTransfer(). Hãy đảm bảo qrUI.js đã được load.');
+          alert('Thiếu shareAllTransferText().');
         }
       } catch (err) {
-        alert('Không thể lưu ảnh QR: ' + (err && err.message ? err.message : err));
+        alert('Không thể gửi: ' + (err && err.message ? err.message : err));
       }
     });
 
-    // Tabs
-    const tabCreate = modal.querySelector('#qrTabCreate');
-    const tabImport = modal.querySelector('#qrTabImport');
-    const sectionCreate = modal.querySelector('#qrSectionCreate');
-    const sectionImport = modal.querySelector('#qrSectionImport');
-    const statusPill = modal.querySelector('#qrImportStatus');
-
-    function setTab(name) {
-      activeTab = name;
-      const isCreate = name === 'create';
-      tabCreate.classList.toggle('active', isCreate);
-      tabImport.classList.toggle('active', !isCreate);
-      sectionCreate.classList.toggle('show', isCreate);
-      sectionImport.classList.toggle('show', !isCreate);
-      statusPill.style.display = isCreate ? 'none' : 'inline-flex';
-      if (!isCreate) {
-        statusPill.textContent = 'Chưa có dữ liệu';
-      }
-    }
-
-    tabCreate.addEventListener('click', () => setTab('create'));
-    tabImport.addEventListener('click', () => setTab('import'));
-
-    // Import handlers
-    const importInput = modal.querySelector('#qrImportInput');
-    const importClear = modal.querySelector('#qrImportClear');
-    importInput.addEventListener('change', async () => {
+    modal.querySelector('#qrImportBtn').addEventListener('click', async () => {
       try {
-        if (typeof window.handleQrImageUpload !== 'function') {
-          alert('Thiếu handleQrImageUpload(). Hãy đảm bảo qrUI.js đã được load.');
-          return;
+        if (typeof window.importTransferText === 'function') {
+          await window.importTransferText();
+        } else {
+          alert('Thiếu importTransferText().');
         }
-        const files = importInput.files;
-        if (!files || !files.length) return;
-        statusPill.textContent = 'Đang đọc QR...';
-        await window.handleQrImageUpload(files);
-        importInput.value = '';
       } catch (err) {
-        alert('Không thể nhận QR: ' + (err && err.message ? err.message : err));
+        alert('Không thể nhận: ' + (err && err.message ? err.message : err));
       }
     });
 
-    importClear.addEventListener('click', () => {
-      try {
-        if (window.QRTransferDecode && window.QRTransferDecode.buffer) {
-          Object.keys(window.QRTransferDecode.buffer).forEach((k) => delete window.QRTransferDecode.buffer[k]);
-        }
-      } catch (_) {}
-      statusPill.textContent = 'Đã xóa trạng thái';
+    modal.querySelector('#qrClearImportBtn').addEventListener('click', () => {
+      const ta = modal.querySelector('#qrImportText');
+      if (ta) ta.value = '';
+      const st = modal.querySelector('#qrImportStatus');
+      if (st) st.textContent = '';
     });
-
-    // UI hooks from decoder
-    window.QRTransferUI_onChunk = function (info) {
-      try {
-        if (activeTab !== 'import') return;
-        statusPill.textContent = 'Đã nhận ' + info.have + '/' + info.total + ' phần (ID ' + String(info.transfer_id).slice(-6) + ')';
-      } catch (_) {}
-    };
-    window.QRTransferUI_onComplete = function (info) {
-      try {
-        if (activeTab !== 'import') return;
-        statusPill.textContent = 'Hoàn tất (' + info.total + ' phần)';
-      } catch (_) {}
-    };
-
-    // Default tab
-    setTab(activeTab);
 
     return modal;
   }
 
   function openQrModal() {
     const modal = ensureModal();
-    activeTab = 'create';
-    // Ensure tab state is applied
-    try { modal.querySelector('#qrTabCreate')?.click(); } catch (_) {}
-    modal.classList.add('show');
-  }
-
-  function openQrReceiveModal() {
-    const modal = ensureModal();
-    activeTab = 'import';
-    try { modal.querySelector('#qrTabImport')?.click(); } catch (_) {}
     modal.classList.add('show');
   }
 
@@ -249,6 +195,5 @@
   }
 
   window.openQrModal = openQrModal;
-  window.openQrReceiveModal = openQrReceiveModal;
   window.closeQrModal = closeQrModal;
 })();
