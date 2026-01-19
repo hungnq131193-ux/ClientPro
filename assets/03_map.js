@@ -3,6 +3,59 @@
         const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
         const TILE_SAT = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
+        // --- LEAFLET LAZY-LOADER (reduce initial load; only fetch when Map screen opens) ---
+        let __leafletLoadPromise = null;
+        function ensureLeafletLoaded() {
+            if (window.L && typeof window.L.map === 'function') return Promise.resolve(true);
+            if (__leafletLoadPromise) return __leafletLoadPromise;
+
+            __leafletLoadPromise = new Promise((resolve) => {
+                const cssId = 'leaflet-css';
+                const jsId = 'leaflet-js';
+
+                // CSS
+                if (!document.getElementById(cssId)) {
+                    const link = document.createElement('link');
+                    link.id = cssId;
+                    link.rel = 'stylesheet';
+                    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                    link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+                    link.crossOrigin = '';
+                    document.head.appendChild(link);
+                }
+
+                // JS
+                if (document.getElementById(jsId)) {
+                    // If a previous load attempt injected the tag, wait a moment for L to appear.
+                    const t0 = Date.now();
+                    const tick = () => {
+                        if (window.L && typeof window.L.map === 'function') return resolve(true);
+                        if (Date.now() - t0 > 15000) {
+                            showToast('Không tải được Map (Leaflet). Kiểm tra mạng rồi thử lại.');
+                            return resolve(false);
+                        }
+                        setTimeout(tick, 50);
+                    };
+                    return tick();
+                }
+
+                const script = document.createElement('script');
+                script.id = jsId;
+                script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+                script.crossOrigin = '';
+                script.async = true;
+                script.onload = () => resolve(!!(window.L && typeof window.L.map === 'function'));
+                script.onerror = () => {
+                    showToast('Không tải được Map (Leaflet). Kiểm tra mạng rồi thử lại.');
+                    resolve(false);
+                };
+                document.head.appendChild(script);
+            });
+
+            return __leafletLoadPromise;
+        }
+
         // --- GPS FEATURE V1.1 ---
         function getCurrentGPS() {
             if (!navigator.geolocation) {
@@ -76,10 +129,12 @@
 // Removed enhanceDocumentWithAI as OCR is no longer used
 
         // --- MAP FUNCTIONS ---
-        function toggleMap() {
+        async function toggleMap() {
             const mapScreen = getEl('screen-map');
             if (mapScreen.classList.contains('translate-x-full')) {
                 mapScreen.classList.remove('translate-x-full');
+                const ok = await ensureLeafletLoaded();
+                if (!ok) return;
                 if (!map) initMap(); else renderMapMarkers();
             } else {
                 mapScreen.classList.add('translate-x-full');
