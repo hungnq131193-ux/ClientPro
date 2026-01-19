@@ -1,5 +1,5 @@
 // ĐỔI TÊN CACHE ĐỂ ÉP CẬP NHẬT (Ví dụ: v3 -> v4)
-const CACHE_NAME = 'clientpro-cache-v3.1.3';
+const CACHE_NAME = 'clientpro-cache-v3.1.4';
 
 const urlsToCache = [
   './',
@@ -24,7 +24,6 @@ const urlsToCache = [
   // Thư viện bên ngoài (Font Awesome, Leaflet...)
   'https://cdn.tailwindcss.com',
   'https://unpkg.com/lucide@latest',
-  'https://unpkg.com/html5-qrcode',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js'

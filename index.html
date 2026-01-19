@@ -11,10 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Thư viện quét QR offline -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <!-- QR generator (for QR Transfer Backup) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Transfer Backup uses TEXT chunks (no QR image) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <!-- CryptoJS library for hashing and encryption -->
@@ -522,7 +519,6 @@
     <script src="assets/qrCrypto.js"></script>
     <script src="assets/qrEncode.js"></script>
     <script src="assets/qrDecode.js"></script>
-    <script src="assets/qrImageDecoder.js"></script>
     <script src="assets/qrUI.js"></script>
     <script src="assets/09_qr_modal.js"></script>
 <script src="assets/10_bootstrap.js"></script>
@@ -545,16 +541,13 @@
         </button>
       </div>
 
-      <div class="px-5 py-3 border-b border-white/10">
-        <div class="grid grid-cols-2 gap-2">
-          <button onclick="backupData()" class="py-2.5 rounded-xl font-bold text-white" style="background: var(--accent-gradient)">Tạo backup mới</button>
-          <button onclick="openQrModal()" class="py-2.5 rounded-xl font-bold text-white bg-slate-800 border border-slate-600 hover:bg-slate-700 transition">Backup QR</button>
-          <button onclick="openQrReceiveModal()" class="py-2.5 rounded-xl font-bold text-white bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/30 transition">Nhận QR</button>
-          <label class="py-2.5 rounded-xl font-bold text-center cursor-pointer border" style="border-color: var(--border-panel); color: var(--text-main); background: rgba(255,255,255,0.04);">
-            Nhập file .cpb
-            <input type="file" id="restore-input-2" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)" />
-          </label>
-        </div>
+      <div class="px-5 py-3 flex gap-2 border-b border-white/10">
+        <button onclick="backupData()" class="flex-1 py-2.5 rounded-xl font-bold text-white" style="background: var(--accent-gradient)">Tạo backup mới</button>
+        <button onclick="openQrModal()" class="flex-1 py-2.5 rounded-xl font-bold text-white bg-slate-800 border border-slate-600 hover:bg-slate-700 transition">Backup QR</button>
+        <label class="flex-1 py-2.5 rounded-xl font-bold text-center cursor-pointer border" style="border-color: var(--border-panel); color: var(--text-main); background: rgba(255,255,255,0.04);">
+          Nhập file .cpb
+          <input type="file" id="restore-input-2" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)" />
+        </label>
       </div>
 
       <div class="px-5 py-3">
