@@ -9,7 +9,7 @@
  */
 
 (function () {
-  const DEFAULT_MAX_CHARS = 600; // safer than pushing QR capacity too hard
+  const DEFAULT_MAX_CHARS = 1200; // safer than pushing QR capacity too hard
 
   function makeTransferId() {
     return String(Date.now()) + '_' + Math.random().toString(36).slice(2, 10);

@@ -102,6 +102,11 @@
     async create({ scope = 'all', customerIds = [] }) {
       await _ensureSecretOrThrow();
 
+      // Single-QR policy: Only allow generating exactly 1 QR frame.
+      // If the encrypted payload is too large, we fallback to the existing file-backup flow.
+      // Rationale: QR capacity is limited and high-density QR becomes unreliable on mobile.
+      const SINGLE_QR_MAX_CHARS = 1200;
+
       const createdAt = Date.now();
       let exportData;
       if (scope === 'customers') {
@@ -123,8 +128,18 @@
       const frames = window.QRTransferCrypto.chunkCiphertext({
         ciphertext,
         scope,
-        createdAt
+        createdAt,
+        maxChars: SINGLE_QR_MAX_CHARS
       });
+
+      // Enforce exactly one QR. If data exceeds single QR, ask user to use partial-customer QR or file backup.
+      if (frames.length > 1) {
+        try {
+          alert('Dữ liệu quá lớn để gói trong 1 QR. Vui lòng chọn "Backup 1 phần khách hàng" (ít dữ liệu hơn) hoặc dùng Backup file như hiện tại.');
+          if (typeof backupData === 'function') await backupData();
+        } catch (e) {}
+        return null;
+      }
 
       // If too many frames, fallback to normal file backup.
       // (Users can still share .cpb which is already encrypted.)
