@@ -3,7 +3,19 @@
 
 const VERSION = 'v3.2.0';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
-const RUNTIME_CACHE = `clientpro-runtime-${VERSION}`;
+// Runtime caches are split by purpose to control growth over long-term use.
+const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
+const RUNTIME_CDN_CACHE = `clientpro-runtime-cdn-${VERSION}`;
+const RUNTIME_TILE_CACHE = `clientpro-runtime-tile-${VERSION}`;
+
+// Cache limits (tuned for long-term stability on mobile devices)
+const LIMITS = {
+  sameOrigin: { maxEntries: 220, maxAgeMs: 30 * 24 * 60 * 60 * 1000 }, // 30 days
+  cdn:        { maxEntries: 160, maxAgeMs: 14 * 24 * 60 * 60 * 1000 }, // 14 days
+  tiles:      { maxEntries: 260, maxAgeMs: 30 * 24 * 60 * 60 * 1000 }, // 30 days
+};
+
+const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – đảm bảo đúng đường dẫn thực tế
 const STATIC_ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './splash-screen.png', './assets/styles.css', './assets/head.js', './assets/pwa.js', './assets/00_globals.js', './assets/01_config.js', './assets/02_security.js', './assets/03_map.js', './assets/04_ui_common.js', './assets/05_customers.js', './assets/06_assets.js', './assets/07_drive.js', './assets/08_images_camera.js', './assets/09_backup_weather_donate.js', './assets/10_bootstrap.js', './assets/11_edge_back_swipe.js', './assets/12_backup_core.js', './assets/13_ui_select_customers.js', './assets/14_cloud_transfer.js'];
@@ -21,12 +33,81 @@ self.addEventListener('activate', (event) => {
     const keys = await caches.keys();
     await Promise.all(
       keys
-        .filter((k) => k.startsWith('clientpro-') && k !== STATIC_CACHE && k !== RUNTIME_CACHE)
+        .filter((k) => k.startsWith('clientpro-') && ![STATIC_CACHE, RUNTIME_SAMEORIGIN_CACHE, RUNTIME_CDN_CACHE, RUNTIME_TILE_CACHE].includes(k))
         .map((k) => caches.delete(k))
     );
+
+    // Dọn cache runtime theo giới hạn (đề phòng người dùng nâng cấp phiên bản nhưng cache vẫn tồn tại do quota).
+    await Promise.all([
+      cleanupCache(RUNTIME_SAMEORIGIN_CACHE, LIMITS.sameOrigin),
+      cleanupCache(RUNTIME_CDN_CACHE, LIMITS.cdn),
+      cleanupCache(RUNTIME_TILE_CACHE, LIMITS.tiles),
+    ]);
     await self.clients.claim();
   })());
 });
+
+function isTileRequest(url, request) {
+  // Heuristic: tile servers are commonly under tile.* or */tile/*, and destination is image.
+  try {
+    const host = url.hostname || '';
+    const path = url.pathname || '';
+    const looksLikeTileHost = host.startsWith('tile.') || host.includes('.tile.') || host.includes('tiles.');
+    const looksLikeTilePath = /\/(tile|tiles)\//i.test(path);
+    const isImage = request.destination === 'image';
+    return isImage && (looksLikeTileHost || looksLikeTilePath);
+  } catch (e) {
+    return false;
+  }
+}
+
+function stampResponseIfPossible(response) {
+  // Opaque responses (no-cors) cannot be inspected and headers cannot be modified.
+  // In that case we rely on maxEntries eviction only.
+  try {
+    if (!response || response.type === 'opaque') return response;
+    const headers = new Headers(response.headers);
+    headers.set(META_HEADER, String(Date.now()));
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  } catch (e) {
+    return response;
+  }
+}
+
+async function cleanupCache(cacheName, policy) {
+  const { maxEntries, maxAgeMs } = policy || {};
+  const cache = await caches.open(cacheName);
+
+  // Enforce TTL where metadata is available.
+  if (maxAgeMs && maxAgeMs > 0) {
+    const keys = await cache.keys();
+    const now = Date.now();
+    for (const req of keys) {
+      try {
+        const res = await cache.match(req);
+        const t = res && res.headers && res.headers.get(META_HEADER);
+        if (t && (now - Number(t) > maxAgeMs)) {
+          await cache.delete(req);
+        }
+      } catch (e) {
+        // Ignore per-entry errors.
+      }
+    }
+  }
+
+  // Enforce max entries using insertion order (Cache.keys preserves order of insertion).
+  if (maxEntries && maxEntries > 0) {
+    const keys = await cache.keys();
+    const overflow = keys.length - maxEntries;
+    if (overflow > 0) {
+      await Promise.all(keys.slice(0, overflow).map((req) => cache.delete(req)));
+    }
+  }
+}
 
 function isSameOrigin(request) {
   try {
@@ -37,37 +118,42 @@ function isSameOrigin(request) {
   }
 }
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
+async function cacheFirst(event, request, cacheName, policy) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
   if (cached) return cached;
+
   const res = await fetch(request);
-  const cache = await caches.open(RUNTIME_CACHE);
-  try {
-    cache.put(request, res.clone());
-  } catch (e) {}
+  const toStore = stampResponseIfPossible(res.clone());
+  try { await cache.put(request, toStore); } catch (e) {}
+  if (event && event.waitUntil) event.waitUntil(cleanupCache(cacheName, policy));
   return res;
 }
 
-async function networkFirst(request) {
-  const cache = await caches.open(RUNTIME_CACHE);
+async function networkFirst(event, request, cacheName, policy) {
+  const cache = await caches.open(cacheName);
   try {
     const res = await fetch(request);
-    try { cache.put(request, res.clone()); } catch (e) {}
+    const toStore = stampResponseIfPossible(res.clone());
+    try { await cache.put(request, toStore); } catch (e) {}
+    if (event && event.waitUntil) event.waitUntil(cleanupCache(cacheName, policy));
     return res;
   } catch (e) {
-    const cached = await caches.match(request);
+    const cached = await cache.match(request);
     if (cached) return cached;
     // fallback app shell
     return caches.match('./index.html');
   }
 }
 
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(RUNTIME_CACHE);
+async function staleWhileRevalidate(event, request, cacheName, policy) {
+  const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
   const fetchPromise = fetch(request)
     .then((res) => {
-      try { cache.put(request, res.clone()); } catch (e) {}
+      const toStore = stampResponseIfPossible(res.clone());
+      try { cache.put(request, toStore); } catch (e) {}
+      if (event && event.waitUntil) event.waitUntil(cleanupCache(cacheName, policy));
       return res;
     })
     .catch(() => null);
@@ -80,7 +166,7 @@ self.addEventListener('fetch', (event) => {
 
   // Navigations: ưu tiên mạng để nhận bản mới, fallback cache khi offline
   if (req.mode === 'navigate') {
-    event.respondWith(networkFirst(req));
+    event.respondWith(networkFirst(event, req, RUNTIME_SAMEORIGIN_CACHE, LIMITS.sameOrigin));
     return;
   }
 
@@ -88,16 +174,24 @@ self.addEventListener('fetch', (event) => {
   if (isSameOrigin(req)) {
     const url = new URL(req.url);
     if (url.pathname.includes('/assets/') || url.pathname.endsWith('.png') || url.pathname.endsWith('.json') || url.pathname.endsWith('.css') || url.pathname.endsWith('.js')) {
-      event.respondWith(cacheFirst(req));
+      event.respondWith(cacheFirst(event, req, RUNTIME_SAMEORIGIN_CACHE, LIMITS.sameOrigin));
       return;
     }
     // Other same-origin requests: network-first
-    event.respondWith(networkFirst(req));
+    event.respondWith(networkFirst(event, req, RUNTIME_SAMEORIGIN_CACHE, LIMITS.sameOrigin));
     return;
   }
 
   // Cross-origin (CDN): stale-while-revalidate
-  event.respondWith(staleWhileRevalidate(req));
+  try {
+    const url = new URL(req.url);
+    if (isTileRequest(url, req)) {
+      event.respondWith(staleWhileRevalidate(event, req, RUNTIME_TILE_CACHE, LIMITS.tiles));
+      return;
+    }
+  } catch (e) {}
+
+  event.respondWith(staleWhileRevalidate(event, req, RUNTIME_CDN_CACHE, LIMITS.cdn));
 });
 
 self.addEventListener('message', (event) => {
