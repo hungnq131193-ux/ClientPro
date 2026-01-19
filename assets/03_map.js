@@ -136,6 +136,16 @@
                 const ok = await ensureLeafletLoaded();
                 if (!ok) return;
                 if (!map) initMap(); else renderMapMarkers();
+
+                // IMPORTANT: When the map container was previously off-screen (translate),
+                // Leaflet may compute a 0x0 size and render a blank/black map.
+                // Force a size recalculation after the transition starts.
+                try {
+                    if (map && typeof map.invalidateSize === 'function') {
+                        setTimeout(() => { try { map.invalidateSize(true); } catch(e) {} }, 60);
+                        setTimeout(() => { try { map.invalidateSize(true); } catch(e) {} }, 360);
+                    }
+                } catch (e) {}
             } else {
                 mapScreen.classList.add('translate-x-full');
             }
