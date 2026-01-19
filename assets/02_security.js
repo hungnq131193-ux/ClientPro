@@ -351,19 +351,40 @@ async function ensureBackupSecret() {
       return { ok: false, message: msg };
     }
 
-    // 2) issue_kdata (POST) - nhận kdata_b64u
-    const kdRes = await fetch(ADMIN_SERVER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "issue_kdata", employeeId, deviceId }),
-    });
-    const kdTxt = await kdRes.text();
-    let kd;
-    try { kd = JSON.parse(kdTxt); } catch (e) { kd = null; }
+    // 2) issue_kdata: Ưu tiên POST (nếu GAS cho phép), fallback sang GET
+    // Lưu ý: nhiều WebApp GAS có thể gặp redirect/CORS với POST JSON trên một số trình duyệt/PWA.
+    let kdTxt = "";
+    let kd = null;
 
-    if (kd && kd.status === "success" && kd.kdata_b64u) {
-      APP_BACKUP_KDATA_B64U = String(kd.kdata_b64u);
-      return { ok: true };
+    // 2a) Try POST JSON
+    try {
+      const kdRes = await fetch(ADMIN_SERVER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "issue_kdata", employeeId, deviceId }),
+      });
+      kdTxt = await kdRes.text();
+      try { kd = JSON.parse(kdTxt); } catch (e) { kd = null; }
+      if (kd && kd.status === "success" && kd.kdata_b64u) {
+        APP_BACKUP_KDATA_B64U = String(kd.kdata_b64u);
+        return { ok: true };
+      }
+    } catch (e) {
+      // ignore -> fallback GET
+    }
+
+    // 2b) Fallback GET querystring
+    try {
+      const kdUrl = `${ADMIN_SERVER_URL}?action=issue_kdata&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}`;
+      const kdRes2 = await fetch(kdUrl);
+      kdTxt = await kdRes2.text();
+      try { kd = JSON.parse(kdTxt); } catch (e) { kd = null; }
+      if (kd && kd.status === "success" && kd.kdata_b64u) {
+        APP_BACKUP_KDATA_B64U = String(kd.kdata_b64u);
+        return { ok: true };
+      }
+    } catch (e) {
+      // ignore
     }
 
     try {
