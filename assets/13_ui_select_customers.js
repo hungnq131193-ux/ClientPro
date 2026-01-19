@@ -45,7 +45,8 @@
 
   function renderPicker(list, resolve) {
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 z-[9998] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
+    // IMPORTANT: must be above QR modal (z-index 9999) to avoid being hidden behind it.
+    overlay.className = 'fixed inset-0 z-[10050] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
 
     overlay.innerHTML = `
       <div class="glass-panel w-full max-w-md rounded-2xl border border-white/10 overflow-hidden">

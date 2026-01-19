@@ -13,6 +13,18 @@
     if (!buffer[id].some(c => c.index === chunk.index)) {
       buffer[id].push(chunk);
     }
+
+    // Optional UI hook
+    try {
+      if (typeof window.QRTransferUI_onChunk === 'function') {
+        window.QRTransferUI_onChunk({
+          transfer_id: id,
+          have: buffer[id].length,
+          total: chunk.total,
+          index: chunk.index
+        });
+      }
+    } catch (_) {}
     return buffer[id];
   }
 
@@ -33,6 +45,13 @@
     }
 
     delete buffer[id];
+
+    // Optional UI hook (complete)
+    try {
+      if (typeof window.QRTransferUI_onComplete === 'function') {
+        window.QRTransferUI_onComplete({ transfer_id: id, total });
+      }
+    } catch (_) {}
     return true;
   }
 
