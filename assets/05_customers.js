@@ -21,6 +21,113 @@
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `QLKH_Export_${selectedCustomers.size}_KH.json`; a.click();
             getEl('loader').classList.add('hidden'); toggleCustSelectionMode();
         }
+
+        // Gửi dữ liệu KH đã chọn sang user khác (gói .cpb được mã hóa, không lộ dữ liệu)
+        async function sendSelectedCustomersToUser() {
+            if (selectedCustomers.size === 0) return alert('Chưa chọn KH');
+
+            // Gate bảo mật: bắt buộc xin secret từ server trước khi đóng gói
+            if (typeof ensureBackupSecret === 'function') {
+                const sec = await ensureBackupSecret();
+                if (!sec || !sec.ok || !window.APP_BACKUP_SECRET) {
+                    alert(
+                        `BẢO MẬT: ${sec && sec.message ? sec.message : 'Không thể lấy khóa bảo mật.'}\n\nVui lòng kết nối mạng và thử lại.`
+                    );
+                    return;
+                }
+            } else if (!window.APP_BACKUP_SECRET) {
+                alert('BẢO MẬT: Không thể gửi khi đang Offline hoặc chưa xác thực với Server.');
+                return;
+            }
+
+            if (!window.CryptoJS || !CryptoJS.AES) {
+                alert('Thiếu thư viện mã hóa (CryptoJS).');
+                return;
+            }
+
+            if (!window.CloudTransferUI || typeof CloudTransferUI.sendEncryptedRecord !== 'function') {
+                alert('Chưa sẵn sàng chức năng gửi user (Cloud Transfer).');
+                return;
+            }
+
+            _closeMenuIfOpen && _closeMenuIfOpen();
+            getEl('loader').classList.remove('hidden');
+            getEl('loader-text').textContent = 'Đóng gói & mã hóa...';
+
+            try {
+                const custIds = Array.from(selectedCustomers);
+
+                // Ưu tiên dùng BackupCore (đã chuẩn hóa: bỏ ảnh, bỏ driveLink, giải mã để đóng gói)
+                let exportPayload = null;
+                if (window.BackupCore && typeof BackupCore.exportCustomersByIds === 'function') {
+                    exportPayload = await BackupCore.exportCustomersByIds(custIds);
+                } else {
+                    // Fallback: lấy thô + tự giải mã cơ bản (name/phone/cccd)
+                    const tx = db.transaction(['customers'], 'readonly');
+                    const store = tx.objectStore('customers');
+                    const out = [];
+                    for (const id of custIds) {
+                        // eslint-disable-next-line no-await-in-loop
+                        const c = await new Promise((r) => {
+                            const req = store.get(id);
+                            req.onsuccess = (e) => r(e.target.result || null);
+                            req.onerror = () => r(null);
+                        });
+                        if (c) {
+                            const cust = JSON.parse(JSON.stringify(c));
+                            try {
+                                cust.name = decryptText(cust.name);
+                                cust.phone = decryptText(cust.phone);
+                                if (cust.cccd) cust.cccd = decryptText(cust.cccd);
+                            } catch (e) {}
+                            cust.driveLink = null;
+                            out.push(cust);
+                        }
+                    }
+                    exportPayload = { v: 1.1, customers: out, images: [] };
+                }
+
+                // Đảm bảo version
+                if (!exportPayload.v) exportPayload.v = 1.1;
+
+                const rawStr = JSON.stringify(exportPayload);
+                const hashNew = (typeof hashString === 'function') ? await hashString(rawStr) : '';
+                const encrypted = CryptoJS.AES.encrypt(rawStr, window.APP_BACKUP_SECRET).toString();
+
+                // Sanity check: tuyệt đối không gửi plaintext
+                if (!encrypted || /\{\s*"/.test(encrypted)) {
+                    throw new Error('Gói gửi không hợp lệ (có dấu hiệu không mã hóa).');
+                }
+
+                const deviceId = (typeof getDeviceId === 'function') ? getDeviceId() : 'device';
+                const dateStr = (typeof _formatYYYYMMDD === 'function') ? _formatYYYYMMDD(Date.now()) : String(Date.now());
+                const hashShort = (hashNew || '').slice(0, 10) || String(Date.now());
+                const filename = `CLIENTPRO_PARTIAL_${deviceId}_${dateStr}_${custIds.length}KH_${hashShort}.cpb`;
+
+                const sizeBytes = new Blob([encrypted]).size;
+                const rec = {
+                    id: `partial_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                    filename,
+                    createdAt: Date.now(),
+                    size: sizeBytes,
+                    deviceId,
+                    hash: hashNew || '',
+                    encrypted,
+                    meta: { type: 'partial_customers', count: custIds.length }
+                };
+
+                getEl('loader-text').textContent = 'Chọn user nhận...';
+                await CloudTransferUI.sendEncryptedRecord(rec);
+
+                showToast && showToast('Đã gửi gói khách hàng (mã hóa)');
+                toggleCustSelectionMode();
+            } catch (e) {
+                console.error(e);
+                alert(e && e.message ? e.message : 'Không thể gửi');
+            } finally {
+                getEl('loader').classList.add('hidden');
+            }
+        }
         function deleteSelectedCustomers() {
             if(selectedCustomers.size === 0) return; if(!confirm(`Xóa vĩnh viễn ${selectedCustomers.size} khách hàng?`)) return;
             const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');

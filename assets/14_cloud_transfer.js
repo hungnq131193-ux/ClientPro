@@ -600,6 +600,56 @@
       }
     },
 
+    // Send an encrypted record that is not necessarily stored in local backup manager.
+    // record must contain { encrypted, filename?, size?, hash?, createdAt? }
+    async sendEncryptedRecord(record) {
+      if (!record || !record.encrypted) {
+        alert('Thiếu dữ liệu để gửi');
+        return;
+      }
+
+      // Hard guard: never allow sending plaintext JSON by mistake
+      try {
+        const s = String(record.encrypted || '');
+        if (!s || s.length < 16) throw new Error('Cipher rỗng');
+        if (/\{\s*"/.test(s) || /"customers"\s*:/.test(s)) {
+          throw new Error('Gói gửi có dấu hiệu chưa mã hóa. Đã chặn để tránh lộ dữ liệu.');
+        }
+      } catch (e) {
+        alert(e && e.message ? e.message : 'Gói gửi không hợp lệ');
+        return;
+      }
+
+      try {
+        const u = await pickUserOverlay();
+        if (!u) return;
+
+        const label = record.meta && record.meta.type === 'partial_customers'
+          ? `(${record.meta.count || ''} KH)`
+          : '';
+
+        const ok = confirm(`Gửi gói dữ liệu này cho user:\n\n${u.name || u.displayName || u.employeeId || u.deviceId} ${label}\n\nTệp: ${record.filename || 'backup.cpb'}\n\nTiếp tục?`);
+        if (!ok) return;
+
+        const loader = document.getElementById('loader');
+        const loaderText = document.getElementById('loader-text');
+        if (loader) loader.classList.remove('hidden');
+        if (loaderText) loaderText.textContent = 'Đang gửi bản ghi...';
+
+        await uploadBackupToUser(u, record);
+
+        if (loader) loader.classList.add('hidden');
+        if (typeof showToast === 'function') showToast('Đã gửi bản ghi');
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err || 'Không gửi được');
+        alert(msg);
+        try {
+          const loader = document.getElementById('loader');
+          if (loader) loader.classList.add('hidden');
+        } catch (e) {}
+      }
+    },
+
     async acceptAndRestore(backupId) {
       try {
         await acceptAndRestoreById(backupId);
