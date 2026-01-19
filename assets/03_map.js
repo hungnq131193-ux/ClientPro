@@ -3,97 +3,108 @@
         const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
         const TILE_SAT = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
-        // --- LEAFLET LAZY LOADER ---
-        // Leaflet is loaded only when the Map screen is opened.
-        // This reduces initial payload and improves first paint performance.
-        const LEAFLET_JS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        const LEAFLET_CSS_URL = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        let _leafletLoadPromise = null;
-
-        function ensureLeafletBaseCss() {
-            // Minimal CSS so the map won't appear as a blank/black screen if CSS CDN fails.
-            if (document.getElementById('leaflet-base-css')) return;
-            const st = document.createElement('style');
-            st.id = 'leaflet-base-css';
-            st.textContent = [
-                '.leaflet-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow, .leaflet-tile-container, .leaflet-pane > svg, .leaflet-pane > canvas {',
-                '  position: absolute; left: 0; top: 0;',
-                '}',
-                '.leaflet-container {',
-                '  overflow: hidden;',
-                '  background: #0b1220;',
-                '  outline: 0;',
-                '  -webkit-tap-highlight-color: transparent;',
-                '}',
-                '.leaflet-control { position: relative; z-index: 800; }'
-            ].join('\n');
-            document.head.appendChild(st);
+        // --- LAZY-LOAD LEAFLET (only when opening Map screen) ---
+        // index.html must NOT load Leaflet in <head>. Map screen will load it on demand.
+        let __leafletLoadPromise = null;
+        function __injectOnce(tagName, attrs, id) {
+            if (id && document.getElementById(id)) return document.getElementById(id);
+            const el = document.createElement(tagName);
+            if (id) el.id = id;
+            Object.keys(attrs || {}).forEach(k => {
+                if (k === 'text') el.textContent = attrs[k];
+                else el.setAttribute(k, attrs[k]);
+            });
+            (tagName === 'link' ? document.head : document.body).appendChild(el);
+            return el;
         }
 
-        function ensureLeafletLoaded() {
-            if (window.L && typeof window.L.map === 'function') return Promise.resolve();
-            if (_leafletLoadPromise) return _leafletLoadPromise;
+        function __loadScript(src, id, timeoutMs) {
+            return new Promise((resolve, reject) => {
+                // Already loaded?
+                if (window.L && window.L.map) return resolve(true);
+                const existing = id ? document.getElementById(id) : null;
+                if (existing && existing.getAttribute('data-loaded') === '1') return resolve(true);
 
-            ensureLeafletBaseCss();
+                const s = existing || __injectOnce('script', { src, defer: 'defer' }, id);
+                let done = false;
+                const to = setTimeout(() => {
+                    if (done) return;
+                    done = true;
+                    reject(new Error('Leaflet script timeout'));
+                }, timeoutMs || 15000);
 
-            _leafletLoadPromise = new Promise((resolve, reject) => {
-                const timeoutMs = 20000;
-                const t = setTimeout(() => reject(new Error('Leaflet load timeout')), timeoutMs);
-
-                // CSS
-                if (!document.getElementById('leaflet-css')) {
-                    const link = document.createElement('link');
-                    link.id = 'leaflet-css';
-                    link.rel = 'stylesheet';
-                    link.href = LEAFLET_CSS_URL;
-                    link.onerror = () => {
-                        // CSS failure should not block JS; base CSS will still prevent black screen.
-                        // We keep going.
-                    };
-                    document.head.appendChild(link);
-                }
-
-                // JS
-                if (!document.getElementById('leaflet-js')) {
-                    const s = document.createElement('script');
-                    s.id = 'leaflet-js';
-                    s.src = LEAFLET_JS_URL;
-                    s.async = true;
-                    s.onload = () => {
-                        clearTimeout(t);
-                        // Give the browser 1-2 frames to apply styles/layout.
-                        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-                    };
-                    s.onerror = () => {
-                        clearTimeout(t);
-                        reject(new Error('Leaflet JS load failed'));
-                    };
-                    document.head.appendChild(s);
-                } else {
-                    // JS tag exists; poll until L is available.
-                    const start = Date.now();
-                    const poll = () => {
-                        if (window.L && typeof window.L.map === 'function') {
-                            clearTimeout(t);
-                            resolve();
-                            return;
-                        }
-                        if (Date.now() - start > timeoutMs) {
-                            clearTimeout(t);
-                            reject(new Error('Leaflet load timeout'));
-                            return;
-                        }
-                        setTimeout(poll, 50);
-                    };
-                    poll();
-                }
-            }).catch(err => {
-                // Allow retry on next open.
-                _leafletLoadPromise = null;
-                throw err;
+                s.onload = () => {
+                    if (done) return;
+                    done = true;
+                    clearTimeout(to);
+                    s.setAttribute('data-loaded', '1');
+                    resolve(true);
+                };
+                s.onerror = () => {
+                    if (done) return;
+                    done = true;
+                    clearTimeout(to);
+                    reject(new Error('Leaflet script load failed'));
+                };
             });
+        }
 
-            return _leafletLoadPromise;
+        function __loadCss(href, id) {
+            return new Promise((resolve) => {
+                const l = __injectOnce('link', { rel: 'stylesheet', href }, id);
+                // CSS load events are not fully reliable cross-browser, so we resolve quickly.
+                l.onload = () => resolve(true);
+                l.onerror = () => resolve(false);
+                setTimeout(() => resolve(true), 250);
+            });
+        }
+
+        async function ensureLeafletLoaded() {
+            if (window.L && window.L.map) return true;
+            if (__leafletLoadPromise) return __leafletLoadPromise;
+
+            __leafletLoadPromise = (async () => {
+                // Minimal fallback CSS to avoid "black screen" when Leaflet CSS fails to load.
+                __injectOnce('style', { text: `
+                    .leaflet-container{position:relative;outline:0;}
+                    .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-map-pane svg,.leaflet-map-pane canvas{position:absolute;left:0;top:0;}
+                    .leaflet-tile-container{width:100%;height:100%;}
+                    .leaflet-tile{will-change:transform;}
+                    .leaflet-control{position:relative;z-index:800;}
+                    .leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none;}
+                    .leaflet-top{top:0}.leaflet-right{right:0}.leaflet-left{left:0}.leaflet-bottom{bottom:0}
+                    .leaflet-control{pointer-events:auto;}
+                ` }, 'leaflet-base-css');
+
+                // Try primary CDN (unpkg), then fallback (jsdelivr)
+                const css1 = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                const js1  = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                const css2 = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+                const js2  = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+
+                // Load CSS (best-effort)
+                await __loadCss(css1, 'leaflet-css');
+
+                try {
+                    await __loadScript(js1, 'leaflet-js', 15000);
+                } catch (e1) {
+                    // fallback css + js
+                    await __loadCss(css2, 'leaflet-css-fallback');
+                    await __loadScript(js2, 'leaflet-js-fallback', 15000);
+                }
+
+                if (!(window.L && window.L.map)) {
+                    throw new Error('Leaflet not available after load');
+                }
+                return true;
+            })();
+
+            return __leafletLoadPromise.catch(err => {
+                __leafletLoadPromise = null;
+                console.error('[Map] Leaflet load failed:', err);
+                showToast('Không tải được bản đồ. Vui lòng kiểm tra mạng.');
+                return false;
+            });
         }
 
         // --- GPS FEATURE V1.1 ---
@@ -171,83 +182,39 @@
         // --- MAP FUNCTIONS ---
         async function toggleMap() {
             const mapScreen = getEl('screen-map');
-            const opening = mapScreen.classList.contains('translate-x-full');
+            if (mapScreen.classList.contains('translate-x-full')) {
+                mapScreen.classList.remove('translate-x-full');
 
-            if (!opening) {
+                const ok = await ensureLeafletLoaded();
+                if (!ok) return;
+
+                // Wait one frame for layout + possible transition, then init.
+                requestAnimationFrame(() => {
+                    try {
+                        if (!map) initMap(); else renderMapMarkers();
+                        // Fix black/blank map when container was hidden during init
+                        setTimeout(() => { if (map) map.invalidateSize(true); }, 80);
+                        setTimeout(() => { if (map) map.invalidateSize(true); }, 380);
+                    } catch (e) {
+                        console.error('[Map] init/render error:', e);
+                        showToast('Lỗi khởi tạo bản đồ.');
+                    }
+                });
+            } else {
                 mapScreen.classList.add('translate-x-full');
-                return;
-            }
-
-            // Make it visible first so Leaflet can measure size.
-            mapScreen.classList.remove('translate-x-full');
-
-            // Safety: ensure the container has a measurable height.
-            if (mapScreen.offsetHeight < 50) mapScreen.style.height = '100vh';
-            const mc = getEl('map-container');
-            if (mc && mc.offsetHeight < 50) mc.style.height = '100%';
-
-            // Load Leaflet only now.
-            try {
-                getEl('loader')?.classList.remove('hidden');
-                const lt = getEl('loader-text');
-                if (lt) lt.textContent = 'Đang tải bản đồ...';
-                await ensureLeafletLoaded();
-            } catch (e) {
-                getEl('loader')?.classList.add('hidden');
-                showToast('Không tải được bản đồ. Kiểm tra mạng hoặc thử lại.');
-                // Close map to avoid a stuck black screen.
-                mapScreen.classList.add('translate-x-full');
-                return;
-            } finally {
-                getEl('loader')?.classList.add('hidden');
-            }
-
-            // Init or refresh.
-            if (!map) initMap(); else renderMapMarkers();
-
-            // Fix "black screen" caused by init while transitioning / hidden.
-            if (map && typeof map.invalidateSize === 'function') {
-                setTimeout(() => map.invalidateSize(true), 60);
-                setTimeout(() => map.invalidateSize(true), 360);
             }
         }
 
         function initMap() {
             map = L.map('map-container', { zoomControl: false }).setView([21.0285, 105.8542], 12); // Default Hanoi
-
-            // Tile sources can be blocked/unreliable depending on network/region.
-            // Provide a stable fallback (OSM) and auto-switch if too many tile errors occur.
-            const TILE_OSM = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-
-            const darkLayer = L.tileLayer(TILE_DARK, { attribution: '', maxZoom: 19, crossOrigin: true });
-            const satLayer  = L.tileLayer(TILE_SAT,  { attribution: '', maxZoom: 19, crossOrigin: true });
-            const osmLayer  = L.tileLayer(TILE_OSM,  { attribution: '', maxZoom: 19, crossOrigin: true });
-
-            // Auto-fallback if primary tile source fails repeatedly.
-            let tileErr = 0;
-            const onTileErr = () => {
-                tileErr++;
-                if (tileErr === 6) {
-                    try {
-                        if (map && map.hasLayer(darkLayer)) map.removeLayer(darkLayer);
-                        if (map && !map.hasLayer(osmLayer)) osmLayer.addTo(map);
-                        showToast('Nguồn bản đồ bị lỗi. Đã chuyển sang bản đồ dự phòng.');
-                    } catch (_) {}
-                }
-            };
-            darkLayer.on('tileerror', onTileErr);
-            satLayer.on('tileerror', onTileErr);
-
-            // Start with dark layer; if it fails, fallback will replace it.
+            
+            const darkLayer = L.tileLayer(TILE_DARK, { attribution: '', maxZoom: 19 });
+            const satLayer = L.tileLayer(TILE_SAT, { attribution: '', maxZoom: 19 });
+            
             darkLayer.addTo(map);
-
-            L.control.layers({ "Bản đồ tối": darkLayer, "Vệ tinh": satLayer, "Bản đồ thường": osmLayer }, null, { position: 'topright' }).addTo(map);
+            L.control.layers({ "Bản đồ tối": darkLayer, "Vệ tinh": satLayer }, null, { position: 'topright' }).addTo(map);
 
             renderMapMarkers();
-
-            // In case the map was created during a transition, force a reflow.
-            setTimeout(() => map.invalidateSize(true), 50);
-            setTimeout(() => map.invalidateSize(true), 250);
         }
 
         // --- ĐÃ SỬA: GIẢI MÃ LINK VÀ THÔNG TIN TRƯỚC KHI VẼ MAP ---
