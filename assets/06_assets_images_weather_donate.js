@@ -871,9 +871,10 @@ async function renderBackupList() {
             <div class="text-sm font-bold truncate" style="color: var(--text-main)">${fname}</div>
             <div class="text-[11px] mt-1 opacity-70" style="color: var(--text-sub)">Ngày tạo: ${created} • Dung lượng: ${size}</div>
           </div>
-          <div class="flex gap-2 flex-shrink-0">
+          <div class="flex gap-2 flex-shrink-0 flex-wrap justify-end">
             <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(16,185,129,0.15); color: #34d399;" onclick="restoreBackupFromApp('${b.id}')">Restore</button>
             <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(59,130,246,0.15); color: #60a5fa;" onclick="exportBackupFromApp('${b.id}')">Xuất file</button>
+            <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);" onclick="CloudTransferUI.sendBackupFromApp('${b.id}')">Gửi</button>
             <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(239,68,68,0.15); color: #f87171;" onclick="deleteBackupFromApp('${b.id}')">Xóa</button>
           </div>
         </div>

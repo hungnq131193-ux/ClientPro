@@ -86,6 +86,13 @@ document.addEventListener("DOMContentLoaded", () => {
     loadCustomers();
     getEl("loader").classList.add("hidden");
     checkSecurity();
+
+    // Cloud transfer inbox polling (notify when other users send backups)
+    try {
+      if (window.CloudTransferUI && typeof window.CloudTransferUI.startPolling === 'function') {
+        window.CloudTransferUI.startPolling();
+      }
+    } catch (err) {}
   };
   getEl("search-input").addEventListener("input", (e) =>
     loadCustomers(e.target.value)
