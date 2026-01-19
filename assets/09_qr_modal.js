@@ -1,97 +1,127 @@
 /**
  * 09_qr_modal.js
- * QR Transfer Backup modal (create / import via image upload).
- *
- * Goals:
- * - Match the app's existing UI (glass-panel + tailwind utility classes already used in index.html)
- * - Do NOT use camera scanning (restore = upload QR image from library)
- * - Keep logic isolated: call window.openQrTransferBackup() and window.handleQrImageUpload(files)
+ * QR Transfer modal UI (create / import)
+ * - Uses app-like "glass" styling.
+ * - Hooks:
+ *   - window.openQrTransferBackup()
+ *   - window.handleQrImageUpload(files)
+ *   - window.shareQrTransfer()
+ *   - window.downloadQrTransfer()
  */
-
 (function () {
   const MODAL_ID = 'qrModal';
+  const STYLE_ID = 'qrModalStyle';
+
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${MODAL_ID}{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:none;align-items:center;justify-content:center;padding:14px}
+      #${MODAL_ID}.show{display:flex}
+      #${MODAL_ID} .panel{width:min(980px,100%);max-height:90vh;overflow:auto;border-radius:18px;padding:14px;
+        background:rgba(15,23,42,.92);color:#e5e7eb;border:1px solid rgba(255,255,255,.10);box-shadow:0 18px 60px rgba(0,0,0,.35)}
+      #${MODAL_ID} .head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+      #${MODAL_ID} .title{font-weight:800;font-size:16px;letter-spacing:.2px}
+      #${MODAL_ID} .btn{appearance:none;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);color:#e5e7eb;border-radius:12px;padding:9px 12px;cursor:pointer}
+      #${MODAL_ID} .btn.primary{background:rgba(16,185,129,.20);border-color:rgba(16,185,129,.35)}
+      #${MODAL_ID} .btn.danger{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.35)}
+      #${MODAL_ID} .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0}
+      #${MODAL_ID} .row .spacer{flex:1}
+      #${MODAL_ID} select,#${MODAL_ID} input[type="file"]{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e5e7eb;border-radius:12px;padding:9px 10px}
+      #${MODAL_ID} .hint{font-size:12px;color:rgba(229,231,235,.75)}
+      #${MODAL_ID} #qrBox{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:12px}
+      #${MODAL_ID} .qr-frame{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);border-radius:16px;padding:10px}
+      #${MODAL_ID} .qr-label{font-weight:700;font-size:12px;color:rgba(229,231,235,.85);margin-bottom:8px;display:flex;justify-content:space-between}
+      #${MODAL_ID} .qr-holder{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:14px;padding:10px}
+      @media (max-width:480px){
+        #${MODAL_ID} #qrBox{grid-template-columns:1fr}
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
   function ensureModal() {
     let modal = document.getElementById(MODAL_ID);
     if (modal) return modal;
 
+    ensureStyle();
+
     modal = document.createElement('div');
     modal.id = MODAL_ID;
-    modal.className = 'fixed inset-0 z-[520] hidden items-center justify-center p-4 bg-black/80 backdrop-blur-sm';
-
     modal.innerHTML = `
-      <div class="glass-panel w-full max-w-lg rounded-2xl p-5 sm:p-6 shadow-2xl border border-white/10 modal-animate">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <h3 class="text-lg sm:text-xl font-extrabold tracking-tight" style="color: var(--text-main)">QR Transfer Backup</h3>
-            <p class="text-xs sm:text-sm mt-1 opacity-80" style="color: var(--text-sub)">Tạo QR ciphertext để chuyển dữ liệu sang máy khác. Restore bằng cách chọn ảnh QR từ thư viện.</p>
-          </div>
-          <button id="qrModalCloseBtn" type="button" class="p-2 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 transition" aria-label="Đóng">
-            <i data-lucide="x" class="w-5 h-5" style="color: var(--text-sub)"></i>
-          </button>
+      <div class="panel" role="dialog" aria-modal="true" aria-label="QR Transfer Backup">
+        <div class="head">
+          <div class="title">QR Transfer Backup</div>
+          <button class="btn danger" id="qrModalCloseBtn" type="button">Đóng</button>
         </div>
 
-        <div class="mt-5 space-y-4">
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-            <div class="sm:col-span-2">
-              <label class="block text-[11px] font-bold uppercase tracking-wider mb-2 opacity-70" style="color: var(--text-sub)">Chế độ</label>
-              <select id="qrScope" class="w-full border rounded-xl px-4 py-3 outline-none font-bold" style="border-color: var(--border-panel);">
-                <option value="all">Backup toàn bộ</option>
-                <option value="customers">Backup 1 phần khách hàng</option>
-              </select>
-            </div>
-            <button id="qrCreateBtn" type="button" class="w-full py-3 rounded-xl font-extrabold text-white shadow-lg active:scale-[0.98] transition-transform" style="background: var(--accent-gradient)">Tạo QR</button>
-          </div>
+        <div class="row">
+          <label class="hint">Chế độ:</label>
+          <select id="qrScope">
+            <option value="all">Backup toàn bộ</option>
+            <option value="customers">Backup khách hàng đã chọn</option>
+          </select>
 
-          <div class="glass-panel rounded-2xl p-4 border border-white/10">
-            <div class="flex items-center justify-between gap-3 mb-3">
-              <div>
-                <div class="text-sm font-extrabold" style="color: var(--text-main)">Restore QR (chọn ảnh từ thư viện)</div>
-                <div class="text-xs opacity-75" style="color: var(--text-sub)">Chọn nhiều ảnh nếu QR bị chia thành nhiều phần.</div>
-              </div>
-            </div>
-            <label class="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold cursor-pointer active:scale-[0.98] transition-transform" style="background: rgba(255,255,255,0.06); color: var(--text-main); border: 1px solid var(--border-panel)">
-              <i data-lucide="image" class="w-5 h-5"></i>
-              <span>Chọn ảnh QR</span>
-              <input id="qrImgInput" type="file" accept="image/*" multiple class="hidden" />
-            </label>
-            <div class="text-[11px] mt-3 opacity-75" style="color: var(--text-sub)">
-              Gợi ý: Nếu dữ liệu quá lớn, app sẽ tự chuyển sang cơ chế backup file (.cpb) như hiện tại.
-            </div>
-          </div>
-
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <div class="text-sm font-extrabold" style="color: var(--text-main)">Mã QR đã tạo</div>
-              <div id="qrProgress" class="text-xs opacity-70" style="color: var(--text-sub)"></div>
-            </div>
-            <div id="qrBox" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
-          </div>
+          <button class="btn primary" id="qrCreateBtn" type="button">Tạo QR</button>
+          <button class="btn" id="qrShareBtn" type="button">Gửi QR</button>
+          <button class="btn" id="qrDownloadBtn" type="button">Lưu ảnh</button>
         </div>
+
+        <div class="row">
+          <label class="hint">Restore QR bằng ảnh (máy B):</label>
+          <input id="qrImgInput" type="file" accept="image/*" multiple />
+        </div>
+
+        <div class="hint">
+          Gợi ý: Nếu dữ liệu lớn, app sẽ tự chia nhiều QR. Bạn có thể bấm “Gửi QR” để xuất ảnh và gửi qua Zalo/Mail.
+        </div>
+
+        <div id="qrBox"></div>
       </div>
     `;
 
     document.body.appendChild(modal);
 
-    // Overlay click closes
+    // Close handlers
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeQrModal();
     });
-
     modal.querySelector('#qrModalCloseBtn').addEventListener('click', closeQrModal);
 
     modal.querySelector('#qrCreateBtn').addEventListener('click', async () => {
       try {
-        const progressEl = modal.querySelector('#qrProgress');
-        if (progressEl) progressEl.textContent = '';
-
         if (typeof window.openQrTransferBackup === 'function') {
           await window.openQrTransferBackup();
         } else {
-          alert('Thiếu hàm openQrTransferBackup(). Vui lòng đảm bảo assets/qrUI.js đã được load.');
+          alert('Thiếu openQrTransferBackup(). Hãy đảm bảo qrUI.js đã được load.');
         }
       } catch (err) {
         alert('Không thể tạo QR: ' + (err && err.message ? err.message : err));
+      }
+    });
+
+    modal.querySelector('#qrShareBtn').addEventListener('click', async () => {
+      try {
+        if (typeof window.shareQrTransfer === 'function') {
+          await window.shareQrTransfer();
+        } else {
+          alert('Thiếu shareQrTransfer(). Hãy đảm bảo qrUI.js đã được load.');
+        }
+      } catch (err) {
+        alert('Không thể gửi QR: ' + (err && err.message ? err.message : err));
+      }
+    });
+
+    modal.querySelector('#qrDownloadBtn').addEventListener('click', async () => {
+      try {
+        if (typeof window.downloadQrTransfer === 'function') {
+          await window.downloadQrTransfer();
+        } else {
+          alert('Thiếu downloadQrTransfer(). Hãy đảm bảo qrUI.js đã được load.');
+        }
+      } catch (err) {
+        alert('Không thể lưu ảnh QR: ' + (err && err.message ? err.message : err));
       }
     });
 
@@ -102,7 +132,7 @@
         if (typeof window.handleQrImageUpload === 'function') {
           await window.handleQrImageUpload(files);
         } else {
-          alert('Thiếu hàm handleQrImageUpload(). Vui lòng đảm bảo assets/qrUI.js đã được load.');
+          alert('Thiếu handleQrImageUpload(). Hãy đảm bảo qrUI.js đã được load.');
         }
       } catch (err) {
         alert('Không thể đọc ảnh QR: ' + (err && err.message ? err.message : err));
@@ -116,20 +146,12 @@
 
   function openQrModal() {
     const modal = ensureModal();
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    try {
-      if (window.lucide && typeof window.lucide.createIcons === 'function') {
-        window.lucide.createIcons();
-      }
-    } catch (e) {}
+    modal.classList.add('show');
   }
 
   function closeQrModal() {
     const modal = document.getElementById(MODAL_ID);
-    if (!modal) return;
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
+    if (modal) modal.classList.remove('show');
   }
 
   window.openQrModal = openQrModal;

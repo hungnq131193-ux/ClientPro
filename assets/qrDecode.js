@@ -1,80 +1,51 @@
-/**
+/*
  * qrDecode.js
- *
- * Collect QR frames -> reassemble ciphertext -> security gate -> restore.
- * Restore uses the same logic as file restore: _restoreFromEncryptedContent(ciphertext).
+ * Collects QR chunks, decrypts with APP_BACKUP_SECRET, then restores transactionally.
  */
-
 (function () {
-  const buffers = Object.create(null);
+  const buffer = {};
 
-  async function _ensureSecretOrThrow() {
-    const hasSecret = () => {
-      try {
-        if (typeof APP_BACKUP_SECRET !== 'undefined' && APP_BACKUP_SECRET) return true;
-      } catch (e) {}
-      return !!(window && window.APP_BACKUP_SECRET);
-    };
+  function addChunk(chunk) {
+    const id = chunk.transfer_id;
+    if (!buffer[id]) buffer[id] = [];
 
-    if (typeof ensureBackupSecret === 'function') {
-      const sec = await ensureBackupSecret();
-      if (!sec || !sec.ok || !hasSecret()) {
-        throw new Error((sec && sec.message) ? sec.message : 'Không thể lấy khóa bảo mật');
-      }
-      return;
+    // de-dup by index
+    if (!buffer[id].some(c => c.index === chunk.index)) {
+      buffer[id].push(chunk);
     }
-    if (!hasSecret()) {
-      throw new Error('Không thể Restore QR khi đang Offline hoặc chưa xác thực với Server');
-    }
+    return buffer[id];
   }
 
-  function _normalizeFrame(frame) {
-    if (!frame || typeof frame !== 'object') return null;
-    if (!frame.transfer_id || !frame.total || !frame.index) return null;
-    return {
-      transfer_id: String(frame.transfer_id),
-      total: Number(frame.total) || 0,
-      index: Number(frame.index) || 0,
-      data: String(frame.data || ''),
-      scope: frame.scope || 'all',
-      createdAt: frame.createdAt || Date.now()
-    };
+  async function finalize(id, total) {
+    await ensureBackupSecret();
+    const list = (buffer[id] || []).sort((a, b) => a.index - b.index);
+    if (list.length !== total) {
+      throw new Error('Chưa đủ phần QR (' + list.length + '/' + total + ')');
+    }
+
+    const cipherText = list.map(c => c.data).join('');
+    const payload = QRTransferCrypto.decryptPayload(cipherText);
+
+    if (payload.scope === 'customers') {
+      await BackupCore.restoreCustomersTransactional(payload.data);
+    } else {
+      await BackupCore.restoreAllTransactional(payload.data);
+    }
+
+    delete buffer[id];
+    return true;
   }
 
   window.QRTransferDecode = {
-    async input(frame) {
-      const chunk = _normalizeFrame(frame);
-      if (!chunk) return;
-
-      const id = chunk.transfer_id;
-      if (!buffers[id]) buffers[id] = [];
-
-      // Avoid duplicates
-      if (buffers[id].some((x) => x.index === chunk.index)) return;
-
-      buffers[id].push(chunk);
-
-      if (buffers[id].length === chunk.total) {
-        // Security gate (must be ONLINE and valid)
-        await _ensureSecretOrThrow();
-
-        const ciphertext = buffers[id]
-          .sort((a, b) => a.index - b.index)
-          .map((c) => c.data)
-          .join('');
-
-        delete buffers[id];
-
-        if (typeof _restoreFromEncryptedContent !== 'function') {
-          throw new Error('Thiếu hàm _restoreFromEncryptedContent()');
-        }
-
-        // Restore (merge/upsert). For partial customer backups, payload only contains selected customers.
-        await _restoreFromEncryptedContent(ciphertext);
+    buffer,
+    async input(chunk) {
+      if (!chunk || !chunk.transfer_id || !chunk.index || !chunk.total || !chunk.data) {
+        throw new Error('Chunk QR không hợp lệ');
+      }
+      const list = addChunk(chunk);
+      if (list.length === chunk.total) {
+        await finalize(chunk.transfer_id, chunk.total);
         alert('QR restore thành công');
-        if (typeof loadCustomers === 'function') {
-          try { loadCustomers(); } catch (e) {}
-        }
       }
     }
   };
