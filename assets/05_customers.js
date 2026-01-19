@@ -42,8 +42,9 @@
                 return;
             }
 
-            if (!window.CryptoJS || !CryptoJS.AES) {
-                alert('Thiếu thư viện mã hóa (CryptoJS).');
+            // Ưu tiên AES-GCM WebCrypto (encryptBackupPayload). Nếu không có, fallback CryptoJS legacy.
+            if (typeof encryptBackupPayload !== 'function' && (!window.CryptoJS || !CryptoJS.AES)) {
+                alert('Thiếu cơ chế mã hóa (WebCrypto/CryptoJS).');
                 return;
             }
 
@@ -94,11 +95,14 @@
 
                 const rawStr = JSON.stringify(exportPayload);
                 const hashNew = (typeof hashString === 'function') ? await hashString(rawStr) : '';
-                const encrypted = CryptoJS.AES.encrypt(rawStr, APP_BACKUP_SECRET).toString();
 
-                // Sanity check: tuyệt đối không gửi plaintext
-                if (!encrypted || /\{\s*"/.test(encrypted)) {
-                    throw new Error('Gói gửi không hợp lệ (có dấu hiệu không mã hóa).');
+                const encrypted = (typeof encryptBackupPayload === 'function')
+                    ? await encryptBackupPayload(rawStr, APP_BACKUP_SECRET, { type: 'partial_customers', count: custIds.length })
+                    : CryptoJS.AES.encrypt(rawStr, APP_BACKUP_SECRET).toString();
+
+                // Sanity check: tuyệt đối không gửi plaintext JSON khách hàng
+                if (!encrypted || (/("customers"\s*:)/.test(encrypted) && !/"magic"\s*:\s*"CLIENTPRO_CPB"/.test(encrypted))) {
+                    throw new Error('Gói gửi không hợp lệ (có dấu hiệu chưa mã hóa).');
                 }
 
                 const deviceId = (typeof getDeviceId === 'function') ? getDeviceId() : 'device';

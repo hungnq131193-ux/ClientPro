@@ -201,15 +201,18 @@ async function restoreBackupFromApp(id) {
 }
 
 async function _restoreFromEncryptedContent(encryptedContent) {
-  // Giải mã
+  // Giải mã (AES-GCM envelope v2 + tương thích legacy CryptoJS v1)
   let decryptedStr = "";
   try {
-    const bytes = CryptoJS.AES.decrypt(String(encryptedContent), APP_BACKUP_SECRET);
-    decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
+    if (typeof decryptBackupPayload === 'function') {
+      const out = await decryptBackupPayload(String(encryptedContent || ''), APP_BACKUP_SECRET);
+      decryptedStr = out && out.plaintext ? out.plaintext : '';
+    }
   } catch (e) {
-    decryptedStr = "";
+    decryptedStr = '';
   }
-  if (!decryptedStr) throw new Error("Decryption failed");
+
+  if (!decryptedStr) throw new Error('Decryption failed');
 
   const data = JSON.parse(decryptedStr);
 
@@ -331,8 +334,10 @@ async function backupData() {
       return;
     }
 
-    // Mã hóa toàn bộ dữ liệu bằng khóa bí mật
-    const encrypted = CryptoJS.AES.encrypt(rawStr, APP_BACKUP_SECRET).toString();
+    // Mã hóa toàn bộ dữ liệu bằng AES-256-GCM (có xác thực anti-tamper)
+    const encrypted = (typeof encryptBackupPayload === 'function')
+      ? await encryptBackupPayload(rawStr, APP_BACKUP_SECRET, { type: 'full_backup' })
+      : CryptoJS.AES.encrypt(rawStr, APP_BACKUP_SECRET).toString();
 
     // Chuẩn hóa tên file
     const deviceId = typeof getDeviceId === "function" ? getDeviceId() : "device";

@@ -14,6 +14,99 @@ async function hashString(str) {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+
+// ============================================================
+// Backup Crypto (AES-256-GCM via WebCrypto)
+// - Mục tiêu: ciphertext có xác thực (anti-tamper) + envelope có header/version.
+// - Tương thích ngược: vẫn đọc được .cpb dạng cũ (CryptoJS.AES(passphrase)).
+// ============================================================
+function _b64EncodeBytes(bytes) {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
+function _b64DecodeToBytes(b64) {
+  const bin = atob(String(b64 || ""));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function _deriveAesGcmKeyFromSecret(secret) {
+  const enc = new TextEncoder();
+  const material = enc.encode(String(secret || ""));
+  const digest = await crypto.subtle.digest("SHA-256", material);
+  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+async function encryptBackupPayload(plaintext, secret, meta = null) {
+  if (!secret) throw new Error("MISSING_BACKUP_SECRET");
+  const key = await _deriveAesGcmKeyFromSecret(secret);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const ptBytes = enc.encode(String(plaintext || ""));
+  const ctBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, ptBytes);
+  const ctBytes = new Uint8Array(ctBuf);
+  const checksum = (typeof hashString === "function") ? await hashString(String(plaintext || "")) : "";
+
+  const envelope = {
+    magic: "CLIENTPRO_CPB",
+    v: 2,
+    alg: "A256GCM",
+    iv: _b64EncodeBytes(iv),
+    ct: _b64EncodeBytes(ctBytes),
+    cs: checksum,
+    ts: Date.now(),
+    meta: meta || null,
+  };
+  return JSON.stringify(envelope);
+}
+
+async function decryptBackupPayload(content, secret) {
+  const s = String(content || "").trim();
+  if (!s) throw new Error("EMPTY_CIPHER");
+
+  // New format: JSON envelope
+  if (s.startsWith("{") && s.includes('"magic"')) {
+    let env = null;
+    try { env = JSON.parse(s); } catch (e) { env = null; }
+    if (env && env.magic === "CLIENTPRO_CPB" && env.alg === "A256GCM" && env.iv && env.ct) {
+      if (!secret) throw new Error("MISSING_BACKUP_SECRET");
+      const key = await _deriveAesGcmKeyFromSecret(secret);
+      const iv = _b64DecodeToBytes(env.iv);
+      const ct = _b64DecodeToBytes(env.ct);
+      let ptBuf;
+      try {
+        ptBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+      } catch (e) {
+        throw new Error("DECRYPT_FAILED");
+      }
+      const dec = new TextDecoder();
+      const plaintext = dec.decode(ptBuf);
+      if (env.cs && typeof hashString === "function") {
+        const cs2 = await hashString(plaintext);
+        if (cs2 !== env.cs) throw new Error("CHECKSUM_MISMATCH");
+      }
+      return { plaintext, envelope: env };
+    }
+  }
+
+  // Legacy format: CryptoJS.AES(passphrase)
+  if (typeof CryptoJS !== "undefined" && CryptoJS.AES && secret) {
+    try {
+      const bytes = CryptoJS.AES.decrypt(String(s), String(secret));
+      const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+      if (plaintext) return { plaintext, envelope: { magic: "LEGACY_CJS", v: 1 } };
+    } catch (e) {}
+  }
+
+  throw new Error("UNSUPPORTED_CPB_FORMAT");
+}
+
 /** * Encrypt a text value using AES và masterKey. Nếu chưa có masterKey thì trả về nguyên bản. * @param {string} text * @returns {string} */
 // --- THÊM ĐOẠN NÀY ---
 function getDeviceId() {

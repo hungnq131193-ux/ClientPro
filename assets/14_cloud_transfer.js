@@ -612,7 +612,11 @@
       try {
         const s = String(record.encrypted || '');
         if (!s || s.length < 16) throw new Error('Cipher rỗng');
-        if (/\{\s*"/.test(s) || /"customers"\s*:/.test(s)) {
+        // Cho phép envelope JSON (magic CLIENTPRO_CPB), nhưng chặn plaintext khách hàng
+        const looksLikeJson = /\{\s*"/.test(s);
+        const isEnvelope = looksLikeJson && /"magic"\s*:\s*"CLIENTPRO_CPB"/.test(s);
+        const leaksCustomers = /"customers"\s*:/.test(s);
+        if ((looksLikeJson && !isEnvelope) || (leaksCustomers && !isEnvelope)) {
           throw new Error('Gói gửi có dấu hiệu chưa mã hóa. Đã chặn để tránh lộ dữ liệu.');
         }
       } catch (e) {
