@@ -103,6 +103,12 @@ function renderAssets() {
   list.innerHTML = "";
   const assets = currentCustomerData.assets || [];
 
+  // MIGRATION (backward compatibility):
+  // Older app builds stored asset.name as CryptoJS ciphertext (starts with "U2FsdGVkX1").
+  // This breaks Drive folder reconnect for TSBĐ because the folderName becomes encrypted.
+  // We opportunistically migrate asset.name -> plaintext when we can decrypt it.
+  let _needSaveMigration = false;
+
   if (assets.length === 0) {
     list.innerHTML = `<div class="text-center py-20 text-slate-500"><i data-lucide="building" class="w-10 h-10 mx-auto mb-2 opacity-20"></i><p class="text-sm">Chưa có tài sản</p></div>`;
     lucide.createIcons();
@@ -118,6 +124,21 @@ function renderAssets() {
     // --- GIẢI MÃ DỮ LIỆU (DECRYPT) ---
     // Nếu ô nào lưu rỗng, hàm decryptText sẽ trả về rỗng -> Không hiện chuỗi mã hóa nữa
     const decName = decryptText(asset.name) || asset.name || "";
+
+    // If name is still ciphertext but decryptText() produced a readable plaintext, persist it.
+    // This is safe because asset.name is a display label (not used in cryptographic logic).
+    try {
+      if (
+        typeof asset.name === "string" &&
+        asset.name.startsWith("U2FsdGVkX1") &&
+        decName &&
+        decName !== asset.name &&
+        !String(decName).startsWith("U2FsdGVkX1")
+      ) {
+        asset.name = decName;
+        _needSaveMigration = true;
+      }
+    } catch (e) {}
     const decLink = decryptText(asset.link) || "";
     const decVal = decryptText(asset.valuation) || "";
     const decLoan = decryptText(asset.loanValue) || "";
@@ -160,6 +181,21 @@ function renderAssets() {
     list.appendChild(el);
   });
   lucide.createIcons();
+
+  // Persist migration once per render to avoid many DB writes.
+  if (_needSaveMigration) {
+    try {
+      // Debounce lightly so UI remains smooth.
+      clearTimeout(window.__assetNameMigrationTimer);
+      window.__assetNameMigrationTimer = setTimeout(() => {
+        try {
+          db.transaction(["customers"], "readwrite")
+            .objectStore("customers")
+            .put(currentCustomerData);
+        } catch (e) {}
+      }, 80);
+    } catch (e) {}
+  }
 }
 function openAssetGallery(id, name, idx) {
   // Logic tạo ID nếu chưa có (cho data cũ)

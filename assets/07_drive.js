@@ -40,6 +40,39 @@ function _displayText(s) {
     return (out && out !== 'undefined' && out !== 'null') ? out : '';
 }
 
+// Build a stable plaintext name for Drive folder operations.
+// - If asset.name is legacy ciphertext, try decrypt; if successful, migrate it to plaintext
+//   so future reconnects work even before assets are fully loaded.
+function _getAssetNamePlainForDrive(asset) {
+    if (!asset) return '';
+    const raw = asset.name;
+    const dec = _safeDecryptMaybe(raw);
+    const decStr = (dec && dec !== 'undefined' && dec !== 'null') ? String(dec) : '';
+
+    // If we can decrypt legacy ciphertext into readable plaintext, persist migration.
+    try {
+        if (
+            typeof raw === 'string' &&
+            raw.startsWith('U2FsdGVkX1') &&
+            decStr &&
+            decStr !== raw &&
+            !decStr.startsWith('U2FsdGVkX1')
+        ) {
+            asset.name = decStr;
+            // Best-effort persist without blocking UI.
+            setTimeout(() => {
+                try {
+                    if (typeof db !== 'undefined' && currentCustomerData) {
+                        db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                    }
+                } catch (e) {}
+            }, 0);
+        }
+    } catch (e) {}
+
+    return decStr;
+}
+
 function _normalizeDriveUrl(url) {
     if (!url) return '';
     const str = String(url);
@@ -220,7 +253,7 @@ async function uploadAssetToDrive() {
             return alert("Tài sản này chưa có ảnh nào!");
         }
 
-        const assetNamePlain = _displayText(currentAsset.name);
+        const assetNamePlain = _getAssetNamePlainForDrive(currentAsset);
         if (!confirm(`Tải lên ${imagesToUpload.length} ảnh của tài sản "${assetNamePlain}" lên Drive?`)) {
             getEl('loader').classList.add('hidden');
             return;
@@ -324,7 +357,7 @@ async function reconnectAssetDriveFolder() {
     getEl('loader-text').textContent = "Đang tìm TSBĐ...";
     
     const custNamePlain = _displayText(currentCustomerData.name);
-    const assetNamePlain = _displayText(currentCustomerData.assets[assetIndex].name);
+    const assetNamePlain = _getAssetNamePlainForDrive(currentCustomerData.assets[assetIndex]);
     const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
 
     try {
