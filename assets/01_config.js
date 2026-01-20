@@ -3,7 +3,7 @@ const WEATHER_STORAGE_KEY = 'app_weather_cache_v1';
 const WEATHER_CACHE_TTL = 15 * 60 * 1000; // 15 phút
 const SCRIPT_KEY = 'app_script_url';
 // --- CẤU HÌNH SERVER TRUNG TÂM ---
-const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbyT740oLyiztLiW8TpSuJdKtAFRdsQwzGwvhPpq_P2lCVg-yLKnmmph0-faerdIW-ox4A/exec"; 
+const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbyXsfCbZTaRTTM5nEmwA6YS6PS2lRFp3yxEI-d5I4UQgIB45CRYAuNWa0Y98kEB9oxK-g/exec"; 
 const USER_SCRIPT_KEY = 'app_user_script_url';
 // map weathercode -> text tiếng Việt đơn giản
 const WEATHER_CODE_TEXT = {
