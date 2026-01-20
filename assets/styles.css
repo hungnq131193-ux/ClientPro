@@ -345,8 +345,22 @@ body.theme-mono {
   will-change: transform;
   contain: layout paint style;
   backface-visibility: hidden;
+  /* Note: many screens also carry Tailwind's `transform` utility class.
+     Tailwind will set `transform:` based on CSS variables; the rule below
+     re-maps translate() -> translate3d() to keep the transition on GPU. */
   transform: translate3d(0, 0, 0);
   z-index: 1;
+}
+
+/* Smooth slide transitions for app screens (reduce jank / flicker on mobile). */
+.app-container.transform {
+  transform:
+    translate3d(var(--tw-translate-x, 0), var(--tw-translate-y, 0), 0)
+    rotate(var(--tw-rotate, 0))
+    skewX(var(--tw-skew-x, 0))
+    skewY(var(--tw-skew-y, 0))
+    scaleX(var(--tw-scale-x, 1))
+    scaleY(var(--tw-scale-y, 1));
 }
 .scroll-area {
   overflow-y: auto;

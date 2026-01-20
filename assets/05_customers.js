@@ -231,6 +231,15 @@
             getEl('btn-save-cust').textContent = "Tạo mới";
             getEl('new-name').focus();
         }
+
+        // Close customer create/edit modal (used by the X button and edge-swipe back).
+        // Kept intentionally lightweight to avoid side-effects on other flows.
+        function closeModal() {
+            const m = getEl('add-modal');
+            if (!m) return;
+            m.classList.add('hidden');
+            try { document.activeElement && document.activeElement.blur && document.activeElement.blur(); } catch (e) {}
+        }
         
         function deleteCurrentCustomer() { 
             if(!confirm("XÁC NHẬN: Xóa toàn bộ hồ sơ khách hàng này?")) return; 
