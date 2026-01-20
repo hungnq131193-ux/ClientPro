@@ -12,8 +12,23 @@ function openAssetGallery(id, name, idx) {
 
   currentAssetId = id;
 
-  // Hiển thị màn hình Gallery
-  getEl("screen-asset-gallery").classList.remove("translate-x-full");
+  const galScreen = getEl("screen-asset-gallery");
+
+  // Prevent flash of stale gallery content during slide-in
+  try {
+    getEl("gallery-asset-name").textContent = "Đang tải...";
+    getEl("gallery-asset-val").textContent = "--";
+    getEl("gallery-asset-loan").textContent = "--";
+    const grid = getEl("asset-gallery-grid");
+    if (grid) {
+      grid.innerHTML = "";
+      grid.scrollTop = 0;
+    }
+  } catch (e) {}
+
+  // Hiển thị màn hình Gallery (slide-in on next frame for smoother compositing)
+  if (typeof nextFrame === "function") nextFrame(() => galScreen.classList.remove("translate-x-full"));
+  else galScreen.classList.remove("translate-x-full");
 
   // Lấy thông tin tài sản đang chọn từ bộ nhớ (để đảm bảo chính xác nhất)
   const asset = currentCustomerData.assets[idx];
@@ -42,8 +57,12 @@ function openAssetGallery(id, name, idx) {
       renderAssetDriveStatus(null);
   }
 
-  // Gọi hàm load ảnh
-  loadAssetImages(id);
+  // Gọi hàm load ảnh: defer until after slide-in to avoid jank
+  if (typeof afterTransition === "function") {
+    afterTransition(galScreen, () => loadAssetImages(id));
+  } else {
+    setTimeout(() => loadAssetImages(id), 360);
+  }
 }
 
 function closeAssetGallery() {

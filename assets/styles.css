@@ -337,9 +337,13 @@ body.theme-mono {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--bg-main);
   position: absolute;
   top: 0;
   left: 0;
+  /* Performance: keep screen transitions on compositor, isolate layout/paint */
+  will-change: transform;
+  contain: layout paint style;
   backface-visibility: hidden;
   transform: translate3d(0, 0, 0);
   z-index: 1;

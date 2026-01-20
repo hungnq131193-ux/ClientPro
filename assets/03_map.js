@@ -183,23 +183,55 @@
         async function toggleMap() {
             const mapScreen = getEl('screen-map');
             if (mapScreen.classList.contains('translate-x-full')) {
-                mapScreen.classList.remove('translate-x-full');
+                // Slide-in first (avoid blocking animation with heavy map work)
+                if (typeof nextFrame === 'function') nextFrame(() => mapScreen.classList.remove('translate-x-full'));
+                else mapScreen.classList.remove('translate-x-full');
+
+                // Lightweight loading overlay while Leaflet/markers are prepared
+                try {
+                  const mc = getEl('map-container');
+                  if (mc && !getEl('map-loading')) {
+                    const ov = document.createElement('div');
+                    ov.id = 'map-loading';
+                    ov.style.position = 'absolute';
+                    ov.style.inset = '0';
+                    ov.style.display = 'flex';
+                    ov.style.alignItems = 'center';
+                    ov.style.justifyContent = 'center';
+                    ov.style.background = 'rgba(0,0,0,0.6)';
+                    ov.style.backdropFilter = 'blur(8px)';
+                    ov.style.zIndex = '350';
+                    ov.innerHTML = '<div class="glass-panel" style="padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,0.1);color:#fff;font-weight:700;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;">Đang tải bản đồ...</div>';
+                    // map-container is inside screen-map; ensure relative positioning
+                    if (mc.parentElement && getComputedStyle(mc.parentElement).position === 'static') {
+                      mc.parentElement.style.position = 'relative';
+                    }
+                    mc.parentElement.appendChild(ov);
+                  }
+                } catch (e) {}
 
                 const ok = await ensureLeafletLoaded();
-                if (!ok) return;
+                if (!ok) {
+                  try { const ov = getEl('map-loading'); if (ov) ov.remove(); } catch (e) {}
+                  return;
+                }
 
-                // Wait one frame for layout + possible transition, then init.
-                requestAnimationFrame(() => {
-                    try {
-                        if (!map) initMap(); else renderMapMarkers();
-                        // Fix black/blank map when container was hidden during init
-                        setTimeout(() => { if (map) map.invalidateSize(true); }, 80);
-                        setTimeout(() => { if (map) map.invalidateSize(true); }, 380);
-                    } catch (e) {
-                        console.error('[Map] init/render error:', e);
-                        showToast('Lỗi khởi tạo bản đồ.');
-                    }
-                });
+                // Defer init + marker rendering until after the slide-in ends (prevents jank)
+                const doInit = () => {
+                  try {
+                    if (!map) initMap(); else renderMapMarkers();
+                    // Fix black/blank map when container was hidden during init
+                    setTimeout(() => { if (map) map.invalidateSize(true); }, 80);
+                    setTimeout(() => { if (map) map.invalidateSize(true); }, 380);
+                  } catch (e) {
+                    console.error('[Map] init/render error:', e);
+                    showToast('Lỗi khởi tạo bản đồ.');
+                  } finally {
+                    try { const ov = getEl('map-loading'); if (ov) ov.remove(); } catch (e) {}
+                  }
+                };
+                if (typeof afterTransition === 'function') afterTransition(mapScreen, doInit);
+                else setTimeout(doInit, 360);
             } else {
                 mapScreen.classList.add('translate-x-full');
             }

@@ -260,34 +260,80 @@
 
         function openFolder(id) {
     currentCustomerId = id;
-    getEl('screen-folder').classList.remove('translate-x-full');
-    
+
+    const folderScreen = getEl('screen-folder');
+
+    // Prevent "flash" of stale customer data during slide-in
+    try {
+      getEl('folder-customer-name').textContent = 'Đang tải...';
+      getEl('folder-avatar').textContent = '…';
+      const badge = getEl('detail-status-badge');
+      if (badge) {
+        badge.className = "glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2";
+        badge.innerHTML = '<span>Đang tải</span>';
+      }
+      const imgArea = getEl('content-images');
+      if (imgArea) imgArea.innerHTML = '';
+      const assetArea = getEl('content-assets');
+      if (assetArea) assetArea.innerHTML = '';
+      // Reset scroll so user doesn't see previous scroll position
+      if (imgArea) imgArea.scrollTop = 0;
+      if (assetArea) assetArea.scrollTop = 0;
+    } catch (e) {}
+
+    // Slide-in on next frame for smoother compositing
+    if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
+    else folderScreen.classList.remove('translate-x-full');
+
     // Lấy data khách hàng
     const tx = db.transaction(['customers'], 'readonly');
-        tx.objectStore('customers').get(id).onsuccess = (e) => {
-            currentCustomerData = e.target.result;
-            if (!currentCustomerData) return;
-            // Giải mã toàn bộ dữ liệu khách hàng trước khi sử dụng
-            decryptCustomerObject(currentCustomerData);
-            // Sửa dữ liệu cũ nếu thiếu
-            if (!currentCustomerData.status) currentCustomerData.status = 'pending';
-            if (!currentCustomerData.assets) currentCustomerData.assets = [];
-            // Header: tên, SĐT, trạng thái
-            renderFolderHeader(currentCustomerData);
-            // ⭐ Quan trọng: hiển thị lại trạng thái Drive sau khi reload / restore
-            if (typeof renderDriveStatus === "function") {
-                renderDriveStatus(currentCustomerData.driveLink || null);
-            }
-            // Reset chọn ảnh nếu có
-            isSelectionMode = false;
-            selectedImages.clear();
-            updateSelectionUI();
-            // Về tab Hồ sơ ảnh, load ảnh + TSBĐ
-            switchTab('images');
-            renderAssets();
-        };
+    tx.objectStore('customers').get(id).onsuccess = (e) => {
+      currentCustomerData = e.target.result;
+      if (!currentCustomerData) return;
+
+      // Giải mã toàn bộ dữ liệu khách hàng trước khi sử dụng
+      decryptCustomerObject(currentCustomerData);
+
+      // Sửa dữ liệu cũ nếu thiếu
+      if (!currentCustomerData.status) currentCustomerData.status = 'pending';
+      if (!currentCustomerData.assets) currentCustomerData.assets = [];
+
+      // Header: tên, SĐT, trạng thái
+      renderFolderHeader(currentCustomerData);
+
+      // ⭐ Quan trọng: hiển thị lại trạng thái Drive sau khi reload / restore
+      if (typeof renderDriveStatus === "function") {
+        renderDriveStatus(currentCustomerData.driveLink || null);
+      }
+
+      // Reset chọn ảnh nếu có
+      isSelectionMode = false;
+      selectedImages.clear();
+      updateSelectionUI();
+
+      // Về tab Hồ sơ ảnh, load ảnh + TSBĐ
+      switchTab('images');
+      renderAssets();
+    };
 }
-function closeFolder() { getEl('screen-folder').classList.add('translate-x-full'); currentCustomerId = null; loadCustomers(getEl('search-input').value); }
+function closeFolder() {
+  const folderScreen = getEl('screen-folder');
+  folderScreen.classList.add('translate-x-full');
+
+  // Defer heavy list reload until after the slide-out ends to avoid jank
+  const q = (getEl('search-input') && getEl('search-input').value) || '';
+  if (typeof afterTransition === 'function') {
+    afterTransition(folderScreen, () => {
+      currentCustomerId = null;
+      loadCustomers(q);
+    });
+  } else {
+    setTimeout(() => {
+      currentCustomerId = null;
+      loadCustomers(q);
+    }, 360);
+  }
+}
         function switchTab(tabName) { 
     const tabImages = getEl('tab-btn-images'); 
     const tabAssets = getEl('tab-btn-assets'); 

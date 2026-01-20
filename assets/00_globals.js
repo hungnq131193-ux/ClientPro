@@ -15,3 +15,32 @@
         let currentPin = '';
         let currentLightboxIndex = 0;
         let currentLightboxList = [];
+
+        // =======================
+        // UI PERF HELPERS
+        // =======================
+        // Standard slide transition in this app uses: transition-transform duration-300
+        // Avoid doing heavy work (IndexedDB getAll, decrypt, DOM render) during the animation
+        // to prevent jank and visual "flash" of stale screen content.
+        const UI_SLIDE_MS = 300;
+
+        function nextFrame(fn) {
+          try { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+          catch (e) { setTimeout(fn, 0); }
+        }
+
+        function afterTransition(el, cb, ms = UI_SLIDE_MS) {
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            try { el && el.removeEventListener('transitionend', onEnd); } catch (e) {}
+            try { cb && cb(); } catch (e) {}
+          };
+          const onEnd = (ev) => {
+            if (el && ev && ev.target !== el) return;
+            finish();
+          };
+          try { el && el.addEventListener('transitionend', onEnd, { once: true }); } catch (e) {}
+          setTimeout(finish, (ms || 0) + 60);
+        }
