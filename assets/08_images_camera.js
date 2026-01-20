@@ -34,19 +34,15 @@ function openAssetGallery(id, name, idx) {
   const asset = currentCustomerData.assets[idx];
 
   if (asset) {
-    // --- SỬA LỖI Ở ĐÂY: Giải mã dữ liệu trước khi hiển thị ---
-    // 1. Tên tài sản (Giải mã từ object asset thay vì dùng tham số name có thể bị lỗi)
-    getEl("gallery-asset-name").textContent = decryptText(asset.name);
-
-    // 2. Định giá & Vay Max (Giải mã)
-    getEl("gallery-asset-val").textContent =
-      decryptText(asset.valuation) || "--";
-    getEl("gallery-asset-loan").textContent =
-      decryptText(asset.loanValue) || "--";
+    // --- PERF: ưu tiên cache __dec nếu đã được chuẩn bị (tránh decrypt lặp) ---
+    const d = asset.__dec || {};
+    getEl("gallery-asset-name").textContent = (d.name !== undefined ? d.name : decryptText(asset.name)) || "";
+    getEl("gallery-asset-val").textContent = (d.valuation !== undefined ? d.valuation : decryptText(asset.valuation)) || "--";
+    getEl("gallery-asset-loan").textContent = (d.loanValue !== undefined ? d.loanValue : decryptText(asset.loanValue)) || "--";
 
     // Kiểm tra link Drive của tài sản
     if (typeof renderAssetDriveStatus === "function") {
-      renderAssetDriveStatus(asset.driveLink);
+      renderAssetDriveStatus(d.driveLink !== undefined ? d.driveLink : asset.driveLink);
     }
   } else {
     // Fallback nếu không tìm thấy tài sản
@@ -133,6 +129,51 @@ function dataURLtoBlob(dataurl) {
   }
   return new Blob([u8arr], { type: mime });
 }
+
+// =======================
+// PERF: Lazy decode base64 images
+// - Giảm spike khi mở tab ảnh/kho ảnh (tránh decode hàng loạt trên main-thread)
+// - Vẫn giữ nguyên chức năng chọn/zoom/lightbox
+// =======================
+let __lazyImgObserver;
+function _ensureLazyImgObserver() {
+  if (__lazyImgObserver) return __lazyImgObserver;
+  if (typeof IntersectionObserver !== 'function') return null;
+
+  __lazyImgObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((en) => {
+        if (!en.isIntersecting) return;
+        const img = en.target;
+        const src = img && img.dataset ? img.dataset.src : null;
+        if (src && !img.src) {
+          img.src = src;
+        }
+        try { __lazyImgObserver.unobserve(img); } catch (e) {}
+      });
+    },
+    { root: null, rootMargin: '200px 0px', threshold: 0.01 }
+  );
+
+  return __lazyImgObserver;
+}
+
+function _attachLazySrc(imgEl, dataUrl) {
+  const obs = _ensureLazyImgObserver();
+  if (imgEl) {
+    imgEl.loading = 'lazy';
+    imgEl.decoding = 'async';
+  }
+  if (!obs) {
+    // Fallback: set src ngay (trình duyệt cũ)
+    if (imgEl) imgEl.src = dataUrl;
+    return;
+  }
+  if (imgEl) {
+    imgEl.dataset.src = dataUrl;
+    try { obs.observe(imgEl); } catch (e) { imgEl.src = dataUrl; }
+  }
+}
 async function shareSelectedImages() {
   if (!selectedImages.size) return;
   getEl("loader").classList.remove("hidden");
@@ -202,23 +243,45 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
       grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
       return;
     }
+
     const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-    imgs.forEach((img, idx) => {
-      const div = document.createElement("div");
-      div.className =
-        "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
-      if (isSelectionMode && selectedImages.has(img.id))
-        div.classList.add("selected");
-      const ringHtml = isSelectionMode
-        ? `<div class="select-ring">${svgCheck}</div>`
-        : "";
-      div.innerHTML = `<img src="${img.data}" class="pointer-events-none">${ringHtml}`;
-      div.onclick = () => {
-        if (isSelectionMode) toggleImage(img.id, div);
-        else openLightbox(img.data, img.id, idx, imgs);
-      };
-      grid.appendChild(div);
-    });
+
+    let i = 0;
+    const CHUNK = 24;
+    const renderChunk = () => {
+      const frag = document.createDocumentFragment();
+      const end = Math.min(i + CHUNK, imgs.length);
+      for (; i < end; i++) {
+        const img = imgs[i];
+        const div = document.createElement("div");
+        div.className = "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
+        if (isSelectionMode && selectedImages.has(img.id)) div.classList.add("selected");
+
+        const imgEl = document.createElement('img');
+        imgEl.className = 'pointer-events-none';
+        _attachLazySrc(imgEl, img.data);
+
+        div.appendChild(imgEl);
+
+        if (isSelectionMode) {
+          const ring = document.createElement('div');
+          ring.className = 'select-ring';
+          ring.innerHTML = svgCheck;
+          div.appendChild(ring);
+        }
+
+        const idx = i;
+        div.onclick = () => {
+          if (isSelectionMode) toggleImage(img.id, div);
+          else openLightbox(img.data, img.id, idx, imgs);
+        };
+        frag.appendChild(div);
+      }
+      grid.appendChild(frag);
+      if (i < imgs.length) requestAnimationFrame(renderChunk);
+    };
+
+    requestAnimationFrame(renderChunk);
   };
 }
 function loadProfileImages() {
@@ -240,23 +303,44 @@ function loadAssetImages(id) {
       grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
       return;
     }
+
     const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-    imgs.forEach((img, idx) => {
-      const div = document.createElement("div");
-      div.className =
-        "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
-      if (isSelectionMode && selectedImages.has(img.id))
-        div.classList.add("selected");
-      const ringHtml = isSelectionMode
-        ? `<div class="select-ring">${svgCheck}</div>`
-        : "";
-      div.innerHTML = `<img src="${img.data}" class="pointer-events-none">${ringHtml}`;
-      div.onclick = () => {
-        if (isSelectionMode) toggleImage(img.id, div);
-        else openLightbox(img.data, img.id, idx, imgs);
-      };
-      grid.appendChild(div);
-    });
+
+    let i = 0;
+    const CHUNK = 24;
+    const renderChunk = () => {
+      const frag = document.createDocumentFragment();
+      const end = Math.min(i + CHUNK, imgs.length);
+      for (; i < end; i++) {
+        const img = imgs[i];
+        const div = document.createElement("div");
+        div.className = "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
+        if (isSelectionMode && selectedImages.has(img.id)) div.classList.add("selected");
+
+        const imgEl = document.createElement('img');
+        imgEl.className = 'pointer-events-none';
+        _attachLazySrc(imgEl, img.data);
+        div.appendChild(imgEl);
+
+        if (isSelectionMode) {
+          const ring = document.createElement('div');
+          ring.className = 'select-ring';
+          ring.innerHTML = svgCheck;
+          div.appendChild(ring);
+        }
+
+        const idx = i;
+        div.onclick = () => {
+          if (isSelectionMode) toggleImage(img.id, div);
+          else openLightbox(img.data, img.id, idx, imgs);
+        };
+
+        frag.appendChild(div);
+      }
+      grid.appendChild(frag);
+      if (i < imgs.length) requestAnimationFrame(renderChunk);
+    };
+    requestAnimationFrame(renderChunk);
   };
 }
 

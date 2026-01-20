@@ -210,6 +210,21 @@
   let st = 0;
   let cooldownUntil = 0;
 
+  // PERF: Chỉ gắn touchmove (passive:false) khi thật sự bắt đầu edge-swipe.
+  // Tránh ảnh hưởng scroll performance toàn app.
+  let __moveBound = false;
+  function bindMove() {
+    if (__moveBound) return;
+    __moveBound = true;
+    document.addEventListener('touchmove', onMove, { passive: false });
+  }
+  function unbindMove() {
+    if (!__moveBound) return;
+    __moveBound = false;
+    // capture must match; passive flag is ignored for remove in most browsers but keep capture explicit
+    document.removeEventListener('touchmove', onMove, { capture: false });
+  }
+
   function onStart(e) {
     if (Date.now() < cooldownUntil) return;
     if (!e.changedTouches || e.changedTouches.length !== 1) return;
@@ -232,6 +247,9 @@
     sx = t.clientX;
     sy = t.clientY;
     st = Date.now();
+
+    // Gắn touchmove only during active gesture
+    bindMove();
   }
 
   function onMove(e) {
@@ -261,6 +279,7 @@
   function onEnd(e) {
     if (!tracking) return;
     tracking = false;
+    unbindMove();
     if (!horizontal) return;
     if (!e.changedTouches || e.changedTouches.length !== 1) return;
 
@@ -284,9 +303,8 @@
 
   function init() {
     document.addEventListener('touchstart', onStart, { passive: false });
-    document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend', onEnd, { passive: true });
-    document.addEventListener('touchcancel', function () { tracking = false; }, { passive: true });
+    document.addEventListener('touchcancel', function () { tracking = false; unbindMove(); }, { passive: true });
 
     // History sentinel: helps keep user inside app for browser back & hardware back
     try {

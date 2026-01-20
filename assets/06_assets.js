@@ -116,15 +116,16 @@ function renderAssets() {
     el.style.border = "1px solid rgba(255,255,255,0.12)";
 
     // --- GIẢI MÃ DỮ LIỆU (DECRYPT) ---
-    // Nếu ô nào lưu rỗng, hàm decryptText sẽ trả về rỗng -> Không hiện chuỗi mã hóa nữa
-    const decName = decryptText(asset.name) || "";
-    const decLink = decryptText(asset.link) || "";
-    const decVal = decryptText(asset.valuation) || "";
-    const decLoan = decryptText(asset.loanValue) || "";
-    const decArea = decryptText(asset.area) || "";
-    const decWidth = decryptText(asset.width) || "";
-    const decYear = decryptText(asset.year) || "";
-    const decOnland = decryptText(asset.onland) || "";
+    // PERF: nếu đã có cache __dec (được chuẩn bị bởi decryptCustomerAssetsAsync) thì dùng để tránh decrypt lặp.
+    const d = asset.__dec || {};
+    const decName = (d.name !== undefined ? d.name : decryptText(asset.name)) || "";
+    const decLink = (d.link !== undefined ? d.link : decryptText(asset.link)) || "";
+    const decVal = (d.valuation !== undefined ? d.valuation : decryptText(asset.valuation)) || "";
+    const decLoan = (d.loanValue !== undefined ? d.loanValue : decryptText(asset.loanValue)) || "";
+    const decArea = (d.area !== undefined ? d.area : decryptText(asset.area)) || "";
+    const decWidth = (d.width !== undefined ? d.width : decryptText(asset.width)) || "";
+    const decYear = (d.year !== undefined ? d.year : decryptText(asset.year)) || "";
+    const decOnland = (d.onland !== undefined ? d.onland : decryptText(asset.onland)) || "";
 
     // Escape HTML để an toàn
     const safeName = escapeHTML(decName);
