@@ -120,6 +120,18 @@
     return { ok: false, message: 'Server response invalid' };
   }
 
+  // GAS-safe POST helper:
+  // Use application/x-www-form-urlencoded so Apps Script can read e.parameter.action reliably.
+  function _toFormBody(obj) {
+    const p = new URLSearchParams();
+    Object.keys(obj || {}).forEach((k) => {
+      const v = obj[k];
+      if (v === undefined || v === null) return;
+      p.append(k, String(v));
+    });
+    return p.toString();
+  }
+
   function esc(s) {
     if (typeof escapeHTML === 'function') return escapeHTML(s);
     return String(s || '')
@@ -345,6 +357,9 @@
     });
   }
 
+  // =========================
+  // FIXED: POST form-urlencoded (GAS safe)
+  // =========================
   async function uploadBackupToUser(targetUser, backupRec) {
     await ensureAuthOrThrow();
     if (!targetUser || !targetUser.employeeId) throw new Error('Thiếu user đích');
@@ -352,7 +367,7 @@
 
     // Normalize cipher payload:
     // - Some environments may provide a DataURL (data:...;base64,....)
-    // - GAS can store either plain text (JSON envelope) or raw bytes (base64/base64url)
+    // - Server expects cipher_b64 (but it may actually be JSON envelope ciphertext)
     let cipherPayload = String(backupRec.encrypted || '').trim();
     if (cipherPayload.startsWith('data:')) {
       const idx = cipherPayload.indexOf('base64,');
@@ -363,9 +378,8 @@
       throw new Error('Backup quá lớn để gửi trực tiếp. Hãy Xuất file .cpb và gửi qua Zalo/Email.');
     }
 
-    // IMPORTANT: Use "simple request" Content-Type to avoid CORS preflight blocking on GAS WebApp.
-    // Also align payload with GAS normalizer: toEmployeeId + cipher_b64.
     const payload = {
+      action: 'upload_backup',
       employeeId: getEmployeeId(),
       deviceId: getDeviceIdSafe(),
       toEmployeeId: String(targetUser.employeeId || '').trim(),
@@ -377,10 +391,11 @@
       expiresAt: now() + TTL_HOURS * 60 * 60 * 1000,
     };
 
+    // MUST be form-urlencoded so GAS reads e.parameter.action and fields safely.
     const res = await fetchJSON(serverUrl(), {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'upload_backup', ...payload }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: _toFormBody(payload),
     });
 
     if (res && (res.status === 'success' || res.ok === true) && (res.transferId || (res.data && res.data.transferId))) {
@@ -421,6 +436,7 @@
     return { encrypted: cipher, meta: res.meta || (res.data ? res.data.meta : null) || null };
   }
 
+  // FIXED: delete also form-urlencoded (consistent, GAS safe)
   async function deleteInboxItem(transferId) {
     await ensureAuthOrThrow();
     const body = {
@@ -432,8 +448,8 @@
     try {
       await fetchJSON(serverUrl(), {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: _toFormBody(body),
       });
       return true;
     } catch (e) {
