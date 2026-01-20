@@ -2,7 +2,7 @@
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v3.6.4';
+const VERSION = 'v3.6.3';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -19,7 +19,7 @@ const LIMITS = {
 const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – đảm bảo đúng đường dẫn thực tế
-const STATIC_ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './splash-screen.png', './assets/styles.css', './assets/head.js', './assets/pwa.js', './assets/00_globals.js', './assets/01_config.js', './assets/02_security.js', './assets/03_map.js', './assets/04_ui_common.js', './assets/05_customers.js', './assets/06_assets.js', './assets/07_drive.js', './assets/08_images_camera.js', './assets/09_backup_weather_donate.js', './assets/10_bootstrap.js', './assets/11_edge_back_swipe.js', './assets/12_backup_core.js', './assets/13_ui_select_customers.js', './assets/14_cloud_transfer.js', './assets/15_auth_gate.js', './assets/ui/modal-backup.html', './assets/ui/modal-restore.html', './assets/ui/modal-transfer.html', './assets/ui/modal-map.html', './assets/ui/modal-confirm.html'];
+const STATIC_ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './splash-screen.png', './assets/styles.css', './assets/head.js', './assets/pwa.js', './assets/00_globals.js', './assets/01_config.js', './assets/02_security.js', './assets/03_map.js', './assets/04_ui_common.js', './assets/05_customers.js', './assets/06_assets.js', './assets/07_drive.js', './assets/08_images_camera.js', './assets/09_backup_weather_donate.js', './assets/10_bootstrap.js', './assets/11_edge_back_swipe.js', './assets/12_backup_core.js', './assets/13_ui_select_customers.js', './assets/14_cloud_transfer.js', './assets/15_auth_gate.js', './assets/ui/load_modals.js', './assets/ui/modals/screen-lock.html', './assets/ui/modals/setup-lock-modal.html', './assets/ui/modals/activation-modal.html', './assets/ui/modals/forgot-pin-modal.html', './assets/ui/modals/add-modal.html', './assets/ui/modals/asset-modal.html', './assets/ui/modals/guide-modal.html', './assets/ui/modals/approve-modal.html', './assets/ui/modals/ref-price-modal.html', './assets/ui/modals/donate-modal.html', './assets/ui/modals/camera-modal.html', './assets/ui/modals/qr-modal.html', './assets/ui/modals/backup-manager-modal.html'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
