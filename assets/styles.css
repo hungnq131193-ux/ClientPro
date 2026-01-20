@@ -297,39 +297,6 @@ body.theme-mono {
   will-change: transform, opacity;
   transform: translateZ(0);
 }
-
-/* PERF: Lite glass panel for long scrolling lists (avoid heavy blur/shadow per item) */
-.glass-panel-lite {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  position: relative;
-  z-index: 5;
-}
-.glass-panel-lite.selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* Customer list: status bar without per-item inline boxShadow */
-.cust-card::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 4px;
-  border-radius: 6px;
-  opacity: 0.9;
-}
-.cust-card.cust-approved::before {
-  background: rgba(16, 185, 129, 0.9);
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25);
-}
-.cust-card.cust-pending::before {
-  background: rgba(99, 102, 241, 0.9);
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
-}
 .glass-header {
   background: var(--header-bg);
   backdrop-filter: blur(16px) saturate(180%);
