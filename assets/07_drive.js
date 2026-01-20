@@ -24,61 +24,20 @@ function _isCryptoJSCiphertext(s) {
 function _safeDecryptMaybe(s) {
     if (s == null) return '';
     const str = String(s);
-  // Best-effort deep decrypt: handle legacy and rare double-encryption cases.
-  // Do NOT return ciphertext when we can unwrap it.
-  let cur = str;
-  for (let i = 0; i < 3; i++) {
-    if (!_isCryptoJSCiphertext(cur)) break;
     try {
-      if (typeof decryptText === 'function') {
-        const out = decryptText(cur);
-        if (typeof out === 'string' && out.length > 0 && out !== cur) {
-          cur = out;
-          continue;
+        if (typeof decryptText === 'function') {
+            const out = decryptText(str);
+            // decryptText() in this app usually returns the input when it cannot decrypt.
+            // Only accept a decrypted value if it is a non-empty string.
+            if (typeof out === 'string' && out.length > 0) return out;
         }
-      }
     } catch (e) {}
-    break;
-  }
-  return cur;
+    return str;
 }
 
 function _displayText(s) {
     const out = _safeDecryptMaybe(s);
     return (out && out !== 'undefined' && out !== 'null') ? out : '';
-}
-
-// Build a stable plaintext name for Drive folder operations.
-// - If asset.name is legacy ciphertext, try decrypt; if successful, migrate it to plaintext
-//   so future reconnects work even before assets are fully loaded.
-function _getAssetNamePlainForDrive(asset) {
-    if (!asset) return '';
-    const raw = asset.name;
-    const dec = _safeDecryptMaybe(raw);
-    const decStr = (dec && dec !== 'undefined' && dec !== 'null') ? String(dec) : '';
-
-    // If we can decrypt legacy ciphertext into readable plaintext, persist migration.
-    try {
-        if (
-            typeof raw === 'string' &&
-            raw.startsWith('U2FsdGVkX1') &&
-            decStr &&
-            decStr !== raw &&
-            !decStr.startsWith('U2FsdGVkX1')
-        ) {
-            asset.name = decStr;
-            // Best-effort persist without blocking UI.
-            setTimeout(() => {
-                try {
-                    if (typeof db !== 'undefined' && currentCustomerData) {
-                        db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
-                    }
-                } catch (e) {}
-            }, 0);
-        }
-    } catch (e) {}
-
-    return decStr;
 }
 
 function _normalizeDriveUrl(url) {
@@ -261,7 +220,7 @@ async function uploadAssetToDrive() {
             return alert("Tài sản này chưa có ảnh nào!");
         }
 
-        const assetNamePlain = _getAssetNamePlainForDrive(currentAsset);
+        const assetNamePlain = _displayText(currentAsset.name);
         if (!confirm(`Tải lên ${imagesToUpload.length} ảnh của tài sản "${assetNamePlain}" lên Drive?`)) {
             getEl('loader').classList.add('hidden');
             return;
@@ -364,9 +323,46 @@ async function reconnectAssetDriveFolder() {
     getEl('loader').classList.remove('hidden');
     getEl('loader-text').textContent = "Đang tìm TSBĐ...";
     
+    // IMPORTANT:
+    // Nhiều build dùng decryptCustomerSummary() để tăng hiệu năng danh sách khách hàng.
+    // Hàm này cố tình KHÔNG giải mã assets => asset.name có thể vẫn là ciphertext (U2FsdGVk...).
+    // Vì vậy, khi "Tìm kết nối cũ" phải lấy tên TSBĐ theo nguồn UI (đã hiển thị plaintext)
+    // hoặc giải mã best-effort, thay vì dùng trực tiếp asset.name trong bộ nhớ.
     const custNamePlain = _displayText(currentCustomerData.name);
-    const assetNamePlain = _getAssetNamePlainForDrive(currentCustomerData.assets[assetIndex]);
+
+    let assetNamePlain = '';
+    // 1) Ưu tiên lấy từ UI gallery (đã decrypt để hiển thị)
+    try {
+        const uiName = (getEl && getEl('gallery-asset-name') ? getEl('gallery-asset-name').textContent : '') || '';
+        const uiTrim = String(uiName).trim();
+        if (uiTrim && !_isCryptoJSCiphertext(uiTrim)) assetNamePlain = uiTrim;
+    } catch (e) {}
+    // 2) Fallback: decrypt từ data hiện tại
+    if (!assetNamePlain) assetNamePlain = _displayText(currentCustomerData.assets[assetIndex].name);
+    // 3) Nếu vẫn là ciphertext thì không dựng folderName sai; báo rõ để tránh tìm sai.
+    if (!assetNamePlain || _isCryptoJSCiphertext(assetNamePlain)) {
+        getEl('loader').classList.add('hidden');
+        alert('Không thể đọc tên TSBĐ (dữ liệu cũ đang mã hóa). Vui lòng mở Kho Ảnh TSBĐ để app tự giải mã tên, rồi thử lại.');
+        return;
+    }
+
     const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
+
+    // Auto-migrate: nếu asset.name đang là ciphertext nhưng UI đã có plaintext, lưu ngược lại DB để lần sau ổn định.
+    try {
+        const rawName = currentCustomerData.assets[assetIndex].name;
+        if (_isCryptoJSCiphertext(String(rawName)) && assetNamePlain) {
+            const txM = db.transaction(['customers'], 'readwrite');
+            const stM = txM.objectStore('customers');
+            stM.get(currentCustomerData.id).onsuccess = (e) => {
+                const rec = e.target.result;
+                if (rec && rec.assets && rec.assets[assetIndex]) {
+                    rec.assets[assetIndex].name = assetNamePlain;
+                    stM.put(rec);
+                }
+            };
+        }
+    } catch (e) {}
 
     try {
         const response = await fetch(userUrl, {
