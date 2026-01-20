@@ -103,6 +103,25 @@ function renderAssets() {
   list.innerHTML = "";
   const assets = currentCustomerData.assets || [];
 
+  // Try to fully unwrap old/double-encrypted labels (best-effort).
+  // Some historical records could be encrypted more than once during migrations.
+  function _deepDecryptLabel(v) {
+    if (v === undefined || v === null) return "";
+    let s = String(v);
+    for (let i = 0; i < 3; i++) {
+      if (!s.startsWith("U2FsdGVkX1")) break;
+      try {
+        if (typeof decryptText !== "function") break;
+        const out = decryptText(s);
+        if (!out || out === s) break;
+        s = String(out);
+      } catch (e) {
+        break;
+      }
+    }
+    return s;
+  }
+
   // MIGRATION (backward compatibility):
   // Older app builds stored asset.name as CryptoJS ciphertext (starts with "U2FsdGVkX1").
   // This breaks Drive folder reconnect for TSBĐ because the folderName becomes encrypted.
@@ -123,20 +142,17 @@ function renderAssets() {
 
     // --- GIẢI MÃ DỮ LIỆU (DECRYPT) ---
     // Nếu ô nào lưu rỗng, hàm decryptText sẽ trả về rỗng -> Không hiện chuỗi mã hóa nữa
-    const decName = decryptText(asset.name) || asset.name || "";
+    const decName = _deepDecryptLabel(asset.name) || asset.name || "";
 
     // If name is still ciphertext but decryptText() produced a readable plaintext, persist it.
     // This is safe because asset.name is a display label (not used in cryptographic logic).
     try {
-      if (
-        typeof asset.name === "string" &&
-        asset.name.startsWith("U2FsdGVkX1") &&
-        decName &&
-        decName !== asset.name &&
-        !String(decName).startsWith("U2FsdGVkX1")
-      ) {
+      if (typeof asset.name === "string" && asset.name.startsWith("U2FsdGVkX1")) {
+        const dd = _deepDecryptLabel(asset.name);
+        if (dd && dd !== asset.name && !String(dd).startsWith("U2FsdGVkX1")) {
         asset.name = decName;
         _needSaveMigration = true;
+        }
       }
     } catch (e) {}
     const decLink = decryptText(asset.link) || "";

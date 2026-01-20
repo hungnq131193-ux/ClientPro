@@ -24,15 +24,23 @@ function _isCryptoJSCiphertext(s) {
 function _safeDecryptMaybe(s) {
     if (s == null) return '';
     const str = String(s);
+  // Best-effort deep decrypt: handle legacy and rare double-encryption cases.
+  // Do NOT return ciphertext when we can unwrap it.
+  let cur = str;
+  for (let i = 0; i < 3; i++) {
+    if (!_isCryptoJSCiphertext(cur)) break;
     try {
-        if (typeof decryptText === 'function') {
-            const out = decryptText(str);
-            // decryptText() in this app usually returns the input when it cannot decrypt.
-            // Only accept a decrypted value if it is a non-empty string.
-            if (typeof out === 'string' && out.length > 0) return out;
+      if (typeof decryptText === 'function') {
+        const out = decryptText(cur);
+        if (typeof out === 'string' && out.length > 0 && out !== cur) {
+          cur = out;
+          continue;
         }
+      }
     } catch (e) {}
-    return str;
+    break;
+  }
+  return cur;
 }
 
 function _displayText(s) {
