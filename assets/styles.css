@@ -2,6 +2,20 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 :root {
   --app-height: 100dvh;
+  /* iOS Safe Area (PWA/standalone). Defaults to 0 on Android/Desktop. */
+  --sat: 0px; /* safe-area-inset-top */
+  --sab: 0px; /* safe-area-inset-bottom */
+  --sal: 0px; /* safe-area-inset-left */
+  --sar: 0px; /* safe-area-inset-right */
+}
+
+@supports (padding: env(safe-area-inset-top)) {
+  :root {
+    --sat: env(safe-area-inset-top);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
+    --sar: env(safe-area-inset-right);
+  }
 }
 
 /* --- 1. CẤU HÌNH CƠ BẢN --- */
@@ -367,6 +381,13 @@ body.theme-mono {
 .app-container {
   height: 100%;
   width: 100%;
+  /* Respect iOS notch / status bar and home indicator. */
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+  box-sizing: border-box;
+  height: calc(100% - var(--sat) - var(--sab));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -704,4 +725,20 @@ input::placeholder {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
   width: 100%;
   margin-bottom: 16px; /* Cách các nút bên dưới ra */
+}
+
+
+/* --- iOS Safe-Area fixes for fixed overlays (avoid status bar / notch overlap) --- */
+#toast {
+  top: calc(3rem + var(--sat)); /* Tailwind top-12 */
+}
+#settings-menu {
+  top: calc(5rem + var(--sat)); /* Tailwind top-20 */
+}
+#cust-selection-bar,
+#selection-bar {
+  padding-bottom: calc(2rem + var(--sab)); /* Tailwind pb-8 + safe-area */
+}
+#lightbox button[onclick="closeLightbox()"] {
+  top: calc(1.5rem + var(--sat)); /* Tailwind top-6 */
 }
