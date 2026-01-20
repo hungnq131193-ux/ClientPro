@@ -381,13 +381,22 @@ body.theme-mono {
 .app-container {
   height: 100%;
   width: 100%;
-  /* Respect iOS notch / status bar and home indicator. */
+  /* Respect iOS notch / status bar. */
   padding-top: var(--sat);
-  padding-bottom: var(--sab);
+  /*
+    IMPORTANT:
+    Do NOT apply safe-area bottom padding at the screen container level.
+    On iOS, `var(--sab)` is typically ~34px (home indicator).
+    If we add bottom padding here, any bottom action buttons placed in normal
+    layout flow (e.g. Home: “Bản đồ / Thêm mới”) will be pushed up and look
+    “too high”.
+    Instead, we apply safe-area bottom padding only to FIXED bars/overlays.
+  */
+  padding-bottom: 0px;
   padding-left: var(--sal);
   padding-right: var(--sar);
   box-sizing: border-box;
-  height: calc(100% - var(--sat) - var(--sab));
+  height: calc(100% - var(--sat));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -420,7 +429,8 @@ body.theme-mono {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  padding-bottom: 140px;
+  /* Reserve space for bottom action area + iOS home indicator safe-area. */
+  padding-bottom: calc(140px + var(--sab));
 }
 .custom-scrollbar::-webkit-scrollbar {
   width: 3px;
