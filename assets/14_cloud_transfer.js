@@ -350,6 +350,15 @@
     if (!targetUser || !targetUser.employeeId) throw new Error('Thiếu user đích');
     if (!backupRec || !backupRec.encrypted) throw new Error('Thiếu dữ liệu backup');
 
+    // Normalize cipher payload:
+    // - Some environments may provide a DataURL (data:...;base64,....)
+    // - GAS can store either plain text (JSON envelope) or raw bytes (base64/base64url)
+    let cipherPayload = String(backupRec.encrypted || '').trim();
+    if (cipherPayload.startsWith('data:')) {
+      const idx = cipherPayload.indexOf('base64,');
+      if (idx !== -1) cipherPayload = cipherPayload.slice(idx + 'base64,'.length).trim();
+    }
+
     if (backupRec.size && backupRec.size > MAX_SEND_BYTES) {
       throw new Error('Backup quá lớn để gửi trực tiếp. Hãy Xuất file .cpb và gửi qua Zalo/Email.');
     }
@@ -361,7 +370,7 @@
       deviceId: getDeviceIdSafe(),
       toEmployeeId: String(targetUser.employeeId || '').trim(),
       filename: backupRec.filename || `CLIENTPRO_BK_${Date.now()}.cpb`,
-      cipher_b64: String(backupRec.encrypted || ''),
+      cipher_b64: cipherPayload,
       size: Number(backupRec.size || 0),
       hash: String(backupRec.hash || ''),
       createdAt: Number(backupRec.createdAt || now()),
