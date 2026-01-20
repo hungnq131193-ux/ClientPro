@@ -144,81 +144,152 @@
             else { tabPending.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 text-slate-400 hover:text-white"; tabApproved.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 bg-emerald-500/10 text-emerald-400 shadow-md border border-emerald-500/20"; }
             loadCustomers(getEl('search-input').value);
         }
-        function loadCustomers(query = '') {
+
+        // =======================
+        // PERF: CUSTOMER LIST
+        // - Cache decrypt summary theo signature (tránh decrypt lặp khi search/chuyển tab)
+        // - Render theo batch (rAF) để tránh block UI
+        // - Chỉ gọi lucide.createIcons() 1 lần sau khi render xong
+        // =======================
+        const __custSummaryCache = window.__custSummaryCache || (window.__custSummaryCache = new Map());
+        function _custSig(c) {
+            // Dùng ciphertext làm signature để không cần decrypt khi so sánh
+            return `${c && c.id ? c.id : ''}|${c && c.name ? c.name : ''}|${c && c.phone ? c.phone : ''}|${c && c.cccd ? c.cccd : ''}|${c && c.status ? c.status : ''}|${c && c.creditLimit ? c.creditLimit : ''}`;
+        }
+
+        async function loadCustomers(query = '') {
             if (!db) return;
-            const tx = db.transaction(['customers'], 'readonly');
-            tx.objectStore('customers').getAll().onsuccess = (e) => {
-                let list = e.target.result || [];
-                // Tối ưu: chỉ giải mã trường cần thiết cho LIST để tránh giật/đơ (assets sẽ giải mã khi mở folder)
-                list.forEach(c => {
-                    if (!c.assets) c.assets = [];
-                    if (!c.status) c.status = 'pending';
+            const q = (query || '').trim();
+
+            // Optional: hiển thị placeholder nhẹ để tránh cảm giác "đơ"
+            const listEl = getEl('customer-list');
+            if (listEl && !listEl.dataset.loading) {
+                listEl.dataset.loading = '1';
+            }
+
+            const list = await new Promise((resolve) => {
+                const tx = db.transaction(['customers'], 'readonly');
+                const req = tx.objectStore('customers').getAll();
+                req.onsuccess = (e) => resolve(e.target.result || []);
+                req.onerror = () => resolve([]);
+            });
+
+            let out = list || [];
+            // Tối ưu: chỉ giải mã trường cần thiết cho LIST (assets sẽ giải mã khi mở folder)
+            const batch = 50;
+            for (let i = 0; i < out.length; i++) {
+                const c = out[i];
+                if (!c) continue;
+                if (!c.assets) c.assets = [];
+                if (!c.status) c.status = 'pending';
+
+                const sig = _custSig(c);
+                const cached = __custSummaryCache.get(c.id);
+                if (cached && cached.sig === sig) {
+                    c.name = cached.name;
+                    c.phone = cached.phone;
+                    c.cccd = cached.cccd;
+                } else {
                     if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(c);
                     else decryptCustomerObject(c);
-                });
-                // Lọc theo tab trạng thái
-                list = list.filter(c => c.status === activeListTab);
-                if (query) {
-                    const q = query.toLowerCase();
-                    list = list.filter(c => {
-                        const nameMatch = (c.name || '').toLowerCase().includes(q);
-                        const phoneMatch = (c.phone || '').includes(q);
-                        return nameMatch || phoneMatch;
-                    });
+                    __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd });
                 }
-                list.sort((a, b) => b.createdAt - a.createdAt);
-                renderList(list);
-            };
+
+                // yield theo batch để tránh block main-thread
+                if ((i + 1) % batch === 0) {
+                    // eslint-disable-next-line no-await-in-loop
+                    await new Promise((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(r) : setTimeout(r, 0)));
+                }
+            }
+
+            // Lọc theo tab trạng thái
+            out = out.filter(c => c && c.status === activeListTab);
+            if (q) {
+                const qq = q.toLowerCase();
+                out = out.filter(c => {
+                    const nameMatch = (c.name || '').toLowerCase().includes(qq);
+                    const phoneMatch = (c.phone || '').includes(qq);
+                    return nameMatch || phoneMatch;
+                });
+            }
+            out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            renderList(out);
         }
+
         function renderList(list) {
-    const listEl = getEl('customer-list'); if(!listEl) return; listEl.innerHTML = '';
-    if (list.length === 0) { listEl.innerHTML = `<div class="text-center py-32 opacity-40 flex flex-col items-center"><i data-lucide="inbox" class="w-16 h-16 mb-4 stroke-1"></i><p class="text-xs font-bold uppercase tracking-wider">Danh sách trống</p></div>`; lucide.createIcons(); return; }
-    
-    const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-    
-    const frag = document.createDocumentFragment();
-    list.forEach(c => {
-        const isApproved = activeListTab === 'approved'; 
-        const el = document.createElement('div');
-        
-        // SỬA: Dùng shadow thay cho border-l để viền full trong suốt
-        const statusColor = isApproved ? '#10b981' : '#6366f1';
-        el.className = `glass-panel p-4 rounded-2xl mb-3 flex items-center gap-4 transition-all duration-200 hover:bg-white/5 active:scale-[0.98] ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
-        
-        // Thêm style border mờ + shadow màu bên trái
-        el.style.border = '1px solid rgba(255,255,255,0.1)';
-        el.style.boxShadow = `inset 4px 0 0 0 ${statusColor}, 0 4px 10px rgba(0,0,0,0.1)`;
+            const listEl = getEl('customer-list');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+            delete listEl.dataset.loading;
 
-        el.onclick = (e) => { if(e.target.closest('.action-btn')) return; if(isCustSelectionMode) toggleCustomerSelection(c.id, el); else openFolder(c.id); };
-        
-        const limitHtml = isApproved ? `<p class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded mt-1.5 w-fit border border-emerald-500/20 tracking-wider">HM: ${c.creditLimit || '0'}</p>` : `<p class="text-[10px] text-slate-400 mt-1 italic opacity-60">Đang thẩm định...</p>`;
-        const checkIcon = isCustSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
-        
-        // Escape dynamic values to prevent XSS
-        const safeName = escapeHTML(c.name || '');
-        const safePhone = escapeHTML(c.phone || '');
-        const safeInitial = escapeHTML((c.name || '').charAt(0).toUpperCase());
+            if (!list || list.length === 0) {
+                listEl.innerHTML = `<div class="text-center py-32 opacity-40 flex flex-col items-center"><i data-lucide="inbox" class="w-16 h-16 mb-4 stroke-1"></i><p class="text-xs font-bold uppercase tracking-wider">Danh sách trống</p></div>`;
+                try { lucide.createIcons(); } catch (e) {}
+                return;
+            }
 
-        // SỬA: Nút Gọi/Zalo dùng class glass-btn
-        el.innerHTML = `
-            ${checkIcon}
-            <div class="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 border border-white/10 shadow-inner ${isApproved ? 'bg-emerald-500/10 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'}">
-                ${safeInitial}
-            </div>
-            <div class="flex-1 min-w-0">
-                <h3 class="font-bold text-white truncate text-base mb-0.5 leading-tight">${safeName}</h3>
-                <p class="text-xs text-slate-400 font-mono flex items-center gap-1.5"><i data-lucide="smartphone" class="w-3 h-3 opacity-70"></i> ${safePhone}</p>
-                ${limitHtml}
-            </div>
-            <div class="flex gap-2.5">
-                <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-10 h-10 flex items-center justify-center text-blue-400 rounded-xl"><i data-lucide="message-circle" class="w-5 h-5"></i></a>
-                <a href="tel:${c.phone}" class="action-btn glass-btn w-10 h-10 flex items-center justify-center text-green-400 rounded-xl"><i data-lucide="phone" class="w-5 h-5"></i></a>
-            </div>`;
-        frag.appendChild(el);
-    });
-    listEl.appendChild(frag);
-    lucide.createIcons();
-}
+            const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+            let i = 0;
+            const CHUNK = 18;
+
+            const renderChunk = () => {
+                const frag = document.createDocumentFragment();
+                const end = Math.min(i + CHUNK, list.length);
+
+                for (; i < end; i++) {
+                    const c = list[i];
+                    const isApproved = activeListTab === 'approved';
+                    const el = document.createElement('div');
+
+                    // Lite glass panel cho list để giảm GPU cost (blur/shadow)
+                    el.className = `glass-panel-lite cust-card ${isApproved ? 'cust-approved' : 'cust-pending'} p-4 rounded-2xl mb-3 flex items-center gap-4 transition-all duration-200 hover:bg-white/5 active:scale-[0.98] ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
+
+                    el.onclick = (e) => {
+                        if (e.target && e.target.closest && e.target.closest('.action-btn')) return;
+                        if (isCustSelectionMode) toggleCustomerSelection(c.id, el);
+                        else openFolder(c.id);
+                    };
+
+                    const limitHtml = isApproved
+                        ? `<p class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded mt-1.5 w-fit border border-emerald-500/20 tracking-wider">HM: ${c.creditLimit || '0'}</p>`
+                        : `<p class="text-[10px] text-slate-400 mt-1 italic opacity-60">Đang thẩm định...</p>`;
+                    const checkIcon = isCustSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
+
+                    // Escape dynamic values to prevent XSS
+                    const safeName = escapeHTML(c.name || '');
+                    const safePhone = escapeHTML(c.phone || '');
+                    const safeInitial = escapeHTML((c.name || '').charAt(0).toUpperCase());
+
+                    el.innerHTML = `
+                        ${checkIcon}
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 border border-white/10 shadow-inner ${isApproved ? 'bg-emerald-500/10 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'}">
+                            ${safeInitial}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-bold text-white truncate text-base mb-0.5 leading-tight">${safeName}</h3>
+                            <p class="text-xs text-slate-400 font-mono flex items-center gap-1.5"><i data-lucide="smartphone" class="w-3 h-3 opacity-70"></i> ${safePhone}</p>
+                            ${limitHtml}
+                        </div>
+                        <div class="flex gap-2.5">
+                            <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-10 h-10 flex items-center justify-center text-blue-400 rounded-xl"><i data-lucide="message-circle" class="w-5 h-5"></i></a>
+                            <a href="tel:${c.phone}" class="action-btn glass-btn w-10 h-10 flex items-center justify-center text-green-400 rounded-xl"><i data-lucide="phone" class="w-5 h-5"></i></a>
+                        </div>`;
+
+                    frag.appendChild(el);
+                }
+
+                listEl.appendChild(frag);
+
+                if (i < list.length) {
+                    requestAnimationFrame(renderChunk);
+                } else {
+                    try { lucide.createIcons(); } catch (e) {}
+                }
+            };
+
+            requestAnimationFrame(renderChunk);
+        }
 
         function openModal() {
             getEl('add-modal').classList.remove('hidden');
@@ -239,6 +310,100 @@
             if (!m) return;
             m.classList.add('hidden');
             try { document.activeElement && document.activeElement.blur && document.activeElement.blur(); } catch (e) {}
+        }
+
+        // Create / Update customer (called from add-modal.html: onclick="saveCustomer()")
+        // IMPORTANT: Must keep existing data schema and encryption behavior.
+        function saveCustomer() {
+            try {
+                // Security gate: nếu chưa có masterKey thì không cho tạo/sửa để tránh lưu plaintext.
+                if (typeof masterKey === 'undefined' || !masterKey) {
+                    alert('BẢO MẬT: Chưa mở khóa dữ liệu. Vui lòng đăng nhập/mở khóa trước khi tạo hồ sơ.');
+                    return;
+                }
+
+                const nameEl = getEl('new-name');
+                const phoneEl = getEl('new-phone');
+                const cccdEl = getEl('new-cccd');
+                const idEl = getEl('edit-cust-id');
+
+                const name = (nameEl && nameEl.value ? String(nameEl.value) : '').trim();
+                const phone = (phoneEl && phoneEl.value ? String(phoneEl.value) : '').trim();
+                const cccd = (cccdEl && cccdEl.value ? String(cccdEl.value) : '').trim();
+                const editId = (idEl && idEl.value ? String(idEl.value) : '').trim();
+
+                if (!name) {
+                    alert('Vui lòng nhập Tên khách hàng.');
+                    try { nameEl && nameEl.focus && nameEl.focus(); } catch (e) {}
+                    return;
+                }
+
+                // Phone có thể để trống (tùy user), nhưng nếu có thì chuẩn hóa số.
+                const phoneNorm = phone.replace(/\s+/g, '');
+
+                const makeId = () => `cust_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+                const tx = db.transaction(['customers'], 'readwrite');
+                const store = tx.objectStore('customers');
+
+                tx.onerror = () => {
+                    alert('Lỗi lưu hồ sơ. Vui lòng thử lại.');
+                };
+
+                const finalize = (savedId) => {
+                    closeModal();
+                    try { showToast(editId ? 'Đã cập nhật hồ sơ' : 'Đã tạo hồ sơ'); } catch (e) {}
+                    // Refresh list (giữ nguyên search hiện tại nếu có)
+                    try { loadCustomers(getEl('search-input') ? getEl('search-input').value : ''); } catch (e) { try { loadCustomers(); } catch (e2) {} }
+                    // UX: tạo mới xong vào luôn folder để thao tác tiếp
+                    if (!editId && savedId) {
+                        try { openFolder(savedId); } catch (e) {}
+                    }
+                };
+
+                if (editId) {
+                    // Update existing record: giữ lại assets/status/creditLimit/driveLink/createdAt...
+                    const req = store.get(editId);
+                    req.onsuccess = (e) => {
+                        const old = e.target.result;
+                        if (!old) {
+                            alert('Không tìm thấy hồ sơ để cập nhật.');
+                            return;
+                        }
+
+                        old.name = encryptText(name);
+                        old.phone = encryptText(phoneNorm);
+                        old.cccd = encryptText(cccd);
+                        // Defensive defaults
+                        if (!old.status) old.status = 'pending';
+                        if (!old.assets) old.assets = [];
+                        if (old.creditLimit === undefined) old.creditLimit = '';
+                        if (old.driveLink === undefined) old.driveLink = null;
+
+                        store.put(old).onsuccess = () => finalize(editId);
+                    };
+                    req.onerror = () => alert('Lỗi đọc hồ sơ để cập nhật.');
+                } else {
+                    // Create new record
+                    const newId = makeId();
+                    const rec = {
+                        id: newId,
+                        name: encryptText(name),
+                        phone: encryptText(phoneNorm),
+                        cccd: encryptText(cccd),
+                        createdAt: Date.now(),
+                        status: 'pending',
+                        creditLimit: '',
+                        assets: [],
+                        driveLink: null,
+                    };
+
+                    store.put(rec).onsuccess = () => finalize(newId);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Có lỗi xảy ra khi lưu hồ sơ.');
+            }
         }
         
         function deleteCurrentCustomer() { 
@@ -300,8 +465,17 @@
       currentCustomerData = e.target.result;
       if (!currentCustomerData) return;
 
-      // Giải mã toàn bộ dữ liệu khách hàng trước khi sử dụng
-      decryptCustomerObject(currentCustomerData);
+      // PERF: chỉ giải mã summary trước để header hiện ngay.
+      // Assets sẽ decrypt theo batch ở background (không block UI).
+      try {
+        if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(currentCustomerData);
+        else {
+          currentCustomerData.name = decryptText(currentCustomerData.name);
+          currentCustomerData.phone = decryptText(currentCustomerData.phone);
+          currentCustomerData.cccd = decryptText(currentCustomerData.cccd);
+        }
+        currentCustomerData.driveLink = decryptText(currentCustomerData.driveLink);
+      } catch (err) {}
 
       // Sửa dữ liệu cũ nếu thiếu
       if (!currentCustomerData.status) currentCustomerData.status = 'pending';
@@ -322,7 +496,25 @@
 
       // Về tab Hồ sơ ảnh, load ảnh + TSBĐ
       switchTab('images');
-      renderAssets();
+
+      // Decrypt assets theo batch sau khi animation ổn định.
+      // Nếu người dùng chuyển sang tab TSBĐ, renderAssets sẽ dùng cache __dec để nhanh hơn.
+      const runDecryptAssets = async () => {
+        try {
+          if (typeof window.decryptCustomerAssetsAsync === 'function') {
+            await window.decryptCustomerAssetsAsync(currentCustomerData, { batchSize: 6 });
+          } else if (typeof window.decryptCustomerObjectAsync === 'function') {
+            await window.decryptCustomerObjectAsync(currentCustomerData, { batchSize: 6 });
+          }
+          const assetsPane = getEl('content-assets');
+          if (assetsPane && !assetsPane.classList.contains('hidden')) {
+            renderAssets();
+          }
+        } catch (err) {}
+      };
+
+      if (typeof afterTransition === 'function') afterTransition(folderScreen, runDecryptAssets);
+      else setTimeout(runDecryptAssets, 360);
     };
 }
 function closeFolder() {
