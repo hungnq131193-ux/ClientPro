@@ -152,7 +152,13 @@
         // - Chỉ gọi lucide.createIcons() 1 lần sau khi render xong
         // =======================
         const __custSummaryCache = window.__custSummaryCache || (window.__custSummaryCache = new Map());
-        function _custSig(c) {
+        // CryptoJS.AES.encrypt(passphrase) thường tạo ciphertext base64 bắt đầu bằng "U2FsdGVk".
+        // Khi app chưa unlock masterKey, decryptText() sẽ trả nguyên ciphertext.
+        // Nếu cache nhầm ciphertext, UI sẽ hiển thị chuỗi mã hóa ngay cả sau khi unlock.
+        function _looksEncrypted(v) {
+            return (typeof v === 'string') && v.startsWith('U2FsdGVk');
+        }
+function _custSig(c) {
             // Dùng ciphertext làm signature để không cần decrypt khi so sánh
             return `${c && c.id ? c.id : ''}|${c && c.name ? c.name : ''}|${c && c.phone ? c.phone : ''}|${c && c.cccd ? c.cccd : ''}|${c && c.status ? c.status : ''}|${c && c.creditLimit ? c.creditLimit : ''}`;
         }
@@ -185,14 +191,23 @@
 
                 const sig = _custSig(c);
                 const cached = __custSummaryCache.get(c.id);
-                if (cached && cached.sig === sig) {
+
+                // Chỉ dùng cache khi chắc chắn đã giải mã (tránh cache ciphertext lúc chưa unlock).
+                if (cached && cached.sig === sig && cached.ok === true) {
                     c.name = cached.name;
                     c.phone = cached.phone;
                     c.cccd = cached.cccd;
                 } else {
                     if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(c);
                     else decryptCustomerObject(c);
-                    __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd });
+
+                    const ok = !_looksEncrypted(c.name) && !_looksEncrypted(c.phone) && !_looksEncrypted(c.cccd);
+                    if (ok) {
+                        __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd, ok: true });
+                    } else {
+                        // Nếu vẫn là ciphertext (chưa unlock), không cache để lần sau unlock sẽ decrypt lại.
+                        __custSummaryCache.delete(c.id);
+                    }
                 }
 
                 // yield theo batch để tránh block main-thread
