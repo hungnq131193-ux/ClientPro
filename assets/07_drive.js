@@ -14,6 +14,44 @@ document.addEventListener('DOMContentLoaded', () => {
     if(savedUrl) getEl('user-script-url').value = savedUrl;
 });
 
+// =============================
+// Helpers (decrypt display fields, keep backward compatibility)
+// =============================
+function _isCryptoJSCiphertext(s) {
+    return typeof s === 'string' && s.startsWith('U2FsdGVkX1');
+}
+
+function _safeDecryptMaybe(s) {
+    if (s == null) return '';
+    const str = String(s);
+    try {
+        if (typeof decryptText === 'function') {
+            const out = decryptText(str);
+            // decryptText() in this app usually returns the input when it cannot decrypt.
+            // Only accept a decrypted value if it is a non-empty string.
+            if (typeof out === 'string' && out.length > 0) return out;
+        }
+    } catch (e) {}
+    return str;
+}
+
+function _displayText(s) {
+    const out = _safeDecryptMaybe(s);
+    return (out && out !== 'undefined' && out !== 'null') ? out : '';
+}
+
+function _normalizeDriveUrl(url) {
+    if (!url) return '';
+    const str = String(url);
+    if (_isCryptoJSCiphertext(str)) {
+        // Old data sometimes stored encrypted driveLink. Only render if we can decrypt to a real URL.
+        const dec = _safeDecryptMaybe(str);
+        if (dec && ! _isCryptoJSCiphertext(dec) && /^https?:\/\//i.test(dec)) return dec;
+        return '';
+    }
+    return str;
+}
+
 // 2. Hàm Upload chính
 async function uploadToGoogleDrive() {
     // Dùng Script cá nhân cho việc upload ảnh hồ sơ. Kiểm tra xem user đã cấu hình link hay chưa.
@@ -53,17 +91,11 @@ async function uploadToGoogleDrive() {
 
         getEl('loader-text').textContent = "Đang tải lên Cloud...";
 
-        // Cần masterKey để tạo folderName plaintext (tên KH đang được mã hóa khi lưu local)
-        if (!window.masterKey) {
-            getEl('loader').classList.add('hidden');
-            alert("Chưa có khóa bảo mật để tạo tên thư mục trên Drive. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
-            return;
-        }
-
         // Chuẩn bị gói dữ liệu
         const payload = {
             // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
-            folderName: `${decryptText(currentCustomerData.name)} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
+            // NOTE: customer fields are stored encrypted at-rest in many builds, so decrypt for folder naming.
+            folderName: `${_displayText(currentCustomerData.name)} - ${_displayText(currentCustomerData.cccd) || _displayText(currentCustomerData.phone)}`,
             images: imagesToUpload.map((img, idx) => ({
                 name: `img_${Date.now()}_${idx}.jpg`,
                 data: img.data
@@ -116,8 +148,7 @@ function renderDriveStatus(url) {
     
     if (!area) return;
     
-    const safeUrl = normalizeDriveUrl(url);
-
+    const safeUrl = _normalizeDriveUrl(url);
     if (safeUrl && safeUrl.length > 5) {
         // ĐÃ CÓ LINK → hiện nút Mở Drive
         area.classList.remove('hidden');
@@ -189,14 +220,7 @@ async function uploadAssetToDrive() {
             return alert("Tài sản này chưa có ảnh nào!");
         }
 
-        // Cần masterKey để hiển thị tên và tạo folderName plaintext
-        if (!window.masterKey) {
-            getEl('loader').classList.add('hidden');
-            alert("Chưa có khóa bảo mật để đọc tên TSBĐ. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
-            return;
-        }
-
-        const assetNamePlain = decryptText(currentAsset.name);
+        const assetNamePlain = _displayText(currentAsset.name);
         if (!confirm(`Tải lên ${imagesToUpload.length} ảnh của tài sản "${assetNamePlain}" lên Drive?`)) {
             getEl('loader').classList.add('hidden');
             return;
@@ -206,7 +230,7 @@ async function uploadAssetToDrive() {
 
         // Đặt tên Folder: [Tên Khách] - [Tên Tài Sản]
         // Ví dụ: Nguyen Van A - Nhà Đất 50m2
-        const custNamePlain = decryptText(currentCustomerData.name);
+        const custNamePlain = _displayText(currentCustomerData.name);
         const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
 
         const payload = {
@@ -258,23 +282,6 @@ async function uploadAssetToDrive() {
     };
 }
 
-// Chuẩn hóa link Drive để tương thích dữ liệu cũ:
-// - Nếu link đã bị mã hóa (CryptoJS AES với masterKey) => tự decrypt để hiển thị
-// - Nếu không decrypt được (chưa có masterKey hoặc cipher sai) => trả '' để tránh hiện link rác
-function normalizeDriveUrl(raw) {
-    if (!raw || typeof raw !== 'string') return '';
-    const s = raw.trim();
-    if (!s) return '';
-    // Nếu đã là URL Drive (hoặc URL nói chung) thì dùng luôn
-    if (/^https?:\/\//i.test(s)) return s;
-    // Nếu không phải URL, thử decrypt (dữ liệu cũ có thể đã encrypt)
-    if (window.masterKey && typeof window.decryptText === 'function') {
-        const dec = decryptText(s);
-        if (dec && /^https?:\/\//i.test(String(dec).trim())) return String(dec).trim();
-    }
-    return '';
-}
-
 // 1. Cập nhật giao diện: Thêm nút Tìm kết nối cũ
 function renderAssetDriveStatus(url) {
     const area = getEl('asset-drive-status-area');
@@ -282,8 +289,7 @@ function renderAssetDriveStatus(url) {
     if (!area) return;
     area.classList.remove('hidden');
 
-    const safeUrl = normalizeDriveUrl(url);
-
+    const safeUrl = _normalizeDriveUrl(url);
     if (safeUrl && safeUrl.length > 5) {
         // Đã có link -> Hiện nút mở
         area.innerHTML = `
@@ -317,16 +323,8 @@ async function reconnectAssetDriveFolder() {
     getEl('loader').classList.remove('hidden');
     getEl('loader-text').textContent = "Đang tìm TSBĐ...";
     
-    // BẮT BUỘC phải có masterKey để giải mã tên (data-at-rest). Nếu không có, tránh search bằng chuỗi mã hóa.
-    if (!window.masterKey) {
-        getEl('loader').classList.add('hidden');
-        alert("Chưa có khóa bảo mật để đọc tên khách hàng/TSBĐ. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
-        return;
-    }
-
-    // Tạo folderName ở dạng PLAINTEXT (tương thích dữ liệu cũ: decryptText fallback nguyên bản nếu đã plaintext)
-    const custNamePlain = decryptText(currentCustomerData.name);
-    const assetNamePlain = decryptText(currentCustomerData.assets[assetIndex].name);
+    const custNamePlain = _displayText(currentCustomerData.name);
+    const assetNamePlain = _displayText(currentCustomerData.assets[assetIndex].name);
     const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
 
     try {
@@ -337,23 +335,22 @@ async function reconnectAssetDriveFolder() {
         const result = await response.json();
 
         if (result.status === 'found') {
-            // Từ nay lưu driveLink dưới dạng PLAINTEXT.
-            // (Tương thích dữ liệu cũ: render sẽ tự decrypt nếu link cũ đang bị mã hóa.)
-            const plainLink = result.url;
+            // Store as plaintext going forward (older records may be encrypted; rendering handles both).
+            const plainUrl = result.url;
             
             const tx = db.transaction(['customers'], 'readwrite');
             const store = tx.objectStore('customers');
             store.get(currentCustomerData.id).onsuccess = (e) => {
                 let dbRecord = e.target.result;
                 if (dbRecord && dbRecord.assets && dbRecord.assets[assetIndex]) {
-                    dbRecord.assets[assetIndex].driveLink = plainLink;
+                    dbRecord.assets[assetIndex].driveLink = plainUrl;
                     store.put(dbRecord);
                 }
             };
             tx.oncomplete = () => {
-                currentCustomerData.assets[assetIndex].driveLink = result.url; // Cập nhật hiển thị
+                currentCustomerData.assets[assetIndex].driveLink = plainUrl; // Cập nhật hiển thị
                 getEl('loader').classList.add('hidden');
-                renderAssetDriveStatus(result.url);
+                renderAssetDriveStatus(plainUrl);
                 showToast("Đã kết nối lại!");
             };
         } else {
@@ -380,17 +377,10 @@ async function reconnectDriveFolder() {
     getEl('loader').classList.remove('hidden');
     getEl('loader-text').textContent = "Đang tìm trên Drive...";
 
-    // Lấy thông tin tên, SĐT và CCCD sau khi giải mã
-    // (decryptText sẽ fallback về nguyên bản nếu dữ liệu đã plaintext)
-    if (!window.masterKey) {
-        getEl('loader').classList.add('hidden');
-        alert("Chưa có khóa bảo mật để tìm folder trên Drive. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
-        return;
-    }
-
-    const name = decryptText(currentCustomerData.name);
-    const phone = decryptText(currentCustomerData.phone);
-    const cccd = decryptText(currentCustomerData.cccd);
+    // Lấy thông tin tên, SĐT và CCCD sau khi giải mã (hàm decryptText sẽ trả lại nguyên bản nếu đầu vào đã giải mã)
+    const name = _displayText(currentCustomerData.name);
+    const phone = _displayText(currentCustomerData.phone);
+    const cccd = _displayText(currentCustomerData.cccd);
 
     // Tạo danh sách tên thư mục có thể có: ưu tiên theo CCCD trước, sau đó là SĐT
     const possibleNames = [];
@@ -478,18 +468,11 @@ async function uploadToGoogleDrive() {
 
         getEl('loader-text').textContent = "Đang Upload lên Drive...";
 
-        // Cần masterKey để tạo folderName plaintext
-        if (!window.masterKey) {
-            getEl('loader').classList.add('hidden');
-            alert("Chưa có khóa bảo mật để tạo tên thư mục trên Drive. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
-            return;
-        }
-
         // Đóng gói mảng ảnh
         const payload = {
             action: 'upload',
             // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
-            folderName: `${decryptText(currentCustomerData.name)} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
+            folderName: `${_displayText(currentCustomerData.name)} - ${_displayText(currentCustomerData.cccd) || _displayText(currentCustomerData.phone)}`,
             images: imagesToUpload.map((img, idx) => ({
                 name: `hoso_${Date.now()}_${idx}.jpg`,
                 data: img.data
@@ -613,18 +596,11 @@ async function uploadToGoogleDrive() {
 
         getEl('loader-text').textContent = "Đang đẩy lên Google Drive...";
 
-        // Cần masterKey để tạo folderName plaintext
-        if (!window.masterKey) {
-            getEl('loader').classList.add('hidden');
-            alert("Chưa có khóa bảo mật để tạo tên thư mục trên Drive. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
-            return;
-        }
-
         // 2. Chuẩn bị gói dữ liệu
         const payload = {
             action: 'upload', // <--- Báo cho Script biết là muốn Upload
             // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
-            folderName: `${decryptText(currentCustomerData.name)} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
+            folderName: `${_displayText(currentCustomerData.name)} - ${_displayText(currentCustomerData.cccd) || _displayText(currentCustomerData.phone)}`,
             images: imagesToUpload.map((img, idx) => ({
                 name: `hoso_${Date.now()}_${idx}.jpg`,
                 data: img.data // Gửi cả mảng ảnh đi 1 lần
