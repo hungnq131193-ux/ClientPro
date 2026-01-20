@@ -2,6 +2,40 @@
 // --- Security & Encryption Helpers (ADVANCED RECOVERY MODE) ---
 // Sử dụng masterKey cho cơ chế mã hóa toàn bộ dữ liệu và khôi phục bằng mã nhân viên.
 let masterKey = null;
+
+// ============================================================
+// STORAGE ENCRYPTION MODE (LOCAL DATA-AT-REST)
+// - Mặc định: TẮT mã hóa khi lưu dữ liệu nội bộ để tránh lưu tên KH/TSBĐ dạng ciphertext.
+// - Tương thích dữ liệu cũ: vẫn giải mã được ciphertext (CryptoJS AES) khi masterKey đã mở.
+// - Backup/Transfer vẫn dùng AES-GCM (KDATA) độc lập, không bị ảnh hưởng.
+// ============================================================
+const STORAGE_ENCRYPT_AT_REST_KEY = "app_encrypt_at_rest";
+function isEncryptAtRestEnabled() {
+  try {
+    const v = localStorage.getItem(STORAGE_ENCRYPT_AT_REST_KEY);
+    // Default OFF nếu chưa thiết lập.
+    if (v === null || v === undefined || v === "") return false;
+    return String(v) === "1" || String(v).toLowerCase() === "true";
+  } catch (e) {
+    return false;
+  }
+}
+
+function setEncryptAtRestEnabled(enabled) {
+  try {
+    localStorage.setItem(STORAGE_ENCRYPT_AT_REST_KEY, enabled ? "1" : "0");
+  } catch (e) {}
+}
+
+function _looksLikeCryptoJSCiphertext(val) {
+  // CryptoJS.AES.encrypt(...) mặc định tạo ciphertext base64 với header "Salted__" => prefix base64: U2FsdGVkX1
+  // Đây là heuristic để tránh decrypt nhầm plaintext (giảm lag khi render/search).
+  const s = String(val || "");
+  if (!s) return false;
+  if (s.startsWith("U2FsdGVkX1")) return true;
+  // Một số trường hợp ciphertext có thể không có prefix trên (tùy cấu hình), nhưng giữ heuristic bảo thủ.
+  return false;
+}
 /** * Hằng số bí mật dùng để mã hóa/giải mã dữ liệu backup. * Cần giữ bí mật chuỗi này để đảm bảo file backup không thể đọc được nếu không có khóa. */
 // Legacy secret (passphrase) for old backups. New backups use global KDATA issued by GAS.
 let APP_BACKUP_SECRET = "";
@@ -145,7 +179,12 @@ function getDeviceId() {
 // ---------------------
 
 function encryptText(text) {
-  if (!masterKey || text === undefined || text === null) return text;
+  // IMPORTANT:
+  // - Nếu tắt encrypt-at-rest: lưu plaintext để UI/search/Drive folder name ổn định.
+  // - Backup/Transfer vẫn mã hóa AES-GCM (KDATA) ở pipeline riêng.
+  if (text === undefined || text === null) return text;
+  if (!masterKey) return text;
+  if (!isEncryptAtRestEnabled()) return text;
   try {
     return CryptoJS.AES.encrypt(String(text), masterKey).toString();
   } catch (e) {
@@ -157,6 +196,9 @@ function encryptText(text) {
 function decryptText(cipher) {
   if (!masterKey || cipher === undefined || cipher === null) return cipher;
   try {
+    // Tương thích dữ liệu cũ: nếu value là ciphertext (CryptoJS) thì decrypt.
+    // Nếu là plaintext (mode mới) thì trả nguyên bản để tránh decrypt nhầm.
+    if (!_looksLikeCryptoJSCiphertext(cipher)) return cipher;
     const bytes = CryptoJS.AES.decrypt(String(cipher), masterKey);
     const plaintext = bytes.toString(CryptoJS.enc.Utf8);
     return plaintext || cipher;
