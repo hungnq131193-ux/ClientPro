@@ -10,6 +10,15 @@
 
   const AUTH_GATE_LAST_OK_TS = "app_auth_gate_last_ok_ts";
   const AUTH_GATE_LAST_MSG = "app_auth_gate_last_msg";
+  const AUTH_GATE_COOLDOWN_UNTIL = "app_auth_gate_cooldown_until";
+
+  // TTL 24h: giảm tải GAS/Sheet khi nhiều người mở app.
+  // Lưu ý: Backup/Restore vẫn kiểm tra realtime theo ensureBackupSecret() như logic hiện có.
+  const AUTH_TTL_MS = 24 * 60 * 60 * 1000;
+  const AUTH_COOLDOWN_MS = 5 * 60 * 1000;
+
+  // Single-flight để tránh gọi GAS trùng trong cùng một phiên mở app.
+  let _inflight = null;
 
   function _safeText(x) {
     try {
@@ -176,11 +185,36 @@
       return { ok: true, skipped: true, offline: true };
     }
 
+    // TTL: nếu đã OK trong 24h thì bỏ qua check để giảm tải.
+    try {
+      const lastOk = parseInt(localStorage.getItem(AUTH_GATE_LAST_OK_TS) || "0", 10) || 0;
+      if (lastOk && (Date.now() - lastOk) < AUTH_TTL_MS) {
+        return { ok: true, skipped: true, ttl: true };
+      }
+    } catch (e) {}
+
+    // Cooldown nếu trước đó GAS lỗi/timeout: tránh spam retry.
+    try {
+      const until = parseInt(localStorage.getItem(AUTH_GATE_COOLDOWN_UNTIL) || "0", 10) || 0;
+      if (until && Date.now() < until) {
+        return { ok: true, skipped: true, cooldown: true };
+      }
+    } catch (e) {}
+
     const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
     const url = `${ADMIN_SERVER_URL}?action=issue_kdata&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}&_t=${Date.now()}`;
 
-    const res = await fetch(url, { method: "GET", cache: "no-store" });
-    const txt = await res.text();
+    let txt = "";
+    try {
+      const res = await fetch(url, { method: "GET", cache: "no-store" });
+      txt = await res.text();
+    } catch (e) {
+      // Lỗi mạng/timeout: không chặn UI nhưng đặt cooldown để không spam.
+      try {
+        localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL, String(Date.now() + AUTH_COOLDOWN_MS));
+      } catch (e2) {}
+      return { ok: true, skipped: true, neterr: true };
+    }
     const js = _parseMaybeJson(txt);
 
     // Contract ưu tiên JSON: {status:'success'|'error'|'locked', message, kdata_b64u}
@@ -222,17 +256,24 @@
 
   async function preflight() {
     try {
-      const r = await _checkByIssueKdata();
-      if (!r || r.ok) return true;
+      if (_inflight) return await _inflight;
+      _inflight = (async () => {
+        const r = await _checkByIssueKdata();
+        if (!r || r.ok) return true;
 
-      // Thu hồi kích hoạt ở client để lần sau bắt buộc activate lại
-      try {
-        if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
-      } catch (e) {}
+        // Thu hồi kích hoạt ở client để lần sau bắt buộc activate lại
+        try {
+          if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
+        } catch (e) {}
 
-      _block(r.message || "Thiết bị của bạn không còn quyền sử dụng.");
-      return false;
+        _block(r.message || "Thiết bị của bạn không còn quyền sử dụng.");
+        return false;
+      })();
+      const ok = await _inflight;
+      _inflight = null;
+      return ok;
     } catch (e) {
+      _inflight = null;
       // Lỗi mạng/parse: không chặn UI
       return true;
     }

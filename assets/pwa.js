@@ -1,35 +1,43 @@
-// Đăng ký PWA Service Worker + tự động nhận bản mới (skip waiting + reload)
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
-    try {
-      const reg = await navigator.serviceWorker.register('./sw.js');
-      console.log('Service Worker đã sẵn sàng!', reg);
+// ============================================================
+// assets/pwa.js
+// Service Worker bootstrap (auto-update)
+// ============================================================
 
-      // Khi có SW mới
-      reg.addEventListener('updatefound', () => {
-        const sw = reg.installing;
-        if (!sw) return;
-        sw.addEventListener('statechange', () => {
-          // installed + đã có controller => đây là update (không phải install lần đầu)
-          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
-            try {
-              // Yêu cầu SW mới kích hoạt ngay
-              sw.postMessage({ type: 'SKIP_WAITING' });
-            } catch (e) {}
+(function () {
+  "use strict";
+
+  if (!("serviceWorker" in navigator)) return;
+
+  function sendSkipWaiting(reg) {
+    try {
+      if (reg && reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    } catch (e) {}
+  }
+
+  window.addEventListener("load", async () => {
+    try {
+      const reg = await navigator.serviceWorker.register("./sw.js");
+
+      // Neu da co ban moi dang cho, kich hoat ngay va reload.
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        sendSkipWaiting(reg);
+        setTimeout(() => location.reload(), 150);
+        return;
+      }
+
+      reg.addEventListener("updatefound", () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener("statechange", () => {
+          // installed + co controller => co ban moi
+          if (nw.state === "installed" && navigator.serviceWorker.controller) {
+            sendSkipWaiting({ waiting: nw });
+            setTimeout(() => location.reload(), 150);
           }
         });
       });
-
-      // Khi controller đổi sang SW mới => reload 1 lần để nhận JS/CSS mới
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        try {
-          if (sessionStorage.getItem('__sw_reloaded__')) return;
-          sessionStorage.setItem('__sw_reloaded__', '1');
-        } catch (e) {}
-        window.location.reload();
-      });
     } catch (err) {
-      console.log('Lỗi Service Worker:', err);
+      console.log("Loi Service Worker:", err);
     }
   });
-}
+})();
