@@ -10,6 +10,22 @@
 (function () {
   'use strict';
 
+  // Reduce Chrome Android native back-swipe visual flash.
+  // Keep this local to the module (no global CSS edits).
+  function applyNavGuards() {
+    try {
+      if (document.getElementById('clientpro-edgeback-guards')) return;
+      const st = document.createElement('style');
+      st.id = 'clientpro-edgeback-guards';
+      st.textContent = [
+        'html,body{overscroll-behavior-x:none;}',
+        // Prefer vertical pan; we handle horizontal edge-swipe ourselves.
+        'body{touch-action:pan-y;}'
+      ].join('');
+      document.head.appendChild(st);
+    } catch (_) {}
+  }
+
   // --- Gesture tuning ---
   const EDGE_PX = 24;            // touch must start within left/right edge band
   const TRIGGER_PX = 90;         // minimum horizontal travel to trigger
@@ -151,9 +167,6 @@
     }
 
     // Known overlays (keep your current mapping)
-    if (isVisibleModal('qr-modal')) {
-      return callIfFn('closeQrScanner') || (get('qr-modal').classList.add('hidden'), true);
-    }
     if (isVisibleModal('camera-modal')) {
       return callIfFn('closeCamera') || (get('camera-modal').classList.add('hidden'), true);
     }
@@ -302,6 +315,8 @@
   }
 
   function init() {
+    applyNavGuards();
+
     document.addEventListener('touchstart', onStart, { passive: false });
     document.addEventListener('touchend', onEnd, { passive: true });
     document.addEventListener('touchcancel', function () { tracking = false; unbindMove(); }, { passive: true });
@@ -309,7 +324,10 @@
     // History sentinel: helps keep user inside app for browser back & hardware back
     try {
       const SENTINEL_STATE = { __clientpro_edge_back: 1 };
+      // Push 2 sentinels to reduce the chance of Chrome showing a partial
+      // native back transition on the first gesture.
       if (!history.state || !history.state.__clientpro_edge_back) {
+        history.pushState(SENTINEL_STATE, document.title, location.href);
         history.pushState(SENTINEL_STATE, document.title, location.href);
       }
       window.addEventListener('popstate', function () {
