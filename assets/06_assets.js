@@ -39,7 +39,7 @@ function referenceAssetPrice(assetIndex) {
         const val = parseMoneyToNumber(decryptText(asset.valuation));
 
         // Giải mã tên tài sản để hiển thị
-        const assetName = decryptText(asset.name);
+        const assetName = decryptText(asset.name) || asset.name || "";
 
         if (loc && val > 0) {
           const dist = distanceMeters(
@@ -116,16 +116,15 @@ function renderAssets() {
     el.style.border = "1px solid rgba(255,255,255,0.12)";
 
     // --- GIẢI MÃ DỮ LIỆU (DECRYPT) ---
-    // PERF: nếu đã có cache __dec (được chuẩn bị bởi decryptCustomerAssetsAsync) thì dùng để tránh decrypt lặp.
-    const d = asset.__dec || {};
-    const decName = (d.name !== undefined ? d.name : decryptText(asset.name)) || "";
-    const decLink = (d.link !== undefined ? d.link : decryptText(asset.link)) || "";
-    const decVal = (d.valuation !== undefined ? d.valuation : decryptText(asset.valuation)) || "";
-    const decLoan = (d.loanValue !== undefined ? d.loanValue : decryptText(asset.loanValue)) || "";
-    const decArea = (d.area !== undefined ? d.area : decryptText(asset.area)) || "";
-    const decWidth = (d.width !== undefined ? d.width : decryptText(asset.width)) || "";
-    const decYear = (d.year !== undefined ? d.year : decryptText(asset.year)) || "";
-    const decOnland = (d.onland !== undefined ? d.onland : decryptText(asset.onland)) || "";
+    // Nếu ô nào lưu rỗng, hàm decryptText sẽ trả về rỗng -> Không hiện chuỗi mã hóa nữa
+    const decName = decryptText(asset.name) || asset.name || "";
+    const decLink = decryptText(asset.link) || "";
+    const decVal = decryptText(asset.valuation) || "";
+    const decLoan = decryptText(asset.loanValue) || "";
+    const decArea = decryptText(asset.area) || "";
+    const decWidth = decryptText(asset.width) || "";
+    const decYear = decryptText(asset.year) || "";
+    const decOnland = decryptText(asset.onland) || "";
 
     // Escape HTML để an toàn
     const safeName = escapeHTML(decName);
@@ -185,7 +184,8 @@ function openAssetGallery(id, name, idx) {
   if (asset) {
     // --- SỬA LỖI Ở ĐÂY: Giải mã dữ liệu trước khi hiển thị ---
     // 1. Tên tài sản (Giải mã từ object asset thay vì dùng tham số name có thể bị lỗi)
-    getEl("gallery-asset-name").textContent = decryptText(asset.name);
+    getEl("gallery-asset-name").textContent =
+      decryptText(asset.name) || asset.name || "";
 
     // 2. Định giá & Vay Max (Giải mã)
     getEl("gallery-asset-val").textContent =
@@ -246,7 +246,7 @@ function openEditAssetModal(index) {
 
   // --- QUAN TRỌNG: Giải mã dữ liệu trước khi điền vào ô input ---
   // Nếu không có decryptText, nó sẽ hiện chuỗi U2FsdGVk...
-  getEl("asset-name").value = decryptText(asset.name);
+  getEl("asset-name").value = decryptText(asset.name) || asset.name || "";
   getEl("asset-link").value = decryptText(asset.link) || "";
   getEl("asset-val").value = decryptText(asset.valuation) || "";
   getEl("asset-loan").value = decryptText(asset.loanValue) || "";
@@ -271,7 +271,12 @@ function saveAsset() {
   const name = getEl("asset-name").value.trim();
   let link = getEl("asset-link").value.trim();
 
-  // Helper: Chỉ mã hóa nếu có dữ liệu (tránh biến ô trống thành mã loằng ngoằng)
+  // Helper:
+  // - Chỉ mã hóa nếu có dữ liệu (tránh biến ô trống thành mã loằng ngoằng)
+  // - Không mã hóa trường 'name' của TSBĐ nữa để:
+  //   + tránh hiện chuỗi U2FsdGVk... ở các luồng UI/Drive
+  //   + đảm bảo tính năng "tìm lại link" search folder theo plaintext
+  // Các trường khác vẫn giữ cơ chế mã hóa như cũ để không ảnh hưởng chức năng.
   const enc = (txt) => (txt ? encryptText(txt) : "");
 
   if (!name) return alert("Nhập mô tả tài sản");
@@ -284,9 +289,12 @@ function saveAsset() {
 
   if (!currentCustomerData.assets) currentCustomerData.assets = [];
 
-  // --- SỬA LỖI TẠI ĐÂY: Dùng hàm enc() đã viết ở trên ---
+  // --- FIX: KHÔNG MÃ HÓA TÊN TSBĐ (name) ---
+  // Tương thích dữ liệu cũ:
+  // - dữ liệu cũ: asset.name là ciphertext -> các chỗ render vẫn gọi decryptText(asset.name)
+  // - dữ liệu mới: asset.name là plaintext -> decryptText() sẽ fallback (hoặc trả nguyên bản) và UI vẫn hiển thị đúng
   const assetObj = {
-    name: enc(name),
+    name: name,
     link: enc(link),
     valuation: enc(getEl("asset-val").value),
     loanValue: enc(getEl("asset-loan").value),
