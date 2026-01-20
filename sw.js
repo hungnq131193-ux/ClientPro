@@ -1,8 +1,7 @@
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
-// Bump version whenever app shell changes so installed PWAs receive new JS/CSS.
-// This is critical because same-origin assets are served cache-first.
+// Bump version when changing static asset list / gate behavior
 const VERSION = 'v3.6.2';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
@@ -27,6 +26,15 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS))
   );
+});
+
+// Allow the page to request immediate activation of a waiting SW.
+self.addEventListener('message', (event) => {
+  try {
+    if (event && event.data && event.data.type === 'SKIP_WAITING') {
+      self.skipWaiting();
+    }
+  } catch (e) {}
 });
 
 self.addEventListener('activate', (event) => {
@@ -196,6 +204,3 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(staleWhileRevalidate(event, req, RUNTIME_CDN_CACHE, LIMITS.cdn));
 });
 
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
-});
