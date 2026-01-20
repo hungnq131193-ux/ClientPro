@@ -1,6 +1,9 @@
 // ============================================================
 // assets/pwa.js
-// Service Worker bootstrap (auto-update)
+// Service Worker bootstrap (stable update - avoids reload loops)
+// - Registers SW
+// - Requests immediate activation when a new SW is installed
+// - Reloads the page once on controllerchange (one-time per session)
 // ============================================================
 
 (function () {
@@ -8,33 +11,48 @@
 
   if (!("serviceWorker" in navigator)) return;
 
-  function sendSkipWaiting(reg) {
+  function sendSkipWaiting(sw) {
     try {
-      if (reg && reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      if (sw) sw.postMessage({ type: "SKIP_WAITING" });
     } catch (e) {}
+  }
+
+  // Prevent infinite reload loops: only reload once per tab/session
+  function markReloaded() {
+    try { sessionStorage.setItem("clientpro_sw_reloaded", "1"); } catch (e) {}
+  }
+  function hasReloaded() {
+    try { return sessionStorage.getItem("clientpro_sw_reloaded") === "1"; } catch (e) { return false; }
   }
 
   window.addEventListener("load", async () => {
     try {
       const reg = await navigator.serviceWorker.register("./sw.js");
 
-      // Neu da co ban moi dang cho, kich hoat ngay va reload.
-      if (reg.waiting && navigator.serviceWorker.controller) {
-        sendSkipWaiting(reg);
-        setTimeout(() => location.reload(), 150);
-        return;
+      // If a new SW is already waiting, ask it to activate immediately.
+      if (reg && reg.waiting) {
+        sendSkipWaiting(reg.waiting);
       }
 
+      // When a new SW is found/installed, request activation.
       reg.addEventListener("updatefound", () => {
-        const nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener("statechange", () => {
-          // installed + co controller => co ban moi
-          if (nw.state === "installed" && navigator.serviceWorker.controller) {
-            sendSkipWaiting({ waiting: nw });
-            setTimeout(() => location.reload(), 150);
+        const installing = reg.installing;
+        if (!installing) return;
+        installing.addEventListener("statechange", () => {
+          if (installing.state === "installed") {
+            // If there's an existing controller, this is an update.
+            if (navigator.serviceWorker.controller) {
+              sendSkipWaiting(installing);
+            }
           }
         });
+      });
+
+      // Reload once when the active controller actually changes.
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (hasReloaded()) return;
+        markReloaded();
+        location.reload();
       });
     } catch (err) {
       console.log("Loi Service Worker:", err);

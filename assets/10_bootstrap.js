@@ -6,7 +6,14 @@ function parseMoneyToNumber(str) {
 // --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
 // Removed enhanceDocumentWithAI as OCR is no longer used
 
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
+  // UX: ẩn loader sớm để tránh cảm giác "treo" khi thiết bị/network chậm.
+  // Dữ liệu sẽ render dần khi IndexedDB trả về.
+  try {
+    const ld = getEl && getEl("loader");
+    if (ld) ld.classList.add("hidden");
+  } catch (e) {}
+
   lucide.createIcons();
   const setAppHeight = () =>
     document.documentElement.style.setProperty(
@@ -43,20 +50,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   setTheme(savedTheme);
   // 🌤 Khởi động thời tiết
   initWeather();
-
-  // 15_auth_gate: kiểm tra quyền khi mở app (kể cả user cũ)
-  // Nếu bị khóa/sai thiết bị => chặn truy cập và không tiếp tục bootstrap.
-  try {
-    if (window.AuthGate && typeof window.AuthGate.preflight === "function") {
-      const ok = await window.AuthGate.preflight();
-      if (!ok) {
-        try { getEl("loader").classList.add("hidden"); } catch (e) {}
-        return;
-      }
-    }
-  } catch (e) {
-    // Nếu lỗi gate (mạng/parse), không chặn UI
-  }
 
   const req = indexedDB.open(DB_NAME, 4);
   req.onupgradeneeded = (e) => {
