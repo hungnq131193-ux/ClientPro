@@ -2,13 +2,6 @@
 // --- Security & Encryption Helpers (ADVANCED RECOVERY MODE) ---
 // Sử dụng masterKey cho cơ chế mã hóa toàn bộ dữ liệu và khôi phục bằng mã nhân viên.
 let masterKey = null;
-
-// ============================================================
-// LOCAL FIELD ENCRYPTION (CryptoJS AES)
-// - Theo logic trong index (7).html: khi masterKey đã mở thì encryptText() luôn mã hóa.
-// - Tương thích dữ liệu cũ/pha trộn: decryptText() sẽ thử giải mã và fallback về nguyên bản
-//   nếu giải mã thất bại hoặc kết quả rỗng.
-// ============================================================
 /** * Hằng số bí mật dùng để mã hóa/giải mã dữ liệu backup. * Cần giữ bí mật chuỗi này để đảm bảo file backup không thể đọc được nếu không có khóa. */
 // Legacy secret (passphrase) for old backups. New backups use global KDATA issued by GAS.
 let APP_BACKUP_SECRET = "";
@@ -152,8 +145,7 @@ function getDeviceId() {
 // ---------------------
 
 function encryptText(text) {
-  if (text === undefined || text === null) return text;
-  if (!masterKey) return text;
+  if (!masterKey || text === undefined || text === null) return text;
   try {
     return CryptoJS.AES.encrypt(String(text), masterKey).toString();
   } catch (e) {
@@ -269,94 +261,49 @@ async function checkSecurity() {
     showLockScreen();
   }
 
-  // 2. CHECK NGẦM VỚI SERVER (DELAYED Background Check)
-  // Mục tiêu UX: render dữ liệu local ngay, sau 10-15s mới check GAS.
-  // Nếu key bị thu hồi/xóa/sai thiết bị => hiển thị UX hiện có (activation modal) và thu hồi ACTIVATED_KEY.
-  // Lưu ý: Backup/Restore vẫn kiểm tra realtime theo ensureBackupSecret().
+  // 2. CHECK NGẦM VỚI SERVER (Background Check)
+  // Phần này chạy âm thầm bên dưới, không làm đơ màn hình của bạn
   try {
-    // Chỉ schedule 1 lần / session
-    if (window.__CLIENTPRO_AUTH_BG_SCHEDULED__) return;
-    window.__CLIENTPRO_AUTH_BG_SCHEDULED__ = true;
-
     const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || "";
-    if (!savedEmp) return;
-    if (typeof ADMIN_SERVER_URL === "undefined" || !ADMIN_SERVER_URL) return;
+    if (savedEmp) {
+      // Theo bản index trước đó chạy ổn: check_status chỉ cần employeeId + deviceInfo
+      const query = `?action=check_status&employeeId=${encodeURIComponent( savedEmp )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
 
-    // Nếu offline: không check (giữ UX mượt). Backup/restore sẽ tự chặn theo logic riêng.
-    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-
-    // TTL 24h cho startup check (giảm gọi GAS khi user mở app nhiều lần)
-    const AUTH_LAST_OK_TS_KEY = "app_auth_last_ok_ts";
-    const AUTH_TTL_MS = 24 * 60 * 60 * 1000;
-    try {
-      const lastOk = parseInt(localStorage.getItem(AUTH_LAST_OK_TS_KEY) || "0", 10) || 0;
-      if (lastOk && (Date.now() - lastOk) < AUTH_TTL_MS) {
-        return;
-      }
-    } catch (e) {}
-
-    // Delay 10-15s (có jitter) để user vào app mượt mà trước.
-    const delay = 10000 + Math.floor(Math.random() * 5000);
-    setTimeout(async () => {
+      const res = await fetch(ADMIN_SERVER_URL + query);
+      const txt = await res.text();
+      let result;
       try {
-        // Nếu user đã bị thu hồi local (trong lúc chờ) thì bỏ
-        const stillActivated = localStorage.getItem(ACTIVATED_KEY);
-        if (!stillActivated) return;
-
-        // Theo logic cũ: check_status chỉ cần employeeId + deviceInfo
-        const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-        const res = await fetch(ADMIN_SERVER_URL + query, { cache: "no-store" });
-        const txt = await res.text();
-
-        let result;
-        try {
-          result = JSON.parse(txt);
-        } catch (e) {
-          result = txt;
-        }
-
-        const rawStatus =
-          result && typeof result === "object" && result.status
-            ? String(result.status).toLowerCase()
-            : typeof result === "string"
-            ? String(result).toLowerCase()
-            : "";
-
-        const msg =
-          result && typeof result === "object" && result.message
-            ? String(result.message)
-            : "";
-
-        // Các trạng thái cần thu hồi quyền ở client
-        const isLocked = rawStatus.includes("locked") || rawStatus.includes("khoa") || rawStatus === "locked";
-        // Tránh false-positive: chỉ coi là invalid khi status rõ ràng.
-        const isInvalid = rawStatus === "error" || rawStatus === "inactive" || rawStatus === "invalid" || rawStatus.includes("not_found") || rawStatus.includes("khong ton tai") || rawStatus.includes("chua kich hoat");
-        const isDeviceMismatch = rawStatus.includes("device") || rawStatus.includes("thiet bi") || rawStatus.includes("khong khop");
-
-        if (isLocked || isInvalid || isDeviceMismatch) {
-          // Dùng UX hiện có: ẩn lock/setup, show activation modal + message
-          try { getEl("screen-lock").classList.add("hidden"); } catch (e) {}
-          try { getEl("setup-lock-modal").classList.add("hidden"); } catch (e) {}
-          try {
-            const modal = getEl("activation-modal");
-            if (modal) modal.classList.remove("hidden");
-            const titleEl = document.getElementById("activation-title");
-            if (titleEl) titleEl.textContent = msg || (isDeviceMismatch ? "Sai thiết bị (Device ID không khớp)." : "Tài khoản đã bị thu hồi!");
-          } catch (e) {}
-          try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
-          return;
-        }
-
-        // Nếu OK (hoặc không xác định nhưng không locked) -> ghi dấu OK để TTL áp dụng
-        try {
-          localStorage.setItem(AUTH_LAST_OK_TS_KEY, String(Date.now()));
-        } catch (e) {}
-      } catch (err) {
-        // Lỗi mạng/parse: không chặn UI
+        result = JSON.parse(txt);
+      } catch (e) {
+        result = txt;
       }
-    }, delay);
+
+      // NOTE: GAS v6+ no longer returns a fixed "secret" for backup.
+      // Backup/restore will fetch GLOBAL KDATA on-demand via ensureBackupSecret() (issue_kdata).
+
+      const status =
+        result && typeof result === "object" && result.status
+          ? String(result.status).toLowerCase()
+          : typeof result === "string" &&
+            result.toLowerCase().includes("locked")
+          ? "locked"
+          : "";
+      const msg =
+        result && typeof result === "object" && result.message
+          ? result.message
+          : "";
+      if (status === "locked") {
+        getEl("screen-lock").classList.add("hidden");
+        getEl("setup-lock-modal").classList.add("hidden");
+        const modal = getEl("activation-modal");
+        modal.classList.remove("hidden");
+        const titleEl = document.getElementById("activation-title");
+        if (titleEl) titleEl.textContent = msg || "Tài khoản đã bị thu hồi!";
+        localStorage.removeItem(ACTIVATED_KEY);
+      }
+    }
   } catch (err) {
-    // Tuyệt đối không làm crash UX startup
+    console.log("Offline mode: Tính năng Backup bảo mật tạm thời bị tắt.");
   }
 }
 
