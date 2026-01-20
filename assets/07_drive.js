@@ -1,228 +1,128 @@
-// ============================================================
-// 07_drive.js
-// Google Drive integration via USER-provided Google Apps Script URL
-//
-// Goals
-// - Folder name must be PLAINTEXT (human-readable) to allow reliable search/reconnect.
-// - driveLink is stored as PLAINTEXT going forward.
-// - Backward compatible rendering: if old records stored driveLink encrypted,
-//   the UI will still render correctly when masterKey is available.
-// ============================================================
-
-// ------------------------------
-// Small helpers (no external deps)
-// ------------------------------
-
-function _driveTrim(s) {
-  return String(s === undefined || s === null ? "" : s).trim();
-}
-
-function _driveLooksLikeUrl(s) {
-  const v = _driveTrim(s);
-  return /^https?:\/\//i.test(v);
-}
-
-function _driveLooksLikeCryptoJSCipher(s) {
-  // CryptoJS AES ciphertext usually starts with "U2FsdGVkX1" (Salted__ in base64)
-  const v = _driveTrim(s);
-  return v.startsWith("U2FsdGVkX1");
-}
-
-function _driveNormalizeUrl(maybeUrlOrCipher) {
-  // 1) If already URL => use
-  if (_driveLooksLikeUrl(maybeUrlOrCipher)) return _driveTrim(maybeUrlOrCipher);
-
-  // 2) Try decryptText if available (backward compatibility)
-  let dec = maybeUrlOrCipher;
-  try {
-    if (typeof decryptText === "function") dec = decryptText(maybeUrlOrCipher);
-  } catch (e) {
-    dec = maybeUrlOrCipher;
-  }
-  if (_driveLooksLikeUrl(dec)) return _driveTrim(dec);
-
-  // 3) If it's ciphertext or not a URL => treat as missing
-  if (_driveLooksLikeCryptoJSCipher(dec)) return null;
-  return null;
-}
-
-function _driveSafeDecrypt(val) {
-  // decryptText is designed to return original input on failure
-  try {
-    return typeof decryptText === "function" ? decryptText(val) : val;
-  } catch (e) {
-    return val;
-  }
-}
-
-function _driveCustomerDisplayName(cust) {
-  if (!cust) return "";
-  return _driveTrim(_driveSafeDecrypt(cust.name));
-}
-
-function _driveCustomerIdTail(cust) {
-  // Prefer CCCD, fallback phone
-  if (!cust) return "";
-  const cccd = _driveTrim(_driveSafeDecrypt(cust.cccd));
-  if (cccd) return cccd;
-  const phone = _driveTrim(_driveSafeDecrypt(cust.phone));
-  return phone;
-}
-
-function _driveBuildProfileFolderName(cust) {
-  const name = _driveCustomerDisplayName(cust);
-  const tail = _driveCustomerIdTail(cust);
-  // If tail missing, keep folder still readable
-  return tail ? `${name} - ${tail}` : `${name}`;
-}
-
-function _driveBuildAssetFolderName(cust, asset) {
-  const custName = _driveCustomerDisplayName(cust);
-  const assetName = _driveTrim(_driveSafeDecrypt(asset && asset.name));
-  // Standardize prefix to be stable
-  return `${custName} - TSBD: ${assetName}`;
-}
-
-async function _drivePost(scriptUrl, payload) {
-  const resp = await fetch(scriptUrl, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  // GAS scripts should respond JSON
-  return await resp.json();
-}
-
-// ------------------------------
-// Settings: store user Apps Script URL
-// ------------------------------
-
+    // --- LOGIC UPLOAD DRIVE & CẤU HÌNH ---
 function saveScriptUrl() {
-  const url = _driveTrim(getEl("user-script-url").value);
-  if (!url.startsWith("https://script.google.com/")) {
-    alert("Link không đúng định dạng!");
-    return;
-  }
-  localStorage.setItem(USER_SCRIPT_KEY, url);
-  showToast("Đã lưu kết nối Drive cá nhân");
+    const url = getEl('user-script-url').value.trim();
+    if (!url.startsWith('https://script.google.com/')) {
+        alert("Link không đúng định dạng!");
+        return;
+    }
+    // Lưu link Script cá nhân vào localStorage với key mới
+    localStorage.setItem(USER_SCRIPT_KEY, url);
+    showToast("Đã lưu kết nối Drive cá nhân");
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-  const savedUrl = localStorage.getItem(USER_SCRIPT_KEY);
-  if (savedUrl) {
-    const el = getEl("user-script-url");
-    if (el) el.value = savedUrl;
-  }
+document.addEventListener('DOMContentLoaded', () => {
+    const savedUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if(savedUrl) getEl('user-script-url').value = savedUrl;
 });
 
-function _requireUserScriptUrlOrOpenSettings() {
-  const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
-  if (!userUrl || userUrl.length < 10) {
-    if (
-      confirm(
-        "Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn."
-      )
-    ) {
-      toggleMenu();
-    }
-    return null;
-  }
-  return userUrl;
-}
-
-// ------------------------------
-// Profile photos: Upload
-// ------------------------------
-
+// 2. Hàm Upload chính
 async function uploadToGoogleDrive() {
-  const scriptUrl = _requireUserScriptUrlOrOpenSettings();
-  if (!scriptUrl) return;
-  if (!currentCustomerData) return;
-
-  getEl("loader").classList.remove("hidden");
-  getEl("loader-text").textContent = "Đang kiểm tra ảnh...";
-
-  const tx = db.transaction(["images"], "readonly");
-  const store = tx.objectStore("images");
-  const index = store.index("customerId");
-
-  index.getAll(currentCustomerId).onsuccess = async (e) => {
-    const allImages = e.target.result || [];
-    const imagesToUpload = allImages.filter((img) => !img.assetId);
-
-    if (imagesToUpload.length === 0) {
-      getEl("loader").classList.add("hidden");
-      return alert("Không có ảnh hồ sơ nào để tải lên!");
-    }
-
-    if (!confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`)) {
-      getEl("loader").classList.add("hidden");
-      return;
-    }
-
-    getEl("loader-text").textContent = "Đang đẩy lên Google Drive...";
-
-    const folderName = _driveBuildProfileFolderName(currentCustomerData);
-
-    const payload = {
-      action: "upload",
-      folderName,
-      images: imagesToUpload.map((img, idx) => ({
-        name: `hoso_${Date.now()}_${idx}.jpg`,
-        data: img.data,
-      })),
-    };
-
-    try {
-      const result = await _drivePost(scriptUrl, payload);
-
-      if (result && result.status === "success") {
-        // Store plaintext URL (new behavior)
-        currentCustomerData.driveLink = result.url;
-        db.transaction(["customers"], "readwrite")
-          .objectStore("customers")
-          .put(currentCustomerData);
-
-        getEl("loader").classList.add("hidden");
-        renderDriveStatus(result.url);
-
-        if (
-          confirm(
-            "✅ Đã Upload xong!\nXóa ảnh trong App để giải phóng bộ nhớ?"
-          )
-        ) {
-          const txDel = db.transaction(["images"], "readwrite");
-          imagesToUpload.forEach((img) => txDel.objectStore("images").delete(img.id));
-          txDel.oncomplete = () => {
-            if (typeof loadProfileImages === "function") loadProfileImages();
-            showToast("Đã dọn dẹp bộ nhớ");
-          };
+    // Dùng Script cá nhân cho việc upload ảnh hồ sơ. Kiểm tra xem user đã cấu hình link hay chưa.
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
         }
-      } else {
-        throw new Error((result && result.message) || "UPLOAD_FAILED");
-      }
-    } catch (err) {
-      console.error(err);
-      getEl("loader").classList.add("hidden");
-      alert("Lỗi Upload: " + (err && err.message ? err.message : String(err)));
+        return;
     }
-  };
+    const scriptUrl = userUrl;
+    
+    if (!currentCustomerData) return;
+
+    // Lấy ảnh từ Database
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang kiểm tra ảnh...";
+    
+    const tx = db.transaction(['images'], 'readonly');
+    const store = tx.objectStore('images');
+    const index = store.index('customerId');
+
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        // Lọc: Chỉ lấy ảnh chưa được gắn vào Asset (ảnh hồ sơ)
+        let imagesToUpload = allImages.filter(img => !img.assetId);
+
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Không có ảnh nào để tải lên!");
+        }
+
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh lên Google Drive?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang tải lên Cloud...";
+
+        // Cần masterKey để tạo folderName plaintext (tên KH đang được mã hóa khi lưu local)
+        if (!window.masterKey) {
+            getEl('loader').classList.add('hidden');
+            alert("Chưa có khóa bảo mật để tạo tên thư mục trên Drive. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
+            return;
+        }
+
+        // Chuẩn bị gói dữ liệu
+        const payload = {
+            // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
+            folderName: `${decryptText(currentCustomerData.name)} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `img_${Date.now()}_${idx}.jpg`,
+                data: img.data
+            }))
+        };
+
+        try {
+            // Gửi request (no-cors để tránh lỗi trình duyệt chặn, nhưng script google phải set JSONP hoặc text)
+            // Lưu ý: Fetch POST tới Google Script đôi khi cần xử lý kỹ.
+            // Dùng cách gửi tiêu chuẩn:
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                // Lưu link và dọn dẹp
+                currentCustomerData.driveLink = result.url;
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                renderDriveStatus(result.url); // Hiển thị nút mở Drive
+                
+                // Hỏi xóa ảnh gốc
+                if(confirm("✅ UPLOAD THÀNH CÔNG!\n\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => {
+                        loadProfileImages(); // Làm mới lưới ảnh (trống trơn)
+                        showToast("Đã dọn dẹp bộ nhớ");
+                    };
+                }
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            console.error(err);
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi Upload: " + err.message + "\nKiểm tra lại Link Script hoặc Mạng.");
+        }
+    };
 }
 
-// ------------------------------
-// Profile photos: Render status + Reconnect/search
-// ------------------------------
+// 3. Hàm hiển thị nút mở Drive
+function renderDriveStatus(url) {
+    const area = getEl('drive-status-area');
+    const btnUp = getEl('btn-upload-drive');
+    
+    if (!area) return;
+    
+    const safeUrl = normalizeDriveUrl(url);
 
-function renderDriveStatus(urlOrCipher) {
-  const area = getEl("drive-status-area");
-  const btnUp = getEl("btn-upload-drive");
-  if (!area) return;
-
-  const url = _driveNormalizeUrl(urlOrCipher);
-  area.classList.remove("hidden");
-
-  if (url) {
-    area.innerHTML = `
-      <a href="${url}" target="_blank"
+    if (safeUrl && safeUrl.length > 5) {
+        // ĐÃ CÓ LINK → hiện nút Mở Drive
+        area.classList.remove('hidden');
+        area.innerHTML = `
+      <a href="${safeUrl}" target="_blank"
          class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold
                 flex items-center justify-center gap-2 shadow-lg mb-1
                 animate-fade-in border border-emerald-400/30">
@@ -232,9 +132,12 @@ function renderDriveStatus(urlOrCipher) {
         Đã đồng bộ lên Cloud
       </p>
     `;
-    if (btnUp) btnUp.classList.remove("hidden");
-  } else {
-    area.innerHTML = `
+        
+        if (btnUp) btnUp.classList.remove('hidden'); // vẫn cho phép upload thêm
+    } else {
+        // CHƯA CÓ LINK → hiện nút tìm lại + nút upload
+        area.classList.remove('hidden');
+        area.innerHTML = `
       <button onclick="reconnectDriveFolder()"
               class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600
                      rounded-lg text-xs font-medium text-slate-300
@@ -242,244 +145,587 @@ function renderDriveStatus(urlOrCipher) {
         <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
       </button>
     `;
-    if (btnUp) btnUp.classList.remove("hidden");
-  }
-
-  if (window.lucide) lucide.createIcons();
+        if (btnUp) btnUp.classList.remove('hidden');
+    }
+    
+    if (window.lucide) lucide.createIcons();
 }
 
-async function reconnectDriveFolder() {
-  const scriptUrl = _requireUserScriptUrlOrOpenSettings();
-  if (!scriptUrl) return;
-  if (!currentCustomerData) return;
-
-  getEl("loader").classList.remove("hidden");
-  getEl("loader-text").textContent = "Đang tìm trên Drive...";
-
-  const name = _driveCustomerDisplayName(currentCustomerData);
-  const phone = _driveTrim(_driveSafeDecrypt(currentCustomerData.phone));
-  const cccd = _driveTrim(_driveSafeDecrypt(currentCustomerData.cccd));
-
-  const possibleNames = [];
-  if (cccd) possibleNames.push(`${name} - ${cccd}`);
-  if (phone) possibleNames.push(`${name} - ${phone}`);
-  if (!possibleNames.length && name) possibleNames.push(name);
-
-  let foundUrl = null;
-  let tried = 0;
-
-  for (const folderName of possibleNames) {
-    tried++;
-    try {
-      getEl("loader-text").textContent = `Đang tìm: ${folderName}...`;
-      const result = await _drivePost(scriptUrl, {
-        action: "search",
-        folderName,
-      });
-      if (result && result.status === "found" && result.url) {
-        foundUrl = result.url;
-        break;
-      }
-    } catch (e) {
-      console.warn("Drive search error:", e);
-    }
-  }
-
-  if (foundUrl) {
-    // Store plaintext URL (new behavior)
-    currentCustomerData.driveLink = foundUrl;
-    const tx = db.transaction(["customers"], "readwrite");
-    tx.objectStore("customers").put(currentCustomerData).onsuccess = () => {
-      getEl("loader").classList.add("hidden");
-      renderDriveStatus(foundUrl);
-      showToast("Đã kết nối lại thành công!");
-    };
-  } else {
-    getEl("loader").classList.add("hidden");
-    if (tried === 0) {
-      alert("Không có đủ thông tin để tìm folder (thiếu Tên/CCCD/SĐT).");
-    } else {
-      alert("Không tìm thấy folder nào khớp với Tên + CCCD hoặc Tên + SĐT.");
-    }
-  }
-}
-
-// ------------------------------
-// Asset photos: Upload
-// ------------------------------
+// --- LOGIC UPLOAD DRIVE CHO TÀI SẢN (TSBĐ) ---
 
 async function uploadAssetToDrive() {
-  const scriptUrl = _requireUserScriptUrlOrOpenSettings();
-  if (!scriptUrl) return;
-  if (!currentCustomerData || !currentAssetId) return;
-
-  const assetIndex = (currentCustomerData.assets || []).findIndex(
-    (a) => a.id === currentAssetId
-  );
-  if (assetIndex === -1) return;
-  const currentAsset = currentCustomerData.assets[assetIndex];
-
-  getEl("loader").classList.remove("hidden");
-  getEl("loader-text").textContent = "Đang lấy ảnh TSBĐ...";
-
-  const tx = db.transaction(["images"], "readonly");
-  const store = tx.objectStore("images");
-  const index = store.index("customerId");
-
-  index.getAll(currentCustomerId).onsuccess = async (e) => {
-    const allImages = e.target.result || [];
-    const imagesToUpload = allImages.filter((img) => img.assetId === currentAssetId);
-
-    if (imagesToUpload.length === 0) {
-      getEl("loader").classList.add("hidden");
-      return alert("Tài sản này chưa có ảnh nào!");
+    // Lấy link Script cá nhân
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
     }
+    const scriptUrl = userUrl;
+    
+    if (!currentCustomerData || !currentAssetId) return;
 
-    const assetNameReadable = _driveTrim(_driveSafeDecrypt(currentAsset.name));
-    if (
-      !confirm(
-        `Tải lên ${imagesToUpload.length} ảnh của tài sản "${assetNameReadable}" lên Drive?`
-      )
-    ) {
-      getEl("loader").classList.add("hidden");
-      return;
-    }
+    // Tìm xem đang thao tác với Tài sản nào trong mảng assets
+    const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
+    if (assetIndex === -1) return;
+    const currentAsset = currentCustomerData.assets[assetIndex];
 
-    getEl("loader-text").textContent = "Đang Upload TSBĐ...";
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang lấy ảnh TSBĐ...";
 
-    const folderName = _driveBuildAssetFolderName(currentCustomerData, currentAsset);
+    const tx = db.transaction(['images'], 'readonly');
+    const store = tx.objectStore('images');
+    const index = store.index('customerId'); // Lấy tất cả ảnh của khách này trước
 
-    const payload = {
-      action: "upload",
-      folderName,
-      images: imagesToUpload.map((img, idx) => ({
-        name: `asset_img_${Date.now()}_${idx}.jpg`,
-        data: img.data,
-      })),
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        
+        // LỌC QUAN TRỌNG: Chỉ lấy ảnh có assetId TRÙNG VỚI assetId hiện tại
+        let imagesToUpload = allImages.filter(img => img.assetId === currentAssetId);
+
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Tài sản này chưa có ảnh nào!");
+        }
+
+        // Cần masterKey để hiển thị tên và tạo folderName plaintext
+        if (!window.masterKey) {
+            getEl('loader').classList.add('hidden');
+            alert("Chưa có khóa bảo mật để đọc tên TSBĐ. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
+            return;
+        }
+
+        const assetNamePlain = decryptText(currentAsset.name);
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh của tài sản "${assetNamePlain}" lên Drive?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang Upload TSBĐ...";
+
+        // Đặt tên Folder: [Tên Khách] - [Tên Tài Sản]
+        // Ví dụ: Nguyen Van A - Nhà Đất 50m2
+        const custNamePlain = decryptText(currentCustomerData.name);
+        const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
+
+        const payload = {
+            folderName: folderName,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `asset_img_${Date.now()}_${idx}.jpg`,
+                data: img.data
+            }))
+        };
+
+        try {
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                // 1. Lưu Link vào đúng đối tượng Asset
+                currentCustomerData.assets[assetIndex].driveLink = result.url;
+                
+                // 2. Cập nhật Database
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                
+                // 3. Cập nhật giao diện
+                renderAssetDriveStatus(result.url);
+                
+                // 4. Hỏi xóa ảnh
+                if(confirm("✅ TSBĐ ĐÃ LÊN MÂY!\n\nXóa ảnh gốc trong máy để nhẹ bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => {
+                        loadAssetImages(currentAssetId); // Load lại lưới ảnh (trống)
+                        showToast("Đã dọn dẹp ảnh TSBĐ");
+                    };
+                }
+            } else {
+                throw new Error(result.message);
+            }
+
+        } catch (err) {
+            console.error(err);
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi: " + err.message);
+        }
     };
+}
+
+// Chuẩn hóa link Drive để tương thích dữ liệu cũ:
+// - Nếu link đã bị mã hóa (CryptoJS AES với masterKey) => tự decrypt để hiển thị
+// - Nếu không decrypt được (chưa có masterKey hoặc cipher sai) => trả '' để tránh hiện link rác
+function normalizeDriveUrl(raw) {
+    if (!raw || typeof raw !== 'string') return '';
+    const s = raw.trim();
+    if (!s) return '';
+    // Nếu đã là URL Drive (hoặc URL nói chung) thì dùng luôn
+    if (/^https?:\/\//i.test(s)) return s;
+    // Nếu không phải URL, thử decrypt (dữ liệu cũ có thể đã encrypt)
+    if (window.masterKey && typeof window.decryptText === 'function') {
+        const dec = decryptText(s);
+        if (dec && /^https?:\/\//i.test(String(dec).trim())) return String(dec).trim();
+    }
+    return '';
+}
+
+// 1. Cập nhật giao diện: Thêm nút Tìm kết nối cũ
+function renderAssetDriveStatus(url) {
+    const area = getEl('asset-drive-status-area');
+    const btnUp = getEl('btn-asset-upload');
+    if (!area) return;
+    area.classList.remove('hidden');
+
+    const safeUrl = normalizeDriveUrl(url);
+
+    if (safeUrl && safeUrl.length > 5) {
+        // Đã có link -> Hiện nút mở
+        area.innerHTML = `
+            <a href="${safeUrl}" target="_blank" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border border-teal-400/30">
+                <i data-lucide="external-link" class="w-5 h-5"></i> Xem Folder TSBĐ
+            </a>`;
+        if (btnUp) btnUp.classList.remove('hidden');
+    } else {
+        // Chưa có link -> Hiện nút TÌM LẠI
+        area.innerHTML = `
+            <button onclick="reconnectAssetDriveFolder()" class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
+                <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
+            </button>`;
+        if (btnUp) btnUp.classList.remove('hidden');
+    }
+    if(window.lucide) lucide.createIcons();
+}
+
+// 2. Logic tìm kiếm (Sử dụng Script cá nhân USER_SCRIPT_KEY)
+async function reconnectAssetDriveFolder() {
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) toggleMenu();
+        return;
+    }
+    
+    if (!currentCustomerData || !currentAssetId) return;
+    const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
+    if (assetIndex === -1) return;
+
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang tìm TSBĐ...";
+    
+    // BẮT BUỘC phải có masterKey để giải mã tên (data-at-rest). Nếu không có, tránh search bằng chuỗi mã hóa.
+    if (!window.masterKey) {
+        getEl('loader').classList.add('hidden');
+        alert("Chưa có khóa bảo mật để đọc tên khách hàng/TSBĐ. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
+        return;
+    }
+
+    // Tạo folderName ở dạng PLAINTEXT (tương thích dữ liệu cũ: decryptText fallback nguyên bản nếu đã plaintext)
+    const custNamePlain = decryptText(currentCustomerData.name);
+    const assetNamePlain = decryptText(currentCustomerData.assets[assetIndex].name);
+    const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
 
     try {
-      const result = await _drivePost(scriptUrl, payload);
+        const response = await fetch(userUrl, {
+            method: "POST",
+            body: JSON.stringify({ action: 'search', folderName: folderName })
+        });
+        const result = await response.json();
 
-      if (result && result.status === "success") {
-        // Store plaintext URL (new behavior)
-        currentCustomerData.assets[assetIndex].driveLink = result.url;
-        db.transaction(["customers"], "readwrite")
-          .objectStore("customers")
-          .put(currentCustomerData);
-
-        getEl("loader").classList.add("hidden");
-        renderAssetDriveStatus(result.url);
-
-        if (
-          confirm(
-            "✅ TSBĐ ĐÃ LÊN MÂY!\n\nXóa ảnh gốc trong máy để nhẹ bộ nhớ?"
-          )
-        ) {
-          const txDel = db.transaction(["images"], "readwrite");
-          imagesToUpload.forEach((img) => txDel.objectStore("images").delete(img.id));
-          txDel.oncomplete = () => {
-            if (typeof loadAssetImages === "function") loadAssetImages(currentAssetId);
-            showToast("Đã dọn dẹp ảnh TSBĐ");
-          };
+        if (result.status === 'found') {
+            // Từ nay lưu driveLink dưới dạng PLAINTEXT.
+            // (Tương thích dữ liệu cũ: render sẽ tự decrypt nếu link cũ đang bị mã hóa.)
+            const plainLink = result.url;
+            
+            const tx = db.transaction(['customers'], 'readwrite');
+            const store = tx.objectStore('customers');
+            store.get(currentCustomerData.id).onsuccess = (e) => {
+                let dbRecord = e.target.result;
+                if (dbRecord && dbRecord.assets && dbRecord.assets[assetIndex]) {
+                    dbRecord.assets[assetIndex].driveLink = plainLink;
+                    store.put(dbRecord);
+                }
+            };
+            tx.oncomplete = () => {
+                currentCustomerData.assets[assetIndex].driveLink = result.url; // Cập nhật hiển thị
+                getEl('loader').classList.add('hidden');
+                renderAssetDriveStatus(result.url);
+                showToast("Đã kết nối lại!");
+            };
+        } else {
+            getEl('loader').classList.add('hidden');
+            alert("Không tìm thấy folder: " + folderName);
         }
-      } else {
-        throw new Error((result && result.message) || "UPLOAD_FAILED");
-      }
     } catch (err) {
-      console.error(err);
-      getEl("loader").classList.add("hidden");
-      alert("Lỗi: " + (err && err.message ? err.message : String(err)));
+        getEl('loader').classList.add('hidden');
+        alert("Lỗi: " + err.message);
     }
-  };
 }
+// --- TÍNH NĂNG TÌM LẠI FOLDER THẤT LẠC ---
+async function reconnectDriveFolder() {
+    // Lấy link Script cá nhân; nếu chưa cấu hình thì nhắc người dùng cài đặt
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Chưa cấu hình Script! Vào cài đặt ngay?")) toggleMenu();
+        return;
+    }
+    // Không có dữ liệu khách hàng hiện tại thì dừng
+    if (!currentCustomerData) return;
 
-// ------------------------------
-// Asset photos: Render status + Reconnect/search
-// ------------------------------
+    // Hiển thị loader và cập nhật thông báo
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang tìm trên Drive...";
 
-function renderAssetDriveStatus(urlOrCipher) {
-  const area = getEl("asset-drive-status-area");
-  const btnUp = getEl("btn-asset-upload");
-  if (!area) return;
-  area.classList.remove("hidden");
+    // Lấy thông tin tên, SĐT và CCCD sau khi giải mã
+    // (decryptText sẽ fallback về nguyên bản nếu dữ liệu đã plaintext)
+    if (!window.masterKey) {
+        getEl('loader').classList.add('hidden');
+        alert("Chưa có khóa bảo mật để tìm folder trên Drive. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
+        return;
+    }
 
-  const url = _driveNormalizeUrl(urlOrCipher);
+    const name = decryptText(currentCustomerData.name);
+    const phone = decryptText(currentCustomerData.phone);
+    const cccd = decryptText(currentCustomerData.cccd);
 
-  if (url) {
-    area.innerHTML = `
-      <a href="${url}" target="_blank"
-         class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold
-                flex items-center justify-center gap-2 shadow-lg mb-1
-                animate-fade-in border border-teal-400/30">
-        <i data-lucide="external-link" class="w-5 h-5"></i> Xem Folder TSBĐ
-      </a>
-    `;
-    if (btnUp) btnUp.classList.remove("hidden");
-  } else {
-    area.innerHTML = `
-      <button onclick="reconnectAssetDriveFolder()"
-              class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600
-                     rounded-lg text-xs font-medium text-slate-300
-                     flex items-center justify-center gap-2 hover:bg-slate-700 transition">
-        <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
-      </button>
-    `;
-    if (btnUp) btnUp.classList.remove("hidden");
-  }
+    // Tạo danh sách tên thư mục có thể có: ưu tiên theo CCCD trước, sau đó là SĐT
+    const possibleNames = [];
+    if (cccd) possibleNames.push(`${name} - ${cccd}`);
+    if (phone) possibleNames.push(`${name} - ${phone}`);
 
-  if (window.lucide) lucide.createIcons();
-}
+    let foundUrl = null;
 
-async function reconnectAssetDriveFolder() {
-  const scriptUrl = _requireUserScriptUrlOrOpenSettings();
-  if (!scriptUrl) return;
-  if (!currentCustomerData || !currentAssetId) return;
-
-  const assetIndex = (currentCustomerData.assets || []).findIndex(
-    (a) => a.id === currentAssetId
-  );
-  if (assetIndex === -1) return;
-  const asset = currentCustomerData.assets[assetIndex];
-
-  getEl("loader").classList.remove("hidden");
-  getEl("loader-text").textContent = "Đang tìm TSBĐ...";
-
-  const folderName = _driveBuildAssetFolderName(currentCustomerData, asset);
-
-  try {
-    const result = await _drivePost(scriptUrl, {
-      action: "search",
-      folderName,
-    });
-
-    if (result && result.status === "found" && result.url) {
-      // Store plaintext URL (new behavior)
-      const tx = db.transaction(["customers"], "readwrite");
-      const store = tx.objectStore("customers");
-
-      store.get(currentCustomerData.id).onsuccess = (e) => {
-        const dbRecord = e.target.result;
-        if (dbRecord && dbRecord.assets && dbRecord.assets[assetIndex]) {
-          dbRecord.assets[assetIndex].driveLink = result.url;
-          store.put(dbRecord);
+    // Thử tìm lần lượt các tên trong danh sách
+    for (const folderName of possibleNames) {
+        try {
+            getEl('loader-text').textContent = `Đang tìm: ${folderName}...`;
+            const response = await fetch(userUrl, {
+                method: "POST",
+                body: JSON.stringify({ action: 'search', folderName: folderName })
+            });
+            const result = await response.json();
+            if (result.status === 'found') {
+                foundUrl = result.url;
+                break;
+            }
+        } catch (e) {
+            console.warn("Lỗi tìm kiếm:", e);
         }
-      };
-
-      tx.oncomplete = () => {
-        // Update in-memory
-        currentCustomerData.assets[assetIndex].driveLink = result.url;
-        getEl("loader").classList.add("hidden");
-        renderAssetDriveStatus(result.url);
-        showToast("Đã kết nối lại!");
-      };
-    } else {
-      getEl("loader").classList.add("hidden");
-      alert("Không tìm thấy folder: " + folderName);
     }
-  } catch (err) {
-    console.error(err);
-    getEl("loader").classList.add("hidden");
-    alert("Lỗi: " + (err && err.message ? err.message : String(err)));
-  }
+
+    // Nếu tìm thấy thì lưu và cập nhật giao diện, ngược lại báo lỗi
+    if (foundUrl) {
+        currentCustomerData.driveLink = foundUrl;
+        const tx = db.transaction(['customers'], 'readwrite');
+        tx.objectStore('customers').put(currentCustomerData).onsuccess = () => {
+            getEl('loader').classList.add('hidden');
+            renderDriveStatus(foundUrl);
+            showToast("Đã kết nối lại thành công!");
+        };
+    } else {
+        getEl('loader').classList.add('hidden');
+        alert("Không tìm thấy folder nào khớp với Tên + CCCD hoặc Tên + SĐT.");
+    }
+}
+// ============================================================
+// LOGIC KẾT NỐI GOOGLE APPS SCRIPT (OCR & UPLOAD)
+// ============================================================
+
+// Link Script mặc định đã bị loại bỏ trong mô hình "Quản lý tập trung - Lưu trữ phân tán".
+// Vui lòng cấu hình link Script cá nhân của bạn trong phần Cài đặt (lưu bằng USER_SCRIPT_KEY). Không dùng biến mặc định nữa.
+
+let currentOcrBase64 = null;
+
+// 1. Mở Modal OCR
+// Removed OCR modal handlers and OCR execution functions as OCR is no longer used
+
+// 4. HÀM UPLOAD ẢNH (Gửi mảng ảnh lên Google Script)
+async function uploadToGoogleDrive() {
+    // Sử dụng Script cá nhân của người dùng. Nếu chưa cấu hình, hướng dẫn người dùng vào Cài đặt
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
+    if (!currentCustomerData) return;
+
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang kiểm tra ảnh...";
+    
+    const tx = db.transaction(['images'], 'readonly');
+    const index = tx.objectStore('images').index('customerId');
+
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        let imagesToUpload = allImages.filter(img => !img.assetId);
+
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Không có ảnh nào để tải lên!");
+        }
+
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang Upload lên Drive...";
+
+        // Cần masterKey để tạo folderName plaintext
+        if (!window.masterKey) {
+            getEl('loader').classList.add('hidden');
+            alert("Chưa có khóa bảo mật để tạo tên thư mục trên Drive. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
+            return;
+        }
+
+        // Đóng gói mảng ảnh
+        const payload = {
+            action: 'upload',
+            // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
+            folderName: `${decryptText(currentCustomerData.name)} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `hoso_${Date.now()}_${idx}.jpg`,
+                data: img.data
+            }))
+        };
+
+        try {
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                currentCustomerData.driveLink = result.url;
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                renderDriveStatus(result.url);
+                
+                if(confirm("✅ Upload thành công!\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => { loadProfileImages(); };
+                }
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi Upload: " + err.message);
+        }
+    };
+}
+
+// --- CẬP NHẬT REGEX THÔNG MINH (V5: BẮT DÍNH LOẠI ĐẤT & SỐ BÌA) ---
+
+function parseRedBookInfo(text) {
+    // Trả về đối tượng rỗng (OCR parser đã bỏ)
+    return {};
+}
+
+// --- CẬP NHẬT HIỂN THỊ KẾT QUẢ ---
+function renderRedBookInfo(info) {
+    const item = (label, val, icon, highlight = false) => {
+        // Nếu không có dữ liệu thì hiện dòng mờ
+        const content = val ? `<b class="${highlight ? 'text-emerald-400' : 'text-white'} select-all text-right">${val}</b>` : `<span class="opacity-20 text-[10px]">---</span>`;
+        return `
+            <div class="flex items-start justify-between border-b border-white/5 pb-2 last:border-0 gap-3">
+                <span class="text-slate-400 text-xs flex items-center gap-1.5 shrink-0 mt-0.5 min-w-[90px]">
+                    <i data-lucide="${icon}" class="w-3.5 h-3.5 text-slate-500"></i> ${label}
+                </span>
+                <span class="text-sm break-words font-medium leading-tight flex-1 text-right">${content}</span>
+            </div>
+        `;
+    };
+
+    return `
+        <div class="space-y-3 animate-fade-in">
+            ${item('Chủ sở hữu', info.chuSoHuu, 'user')}
+            ${item('Số bìa đỏ', info.soPhatHanh, 'qr-code', true)}
+            <div class="grid grid-cols-2 gap-4">
+                ${item('Tờ bản đồ', info.toBanDo, 'map')}
+                ${item('Thửa đất', info.thuaDat, 'grid')}
+            </div>
+            ${item('Diện tích', info.dienTich ? info.dienTich + ' m²' : '', 'maximize')}
+            
+            ${item('Loại đất', info.mucDich, 'sprout')}
+            
+            ${item('Địa chỉ', info.diaChi, 'map-pin')}
+            ${item('Số vào sổ', info.soVaoSo, 'file-text')}
+        </div>
+        <div class="mt-3 text-[10px] text-slate-500 text-center italic">
+            * Dữ liệu được trích xuất tự động từ ảnh
+        </div>
+    `;
+}
+
+
+// Removed old mobile copy functions (copyOcrResult and fallbackCopyText) as OCR features have been replaced by QR scanning. Use copyToClipboard() instead.
+
+
+
+// --- LOGIC UPLOAD ẢNH HỒ SƠ ---
+async function uploadToGoogleDrive() {
+    // Lấy link Script cá nhân cho upload tài sản
+    const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
+    if (!userUrl || userUrl.length < 10) {
+        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+            toggleMenu();
+        }
+        return;
+    }
+    const scriptUrl = userUrl;
+    
+    if (!currentCustomerData) return;
+
+    // 1. Lấy ảnh từ Database
+    getEl('loader').classList.remove('hidden');
+    getEl('loader-text').textContent = "Đang kiểm tra ảnh...";
+    
+    const tx = db.transaction(['images'], 'readonly');
+    const store = tx.objectStore('images');
+    const index = store.index('customerId');
+
+    index.getAll(currentCustomerId).onsuccess = async (e) => {
+        let allImages = e.target.result || [];
+        // Lấy ảnh hồ sơ (không có assetId)
+        let imagesToUpload = allImages.filter(img => !img.assetId);
+
+        if (imagesToUpload.length === 0) {
+            getEl('loader').classList.add('hidden');
+            return alert("Không có ảnh hồ sơ nào để tải lên!");
+        }
+
+        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`)) {
+            getEl('loader').classList.add('hidden');
+            return;
+        }
+
+        getEl('loader-text').textContent = "Đang đẩy lên Google Drive...";
+
+        // Cần masterKey để tạo folderName plaintext
+        if (!window.masterKey) {
+            getEl('loader').classList.add('hidden');
+            alert("Chưa có khóa bảo mật để tạo tên thư mục trên Drive. Vui lòng thoát ra vào lại hoặc đăng nhập lại để hệ thống lấy khóa.");
+            return;
+        }
+
+        // 2. Chuẩn bị gói dữ liệu
+        const payload = {
+            action: 'upload', // <--- Báo cho Script biết là muốn Upload
+            // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
+            folderName: `${decryptText(currentCustomerData.name)} - ${decryptText(currentCustomerData.cccd) || decryptText(currentCustomerData.phone)}`,
+            images: imagesToUpload.map((img, idx) => ({
+                name: `hoso_${Date.now()}_${idx}.jpg`,
+                data: img.data // Gửi cả mảng ảnh đi 1 lần
+            }))
+        };
+
+        try {
+            const response = await fetch(scriptUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                // Lưu link Folder
+                currentCustomerData.driveLink = result.url;
+                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                
+                getEl('loader').classList.add('hidden');
+                renderDriveStatus(result.url);
+                
+                if(confirm("✅ Đã Upload xong!\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                    const txDel = db.transaction(['images'], 'readwrite');
+                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
+                    txDel.oncomplete = () => {
+                        loadProfileImages();
+                        showToast("Đã dọn dẹp bộ nhớ");
+                    };
+                }
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            getEl('loader').classList.add('hidden');
+            alert("Lỗi Upload: " + err.message);
+        }
+    };
+}
+
+// --- CẬP NHẬT REGEX V7: CHIẾN THUẬT "CHẶN ĐUÔI" (FIX LỖI DÍNH DÒNG) ---
+function parseRedBookInfo(text) {
+    if (!text) return {};
+    
+    // 1. Chuẩn hóa văn bản: Xóa xuống dòng, xóa dấu | bảng biểu
+    const raw = text.replace(/\|/g, ' ')
+                    .replace(/\r\n/g, ' ')
+                    .replace(/\n/g, ' ')
+                    .replace(/\s+/g, ' '); // Gộp tất cả thành 1 dòng dài duy nhất
+
+    const get = (regex) => {
+        const m = raw.match(regex);
+        return m && m[1] ? m[1].trim() : '';
+    };
+
+    return {
+        // [SỐ BÌA ĐỎ]: Bắt mã AA/BS...
+        soPhatHanh: get(/\b([A-Z]{2}\s{0,2}[0-9]{6,9})\b/),
+        
+        // [DIỆN TÍCH]: Bắt số ngay sau chữ "Diện tích"
+        // Chỉ lấy số và dấu phẩy/chấm, bỏ qua chữ "c)" hay ":"
+        dienTich: get(/Diện tích(?:.*?)[:\s]*([0-9]+[.,][0-9]+|[0-9]+)/i),
+        
+        // [ĐỊA CHỈ - QUAN TRỌNG NHẤT]: 
+        // Chiến thuật: Bắt từ "Địa chỉ" cho đến khi gặp từ khóa "Diện tích" hoặc "Mục đích" hoặc "c)"
+        // (?=...) là cú pháp "Dừng lại trước khi gặp..."
+        diaChi: get(/(?:Địa chỉ|thửa đất)(?:\s*thửa đất)?[:\s]*(.*?)(?=\s*Diện tích|\s*Mục đích|\s*Hình thức|\s*c\))/i),
+
+        // Các thông tin phụ (để hiển thị xem thêm)
+        toBanDo: get(/(?:Tờ bản đồ số|TBĐ số|bản đồ số)[:\s]*([0-9]+)/i),
+        thuaDat: get(/(?:Thửa đất số|Thửa số|thửa đất số)[:\s]*([0-9\-\,]+)/i),
+        mucDich: get(/(?:Mục đích sử dụng|Mục đích|Loại đất)[:\s]*([^.;]+)/i),
+        chuSoHuu: get(/(?:Ông|Bà|Người sử dụng đất|Hộ ông|Hộ bà|Họ và tên)[:\s]*([A-ZĂÂÁẮẤÀẰẦẢẲẨÃẴẪẠẶẬĐEÊÉẾÈỀẺỂẼỄẸỆIÍÌỈĨỊOÔƠÓỐỚÒỒỜỎỔỞÕỖỠỌỘỢUƯÚỨÙỪỦỬŨỮỤỰYÝỲỶỸỴ\s]+)/)
+    };
+}
+
+// 6. Render Kết quả
+function renderRedBookInfo(info) {
+    const item = (label, val, icon, highlight = false) => {
+        const content = val ? `<b class="${highlight ? 'text-emerald-400' : 'text-white'} select-all">${val}</b>` : `<span class="opacity-20 text-[10px]">---</span>`;
+        return `
+            <div class="flex items-start justify-between border-b border-white/5 pb-2 last:border-0 gap-2">
+                <span class="text-slate-400 text-xs flex items-center gap-1.5 shrink-0 mt-0.5">
+                    <i data-lucide="${icon}" class="w-3.5 h-3.5 text-slate-500"></i> ${label}
+                </span>
+                <span class="text-sm text-right break-words font-medium leading-tight">${content}</span>
+            </div>
+        `;
+    };
+
+    return `
+        <div class="space-y-3 animate-fade-in">
+            ${item('Số phát hành', info.soPhatHanh, 'qr-code', true)}
+            ${item('Số vào sổ', info.soVaoSo, 'file-text')}
+            <div class="grid grid-cols-2 gap-4">
+                ${item('Tờ bản đồ', info.toBanDo, 'map')}
+                ${item('Thửa đất', info.thuaDat, 'grid')}
+            </div>
+            ${item('Diện tích', info.dienTich ? info.dienTich + ' m²' : '', 'maximize')}
+            ${item('Mục đích', info.mucDich, 'sprout')}
+            ${item('Địa chỉ', info.diaChi, 'map-pin')}
+        </div>
+    `;
 }
