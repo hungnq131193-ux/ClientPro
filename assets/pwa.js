@@ -11,6 +11,11 @@
 
   if (!("serviceWorker" in navigator)) return;
 
+  // IMPORTANT (GitHub Pages / aggressive HTTP caches):
+  // Register SW with a build query so browsers reliably fetch the latest sw.js.
+  // Keep this in sync with sw.js VERSION.
+  var SW_BUILD = 'v4.0.8_gpsalign';
+
   function sendSkipWaiting(sw) {
     try {
       if (sw) sw.postMessage({ type: "SKIP_WAITING" });
@@ -27,7 +32,7 @@
 
   window.addEventListener("load", async () => {
     try {
-      const reg = await navigator.serviceWorker.register("./sw.js");
+      const reg = await navigator.serviceWorker.register("./sw.js?v=" + encodeURIComponent(SW_BUILD));
 
       // If a new SW is already waiting, ask it to activate immediately.
       if (reg && reg.waiting) {
