@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ld) ld.classList.add("hidden");
   } catch (e) {}
 
-  lucide.createIcons();
+  try { if (window.lucide && typeof window.lucide.createIcons === "function") { window.lucide.createIcons(); } } catch (e) {}
   const setAppHeight = () =>
     document.documentElement.style.setProperty(
       "--app-height",
@@ -70,6 +70,22 @@ document.addEventListener("DOMContentLoaded", () => {
       if (typeof initWeather === 'function') initWeather();
     } catch (e) {}
   }, 2000);
+
+
+// 🔧 Preload commonly-used feature modules in idle time to avoid "freeze" when entering Settings.
+runIdle(async () => {
+  try {
+    if (window.ClientProLazy) {
+      // Drive functions are often accessed from Settings / Assets.
+      if (typeof window.ClientProLazy.ensureDrive === 'function') await window.ClientProLazy.ensureDrive();
+      // Cloud transfer inbox can be checked later without blocking first paint.
+      if (typeof window.ClientProLazy.ensureCloud === 'function') await window.ClientProLazy.ensureCloud();
+      // Map is optional; keep last to reduce bandwidth on slow networks.
+      if (typeof window.ClientProLazy.ensureMap === 'function') await window.ClientProLazy.ensureMap();
+    }
+  } catch (e) {}
+}, 6000);
+
 
   const req = indexedDB.open(DB_NAME, 4);
   req.onupgradeneeded = (e) => {
