@@ -309,6 +309,7 @@ body.theme-mono {
   position: relative;
   z-index: 10;
   will-change: transform, opacity;
+  transform: translateZ(0);
 }
 
 /* PERF: Lite glass panel for long scrolling lists (avoid heavy blur/shadow per item) */
@@ -751,3 +752,71 @@ input::placeholder {
 #lightbox button[onclick="closeLightbox()"] {
   top: calc(1.5rem + var(--sat)); /* Tailwind top-6 */
 }
+
+/* === TAILWIND CRITICAL UTILITIES (SELF-HOST) ===
+   Minimal subset to replace Tailwind CDN for layout/position/transition.
+   Focus: prevent overlay/toolbars from stacking in normal flow.
+*/
+.hidden{display:none!important;}
+.block{display:block;}
+.inline-block{display:inline-block;}
+.flex{display:flex;}
+.inline-flex{display:inline-flex;}
+.grid{display:grid;}
+.items-center{align-items:center;}
+.items-start{align-items:flex-start;}
+.items-end{align-items:flex-end;}
+.justify-between{justify-content:space-between;}
+.justify-center{justify-content:center;}
+.justify-start{justify-content:flex-start;}
+.justify-end{justify-content:flex-end;}
+
+.relative{position:relative;}
+.absolute{position:absolute;}
+.fixed{position:fixed;}
+.sticky{position:sticky;}
+
+.top-0{top:0;}
+.bottom-0{bottom:0;}
+.left-0{left:0;}
+.right-0{right:0;}
+.inset-0{top:0;right:0;bottom:0;left:0;}
+
+.w-full{width:100%;}
+.h-full{height:100%;}
+.min-h-0{min-height:0;}
+
+.overflow-hidden{overflow:hidden;}
+.overflow-auto{overflow:auto;}
+.overflow-y-auto{overflow-y:auto;}
+.overflow-x-auto{overflow-x:auto;}
+
+.pointer-events-none{pointer-events:none;}
+.pointer-events-auto{pointer-events:auto;}
+
+/* z-index (subset used across app) */
+.z-0{z-index:0;}
+.z-10{z-index:10;}
+.z-20{z-index:20;}
+.z-30{z-index:30;}
+.z-40{z-index:40;}
+.z-50{z-index:50;}
+.z-\[60\]{z-index:60;}
+
+/* transforms + slide-in bars */
+.translate-y-full{transform:translateY(100%);}
+.translate-y-0{transform:translateY(0);}
+.-translate-y-full{transform:translateY(-100%);}
+.-translate-y-0{transform:translateY(0);}
+
+.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms;}
+.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms;}
+.duration-200{transition-duration:200ms;}
+.duration-300{transition-duration:300ms;}
+.ease-in-out{transition-timing-function:cubic-bezier(0.4,0,0.2,1);}
+
+/* basic spacing (only most used to keep file small) */
+.gap-1{gap:.25rem;}
+.gap-2{gap:.5rem;}
+.gap-3{gap:.75rem;}
+.gap-4{gap:1rem;}
