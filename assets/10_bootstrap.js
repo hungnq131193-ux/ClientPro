@@ -7,19 +7,6 @@ function parseMoneyToNumber(str) {
 // Removed enhanceDocumentWithAI as OCR is no longer used
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Run non-critical work when the browser is idle (or after a short delay).
-  const runIdle = (fn, timeoutMs = 1500) => {
-    try {
-      if ("requestIdleCallback" in window) {
-        window.requestIdleCallback(() => { try { fn(); } catch (e) {} }, { timeout: timeoutMs });
-      } else {
-        setTimeout(() => { try { fn(); } catch (e) {} }, 400);
-      }
-    } catch (e) {
-      setTimeout(() => { try { fn(); } catch (e2) {} }, 400);
-    }
-  };
-
   // UX: ẩn loader sớm để tránh cảm giác "treo" khi thiết bị/network chậm.
   // Dữ liệu sẽ render dần khi IndexedDB trả về.
   try {
@@ -27,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ld) ld.classList.add("hidden");
   } catch (e) {}
 
-  try { if (window.lucide && typeof window.lucide.createIcons === "function") { window.lucide.createIcons(); } } catch (e) {}
+  lucide.createIcons();
   const setAppHeight = () =>
     document.documentElement.style.setProperty(
       "--app-height",
@@ -61,31 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
   setTheme(savedTheme);
 
   setTheme(savedTheme);
-  // 🌤 Thời tiết: defer load để ưu tiên first paint
-  runIdle(async () => {
-    try {
-      if (window.ClientProLazy && typeof window.ClientProLazy.ensureWeather === 'function') {
-        await window.ClientProLazy.ensureWeather();
-      }
-      if (typeof initWeather === 'function') initWeather();
-    } catch (e) {}
-  }, 2000);
-
-
-// 🔧 Preload commonly-used feature modules in idle time to avoid "freeze" when entering Settings.
-runIdle(async () => {
-  try {
-    if (window.ClientProLazy) {
-      // Drive functions are often accessed from Settings / Assets.
-      if (typeof window.ClientProLazy.ensureDrive === 'function') await window.ClientProLazy.ensureDrive();
-      // Cloud transfer inbox can be checked later without blocking first paint.
-      if (typeof window.ClientProLazy.ensureCloud === 'function') await window.ClientProLazy.ensureCloud();
-      // Map is optional; keep last to reduce bandwidth on slow networks.
-      if (typeof window.ClientProLazy.ensureMap === 'function') await window.ClientProLazy.ensureMap();
-    }
-  } catch (e) {}
-}, 6000);
-
+  // 🌤 Khởi động thời tiết
+  initWeather();
 
   const req = indexedDB.open(DB_NAME, 4);
   req.onupgradeneeded = (e) => {
@@ -139,17 +103,11 @@ runIdle(async () => {
 
 
     // Cloud transfer inbox polling (notify when other users send backups)
-    // Defer module load & polling to keep first render snappy.
-    runIdle(async () => {
-      try {
-        if (window.ClientProLazy && typeof window.ClientProLazy.ensureCloud === 'function') {
-          await window.ClientProLazy.ensureCloud();
-        }
-        if (window.CloudTransferUI && typeof window.CloudTransferUI.startPolling === 'function') {
-          window.CloudTransferUI.startPolling();
-        }
-      } catch (err) {}
-    }, 2500);
+    try {
+      if (window.CloudTransferUI && typeof window.CloudTransferUI.startPolling === 'function') {
+        window.CloudTransferUI.startPolling();
+      }
+    } catch (err) {}
   };
   // Debounce search to avoid decrypt + render on every single keystroke (mượt hơn với danh sách lớn)
   const onSearchInput = (e) => loadCustomers(e.target.value);
