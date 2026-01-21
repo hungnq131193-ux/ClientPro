@@ -17,11 +17,12 @@
                 <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vị trí + Ghi chú thêm</label><input id="asset-onland" placeholder="VD: Địa chỉ, công trình xây dựng,..." class="w-full p-3.5 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
                 <div>
                     <label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vị trí / Tọa độ (Map)</label>
-                    <!-- FIX: prevent iOS flex overflow causing the right-side location buttons to wrap/float/overlap -->
-                    <div class="flex items-stretch gap-2">
-                        <input id="asset-link" placeholder="Nhấn nút bên phải để lấy tọa độ..." class="flex-1 min-w-0 p-3.5 rounded-xl text-sm border outline-none bg-black/20" style="border-color: var(--border-panel);">
-                        <button type="button" onclick="openGuideModal()" class="shrink-0 w-12 h-[52px] flex items-center justify-center bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20 active:bg-blue-500/20" title="Hướng dẫn lấy tọa độ"><i data-lucide="help-circle" class="w-5 h-5"></i></button>
-                        <button type="button" onclick="getCurrentGPS()" id="btn-gps" class="shrink-0 w-12 h-[52px] flex items-center justify-center bg-red-500/10 text-red-400 font-bold text-xs rounded-xl border border-red-500/20 active:bg-red-500/20 animate-pulse"><i data-lucide="map-pin" class="w-5 h-5"></i></button>
+                    <!-- FIX: lock height + prevent flex overflow so the right buttons never "drop" or look misaligned on mobile -->
+                    <div class="flex gap-2 items-stretch">
+                        <input id="asset-link" placeholder="Nhấn nút bên phải để lấy tọa độ..." class="flex-1 min-w-0 h-[52px] p-3.5 rounded-xl text-sm border outline-none bg-black/20" style="border-color: var(--border-panel);">
+                        <button type="button" onclick="openGuideModal()" class="w-12 h-[52px] shrink-0 flex items-center justify-center bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20 active:bg-blue-500/20" title="Hướng dẫn lấy tọa độ"><i data-lucide="help-circle" class="w-5 h-5"></i></button>
+                        <!-- CHANGED: Replaced Paste button with GPS Button -->
+                        <button type="button" onclick="getCurrentGPS()" id="btn-gps" class="w-12 h-[52px] shrink-0 flex items-center justify-center bg-red-500/10 text-red-400 font-bold text-xs rounded-xl border border-red-500/20 active:bg-red-500/20 animate-pulse"><i data-lucide="map-pin" class="w-5 h-5"></i></button>
                     </div>
                 </div>
             </div>
