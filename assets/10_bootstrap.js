@@ -43,14 +43,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     "theme-ocean",
     "theme-mint",
     "theme-royal",
-    // Expanded theme library (must match CSS + theme buttons)
     "theme-aurora",
-    "theme-graphite",
     "theme-violet",
     "theme-emerald",
     "theme-sakura",
     "theme-solar",
-    "theme-mono",
   ];
 
   // Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về Midnight
