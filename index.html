@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+    <base href="./">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ClientPro</title>
@@ -12,14 +13,15 @@
     <!-- Tailwind (self-host) -->
     <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
     <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css">
-    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="./assets/css/app.patch.css">
+<script defer src="https://unpkg.com/lucide@latest"></script>
     <!-- Transfer Backup uses TEXT chunks (no QR image) -->
     <!-- Leaflet is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
     <!-- CryptoJS library for hashing and encryption -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     
-    <script defer src="assets/head.js"></script>
-    <link rel="stylesheet" href="assets/styles.css">
+    <script defer src="./assets/head.js"></script>
+    <link rel="stylesheet" href="./assets/styles.css">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
 <style>
   html, body { overscroll-behavior-x: contain; }
@@ -307,27 +309,27 @@
 
     <!-- UI Partials: Modals are loaded from /assets/ui/modals/*.html for maintainability -->
     <div id="ui-modals-root"></div>
-    <script src="assets/ui/load_modals.js" defer></script>
+    <script src="./assets/ui/load_modals.js" defer></script>
 
-<script src="assets/00_globals.js" defer></script>
-<script src="assets/01_config.js" defer></script>
-<script src="assets/02_security.js" defer></script>
-<script src="assets/12_backup_core.js" defer></script>
-<script src="assets/13_ui_select_customers.js" defer></script>
-<script src="assets/15_auth_gate.js" defer></script>
-<script src="assets/03_map.js" defer></script>
-<script src="assets/04_ui_common.js" defer></script>
-<script src="assets/05_customers.js" defer></script>
-<script src="assets/06_assets.js" defer></script>
-<script src="assets/08_images_camera.js" defer></script>
-<script src="assets/09_backup_weather_donate.js" defer></script>
-<script src="assets/07_drive.js?v=20260120_fix_asset" defer></script>
+<script src="./assets/00_globals.js" defer></script>
+<script src="./assets/01_config.js" defer></script>
+<script src="./assets/02_security.js" defer></script>
+<script src="./assets/12_backup_core.js" defer></script>
+<script src="./assets/13_ui_select_customers.js" defer></script>
+<script src="./assets/15_auth_gate.js" defer></script>
+<script src="./assets/03_map.js" defer></script>
+<script src="./assets/04_ui_common.js" defer></script>
+<script src="./assets/05_customers.js" defer></script>
+<script src="./assets/06_assets.js" defer></script>
+<script src="./assets/08_images_camera.js" defer></script>
+<script src="./assets/09_backup_weather_donate.js" defer></script>
+<script src="./assets/07_drive.js?v=20260120_fix_asset" defer></script>
     <!-- Removed missing script: assets/08_qr_info_and_missing.js -->
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="assets/14_cloud_transfer.js" defer></script>
-<script src="assets/10_bootstrap.js" defer></script>
-<script src="assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
-<script src="assets/pwa.js" defer></script>
+    <script src="./assets/14_cloud_transfer.js" defer></script>
+<script src="./assets/10_bootstrap.js" defer></script>
+<script src="./assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
+<script src="./assets/pwa.js" defer></script>
 
 
 <!-- Backup Manager Modal -->
