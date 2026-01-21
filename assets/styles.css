@@ -309,7 +309,6 @@ body.theme-mono {
   position: relative;
   z-index: 10;
   will-change: transform, opacity;
-  transform: translateZ(0);
 }
 
 /* PERF: Lite glass panel for long scrolling lists (avoid heavy blur/shadow per item) */
