@@ -28,6 +28,7 @@ const STATIC_ASSETS = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
+  './apple-touch-icon.png',
 
   // Tailwind (self-host)
   './assets/css/tailwind.clientpro.css',
@@ -74,18 +75,11 @@ self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(STATIC_CACHE);
     // cache:'reload' giúp lấy bản mới nhất, tránh dính cache HTTP cũ khi deploy lại
-    // IMPORTANT: addAll() sẽ FAIL toàn bộ nếu chỉ 1 file 404 → SW mới không activate.
-    // Vì GitHub Pages/PWA hay thay đổi file (hoặc bạn xoá modal), ta cache từng file và bỏ qua lỗi.
-    for (const url of STATIC_ASSETS) {
-      try {
-        const req = new Request(url, { cache: 'reload' });
-        await cache.add(req);
-      } catch (e) {
-        // ignore missing/failed precache entries
-      }
-    }
+    const reqs = STATIC_ASSETS.map((url) => new Request(url, { cache: 'reload' }));
+    await cache.addAll(reqs);
   })());
 });
+
 // Allow the page to request immediate activation of a waiting SW.
 self.addEventListener('message', (event) => {
   try {

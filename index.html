@@ -1,317 +1,340 @@
 <!DOCTYPE html>
-
 <html lang="vi">
 <head>
-<base href="./"/>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
-<title>ClientPro</title>
-<link href="manifest.json" rel="manifest"/>
-<link href="icon-192.png" rel="apple-touch-icon"/>
-<meta content="#00346e" name="theme-color"/>
-<meta content="yes" name="apple-mobile-web-app-capable"/>
-<meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
-<!-- Tailwind (self-host) -->
-<!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
-<link href="./assets/css/tailwind.clientpro.css" rel="stylesheet"/>
-<link href="./assets/css/app.patch.css" rel="stylesheet"/>
-<script defer="" src="https://unpkg.com/lucide@latest"></script>
-<!-- Transfer Backup uses TEXT chunks (no QR image) -->
-<!-- Leaflet is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
-<!-- CryptoJS library for hashing and encryption -->
-<script defer="" src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-<script defer="" src="./assets/head.js"></script>
-<link href="./assets/styles.css" rel="stylesheet"/>
-<!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
+    <base href="./">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ClientPro</title>
+    <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#00346e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Tailwind (self-host) -->
+    <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
+    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css">
+    <link rel="stylesheet" href="./assets/css/app.patch.css">
+<script defer src="https://unpkg.com/lucide@latest"></script>
+    <!-- Transfer Backup uses TEXT chunks (no QR image) -->
+    <!-- Leaflet is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
+    <!-- CryptoJS library for hashing and encryption -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    
+    <script defer src="./assets/head.js"></script>
+    <link rel="stylesheet" href="./assets/styles.css">
+    <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
 <style>
   html, body { overscroll-behavior-x: contain; }
   body { touch-action: pan-y; }
 </style>
 </head>
 <body class="theme-midnight">
-<!-- Modal kích hoạt thiết bị: hiển thị khi lần đầu sử dụng ứng dụng -->
-<!-- ASSET MODAL UPDATED WITH GPS -->
+    
+
+
+    
+
+
+    <!-- Modal kích hoạt thiết bị: hiển thị khi lần đầu sử dụng ứng dụng -->
+    
+
+    
+    
+
+    
+    
+
+    
+    <!-- ASSET MODAL UPDATED WITH GPS -->
+    
+
+
+    
+
+
+    
+
+    
+    
+
 <!-- DONATE MODAL -->
+
+
 <!-- END DONATE MODAL -->
-<div class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 transform -translate-y-40 opacity-0 pointer-events-none border border-white/20 z-[400]" id="toast"><i class="w-5 h-5 flex-shrink-0 text-emerald-400" data-lucide="check-circle"></i><span class="font-medium text-sm whitespace-nowrap" id="toast-msg">Thông báo</span></div>
-<div class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300" id="cust-selection-bar"><div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button class="p-2 rounded-full hover:bg-white/10 transition" onclick="toggleCustSelectionMode()"><i class="w-5 h-5" data-lucide="x"></i></button><span>Đã chọn: <span class="text-lg font-bold" id="cust-selection-count" style="color: var(--accent)">0</span></span></div><div class="flex gap-3"><button class="bg-blue-500/10 text-blue-300 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-blue-500/20 active:bg-blue-500/20 transition-colors text-sm" onclick="sendSelectedCustomersToUser()"><i class="w-4 h-4" data-lucide="send"></i> Gửi</button><button class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm" onclick="deleteSelectedCustomers()"><i class="w-4 h-4" data-lucide="trash-2"></i> Xóa</button></div></div>
-<div class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300" id="selection-bar"><div class="font-bold text-sm ml-2" style="color: var(--text-main)">Đã chọn: <span class="text-blue-400 font-bold text-lg" id="selection-count">0</span> ảnh</div><div class="flex gap-3"><button class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" onclick="shareSelectedImages()" style="background: var(--accent-gradient)"><i class="w-4 h-4" data-lucide="share-2"></i> Gửi</button><button class="bg-red-600/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-600/20 text-sm" onclick="deleteSelectedImages()"><i class="w-4 h-4" data-lucide="trash-2"></i> Xóa</button></div></div>
-<div class="fixed inset-0 z-[500] flex flex-col items-center justify-center p-6 text-center" id="loader"><div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4" style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div><p class="text-xs font-bold tracking-widest uppercase opacity-70" id="loader-text" style="color: var(--text-main)">Loading...</p></div>
-<div class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" id="menu-overlay" onclick="toggleMenu()"></div>
-<div class="fixed top-20 right-4 w-80 glass-panel rounded-2xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300" id="settings-menu">
-<div class="px-5 py-4 border-b border-white/5"><h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3><p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro</p></div>
-<div class="px-5 py-5 border-b border-white/5">
-<p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Chọn Giao diện</p>
-<div class="flex flex-wrap gap-4 justify-start">
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-midnight')" title="Vietin Signature">
-<div class="absolute inset-0 bg-[#005b9f]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-sunset')" title="Vietin Dynamic">
-<div class="absolute inset-0 bg-[#da251d]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-ocean')" title="Vietin Digital">
-<div class="absolute inset-0 bg-[#0097a7]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-mint')" title="Vietin Premium">
-<div class="absolute inset-0 bg-[#0a192f]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-royal')" title="Vietin Priority">
-<div class="absolute inset-0 bg-gradient-to-br from-[#713f12] to-[#facc15]"></div>
-</button>
-<!-- Expanded themes -->
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-aurora')" title="Aurora">
-<div class="absolute inset-0 bg-gradient-to-br from-[#22d3ee] to-[#a855f7]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-graphite')" title="Graphite">
-<div class="absolute inset-0 bg-gradient-to-br from-[#0b1220] to-[#334155]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-violet')" title="Violet">
-<div class="absolute inset-0 bg-gradient-to-br from-[#a855f7] to-[#f472b6]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-emerald')" title="Emerald">
-<div class="absolute inset-0 bg-gradient-to-br from-[#10b981] to-[#22d3ee]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-sakura')" title="Sakura">
-<div class="absolute inset-0 bg-gradient-to-br from-[#fb7185] to-[#f472b6]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-solar')" title="Solar">
-<div class="absolute inset-0 bg-gradient-to-br from-[#fb923c] to-[#f59e0b]"></div>
-</button>
-<button class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" onclick="setTheme('theme-mono')" title="Mono">
-<div class="absolute inset-0 bg-gradient-to-br from-[#111827] to-[#e5e7eb]"></div>
-</button>
-</div>
-</div>
-<button class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" onclick="openSecuritySetup()" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><i class="w-4 h-4" data-lucide="shield"></i></div> Bảo mật &amp; An toàn</button>
-<button class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" onclick="backupData()" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-blue-500/20 text-blue-400"><i class="w-4 h-4" data-lucide="database"></i></div> Tạo Backup</button>
-<button class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" onclick="openBackupManager()" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400"><i class="w-4 h-4" data-lucide="archive"></i></div> Quản lý Backup</button>
-<!-- 🌟 NÚT DONATE MỚI -->
-<button class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" onclick="openDonateModal()" style="color: var(--text-main);">
-<div class="p-1.5 rounded-lg bg-pink-500/20 text-pink-400">
-<i class="w-4 h-4" data-lucide="heart"></i>
-</div>
+    <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 transform -translate-y-40 opacity-0 pointer-events-none border border-white/20 z-[400]"><i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i><span id="toast-msg" class="font-medium text-sm whitespace-nowrap">Thông báo</span></div>
+    
+    <div id="cust-selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button onclick="toggleCustSelectionMode()" class="p-2 rounded-full hover:bg-white/10 transition"><i data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count" class="text-lg font-bold" style="color: var(--accent)">0</span></span></div><div class="flex gap-3"><button onclick="sendSelectedCustomersToUser()" class="bg-blue-500/10 text-blue-300 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-blue-500/20 active:bg-blue-500/20 transition-colors text-sm"><i data-lucide="send" class="w-4 h-4"></i> Gửi</button><button onclick="deleteSelectedCustomers()" class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
+    <div id="selection-bar" class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300"><div class="font-bold text-sm ml-2" style="color: var(--text-main)">Đã chọn: <span id="selection-count" class="text-blue-400 font-bold text-lg">0</span> ảnh</div><div class="flex gap-3"><button onclick="shareSelectedImages()" class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm" style="background: var(--accent-gradient)"><i data-lucide="share-2" class="w-4 h-4"></i> Gửi</button><button onclick="deleteSelectedImages()" class="bg-red-600/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-600/20 text-sm"><i data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div></div>
+    
+    <div id="loader" class="fixed inset-0 z-[500] flex flex-col items-center justify-center p-6 text-center"><div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4" style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div><p id="loader-text" class="text-xs font-bold tracking-widest uppercase opacity-70" style="color: var(--text-main)">Loading...</p></div>
+    
+    <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleMenu()"></div>
+    <div id="settings-menu" class="fixed top-20 right-4 w-80 glass-panel rounded-2xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
+        <div class="px-5 py-4 border-b border-white/5"><h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3><p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro</p></div>
+                <div class="px-5 py-5 border-b border-white/5">
+            <p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Chọn Giao diện</p>
+            <div class="flex flex-wrap gap-4 justify-start">
+                <button onclick="setTheme('theme-midnight')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Vietin Signature">
+                    <div class="absolute inset-0 bg-[#005b9f]"></div>
+                </button>
+                <button onclick="setTheme('theme-sunset')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Vietin Dynamic">
+                    <div class="absolute inset-0 bg-[#da251d]"></div>
+                </button>
+                <button onclick="setTheme('theme-ocean')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Vietin Digital">
+                    <div class="absolute inset-0 bg-[#0097a7]"></div>
+                </button>
+                <button onclick="setTheme('theme-mint')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Vietin Premium">
+                    <div class="absolute inset-0 bg-[#0a192f]"></div>
+                </button>
+                <button onclick="setTheme('theme-royal')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Vietin Priority">
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#713f12] to-[#facc15]"></div>
+                </button>
+
+                <!-- Expanded themes -->
+                <button onclick="setTheme('theme-aurora')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Aurora">
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#22d3ee] to-[#a855f7]"></div>
+                </button>
+                <button onclick="setTheme('theme-graphite')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Graphite">
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#0b1220] to-[#334155]"></div>
+                </button>
+                <button onclick="setTheme('theme-violet')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Violet">
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#a855f7] to-[#f472b6]"></div>
+                </button>
+                <button onclick="setTheme('theme-emerald')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Emerald">
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#10b981] to-[#22d3ee]"></div>
+                </button>
+                <button onclick="setTheme('theme-sakura')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Sakura">
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#fb7185] to-[#f472b6]"></div>
+                </button>
+                <button onclick="setTheme('theme-solar')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Solar">
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#fb923c] to-[#f59e0b]"></div>
+                </button>
+                <button onclick="setTheme('theme-mono')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Mono">
+                    <div class="absolute inset-0 bg-gradient-to-br from-[#111827] to-[#e5e7eb]"></div>
+                </button>
+            </div>
+        </div>
+        <button onclick="openSecuritySetup()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="shield" class="w-4 h-4"></i></div> Bảo mật & An toàn</button>
+    <button onclick="backupData()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-blue-500/20 text-blue-400"><i data-lucide="database" class="w-4 h-4"></i></div> Tạo Backup</button>
+    <button onclick="openBackupManager()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400"><i data-lucide="archive" class="w-4 h-4"></i></div> Quản lý Backup</button>
+    
+    <!-- 🌟 NÚT DONATE MỚI -->
+    <button onclick="openDonateModal()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);">
+        <div class="p-1.5 rounded-lg bg-pink-500/20 text-pink-400">
+            <i data-lucide="heart" class="w-4 h-4"></i>
+        </div>
         Ủng hộ tác giả (Donate)
     </button>
-<!-- END NÚT DONATE -->
+    <!-- END NÚT DONATE -->
 <div class="w-full px-5 py-4 border-b border-white/5">
-<p class="text-xs font-bold uppercase mb-2 opacity-60" style="color: var(--text-sub)">Kết nối Google Drive</p>
-<div class="flex gap-2">
-<input class="flex-1 bg-black/30 border border-white/10 rounded-lg p-2 text-xs text-white outline-none" id="user-script-url" placeholder="Dán Link Apps Script..." type="text"/>
-<button class="p-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg font-bold hover:bg-blue-600/30" onclick="saveScriptUrl()"><i class="w-4 h-4" data-lucide="save"></i></button>
+    <p class="text-xs font-bold uppercase mb-2 opacity-60" style="color: var(--text-sub)">Kết nối Google Drive</p>
+    <div class="flex gap-2">
+        <input id="user-script-url" type="text" placeholder="Dán Link Apps Script..." class="flex-1 bg-black/30 border border-white/10 rounded-lg p-2 text-xs text-white outline-none">
+        <button onclick="saveScriptUrl()" class="p-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg font-bold hover:bg-blue-600/30"><i data-lucide="save" class="w-4 h-4"></i></button>
+    </div>
 </div>
-</div>
-<label class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 cursor-pointer border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-orange-500/20 text-orange-400"><i class="w-4 h-4" data-lucide="refresh-cw"></i></div> Khôi phục từ file (.cpb)<input accept=".cpb,.cpro" class="hidden" id="restore-input" onchange="restoreData(this)" type="file"/></label>
-<button class="w-full text-left px-5 py-4 active:bg-red-500/10 flex items-center gap-3 text-sm font-bold text-red-400 transition-colors" onclick="resetAppData()"><div class="p-1.5 rounded-lg bg-red-500/20"><i class="w-4 h-4" data-lucide="alert-triangle"></i></div> Reset Ứng Dụng</button>
-<div class="px-5 py-3 text-center"><span class="text-[10px] opacity-40" style="color: var(--text-sub)">Phát triển bởi Nguyễn Quốc Hưng - 2025</span></div>
-</div>
-<div class="app-container z-10 transition-transform duration-300" id="screen-dashboard">
-<header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
-<div class="flex justify-between items-center mb-4">
-<div class="vietin-logo-container">
-<svg class="vietin-logo-img" fill="none" style="width: 40px; height: 40px;" viewbox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<mask id="vietin-hole">
-<rect fill="white" height="512" width="512"></rect>
-<rect fill="black" height="160" width="160" x="176" y="176"></rect>
-</mask>
-</defs>
-<g mask="url(#vietin-hole)">
-<circle cx="256" cy="256" fill="#005b9f" r="256"></circle>
-<path d="M 26,350 Q 256,240 486,350 A 256,256 0 0 1 26,350 Z" fill="#da251d"></path>
-</g>
-</svg>
-<div class="vietin-text-group">
-<span class="vietin-brand">ClientPro</span>
-<span class="vietin-sub">Quản Lý Khách Hàng</span>
-</div>
-</div>
-<button class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95" onclick="toggleMenu()" style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
-<i class="w-6 h-6" data-lucide="settings-2"></i>
-</button>
-</div>
-<div class="flex justify-end mb-2 text-[11px] font-medium">
-<button class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-slate-200 hover:bg-white/10 active:scale-95 transition" onclick="refreshWeather()">
-<i class="w-3.5 h-3.5" data-lucide="cloud-sun"></i>
-<span class="max-w-[160px] truncate" id="current-weather">Đang tải thời tiết...</span>
-</button>
-</div>
-<div class="flex p-1 rounded-xl mb-3 bg-black/20 border border-white/5">
-<button class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300" id="list-tab-pending" onclick="switchListTab('pending')">KH đang Thẩm Định</button>
-<button class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300" id="list-tab-approved" onclick="switchListTab('approved')">Khách hàng đã vay</button>
-</div>
-<div class="flex gap-2">
-<div class="relative flex-1">
-<i class="absolute left-3 top-2.5 w-4 h-4 opacity-50" data-lucide="search" style="color: var(--text-main)"></i>
-<input class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors" id="search-input" placeholder="Tìm kiếm hồ sơ..." style="border-color: var(--border-panel); color: var(--text-main);" type="text"/>
-</div>
-<button class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20" id="btn-cust-select" onclick="toggleCustSelectionMode()" style="border-color: var(--border-panel); color: var(--text-sub);">
-<i class="w-5 h-5" data-lucide="list-checks"></i>
-</button>
-</div>
+
+    <label class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 cursor-pointer border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-orange-500/20 text-orange-400"><i data-lucide="refresh-cw" class="w-4 h-4"></i></div> Khôi phục từ file (.cpb)<input type="file" id="restore-input" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)"></label>
+    <button onclick="resetAppData()" class="w-full text-left px-5 py-4 active:bg-red-500/10 flex items-center gap-3 text-sm font-bold text-red-400 transition-colors"><div class="p-1.5 rounded-lg bg-red-500/20"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div> Reset Ứng Dụng</button>
+        <div class="px-5 py-3 text-center"><span class="text-[10px] opacity-40" style="color: var(--text-sub)">Phát triển bởi Nguyễn Quốc Hưng - 2025</span></div>
+    </div>
+
+    <div id="screen-dashboard" class="app-container z-10 transition-transform duration-300">
+        <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
+    <div class="flex justify-between items-center mb-4">
+        <div class="vietin-logo-container">
+            <svg class="vietin-logo-img" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 40px; height: 40px;">
+                <defs>
+                    <mask id="vietin-hole">
+                        <rect width="512" height="512" fill="white"/>
+                        <rect x="176" y="176" width="160" height="160" fill="black"/>
+                    </mask>
+                </defs>
+                <g mask="url(#vietin-hole)">
+                    <circle cx="256" cy="256" r="256" fill="#005b9f"/>
+                    <path d="M 26,350 Q 256,240 486,350 A 256,256 0 0 1 26,350 Z" fill="#da251d"/>
+                </g>
+            </svg>
+            <div class="vietin-text-group">
+                <span class="vietin-brand">ClientPro</span>
+                <span class="vietin-sub">Quản Lý Khách Hàng</span>
+            </div>
+        </div>
+        
+        <button onclick="toggleMenu()" class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95" style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
+            <i data-lucide="settings-2" class="w-6 h-6"></i>
+        </button>
+    </div>
+    
+    <div class="flex justify-end mb-2 text-[11px] font-medium">
+        <button onclick="refreshWeather()" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-slate-200 hover:bg-white/10 active:scale-95 transition">
+            <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i>
+            <span id="current-weather" class="max-w-[160px] truncate">Đang tải thời tiết...</span>
+        </button>
+    </div>
+    <div class="flex p-1 rounded-xl mb-3 bg-black/20 border border-white/5">
+        <button onclick="switchListTab('pending')" id="list-tab-pending" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">KH đang Thẩm Định</button>
+        <button onclick="switchListTab('approved')" id="list-tab-approved" class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">Khách hàng đã vay</button>
+    </div>
+    <div class="flex gap-2">
+        <div class="relative flex-1">
+            <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50" style="color: var(--text-main)"></i>
+            <input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..." class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors" style="border-color: var(--border-panel); color: var(--text-main);">
+        </div>
+        <button onclick="toggleCustSelectionMode()" id="btn-cust-select" class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub);">
+            <i data-lucide="list-checks" class="w-5 h-5"></i>
+        </button>
+    </div>
 </header>
-<div class="scroll-area flex-1 p-4 space-y-3" id="customer-list"></div>
-<div class="absolute bottom-8 right-6 flex items-center gap-4 z-[100]">
-<button class="w-14 h-14 rounded-full shadow-2xl flex items-center justify-center font-bold text-white transition-transform active:scale-95 border border-white/20 glass-panel" onclick="toggleMap()" style="background: rgba(16, 185, 129, 0.2); backdrop-filter: blur(20px);">
-<i class="w-6 h-6 text-emerald-400" data-lucide="map"></i>
-</button>
-<button class="h-14 pl-5 pr-6 text-white rounded-full shadow-2xl flex items-center justify-center font-bold gap-2 transition-transform active:scale-95 border border-white/20" onclick="openModal()" style="background: var(--accent-gradient); box-shadow: 0 8px 20px -5px rgba(99, 102, 241, 0.5);">
-<i class="w-6 h-6" data-lucide="plus"></i> <span class="text-sm">Thêm Mới</span>
-</button>
-</div>
-</div>
-<div class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black" id="screen-map">
-<div id="map-container"></div>
-<button class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform" onclick="toggleMap()"><i class="w-6 h-6" data-lucide="arrow-left"></i></button>
-<button class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform" onclick="locateMe()"><i class="w-6 h-6" data-lucide="crosshair"></i></button>
-</div>
-<div class="app-container z-20 transform translate-x-full transition-transform duration-300" id="screen-folder" style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
-<div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
-<div class="flex items-center justify-between mb-4">
-<button class="p-2 -ml-2 rounded-full hover:bg-white/10 transition" onclick="closeFolder()" style="color: var(--text-main)">
-<i class="w-6 h-6" data-lucide="arrow-left"></i>
-</button>
-<div class="flex gap-2">
-<button class="glass-btn px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 transition-colors" id="btn-select-mode" onclick="toggleSelectionMode()" style="color: var(--text-main)">
-<i class="w-4 h-4" data-lucide="check-square"></i> Chọn
+        <div class="scroll-area flex-1 p-4 space-y-3" id="customer-list"></div>
+        
+        <div class="absolute bottom-8 right-6 flex items-center gap-4 z-[100]">
+            <button onclick="toggleMap()" class="w-14 h-14 rounded-full shadow-2xl flex items-center justify-center font-bold text-white transition-transform active:scale-95 border border-white/20 glass-panel" style="background: rgba(16, 185, 129, 0.2); backdrop-filter: blur(20px);">
+                <i data-lucide="map" class="w-6 h-6 text-emerald-400"></i>
             </button>
-<button class="glass-btn p-2 text-red-400 rounded-full active:scale-90 transition-transform" onclick="deleteCurrentCustomer()">
-<i class="w-5 h-5" data-lucide="trash-2"></i>
-</button>
-</div>
-</div>
-<div class="profile-glass-box">
-<button class="absolute top-3 right-3 p-2 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition" onclick="openEditCustomerModal()">
-<i class="w-4 h-4" data-lucide="pencil"></i>
-</button>
-<div class="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold mb-3 shadow-lg border border-white/20" id="folder-avatar" style="background: var(--accent-gradient); color: white;">
+            <button onclick="openModal()" class="h-14 pl-5 pr-6 text-white rounded-full shadow-2xl flex items-center justify-center font-bold gap-2 transition-transform active:scale-95 border border-white/20" style="background: var(--accent-gradient); box-shadow: 0 8px 20px -5px rgba(99, 102, 241, 0.5);">
+                <i data-lucide="plus" class="w-6 h-6"></i> <span class="text-sm">Thêm Mới</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="screen-map" class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black">
+        <div id="map-container"></div>
+        <button onclick="toggleMap()" class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i data-lucide="arrow-left" class="w-6 h-6"></i></button>
+        <button onclick="locateMe()" class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
+    </div>
+
+    <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300" style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
+        <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
+    <div class="flex items-center justify-between mb-4">
+        <button onclick="closeFolder()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition" style="color: var(--text-main)">
+            <i data-lucide="arrow-left" class="w-6 h-6"></i>
+        </button>
+        <div class="flex gap-2">
+            <button onclick="toggleSelectionMode()" id="btn-select-mode" class="glass-btn px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 transition-colors" style="color: var(--text-main)">
+                <i data-lucide="check-square" class="w-4 h-4"></i> Chọn
+            </button>
+            <button onclick="deleteCurrentCustomer()" class="glass-btn p-2 text-red-400 rounded-full active:scale-90 transition-transform">
+                <i data-lucide="trash-2" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="profile-glass-box">
+        <button onclick="openEditCustomerModal()" class="absolute top-3 right-3 p-2 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition">
+            <i data-lucide="pencil" class="w-4 h-4"></i>
+        </button>
+
+        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold mb-3 shadow-lg border border-white/20" style="background: var(--accent-gradient); color: white;" id="folder-avatar">
             A
         </div>
-<h2 class="font-bold text-xl text-center px-4 truncate w-full tracking-tight drop-shadow-md" id="folder-customer-name" style="color: var(--text-main)">
+        
+        <h2 id="folder-customer-name" class="font-bold text-xl text-center px-4 truncate w-full tracking-tight drop-shadow-md" style="color: var(--text-main)">
             Tên Khách Hàng
         </h2>
-</div>
-<div class="flex items-center justify-center gap-2.5 mb-6">
-<a class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:text-white transition" href="#" id="btn-detail-call" style="color: var(--text-main)">
-<i class="w-3.5 h-3.5" data-lucide="phone"></i> Gọi
+    </div>
+
+    <div class="flex items-center justify-center gap-2.5 mb-6">
+        <a id="btn-detail-call" href="#" class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:text-white transition" style="color: var(--text-main)">
+            <i data-lucide="phone" class="w-3.5 h-3.5"></i> Gọi
         </a>
-<a class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 text-blue-400 hover:text-white transition" href="#" id="btn-detail-zalo" target="_blank">
-<span class="font-black text-[10px] border border-current px-1 rounded-[3px]">Z</span> Zalo
+        <a id="btn-detail-zalo" href="#" target="_blank" class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 text-blue-400 hover:text-white transition">
+            <span class="font-black text-[10px] border border-current px-1 rounded-[3px]">Z</span> Zalo
         </a>
-<button class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 active:scale-95 transition-transform" id="detail-status-badge" onclick="toggleCustomerStatus()" style="color: var(--text-sub)">
-<span>Trạng thái</span>
-</button>
-</div>
-<div class="p-1 rounded-xl bg-black/20 border border-white/5 mx-0 mb-3 flex gap-1">
-<button class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent" id="tab-btn-images" onclick="switchTab('images')">Hồ Sơ Ảnh</button>
-<button class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent" id="tab-btn-assets" onclick="switchTab('assets')">Tài Sản Bảo Đảm</button>
-</div>
-</div>
-<div class="scroll-area flex-1 img-grid-container content-start" id="content-images"></div>
-<div class="hidden scroll-area flex-1 p-4 space-y-4" id="content-assets"></div>
-<div class="glass-panel border-t p-4 pb-8 flex gap-3 flex-none z-30" style="border-color: var(--border-panel)"><div class="w-full flex flex-col gap-3" id="actions-images">
-<div class="hidden w-full" id="drive-status-area"></div>
-<div class="flex gap-2 w-full">
-<button class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20" onclick="tryOpenCamera('profile')" style="background: var(--accent-gradient);">
-<i class="w-5 h-5" data-lucide="camera"></i> Chụp
-    </button>
-<button class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform" id="btn-upload-drive" onclick="uploadToGoogleDrive()">
-<i class="w-5 h-5" data-lucide="cloud-upload"></i> Up Drive
-    </button>
-<input accept="image/*" capture="environment" class="hidden" id="native-camera-profile" onchange="handleFileUpload(this, 'profile')" type="file"/>
-<label class="w-12 glass-btn py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]" style="color: var(--text-sub)">
-<i class="w-5 h-5" data-lucide="upload"></i>
-<input accept="image/*" class="hidden" id="upload-input" multiple="" onchange="handleFileUpload(this, 'profile')" type="file"/>
-</label>
-</div>
-</div>
-<div class="w-full hidden" id="actions-assets">
-<button class="w-full text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20" onclick="openAssetModal()" style="background: var(--accent-gradient);">
-<i class="w-5 h-5" data-lucide="plus-square"></i> Thêm TSBĐ Mới
-    </button>
-</div>
-</div> </div> <div class="app-container z-30 transform translate-x-full transition-transform duration-300" id="screen-asset-gallery" style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
-<div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full"><div class="flex items-center justify-between"><button class="p-2 -ml-2 rounded-full hover:bg-white/10" onclick="closeAssetGallery()" style="color: var(--text-main)"><i class="w-6 h-6" data-lucide="arrow-left"></i></button><div class="flex items-center gap-3"><h2 class="font-bold text-sm uppercase truncate max-w-[160px]" id="gallery-asset-name" style="color: var(--text-main)">Chi tiết TSBĐ</h2><button class="px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-2 transition-colors bg-black/20" id="btn-select-mode-asset" onclick="toggleSelectionMode()" style="border-color: var(--border-panel); color: var(--text-sub)"><i class="w-4 h-4" data-lucide="check-square"></i> Chọn</button></div></div><div class="flex gap-2 mt-3 text-xs justify-center w-full font-mono" style="color: var(--text-sub)"><span class="px-3 py-1.5 rounded-lg border bg-black/20" id="gallery-asset-val" style="border-color: var(--border-panel)">--</span><span class="px-3 py-1.5 rounded-lg border bg-blue-900/20 text-blue-400 border-blue-500/30" id="gallery-asset-loan">--</span></div></div>
-<div class="scroll-area flex-1 img-grid-container content-start" id="asset-gallery-grid"></div>
-<div class="glass-panel border-t p-4 pb-8 flex flex-col gap-3 flex-none z-30" style="border-color: var(--border-panel)">
-<div class="hidden w-full" id="asset-drive-status-area"></div>
-<div class="flex gap-2 w-full">
-<button class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] border border-white/20" onclick="tryOpenCamera('asset')" style="background: var(--accent-gradient);">
-<i class="w-5 h-5" data-lucide="camera"></i> Chụp
-    </button>
-<button class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform" id="btn-asset-upload" onclick="uploadAssetToDrive()">
-<i class="w-5 h-5" data-lucide="cloud-upload"></i> Up
-    </button>
-<input accept="image/*" capture="environment" class="hidden" id="native-camera-asset" onchange="handleFileUpload(this, 'asset')" type="file"/>
-<label class="glass-btn w-12 py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]" style="color: var(--text-sub)">
-<i class="w-5 h-5" data-lucide="upload"></i>
-<input accept="image/*" class="hidden" multiple="" onchange="handleFileUpload(this, 'asset')" type="file"/>
-</label>
-</div>
-</div>
-</div>
-<div class="fixed inset-0 z-[60] bg-black/95 hidden flex flex-col justify-center items-center touch-none backdrop-blur-xl" id="lightbox"><button class="lightbox-nav left-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute" onclick="navigateLightbox(-1)"><i class="w-8 h-8 text-white" data-lucide="chevron-left"></i></button><img class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform" id="lightbox-img"/><button class="lightbox-nav right-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute" onclick="navigateLightbox(1)"><i class="w-8 h-8 text-white" data-lucide="chevron-right"></i></button><button class="absolute top-6 right-6 text-white p-3 z-[70] bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20" onclick="closeLightbox()"><i class="w-6 h-6" data-lucide="x"></i></button><div class="absolute bottom-12 text-white text-xs font-bold bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 tracking-widest" id="lightbox-counter">1/1</div><div class="absolute bottom-12 right-6 flex gap-4"><button class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20" onclick="shareOpenedImage()"><i class="w-5 h-5" data-lucide="share-2"></i></button><button class="p-3 bg-red-500/20 rounded-full text-red-400 hover:bg-red-500/30" onclick="deleteOpenedImage()"><i class="w-5 h-5" data-lucide="trash-2"></i></button></div></div>
-<!-- UI Partials: Modals are loaded from /assets/ui/modals/*.html for maintainability -->
-<div id="ui-modals-root"></div>
-<script defer="" src="./assets/ui/load_modals.js"></script>
-<script defer="" src="./assets/00_globals.js"></script>
-<script defer="" src="./assets/01_config.js"></script>
-<script defer="" src="./assets/02_security.js"></script>
-<script defer="" src="./assets/12_backup_core.js"></script>
-<script defer="" src="./assets/13_ui_select_customers.js"></script>
-<script defer="" src="./assets/15_auth_gate.js"></script>
-<script defer="" src="./assets/03_map.js"></script>
-<script defer="" src="./assets/04_ui_common.js"></script>
-<script defer="" src="./assets/05_customers.js"></script>
-<script defer="" src="./assets/06_assets.js"></script>
-<script defer="" src="./assets/08_images_camera.js"></script>
-<script defer="" src="./assets/09_backup_weather_donate.js"></script>
-<script defer="" src="./assets/07_drive.js"></script>
-<!-- Removed missing script: assets/08_qr_info_and_missing.js -->
-<!-- Cloud transfer backup (send to other users) -->
-<script defer="" src="./assets/14_cloud_transfer.js"></script>
-<script defer="" src="./assets/10_bootstrap.js"></script>
-<script defer="" src="./assets/11_edge_back_swipe.js"></script>
-<script>
-/* SW Hard-Update Guard (GitHub Pages safe) - BUILD 2026-01-21_2005
-   - Forces fresh fetch of sw.js
-   - Promotes waiting SW immediately (SKIP_WAITING)
-   - Reloads on controllerchange so UI/HTML updates apply at once
-*/
-(function () {
-  if (!('serviceWorker' in navigator)) return;
-  var BUILD = '2026-01-21_2005';
-  var swUrl = './sw.js?v=' + encodeURIComponent(BUILD);
+        <button onclick="toggleCustomerStatus()" id="detail-status-badge" class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 active:scale-95 transition-transform" style="color: var(--text-sub)">
+            <span>Trạng thái</span>
+        </button>
+    </div>
 
-  navigator.serviceWorker.register(swUrl, { scope: './' }).then(function (reg) {
-    function promoteWaiting() {
-      try {
-        if (reg && reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-      } catch (e) {}
-    }
+    <div class="p-1 rounded-xl bg-black/20 border border-white/5 mx-0 mb-3 flex gap-1">
+        <button onclick="switchTab('images')" id="tab-btn-images" class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Hồ Sơ Ảnh</button>
+        <button onclick="switchTab('assets')" id="tab-btn-assets" class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Tài Sản Bảo Đảm</button>
+    </div>
+</div>
+        <div id="content-images" class="scroll-area flex-1 img-grid-container content-start"></div>
+        <div id="content-assets" class="hidden scroll-area flex-1 p-4 space-y-4"></div>
+        <div class="glass-panel border-t p-4 pb-8 flex gap-3 flex-none z-30" style="border-color: var(--border-panel)"><div id="actions-images" class="w-full flex flex-col gap-3">
+    <div id="drive-status-area" class="hidden w-full"></div>
 
-    promoteWaiting();
+    <div class="flex gap-2 w-full">
+    <button onclick="tryOpenCamera('profile')" class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20" style="background: var(--accent-gradient);">
+        <i data-lucide="camera" class="w-5 h-5"></i> Chụp
+    </button>
+    
+    <button onclick="uploadToGoogleDrive()" id="btn-upload-drive" class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
+        <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up Drive
+    </button>
 
-    reg.addEventListener('updatefound', function () {
-      var sw = reg.installing;
-      if (!sw) return;
-      sw.addEventListener('statechange', function () {
-        if (sw.state === 'installed') {
-          promoteWaiting();
-        }
-      });
-    });
-  }).catch(function () {
-    // no-op
-  });
+    <input type="file" id="native-camera-profile" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'profile')">
+    <label class="w-12 glass-btn py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]" style="color: var(--text-sub)">
+        <i data-lucide="upload" class="w-5 h-5"></i>
+        <input type="file" id="upload-input" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'profile')">
+    </label>
+</div>
+</div>
 
-  navigator.serviceWorker.addEventListener('controllerchange', function () {
-    // Prevent reload loops
-    if (window.__swReloaded) return;
-    window.__swReloaded = true;
-    window.location.reload();
-  });
-})();
-</script><script defer="" src="./assets/pwa.js"></script>
+<div id="actions-assets" class="w-full hidden">
+    <button onclick="openAssetModal()" class="w-full text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20" style="background: var(--accent-gradient);">
+        <i data-lucide="plus-square" class="w-5 h-5"></i> Thêm TSBĐ Mới
+    </button>
+</div>
+        </div> </div> <div id="screen-asset-gallery" class="app-container z-30 transform translate-x-full transition-transform duration-300" style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
+        <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full"><div class="flex items-center justify-between"><button onclick="closeAssetGallery()" class="p-2 -ml-2 rounded-full hover:bg-white/10" style="color: var(--text-main)"><i data-lucide="arrow-left" class="w-6 h-6"></i></button><div class="flex items-center gap-3"><h2 id="gallery-asset-name" class="font-bold text-sm uppercase truncate max-w-[160px]" style="color: var(--text-main)">Chi tiết TSBĐ</h2><button onclick="toggleSelectionMode()" id="btn-select-mode-asset" class="px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-2 transition-colors bg-black/20" style="border-color: var(--border-panel); color: var(--text-sub)"><i data-lucide="check-square" class="w-4 h-4"></i> Chọn</button></div></div><div class="flex gap-2 mt-3 text-xs justify-center w-full font-mono" style="color: var(--text-sub)"><span id="gallery-asset-val" class="px-3 py-1.5 rounded-lg border bg-black/20" style="border-color: var(--border-panel)">--</span><span id="gallery-asset-loan" class="px-3 py-1.5 rounded-lg border bg-blue-900/20 text-blue-400 border-blue-500/30">--</span></div></div>
+        <div id="asset-gallery-grid" class="scroll-area flex-1 img-grid-container content-start"></div>
+        <div class="glass-panel border-t p-4 pb-8 flex flex-col gap-3 flex-none z-30" style="border-color: var(--border-panel)">
+    
+    <div id="asset-drive-status-area" class="hidden w-full"></div>
+
+    <div class="flex gap-2 w-full">
+    <button onclick="tryOpenCamera('asset')" class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] border border-white/20" style="background: var(--accent-gradient);">
+        <i data-lucide="camera" class="w-5 h-5"></i> Chụp
+    </button>
+    
+    <button onclick="uploadAssetToDrive()" id="btn-asset-upload" class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
+        <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up
+    </button>
+
+    <input type="file" id="native-camera-asset" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this, 'asset')">
+    
+    <label class="glass-btn w-12 py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]" style="color: var(--text-sub)">
+        <i data-lucide="upload" class="w-5 h-5"></i>
+        <input type="file" multiple accept="image/*" class="hidden" onchange="handleFileUpload(this, 'asset')">
+    </label>
+</div>
+</div>
+
+    </div>
+
+    <div id="lightbox" class="fixed inset-0 z-[60] bg-black/95 hidden flex flex-col justify-center items-center touch-none backdrop-blur-xl"><button class="lightbox-nav left-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute" onclick="navigateLightbox(-1)"><i data-lucide="chevron-left" class="w-8 h-8 text-white"></i></button><img id="lightbox-img" class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform"><button class="lightbox-nav right-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute" onclick="navigateLightbox(1)"><i data-lucide="chevron-right" class="w-8 h-8 text-white"></i></button><button onclick="closeLightbox()" class="absolute top-6 right-6 text-white p-3 z-[70] bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20"><i data-lucide="x" class="w-6 h-6"></i></button><div class="absolute bottom-12 text-white text-xs font-bold bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 tracking-widest" id="lightbox-counter">1/1</div><div class="absolute bottom-12 right-6 flex gap-4"><button onclick="shareOpenedImage()" class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20"><i data-lucide="share-2" class="w-5 h-5"></i></button><button onclick="deleteOpenedImage()" class="p-3 bg-red-500/20 rounded-full text-red-400 hover:bg-red-500/30"><i data-lucide="trash-2" class="w-5 h-5"></i></button></div></div>
+
+    <!-- UI Partials: Modals are loaded from /assets/ui/modals/*.html for maintainability -->
+    <div id="ui-modals-root"></div>
+    <script src="./assets/ui/load_modals.js" defer></script>
+
+<script src="./assets/00_globals.js" defer></script>
+<script src="./assets/01_config.js" defer></script>
+<script src="./assets/02_security.js" defer></script>
+<script src="./assets/12_backup_core.js" defer></script>
+<script src="./assets/13_ui_select_customers.js" defer></script>
+<script src="./assets/15_auth_gate.js" defer></script>
+<script src="./assets/03_map.js" defer></script>
+<script src="./assets/04_ui_common.js" defer></script>
+<script src="./assets/05_customers.js" defer></script>
+<script src="./assets/06_assets.js" defer></script>
+<script src="./assets/08_images_camera.js" defer></script>
+<script src="./assets/09_backup_weather_donate.js" defer></script>
+<script src="./assets/07_drive.js?v=20260120_fix_asset" defer></script>
+    <!-- Removed missing script: assets/08_qr_info_and_missing.js -->
+    <!-- Cloud transfer backup (send to other users) -->
+    <script src="./assets/14_cloud_transfer.js" defer></script>
+<script src="./assets/10_bootstrap.js" defer></script>
+<script src="./assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
+<script src="./assets/pwa.js" defer></script>
+
+
 <!-- Backup Manager Modal -->
+
+
+
 </body>
 </html>
