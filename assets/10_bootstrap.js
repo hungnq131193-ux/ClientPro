@@ -7,6 +7,19 @@ function parseMoneyToNumber(str) {
 // Removed enhanceDocumentWithAI as OCR is no longer used
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Run non-critical work when the browser is idle (or after a short delay).
+  const runIdle = (fn, timeoutMs = 1500) => {
+    try {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(() => { try { fn(); } catch (e) {} }, { timeout: timeoutMs });
+      } else {
+        setTimeout(() => { try { fn(); } catch (e) {} }, 400);
+      }
+    } catch (e) {
+      setTimeout(() => { try { fn(); } catch (e2) {} }, 400);
+    }
+  };
+
   // UX: ẩn loader sớm để tránh cảm giác "treo" khi thiết bị/network chậm.
   // Dữ liệu sẽ render dần khi IndexedDB trả về.
   try {
@@ -48,8 +61,15 @@ document.addEventListener("DOMContentLoaded", () => {
   setTheme(savedTheme);
 
   setTheme(savedTheme);
-  // 🌤 Khởi động thời tiết
-  initWeather();
+  // 🌤 Thời tiết: defer load để ưu tiên first paint
+  runIdle(async () => {
+    try {
+      if (window.ClientProLazy && typeof window.ClientProLazy.ensureWeather === 'function') {
+        await window.ClientProLazy.ensureWeather();
+      }
+      if (typeof initWeather === 'function') initWeather();
+    } catch (e) {}
+  }, 2000);
 
   const req = indexedDB.open(DB_NAME, 4);
   req.onupgradeneeded = (e) => {
@@ -103,11 +123,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // Cloud transfer inbox polling (notify when other users send backups)
-    try {
-      if (window.CloudTransferUI && typeof window.CloudTransferUI.startPolling === 'function') {
-        window.CloudTransferUI.startPolling();
-      }
-    } catch (err) {}
+    // Defer module load & polling to keep first render snappy.
+    runIdle(async () => {
+      try {
+        if (window.ClientProLazy && typeof window.ClientProLazy.ensureCloud === 'function') {
+          await window.ClientProLazy.ensureCloud();
+        }
+        if (window.CloudTransferUI && typeof window.CloudTransferUI.startPolling === 'function') {
+          window.CloudTransferUI.startPolling();
+        }
+      } catch (err) {}
+    }, 2500);
   };
   // Debounce search to avoid decrypt + render on every single keystroke (mượt hơn với danh sách lớn)
   const onSearchInput = (e) => loadCustomers(e.target.value);
