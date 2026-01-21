@@ -1,3 +1,21 @@
-<div id="forgot-pin-modal" class="fixed inset-0 z-[320] bg-black/90 hidden flex items-center justify-center p-6 backdrop-blur-sm">
-        <div class="glass-panel w-full max-w-sm p-8 rounded-2xl border border-slate-700 modal-animate"><h3 class="text-xl font-bold mb-2" style="color: var(--text-main)">Khôi phục quyền truy cập</h3><p class="text-sm mb-6 opacity-70" style="color: var(--text-sub)">Nhập mã nhân viên của bạn để xác thực danh tính.</p><input type="text" id="recovery-answer" class="w-full border rounded-xl p-4 outline-none mb-6 font-bold" style="border-color: var(--border-panel);" placeholder="Mã số nhân viên..."><div class="flex gap-4"><button onclick="closeForgotModal()" class="flex-1 py-3 rounded-xl font-bold hover:bg-white/5" style="background: rgba(255,255,255,0.05); color: var(--text-sub)">Hủy</button><button onclick="checkRecovery()" class="flex-1 py-3 text-white rounded-xl font-bold shadow-lg" style="background: var(--accent-gradient)">Xác nhận</button></div></div>
+<div id="forgot-pin-modal" class="cp-modal hidden" role="dialog" aria-modal="true" aria-labelledby="forgot-pin-title">
+  <div class="cp-modal__backdrop" onclick="closeForgotModal()"></div>
+  <div class="cp-modal__panel glass-panel">
+    <button type="button" class="cp-modal__close" onclick="closeForgotModal()" aria-label="Đóng">✕</button>
+
+    <div class="cp-modal__header">
+      <div class="cp-modal__title" id="forgot-pin-title">Khôi phục quyền truy cập</div>
+      <div class="cp-modal__subtitle">Nhập câu trả lời khôi phục để đặt lại PIN.</div>
     </div>
+
+    <div class="cp-form">
+      <label class="cp-label" for="recovery-answer">Câu trả lời khôi phục</label>
+      <input id="recovery-answer" class="cp-input" type="text" inputmode="text" autocomplete="off" placeholder="Nhập câu trả lời đã đặt" />
+
+      <div class="cp-actions">
+        <button type="button" class="glass-btn" onclick="closeForgotModal()">Hủy</button>
+        <button type="button" class="glass-btn cp-btn-primary" onclick="checkRecovery()">Xác nhận</button>
+      </div>
+    </div>
+  </div>
+</div>
