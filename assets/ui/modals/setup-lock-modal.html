@@ -1,3 +1,24 @@
-<div id="setup-lock-modal" class="fixed inset-0 z-[310] bg-black/90 hidden flex items-center justify-center p-6 backdrop-blur-md">
-        <div class="glass-panel w-full max-w-sm rounded-2xl p-8 shadow-2xl relative border border-white/10 modal-animate"><button onclick="closeSetupModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-6 h-6"></i></button><h2 class="text-xl font-bold mb-6 text-center tracking-tight" style="color: var(--text-main)">Thiết lập Bảo Mật</h2><div class="space-y-6"><div><label class="block text-xs font-bold uppercase mb-2 tracking-wider opacity-70" style="color: var(--text-sub)">Mã PIN mới (4 số)</label><input type="tel" id="setup-pin" maxlength="4" class="w-full border text-center text-3xl font-bold rounded-xl p-4 tracking-[0.5em] outline-none" style="border-color: var(--border-panel);" placeholder="••••"></div><div><label class="block text-xs font-bold uppercase mb-2 tracking-wider opacity-70" style="color: var(--text-sub)">Mã nhân viên (Để khôi phục)</label><input type="text" id="setup-answer" class="w-full border rounded-xl p-4 outline-none font-bold" style="border-color: var(--border-panel);" placeholder="Nhập mã nhân viên..."></div><button onclick="saveSecuritySetup()" class="w-full text-white font-bold py-4 rounded-xl mt-2 shadow-lg active:scale-95 transition-transform uppercase tracking-wide" style="background: var(--accent-gradient)">Lưu & Kích hoạt</button></div></div>
+<div id="setup-lock-modal" class="cp-modal hidden" role="dialog" aria-modal="true" aria-labelledby="setup-lock-title">
+  <div class="cp-modal__backdrop" onclick="closeSetupModal()"></div>
+  <div class="cp-modal__panel glass-panel">
+    <button type="button" class="cp-modal__close" onclick="closeSetupModal()" aria-label="Đóng">✕</button>
+
+    <div class="cp-modal__header">
+      <div class="cp-modal__title" id="setup-lock-title">Thiết lập khóa PIN</div>
+      <div class="cp-modal__subtitle">Tạo mã PIN để bảo vệ dữ liệu trên thiết bị này.</div>
     </div>
+
+    <div class="cp-form">
+      <label class="cp-label" for="setup-answer">Mã nhân viên</label>
+      <input id="setup-answer" class="cp-input" type="text" inputmode="text" autocomplete="username" placeholder="VD: NV001" />
+
+      <label class="cp-label" for="setup-pin" style="margin-top:12px;">Mã PIN (4–8 số)</label>
+      <input id="setup-pin" class="cp-input" type="password" inputmode="numeric" autocomplete="new-password" placeholder="Nhập PIN mới" />
+
+      <div class="cp-actions">
+        <button type="button" class="glass-btn" onclick="closeSetupModal()">Hủy</button>
+        <button type="button" class="glass-btn cp-btn-primary" onclick="saveSecuritySetup()">Lưu &amp; Kích hoạt</button>
+      </div>
+    </div>
+  </div>
+</div>
