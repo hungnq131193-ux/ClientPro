@@ -1,6 +1,6 @@
 /*
  * 12_backup_core.js
- * BackupCore: adapter layer so QR Transfer modules can reuse existing backup/restore model.
+ * BackupCore: lớp lõi backup/restore (adapter) cho các luồng sao lưu/gửi dữ liệu .
  *
  * Export:
  * - Returns plaintext fields (name/phone/cccd/assets...).

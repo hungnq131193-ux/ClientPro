@@ -94,6 +94,14 @@ document.addEventListener("DOMContentLoaded", () => {
     getEl("loader").classList.add("hidden");
     checkSecurity();
 
+    // AuthGate: kiểm tra quyền sau khi UI đã render local (tránh cảm giác chậm khi mở app)
+    try {
+      if (window.AuthGate && typeof window.AuthGate.preflight === 'function') {
+        setTimeout(() => { try { window.AuthGate.preflight(); } catch (e) {} }, 12000);
+      }
+    } catch (e) {}
+
+
     // Cloud transfer inbox polling (notify when other users send backups)
     try {
       if (window.CloudTransferUI && typeof window.CloudTransferUI.startPolling === 'function') {

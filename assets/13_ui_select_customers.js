@@ -1,6 +1,6 @@
 /*
  * 13_ui_select_customers.js
- * Simple picker UI for selecting customers for QR backup.
+ * Simple picker UI for selecting customers for partial backup/transfer .
  */
 (function () {
   async function loadCustomersForPick() {
@@ -45,7 +45,7 @@
 
   function renderPicker(list, resolve) {
     const overlay = document.createElement('div');
-    // IMPORTANT: must be above QR modal (z-index 9999) to avoid being hidden behind it.
+    // IMPORTANT: must be above other modals (z-index 9999) to avoid being hidden behind it.
     overlay.className = 'fixed inset-0 z-[10050] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
 
     overlay.innerHTML = `
@@ -53,7 +53,7 @@
         <div class="px-4 py-3 flex items-center justify-between border-b border-white/10">
           <div>
             <div class="text-base font-extrabold" style="color: var(--text-main)">Chọn khách hàng</div>
-            <div class="text-[11px] opacity-70" style="color: var(--text-sub)">Chọn nhiều KH để tạo 1 QR lớn hơn (nếu quá lớn app sẽ tự chia nhiều QR)</div>
+            <div class="text-[11px] opacity-70" style="color: var(--text-sub)">Chọn 1 hoặc nhiều KH để sao lưu/gửi một phần dữ liệu</div>
           </div>
           <button class="p-2 rounded-xl hover:bg-white/10" data-act="close" style="color: var(--text-main)">
             <i data-lucide="x" class="w-5 h-5"></i>
