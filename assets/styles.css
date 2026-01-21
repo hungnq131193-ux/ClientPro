@@ -802,6 +802,18 @@ input::placeholder {
 .z-40{z-index:40;}
 .z-50{z-index:50;}
 .z-\[60\]{z-index:60;}
+.z-\[70\]{z-index:70;}
+.z-\[100\]{z-index:100;}
+.z-\[120\]{z-index:120;}
+.z-\[300\]{z-index:300;}
+.z-\[305\]{z-index:305;}
+.z-\[310\]{z-index:310;}
+.z-\[320\]{z-index:320;}
+.z-\[400\]{z-index:400;}
+.z-\[500\]{z-index:500;}
+.z-\[10050\]{z-index:10050;}
+.z-\[10060\]{z-index:10060;}
+.z-\[10080\]{z-index:10080;}
 
 /* transforms + slide-in bars */
 .translate-y-full{transform:translateY(100%);}
