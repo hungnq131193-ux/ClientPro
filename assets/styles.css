@@ -309,7 +309,6 @@ body.theme-mono {
   position: relative;
   z-index: 10;
   will-change: transform, opacity;
-  transform: translateZ(0);
 }
 
 /* PERF: Lite glass panel for long scrolling lists (avoid heavy blur/shadow per item) */
@@ -753,70 +752,88 @@ input::placeholder {
   top: calc(1.5rem + var(--sat)); /* Tailwind top-6 */
 }
 
-/* === TAILWIND CRITICAL UTILITIES (SELF-HOST) ===
-   Minimal subset to replace Tailwind CDN for layout/position/transition.
-   Focus: prevent overlay/toolbars from stacking in normal flow.
-*/
+
+/* =========================================================
+   Tailwind-critical utilities (minimal) - required after removing CDN
+   Scope: visibility, modal overlays, fixed bars, transforms
+   ========================================================= */
 .hidden{display:none!important;}
-.block{display:block;}
-.inline-block{display:inline-block;}
-.flex{display:flex;}
-.inline-flex{display:inline-flex;}
-.grid{display:grid;}
-.items-center{align-items:center;}
-.items-start{align-items:flex-start;}
-.items-end{align-items:flex-end;}
-.justify-between{justify-content:space-between;}
-.justify-center{justify-content:center;}
-.justify-start{justify-content:flex-start;}
-.justify-end{justify-content:flex-end;}
+.block{display:block!important;}
+.inline-block{display:inline-block!important;}
 
-.relative{position:relative;}
-.absolute{position:absolute;}
-.fixed{position:fixed;}
-.sticky{position:sticky;}
+.fixed{position:fixed!important;}
+.absolute{position:absolute!important;}
+.relative{position:relative!important;}
 
+.inset-0{top:0;right:0;bottom:0;left:0;}
 .top-0{top:0;}
+.right-0{right:0;}
 .bottom-0{bottom:0;}
 .left-0{left:0;}
-.right-0{right:0;}
-.inset-0{top:0;right:0;bottom:0;left:0;}
+
+.flex{display:flex;}
+.inline-flex{display:inline-flex;}
+.items-center{align-items:center;}
+.justify-center{justify-content:center;}
+.justify-between{justify-content:space-between;}
 
 .w-full{width:100%;}
 .h-full{height:100%;}
-.min-h-0{min-height:0;}
-
-.overflow-hidden{overflow:hidden;}
+.max-h-full{max-height:100%;}
 .overflow-auto{overflow:auto;}
 .overflow-y-auto{overflow-y:auto;}
-.overflow-x-auto{overflow-x:auto;}
+.overflow-hidden{overflow:hidden;}
 
-.pointer-events-none{pointer-events:none;}
-.pointer-events-auto{pointer-events:auto;}
+.p-6{padding:1.5rem;}
+.p-4{padding:1rem;}
+.p-3{padding:0.75rem;}
+.p-2{padding:0.5rem;}
+.px-4{padding-left:1rem;padding-right:1rem;}
+.py-2{padding-top:0.5rem;padding-bottom:0.5rem;}
 
-/* z-index (subset used across app) */
-.z-0{z-index:0;}
-.z-10{z-index:10;}
-.z-20{z-index:20;}
-.z-30{z-index:30;}
-.z-40{z-index:40;}
-.z-50{z-index:50;}
-.z-\[60\]{z-index:60;}
+.rounded-xl{border-radius:0.75rem;}
+.rounded-2xl{border-radius:1rem;}
 
-/* transforms + slide-in bars */
+.shadow-lg{box-shadow:0 10px 15px -3px rgba(0,0,0,.25),0 4px 6px -4px rgba(0,0,0,.25);}
+
+.transition{transition-property:all;transition-duration:.2s;transition-timing-function:ease;}
+.transition-transform{transition-property:transform;transition-duration:.25s;transition-timing-function:ease;}
+.duration-300{transition-duration:.3s;}
+.ease-out{transition-timing-function:cubic-bezier(0,0,.2,1);}
+
+.transform{transform:translateZ(0);}
 .translate-y-full{transform:translateY(100%);}
 .translate-y-0{transform:translateY(0);}
-.-translate-y-full{transform:translateY(-100%);}
-.-translate-y-0{transform:translateY(0);}
+.-translate-y-1\/2{transform:translateY(-50%);}
 
-.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms;}
-.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms;}
-.duration-200{transition-duration:200ms;}
-.duration-300{transition-duration:300ms;}
-.ease-in-out{transition-timing-function:cubic-bezier(0.4,0,0.2,1);}
+/* z-index utilities used in this project */
+.z-\[60\]{z-index:60;}
+.z-\[100\]{z-index:100;}
+.z-\[120\]{z-index:120;}
+.z-\[300\]{z-index:300;}
+.z-\[305\]{z-index:305;}
+.z-\[310\]{z-index:310;}
+.z-\[320\]{z-index:320;}
 
-/* basic spacing (only most used to keep file small) */
-.gap-1{gap:.25rem;}
-.gap-2{gap:.5rem;}
-.gap-3{gap:.75rem;}
-.gap-4{gap:1rem;}
+/* Backdrop + overlay */
+.bg-black\/50{background:rgba(0,0,0,.50);}
+.bg-black\/70{background:rgba(0,0,0,.70);}
+.bg-black\/90{background:rgba(0,0,0,.90);}
+.backdrop-blur-sm{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+
+/* Safety: all modal root containers must be fixed overlays */
+#setup-lock-modal,
+#activation-modal,
+#add-modal,
+#approve-modal,
+#asset-modal,
+#backup-manager-modal,
+#camera-modal,
+#donate-modal,
+#forgot-pin-modal,
+#guide-modal,
+#screen-lock{
+  position:fixed;
+  top:0;right:0;bottom:0;left:0;
+}
+
