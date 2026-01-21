@@ -3,7 +3,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.0.7: Fix missing z-[...] utilities in self-host Tailwind subset (prevents Settings menu overlay stacking)
-const VERSION = 'v4.0.8_zindexfix';
+const VERSION = 'v4.0.9_zindexfix';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
