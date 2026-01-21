@@ -306,28 +306,27 @@
 
     <!-- UI Partials: Modals are loaded from /assets/ui/modals/*.html for maintainability -->
     <div id="ui-modals-root"></div>
-    <script defer src="assets/ui/load_modals.js"></script>
+    <script src="assets/ui/load_modals.js"></script>
 
-    <!-- Core scripts (defer for non-blocking first render; order preserved) -->
-    <script defer src="assets/00_globals.js"></script>
-    <script defer src="assets/01_config.js"></script>
-    <script defer src="assets/02_security.js"></script>
-    <script defer src="assets/12_backup_core.js"></script>
-    <script defer src="assets/13_ui_select_customers.js"></script>
-    <script defer src="assets/15_auth_gate.js"></script>
-
-    <!-- Lazy feature loader (Map / Drive / Weather+Donate / Cloud Transfer) -->
-    <script defer src="assets/16_lazy_features.js"></script>
-
-    <!-- UI + data modules (kept eager to avoid breaking existing flows) -->
-    <script defer src="assets/04_ui_common.js"></script>
-    <script defer src="assets/05_customers.js"></script>
-    <script defer src="assets/06_assets.js"></script>
-    <script defer src="assets/08_images_camera.js"></script>
+<script src="assets/00_globals.js"></script>
+<script src="assets/01_config.js"></script>
+<script src="assets/02_security.js"></script>
+<script src="assets/12_backup_core.js"></script>
+<script src="assets/13_ui_select_customers.js"></script>
+<script src="assets/15_auth_gate.js"></script>
+<script src="assets/03_map.js"></script>
+<script src="assets/04_ui_common.js"></script>
+<script src="assets/05_customers.js"></script>
+<script src="assets/06_assets.js"></script>
+<script src="assets/08_images_camera.js"></script>
+<script src="assets/09_backup_weather_donate.js"></script>
+<script src="assets/07_drive.js?v=20260120_fix_asset"></script>
     <!-- Removed missing script: assets/08_qr_info_and_missing.js -->
-    <script defer src="assets/10_bootstrap.js"></script>
-    <script defer src="assets/11_edge_back_swipe.js"></script>
-    <script defer src="assets/pwa.js"></script>
+    <!-- Cloud transfer backup (send to other users) -->
+    <script src="assets/14_cloud_transfer.js"></script>
+<script src="assets/10_bootstrap.js"></script>
+<script src="assets/11_edge_back_swipe.js?v=20260120_fix_back"></script>
+<script src="assets/pwa.js"></script>
 
 
 <!-- Backup Manager Modal -->
