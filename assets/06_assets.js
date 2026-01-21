@@ -336,7 +336,7 @@ function saveAsset() {
   // Xử lý link map
   const coords = parseLatLngFromLink(link);
   if (coords && !link.includes("http")) {
-    link = `https://www.google.com/maps?q=$${coords.lat},${coords.lng}`;
+    link = `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
   }
 
   if (!currentCustomerData.assets) currentCustomerData.assets = [];
