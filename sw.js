@@ -2,7 +2,7 @@
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v4.0.1';
+const VERSION = 'v4.0.2';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -27,7 +27,6 @@ const STATIC_ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png',
-  './splash-screen.png',
 
   './assets/styles.css',
   './assets/head.js',
