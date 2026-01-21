@@ -2,7 +2,8 @@
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v4.0.6v407_hiddenfix';
+// v4.0.7: Fix missing z-[...] utilities in self-host Tailwind subset (prevents Settings menu overlay stacking)
+const VERSION = 'v4.0.7_zindexfix';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
