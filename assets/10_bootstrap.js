@@ -6,7 +6,20 @@ function parseMoneyToNumber(str) {
 // --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
 // Removed enhanceDocumentWithAI as OCR is no longer used
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  // Ensure modal partials are present before any UX/security flows attempt to open them.
+  // (load_modals.js is async; this await keeps behavior consistent with the previous sync XHR.)
+  try {
+    if (window.__clientpro_modals_ready && typeof window.__clientpro_modals_ready.then === "function") {
+      // Safety timeout: never block boot forever if a partial fails to load.
+      await Promise.race([
+        window.__clientpro_modals_ready,
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
+    }
+  } catch (e) {
+    console.warn("[ClientPro] Modals preload warning:", e);
+  }
   // UX: ẩn loader sớm để tránh cảm giác "treo" khi thiết bị/network chậm.
   // Dữ liệu sẽ render dần khi IndexedDB trả về.
   try {
