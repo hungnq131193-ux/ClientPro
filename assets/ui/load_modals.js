@@ -1,13 +1,16 @@
-// Load HTML partials for modals (sync XHR to ensure DOM is ready before app scripts run)
+// Load HTML partials for modals (async fetch, no sync XHR)
 // Each modal lives at: /assets/ui/modals/<modal-id>.html
-// This file must be included BEFORE main app scripts in index.html.
+// Other app code can await: window.__clientpro_modals_ready
 
 (function () {
-  if (window.__clientpro_modals_loaded) return;
-  window.__clientpro_modals_loaded = true;
+  // Idempotent: keep a single in-flight promise.
+  if (window.__clientpro_modals_ready) return;
 
   var root = document.getElementById('ui-modals-root');
-  if (!root) return;
+  if (!root) {
+    window.__clientpro_modals_ready = Promise.resolve(false);
+    return;
+  }
 
   var files = [
     'assets/ui/modals/screen-lock.html',
@@ -24,19 +27,24 @@
     'assets/ui/modals/backup-manager-modal.html'
   ];
 
-  for (var i = 0; i < files.length; i++) {
-    var url = files[i];
-    try {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', url, false); // sync
-      xhr.send(null);
-      if ((xhr.status >= 200 && xhr.status < 300) || xhr.status === 0) {
-        root.insertAdjacentHTML('beforeend', (xhr.responseText || '') + '\n');
-      } else {
-        console.warn('[ClientPro] Failed to load modal partial:', url, 'status:', xhr.status);
+  async function loadAllModalsSequentially() {
+    for (var i = 0; i < files.length; i++) {
+      var url = files[i];
+      try {
+        var res = await fetch(url, { cache: 'no-cache' });
+        if (!res.ok) {
+          console.warn('[ClientPro] Failed to load modal partial:', url, 'status:', res.status);
+          continue;
+        }
+        var html = await res.text();
+        if (html) root.insertAdjacentHTML('beforeend', html + '\n');
+      } catch (e) {
+        console.warn('[ClientPro] Error loading modal partial:', url, e);
       }
-    } catch (e) {
-      console.warn('[ClientPro] Error loading modal partial:', url, e);
     }
+    document.dispatchEvent(new CustomEvent('clientpro:modals-loaded'));
+    return true;
   }
+
+  window.__clientpro_modals_ready = loadAllModalsSequentially();
 })();
