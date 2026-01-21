@@ -1,3 +1,4 @@
+// BUILD: 2026-01-21_2005
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
