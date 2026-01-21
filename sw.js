@@ -48,7 +48,6 @@ const STATIC_ASSETS = [
   './assets/13_ui_select_customers.js',
   './assets/14_cloud_transfer.js',
   './assets/15_auth_gate.js',
-  './assets/16_lazy_features.js',
 
   './assets/ui/load_modals.js',
 
