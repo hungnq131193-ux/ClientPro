@@ -1,57 +1,106 @@
 /* ===== CORE RESET ===== */
+:root {
+  --app-bg: #05070c;
+  --text-main: #e5e7eb;
+  --text-sub: #9ca3af;
+  --border-panel: rgba(255,255,255,0.08);
+}
+
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
+
 html, body {
   width: 100%;
   height: 100%;
   margin: 0;
-  background: #05070c;
-  color: #e5e7eb;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 0;
+  background: var(--app-bg);
+  color: var(--text-main);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden; /* Quan trọng: Ngăn cuộn trang web, chỉ cuộn nội dung con */
+  overscroll-behavior: none;
 }
 
-/* ===== APP ROOT ===== */
-#app {
-  position: relative;
+/* ===== APP ARCHITECTURE (SỬA LẠI CHO KHỚP INDEX.HTML) ===== */
+
+/* Class này thay thế cho .screen cũ, dùng để định vị các màn hình full size */
+.app-container {
+  position: fixed;
+  inset: 0; /* Top, Right, Bottom, Left = 0 */
   width: 100%;
   height: 100%;
-  overflow: hidden;
-}
-
-/* ===== SCREEN MANAGEMENT (FIX OVERLAP) ===== */
-#app > .screen {
-  position: absolute;
-  inset: 0;
-  display: none;
-  flex-direction: column;
-  overflow-y: auto;
-}
-
-#app > .screen.active {
   display: flex;
+  flex-direction: column;
+  background: var(--app-bg);
+  overflow: hidden;
+  /* Mặc định logic chuyển cảnh sẽ do Tailwind (transition-transform) xử lý trong HTML */
 }
 
-/* ===== GLASS PANELS (SAFE – NO GHOST) ===== */
+/* Khu vực cuộn nội dung (List khách hàng, Grid ảnh) */
+.scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch; /* Mượt mà trên iOS */
+  position: relative;
+}
+
+/* ===== UTILITIES & GLASS EFFECT ===== */
+
+/* Hiệu ứng kính mờ chuẩn */
 .glass-panel {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-radius: 14px;
+  background: rgba(20, 20, 25, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-panel);
 }
 
-/* ===== BUTTONS ===== */
-button {
-  background: linear-gradient(135deg, #2563eb, #9333ea);
-  border: none;
-  border-radius: 999px;
-  padding: 10px 16px;
+.glass-header {
+  background: rgba(5, 7, 12, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-panel);
+  z-index: 50;
+}
+
+/* Nút bấm kính */
+.glass-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+}
+.glass-btn:active {
+  background: rgba(255,255,255,0.1);
+  transform: scale(0.96);
+}
+
+/* ===== FIX UI ELEMENTS ===== */
+
+/* Sửa lỗi input nhập liệu bị tối */
+input[type="text"], input[type="search"] {
+  background: rgba(0,0,0,0.3);
   color: #fff;
-  font-weight: 600;
 }
 
-/* ===== SAFE AREA ===== */
-.screen {
-  padding-bottom: env(safe-area-inset-bottom);
+/* Scrollbar đẹp hơn cho webkit */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+/* Đảm bảo hình ảnh trong Grid hiển thị tốt */
+.img-grid-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding-bottom: 100px; /* Chừa chỗ cho action bar dưới đáy */
 }
