@@ -182,7 +182,7 @@ body.theme-aurora {
 
 
 /* 7. GRAPHITE (Xám lạnh - Tối giản) */
-body/* 8. VIOLET (Tím - Hồng) */
+/* 8. VIOLET (Tím - Hồng) */
 /* 7. VIOLET (Ultraviolet Candy: Purple + Rose + Blue) */
 body.theme-violet {
   --bg-base: #050512;
@@ -247,7 +247,7 @@ body.theme-solar {
 
 
 /* 12. MONO (Đen - Trắng) */
-body/* 4. GLASS & UTILS */
+/* 4. GLASS & UTILS */
 .glass-panel {
   background: color-mix(in srgb, var(--bg-panel) 92%, rgba(255,255,255,0.06));
   backdrop-filter: blur(22px) saturate(190%) contrast(105%);
@@ -267,6 +267,7 @@ body/* 4. GLASS & UTILS */
 .glass-panel::before {
   content: "";
   position: absolute;
+  isolation: isolate;
   inset: 0;
   background:
     radial-gradient(1200px 420px at 15% 0%, rgba(255,255,255,0.18), transparent 55%),
@@ -280,6 +281,7 @@ body/* 4. GLASS & UTILS */
 .glass-panel::after {
   content: "";
   position: absolute;
+  isolation: isolate;
   inset: 0;
   background:
     radial-gradient(circle at 25% 30%, rgba(255,255,255,0.03) 0 1px, transparent 1px 100%),
@@ -304,6 +306,7 @@ body/* 4. GLASS & UTILS */
 .glass-panel-lite::before {
   content: "";
   position: absolute;
+  isolation: isolate;
   inset: 0;
   background: radial-gradient(900px 260px at 20% 0%, rgba(255,255,255,0.10), transparent 55%);
   pointer-events: none;
@@ -318,6 +321,7 @@ body/* 4. GLASS & UTILS */
 .cust-card::before {
   content: "";
   position: absolute;
+  isolation: isolate;
   left: 0;
   top: 10px;
   bottom: 10px;
@@ -389,8 +393,9 @@ body/* 4. GLASS & UTILS */
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg-main);
+  background: transparent;
   position: absolute;
+  isolation: isolate;
   top: 0;
   left: 0;
   /* Performance: keep screen transitions on compositor, isolate layout/paint */
@@ -468,6 +473,7 @@ input::placeholder {
 }
 .img-wrapper img {
   position: absolute;
+  isolation: isolate;
   top: 0;
   left: 0;
   width: 100%;
@@ -546,6 +552,7 @@ input::placeholder {
   align-items: center;
   justify-content: center;
   position: absolute;
+  isolation: isolate;
   top: 6px;
   right: 6px;
   z-index: 20;
@@ -635,6 +642,7 @@ input::placeholder {
 .marker-glow::after {
   content: "";
   position: absolute;
+  isolation: isolate;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -821,3 +829,8 @@ input::placeholder {
 .gap-2{gap:.5rem;}
 .gap-3{gap:.75rem;}
 .gap-4{gap:1rem;}
+
+
+/* ===== FIX: prevent glass/backdrop bleed + stacking glitches (Settings overlap) ===== */
+#settings-menu{isolation:isolate; transform:translateZ(0);} 
+#menu-overlay{transform:translateZ(0);} 
