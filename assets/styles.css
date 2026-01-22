@@ -86,81 +86,80 @@ body {
 /* 1. SIGNATURE (Xanh Vietin Đậm) */
 /* 1. SIGNATURE (Deep Navy + Electric Cyan) */
 body.theme-midnight {
-  --bg-base: #050b2e;
-  /* Trend: aurora/mesh gradients (soft transitions, high depth) */
-  --bg-mesh: radial-gradient(at 10% 10%, rgba(56, 189, 248, 0.35) 0px, transparent 55%),
-    radial-gradient(at 90% 15%, rgba(99, 102, 241, 0.28) 0px, transparent 55%),
-    radial-gradient(at 40% 95%, rgba(16, 185, 129, 0.18) 0px, transparent 60%);
-  --bg-panel: rgba(10, 18, 48, 0.74);
-  --header-bg: rgba(6, 12, 40, 0.92);
-  --border-panel: rgba(56, 189, 248, 0.20);
-  --input-bg: rgba(6, 12, 40, 0.55);
-  --accent: #38bdf8;
-  --accent-gradient: linear-gradient(135deg, #2563eb 0%, #22d3ee 45%, #a855f7 100%);
+  --bg-base: #050A1A;
+  --bg-mesh:     radial-gradient(at 12% 18%, rgba(0, 89, 146, 0.55) 0px, transparent 56%),
+    radial-gradient(at 88% 12%, rgba(0, 170, 255, 0.28) 0px, transparent 58%),
+    radial-gradient(at 45% 92%, rgba(215, 16, 73, 0.20) 0px, transparent 62%);
+  --bg-panel: rgba(8, 20, 40, 0.72);
+  --header-bg: rgba(5, 12, 26, 0.92);
+  --border-panel: rgba(0, 170, 255, 0.22);
+  --input-bg: rgba(5, 12, 26, 0.56);
+  --accent: #35b3ff;
+  --accent-gradient: linear-gradient(135deg, #003A67 0%, #005992 45%, #35b3ff 100%);
 }
 
 
 /* 2. DYNAMIC (Đỏ Trầm) */
 /* 2. DYNAMIC (Tangerine Disco + Magenta Glow) */
 body.theme-sunset {
-  --bg-base: #1a0508;
-  --bg-mesh: radial-gradient(at 12% 18%, rgba(251, 146, 60, 0.40) 0px, transparent 55%),
-    radial-gradient(at 88% 12%, rgba(236, 72, 153, 0.28) 0px, transparent 55%),
-    radial-gradient(at 78% 88%, rgba(249, 115, 22, 0.22) 0px, transparent 60%);
-  --bg-panel: rgba(28, 10, 18, 0.74);
-  --header-bg: rgba(18, 6, 10, 0.92);
-  --border-panel: rgba(251, 146, 60, 0.22);
-  --input-bg: rgba(18, 6, 10, 0.55);
-  --accent: #fb923c;
-  --accent-gradient: linear-gradient(135deg, #fb923c 0%, #f43f5e 55%, #a855f7 100%);
+  --bg-base: #070A14;
+  --bg-mesh:     radial-gradient(at 18% 18%, rgba(0, 89, 146, 0.45) 0px, transparent 58%),
+    radial-gradient(at 80% 20%, rgba(215, 16, 73, 0.34) 0px, transparent 56%),
+    radial-gradient(at 60% 90%, rgba(255, 176, 0, 0.14) 0px, transparent 62%);
+  --bg-panel: rgba(16, 16, 28, 0.70);
+  --header-bg: rgba(10, 10, 18, 0.92);
+  --border-panel: rgba(215, 16, 73, 0.22);
+  --input-bg: rgba(10, 10, 18, 0.56);
+  --accent: #ff3a7a;
+  --accent-gradient: linear-gradient(135deg, #005992 0%, #D71049 55%, #ffb300 100%);
 }
 
 
 /* 3. DIGITAL (Xanh Teal) */
 /* 3. DIGITAL (Mermaidcore Teal + Deep Blue) */
 body.theme-ocean {
-  --bg-base: #031018;
-  --bg-mesh: radial-gradient(at 10% 10%, rgba(34, 211, 238, 0.34) 0px, transparent 55%),
-    radial-gradient(at 90% 20%, rgba(14, 165, 233, 0.22) 0px, transparent 55%),
-    radial-gradient(at 55% 92%, rgba(16, 185, 129, 0.18) 0px, transparent 60%);
-  --bg-panel: rgba(6, 22, 34, 0.74);
-  --header-bg: rgba(3, 16, 24, 0.92);
-  --border-panel: rgba(34, 211, 238, 0.20);
-  --input-bg: rgba(3, 16, 24, 0.55);
-  --accent: #22d3ee;
-  --accent-gradient: linear-gradient(135deg, #06b6d4 0%, #0ea5e9 55%, #2563eb 100%);
+  --bg-base: #04131A;
+  --bg-mesh:     radial-gradient(at 15% 20%, rgba(0, 170, 255, 0.35) 0px, transparent 58%),
+    radial-gradient(at 90% 10%, rgba(0, 89, 146, 0.52) 0px, transparent 56%),
+    radial-gradient(at 70% 92%, rgba(46, 211, 183, 0.22) 0px, transparent 60%);
+  --bg-panel: rgba(6, 22, 26, 0.72);
+  --header-bg: rgba(4, 16, 18, 0.92);
+  --border-panel: rgba(46, 211, 183, 0.20);
+  --input-bg: rgba(4, 16, 18, 0.56);
+  --accent: #2ed3b7;
+  --accent-gradient: linear-gradient(135deg, #005992 0%, #00AAFF 45%, #2ed3b7 100%);
 }
 
 
 /* 4. PREMIUM (Xanh Đen Navy) */
 /* 4. PREMIUM (Clubroom Contrast: Navy + Mint Neon) */
 body.theme-mint {
-  --bg-base: #061021;
-  --bg-mesh: radial-gradient(at 15% 15%, rgba(16, 185, 129, 0.26) 0px, transparent 55%),
-    radial-gradient(at 85% 25%, rgba(56, 189, 248, 0.20) 0px, transparent 55%),
-    radial-gradient(at 60% 95%, rgba(99, 102, 241, 0.16) 0px, transparent 60%);
-  --bg-panel: rgba(10, 24, 46, 0.78);
-  --header-bg: rgba(6, 16, 33, 0.94);
-  --border-panel: rgba(148, 163, 184, 0.18);
-  --input-bg: rgba(10, 24, 46, 0.55);
-  --accent: #34d399;
-  --accent-gradient: linear-gradient(135deg, #10b981 0%, #22d3ee 55%, #6366f1 100%);
+  --bg-base: #061218;
+  --bg-mesh:     radial-gradient(at 12% 15%, rgba(46, 211, 183, 0.26) 0px, transparent 60%),
+    radial-gradient(at 85% 18%, rgba(0, 170, 255, 0.26) 0px, transparent 58%),
+    radial-gradient(at 50% 92%, rgba(215, 16, 73, 0.14) 0px, transparent 64%);
+  --bg-panel: rgba(10, 24, 28, 0.70);
+  --header-bg: rgba(6, 16, 18, 0.92);
+  --border-panel: rgba(0, 170, 255, 0.18);
+  --input-bg: rgba(6, 16, 18, 0.54);
+  --accent: #00AAFF;
+  --accent-gradient: linear-gradient(135deg, #2ed3b7 0%, #005992 55%, #00AAFF 100%);
 }
 
 
 /* 5. PRIORITY (Vàng Gold) */
 /* 5. PRIORITY (Emerald + Gold Luxe) */
 body.theme-royal {
-  --bg-base: #0a1206;
-  --bg-mesh: radial-gradient(at 18% 20%, rgba(16, 185, 129, 0.26) 0px, transparent 55%),
-    radial-gradient(at 85% 15%, rgba(245, 158, 11, 0.22) 0px, transparent 55%),
-    radial-gradient(at 70% 90%, rgba(250, 204, 21, 0.12) 0px, transparent 60%);
-  --bg-panel: rgba(12, 22, 10, 0.76);
-  --header-bg: rgba(8, 16, 6, 0.92);
-  --border-panel: rgba(245, 158, 11, 0.22);
-  --input-bg: rgba(12, 22, 10, 0.55);
-  --accent: #fbbf24;
-  --accent-gradient: linear-gradient(135deg, #10b981 0%, #f59e0b 55%, #fde047 100%);
+  --bg-base: #050914;
+  --bg-mesh:     radial-gradient(at 18% 22%, rgba(0, 89, 146, 0.50) 0px, transparent 56%),
+    radial-gradient(at 86% 16%, rgba(255, 196, 0, 0.18) 0px, transparent 58%),
+    radial-gradient(at 70% 92%, rgba(215, 16, 73, 0.18) 0px, transparent 62%);
+  --bg-panel: rgba(10, 14, 28, 0.72);
+  --header-bg: rgba(7, 9, 18, 0.92);
+  --border-panel: rgba(255, 196, 0, 0.22);
+  --input-bg: rgba(7, 9, 18, 0.55);
+  --accent: #ffc400;
+  --accent-gradient: linear-gradient(135deg, #003A67 0%, #005992 40%, #ffc400 100%);
 }
 
 
@@ -169,145 +168,150 @@ body.theme-royal {
 /* 6. AURORA (Xanh ngọc - Tím) */
 /* 6. AURORA (Cyan - Purple - Pink, Ethereal Mesh) */
 body.theme-aurora {
-  --bg-base: #050717;
-  --bg-mesh: radial-gradient(at 12% 8%, rgba(34, 211, 238, 0.38) 0px, transparent 55%),
-    radial-gradient(at 92% 18%, rgba(168, 85, 247, 0.30) 0px, transparent 55%),
-    radial-gradient(at 20% 92%, rgba(236, 72, 153, 0.18) 0px, transparent 60%);
-  --bg-panel: rgba(10, 14, 34, 0.74);
-  --header-bg: rgba(5, 7, 23, 0.92);
-  --border-panel: rgba(34, 211, 238, 0.20);
-  --input-bg: rgba(10, 14, 34, 0.55);
-  --accent: #22d3ee;
-  --accent-gradient: linear-gradient(135deg, #22d3ee 0%, #a855f7 55%, #ec4899 100%);
+  --bg-base: #04060F;
+  --bg-mesh:     radial-gradient(at 10% 18%, rgba(0, 170, 255, 0.30) 0px, transparent 58%),
+    radial-gradient(at 92% 16%, rgba(64, 140, 255, 0.26) 0px, transparent 56%),
+    radial-gradient(at 45% 92%, rgba(215, 16, 73, 0.22) 0px, transparent 60%);
+  --bg-panel: rgba(8, 10, 18, 0.70);
+  --header-bg: rgba(4, 5, 10, 0.92);
+  --border-panel: rgba(64, 140, 255, 0.22);
+  --input-bg: rgba(4, 5, 10, 0.56);
+  --accent: #6dd6ff;
+  --accent-gradient: linear-gradient(135deg, #001B33 0%, #005992 48%, #D71049 100%);
 }
 
 
 /* 7. GRAPHITE (Xám lạnh - Tối giản) */
-body.theme-graphite {
-  --bg-base: #0b1220;
-  --bg-mesh: radial-gradient(
-      at 0% 0%,
-      hsla(215, 30%, 28%, 0.55) 0px,
-      transparent 55%
-    ),
-    radial-gradient(
-      at 100% 100%,
-      hsla(220, 25%, 18%, 0.75) 0px,
-      transparent 55%
-    );
-  --bg-panel: rgba(15, 23, 42, 0.78);
-  --header-bg: rgba(2, 6, 23, 0.92);
-  --border-panel: rgba(148, 163, 184, 0.18);
-  --input-bg: rgba(15, 23, 42, 0.55);
-  --accent: #94a3b8;
-  --accent-gradient: linear-gradient(135deg, #334155 0%, #94a3b8 100%);
-}
-
-/* 8. VIOLET (Tím - Hồng) */
+body/* 8. VIOLET (Tím - Hồng) */
 /* 7. VIOLET (Ultraviolet Candy: Purple + Rose + Blue) */
 body.theme-violet {
-  --bg-base: #0d0520;
-  --bg-mesh: radial-gradient(at 15% 25%, rgba(168, 85, 247, 0.36) 0px, transparent 55%),
-    radial-gradient(at 85% 18%, rgba(244, 114, 182, 0.22) 0px, transparent 55%),
-    radial-gradient(at 55% 92%, rgba(59, 130, 246, 0.18) 0px, transparent 60%);
-  --bg-panel: rgba(18, 10, 44, 0.74);
-  --header-bg: rgba(13, 5, 32, 0.92);
-  --border-panel: rgba(168, 85, 247, 0.22);
-  --input-bg: rgba(18, 10, 44, 0.55);
-  --accent: #a855f7;
-  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 55%, #f472b6 100%);
+  --bg-base: #050512;
+  --bg-mesh:     radial-gradient(at 18% 18%, rgba(120, 92, 255, 0.26) 0px, transparent 58%),
+    radial-gradient(at 88% 12%, rgba(0, 170, 255, 0.22) 0px, transparent 58%),
+    radial-gradient(at 58% 92%, rgba(215, 16, 73, 0.20) 0px, transparent 62%);
+  --bg-panel: rgba(10, 10, 24, 0.72);
+  --header-bg: rgba(6, 6, 16, 0.92);
+  --border-panel: rgba(120, 92, 255, 0.22);
+  --input-bg: rgba(6, 6, 16, 0.56);
+  --accent: #9b87ff;
+  --accent-gradient: linear-gradient(135deg, #2B1B7A 0%, #005992 40%, #D71049 100%);
 }
 
 
 /* 9. EMERALD (Xanh lá - Xanh ngọc) */
 /* 8. EMERALD (Thermal Glow: Emerald + Cyan + Lime) */
 body.theme-emerald {
-  --bg-base: #04130e;
-  --bg-mesh: radial-gradient(at 10% 12%, rgba(16, 185, 129, 0.34) 0px, transparent 55%),
-    radial-gradient(at 90% 22%, rgba(34, 211, 238, 0.22) 0px, transparent 55%),
-    radial-gradient(at 60% 92%, rgba(163, 230, 53, 0.16) 0px, transparent 60%);
-  --bg-panel: rgba(6, 26, 18, 0.74);
-  --header-bg: rgba(4, 19, 14, 0.92);
-  --border-panel: rgba(16, 185, 129, 0.22);
-  --input-bg: rgba(6, 26, 18, 0.55);
-  --accent: #10b981;
-  --accent-gradient: linear-gradient(135deg, #10b981 0%, #22d3ee 55%, #a3e635 100%);
+  --bg-base: #04110D;
+  --bg-mesh:     radial-gradient(at 14% 18%, rgba(46, 211, 183, 0.28) 0px, transparent 58%),
+    radial-gradient(at 88% 14%, rgba(0, 89, 146, 0.30) 0px, transparent 58%),
+    radial-gradient(at 60% 92%, rgba(215, 16, 73, 0.14) 0px, transparent 62%);
+  --bg-panel: rgba(6, 20, 18, 0.72);
+  --header-bg: rgba(4, 12, 10, 0.92);
+  --border-panel: rgba(46, 211, 183, 0.22);
+  --input-bg: rgba(4, 12, 10, 0.56);
+  --accent: #2ed3b7;
+  --accent-gradient: linear-gradient(135deg, #005992 0%, #2ed3b7 55%, #D71049 100%);
 }
 
 
 /* 10. SAKURA (Hồng - Pastel) */
 /* 9. SAKURA (Dusty Rose Pastel: Pink + Peach + Lilac) */
 body.theme-sakura {
-  --bg-base: #18060c;
-  --bg-mesh: radial-gradient(at 16% 18%, rgba(251, 113, 133, 0.34) 0px, transparent 55%),
-    radial-gradient(at 86% 22%, rgba(251, 146, 60, 0.18) 0px, transparent 55%),
-    radial-gradient(at 65% 92%, rgba(168, 85, 247, 0.14) 0px, transparent 60%);
-  --bg-panel: rgba(26, 10, 16, 0.74);
-  --header-bg: rgba(24, 6, 12, 0.92);
-  --border-panel: rgba(251, 113, 133, 0.20);
-  --input-bg: rgba(26, 10, 16, 0.55);
-  --accent: #fb7185;
-  --accent-gradient: linear-gradient(135deg, #fb7185 0%, #fb923c 55%, #a855f7 100%);
+  --bg-base: #070A12;
+  --bg-mesh:     radial-gradient(at 16% 22%, rgba(255, 255, 255, 0.10) 0px, transparent 62%),
+    radial-gradient(at 88% 16%, rgba(215, 16, 73, 0.18) 0px, transparent 58%),
+    radial-gradient(at 52% 92%, rgba(0, 170, 255, 0.18) 0px, transparent 62%);
+  --bg-panel: rgba(12, 14, 22, 0.68);
+  --header-bg: rgba(8, 9, 14, 0.92);
+  --border-panel: rgba(255, 255, 255, 0.16);
+  --input-bg: rgba(8, 9, 14, 0.56);
+  --accent: #ff6aa2;
+  --accent-gradient: linear-gradient(135deg, #005992 0%, #ffffff 45%, #D71049 100%);
 }
 
 
 /* 11. SOLAR (Cam - Vàng) */
 /* 10. SOLAR (Banana Yellow + Coral Heat) */
 body.theme-solar {
-  --bg-base: #150c02;
-  --bg-mesh: radial-gradient(at 18% 18%, rgba(253, 224, 71, 0.32) 0px, transparent 55%),
-    radial-gradient(at 86% 20%, rgba(251, 146, 60, 0.26) 0px, transparent 55%),
-    radial-gradient(at 70% 90%, rgba(236, 72, 153, 0.14) 0px, transparent 60%);
-  --bg-panel: rgba(22, 12, 4, 0.76);
-  --header-bg: rgba(21, 12, 2, 0.92);
-  --border-panel: rgba(245, 158, 11, 0.24);
-  --input-bg: rgba(22, 12, 4, 0.55);
-  --accent: #fde047;
-  --accent-gradient: linear-gradient(135deg, #fde047 0%, #fb923c 55%, #f43f5e 100%);
+  --bg-base: #070C12;
+  --bg-mesh:     radial-gradient(at 18% 20%, rgba(0, 170, 255, 0.22) 0px, transparent 60%),
+    radial-gradient(at 85% 18%, rgba(255, 196, 0, 0.22) 0px, transparent 58%),
+    radial-gradient(at 55% 92%, rgba(0, 89, 146, 0.40) 0px, transparent 62%);
+  --bg-panel: rgba(10, 18, 22, 0.72);
+  --header-bg: rgba(6, 10, 12, 0.92);
+  --border-panel: rgba(255, 196, 0, 0.22);
+  --input-bg: rgba(6, 10, 12, 0.56);
+  --accent: #ffd24a;
+  --accent-gradient: linear-gradient(135deg, #00AAFF 0%, #005992 45%, #ffc400 100%);
 }
 
 
 /* 12. MONO (Đen - Trắng) */
-body.theme-mono {
-  --bg-base: #0b0f19;
-  --bg-mesh: radial-gradient(
-      at 0% 0%,
-      hsla(220, 15%, 18%, 0.7) 0px,
-      transparent 55%
-    ),
-    radial-gradient(at 100% 100%, hsla(0, 0%, 100%, 0.08) 0px, transparent 55%);
-  --bg-panel: rgba(17, 24, 39, 0.78);
-  --header-bg: rgba(0, 0, 0, 0.88);
-  --border-panel: rgba(255, 255, 255, 0.12);
-  --input-bg: rgba(17, 24, 39, 0.55);
-  --accent: #e5e7eb;
-  --accent-gradient: linear-gradient(135deg, #111827 0%, #e5e7eb 100%);
-}
-
-/* 4. GLASS & UTILS */
+body/* 4. GLASS & UTILS */
 .glass-panel {
-  background: var(--bg-panel);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--border-panel);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  background: color-mix(in srgb, var(--bg-panel) 92%, rgba(255,255,255,0.06));
+  backdrop-filter: blur(22px) saturate(190%) contrast(105%);
+  -webkit-backdrop-filter: blur(22px) saturate(190%) contrast(105%);
+  border: 1px solid color-mix(in srgb, var(--border-panel) 70%, rgba(255,255,255,0.18));
+  box-shadow:
+    0 10px 36px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.10) inset;
   position: relative;
   z-index: 10;
   will-change: transform, opacity;
   transform: translateZ(0);
+  overflow: hidden;
 }
+
+/* Apple-like sheen + subtle noise (no images) */
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1200px 420px at 15% 0%, rgba(255,255,255,0.18), transparent 55%),
+    radial-gradient(900px 380px at 85% 10%, rgba(255,255,255,0.10), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.10), transparent 42%, rgba(0,0,0,0.08));
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+
+.glass-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 25% 30%, rgba(255,255,255,0.03) 0 1px, transparent 1px 100%),
+    radial-gradient(circle at 70% 65%, rgba(0,0,0,0.04) 0 1px, transparent 1px 100%);
+  background-size: 24px 24px, 28px 28px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 
 /* PERF: Lite glass panel for long scrolling lists (avoid heavy blur/shadow per item) */
 .glass-panel-lite {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.14),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
   position: relative;
   z-index: 5;
+  overflow: hidden;
+}
+.glass-panel-lite::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(900px 260px at 20% 0%, rgba(255,255,255,0.10), transparent 55%);
+  pointer-events: none;
+  opacity: 0.55;
 }
 .glass-panel-lite.selected {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 
 /* Customer list: status bar without per-item inline boxShadow */
