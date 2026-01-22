@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.1.0: Force SW update + deliver GPS button alignment fix reliably (GitHub Pages cache-bust via assets/pwa.js)
-const VERSION = 'v4.4.5_gpsalign';
+const VERSION = 'v4.4.6_gpsalign';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
