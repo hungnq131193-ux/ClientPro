@@ -964,3 +964,63 @@ input::placeholder {
 /* Create stable stacking contexts (reduce weird bleed on some Android GPUs) */
 .app-container{ isolation: isolate; }
 .glass-panel, .glass-panel-lite{ isolation: isolate; }
+/* =========================================================
+   HOTFIX v2: Eliminate "stacked screens" perception on
+   Photo/Profile/Asset Gallery screens.
+   Root cause: some full-screen screens use translucent
+   backgrounds + backdrop-filter, which samples underlying
+   UI and looks like multiple screens overlapping.
+   Strategy:
+   1) Ensure every top-level screen is a real full-screen
+      layer (absolute + inset:0) so only one is visible.
+   2) Disable backdrop-filter on top-level screens, keep
+      glass effects on inner panels only.
+   3) When a screen is moved off-canvas via translate-x-full,
+      prevent it from receiving pointer events.
+   ========================================================= */
+
+/* 1) Make top-level screens cover the viewport consistently */
+.app-container > [id^="screen-"],
+.app-container > section[id^="screen-"],
+.app-container > div[id^="screen-"]{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* 2) Never apply backdrop-filter on full-screen layers */
+.app-container > [id^="screen-"]{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  /* Keep the mesh background from body while ensuring the screen
+     itself doesn't blur/ghost underlying layers */
+  background: transparent;
+}
+
+/* Specific screens known to show ghosting */
+#screen-photos,
+#screen-photo,
+#screen-hoso-anh,
+#screen-profile-photos,
+#screen-asset,
+#screen-assets,
+#screen-tsbd,
+#screen-tsbd-gallery,
+#screen-asset-photos,
+#screen-asset-gallery,
+#screen-folder{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 3) Off-canvas screens should not be interactive (prevents weird taps) */
+.app-container > [id^="screen-"].translate-x-full,
+.app-container > [id^="screen-"].-translate-x-full{
+  pointer-events: none !important;
+}
+
+/* If your JS toggles visibility via opacity/hidden, keep behavior stable */
+.app-container > [id^="screen-"].hidden{
+  pointer-events: none !important;
+}
