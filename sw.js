@@ -1,10 +1,10 @@
-// BUILD: 2026-01-22_1826
+// BUILD: 2026-01-21_2006
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
 // v4.1.0: Force SW update + deliver GPS button alignment fix reliably (GitHub Pages cache-bust via assets/pwa.js)
-const VERSION = 'v4.1.2_gasnocache';
+const VERSION = 'v4.1.1_gpsalign';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -276,10 +276,6 @@ self.addEventListener('fetch', (event) => {
   // Cross-origin (CDN/tiles): stale-while-revalidate
   try {
     const url = new URL(req.url);
-    if (url.hostname === 'script.google.com') {
-      event.respondWith(fetch(req, { cache: 'no-store' }));
-      return;
-    }
     if (isTileRequest(url, req)) {
       event.respondWith(staleWhileRevalidate(event, req, RUNTIME_TILE_CACHE, LIMITS.tiles));
       return;
