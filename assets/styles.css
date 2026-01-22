@@ -1024,3 +1024,8 @@ input::placeholder {
 .app-container > [id^="screen-"].hidden{
   pointer-events: none !important;
 }
+
+
+/* === HARD FIX: single active screen only === */
+[id^="screen-"]{display:none !important;}
+[id^="screen-"].screen-active{display:flex !important;}
