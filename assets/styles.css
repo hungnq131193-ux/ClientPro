@@ -1,8 +1,8 @@
-/* =========================================================
-   ClientPro Layout Core (SPA slide screens)
-   - Fix overlap: provides a real full-viewport screen shell
-   - Keeps Tailwind/button styles intact (no global button paint)
-   ========================================================= */
+/* ClientPro layout foundation (SPA slide screens)
+   - Do NOT toggle screens with display:none
+   - Each screen is an .app-container that slides via transform classes (Tailwind)
+   - This file only defines structural layout + safe scrolling; it must not override Tailwind button styles
+*/
 
 * { box-sizing: border-box; }
 
@@ -10,28 +10,25 @@ html, body {
   width: 100%;
   height: 100%;
   margin: 0;
-  padding: 0;
   background: #05070c;
   color: #e5e7eb;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-/* Prevent rubber-band from causing weird black gaps on mobile */
-body {
   overscroll-behavior: none;
 }
 
-/* App root: one viewport, all screens are absolutely layered inside */
-#app{
+/* Prevent the page itself from scrolling; screens manage their own scroll areas */
+body { overflow: hidden; }
+
+/* App viewport root */
+#app {
   position: relative;
   width: 100%;
-  height: 100dvh;
-  min-height: 100%;
+  height: 100%;
   overflow: hidden;
 }
 
-/* Screen shell used by index.html */
-.app-container{
+/* Screen shell: full-viewport layer (slides by transform classes in HTML) */
+.app-container {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -39,28 +36,45 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-
-  /* iOS safe area */
-  padding-bottom: env(safe-area-inset-bottom);
+  will-change: transform;
+  transform: translateZ(0);
 }
 
-/* Scrollable content areas inside a screen */
-.scroll-area{
+/* Make flex children scroll correctly */
+.scroll-area {
+  min-height: 0;              /* critical for flex scrolling */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
-/* Glass surface helper (used widely in HTML) */
-.glass-panel{
+/* Safe area support */
+.app-container {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Glass panel baseline (safe, does not fight Tailwind) */
+.glass-panel {
   background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.08);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-radius: 14px;
 }
 
-/* IMPORTANT:
-   Do NOT style button globally here.
-   Button visuals are controlled by Tailwind utilities / inline styles.
-*/
+/* Map screen: ensure map fills the viewport */
+#screen-map { background: #000; }
+#map-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+#screen-map .leaflet-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* Ensure map overlay buttons sit above the map */
+#screen-map > button { z-index: 400; }
