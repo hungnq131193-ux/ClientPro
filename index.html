@@ -74,38 +74,18 @@
                 <div class="px-5 py-5 border-b border-white/5">
             <p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Chọn Giao diện</p>
             <div class="flex flex-wrap gap-4 justify-start">
-<button onclick="setTheme('theme-midnight')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="VietinBank Midnight">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#003A67] via-[#005992] to-[#35b3ff]"></div>
-</button>
-<button onclick="setTheme('theme-sunset')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Blue-Red Horizon">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#005992] via-[#D71049] to-[#ffb300]"></div>
-</button>
-<button onclick="setTheme('theme-ocean')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Ocean Trust">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#005992] via-[#00AAFF] to-[#2ed3b7]"></div>
-</button>
-<button onclick="setTheme('theme-mint')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Aqua Mint">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#2ed3b7] via-[#005992] to-[#00AAFF]"></div>
-</button>
-<button onclick="setTheme('theme-royal')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Royal Gold">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#003A67] via-[#005992] to-[#ffc400]"></div>
-</button>
+<button onclick="setTheme('theme-midnight')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="VietinBank Midnight" style=\"background: linear-gradient(135deg,#003A67,#005992,#35b3ff);\"></button>
+<button onclick="setTheme('theme-sunset')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Blue-Red Horizon" style=\"background: linear-gradient(135deg,#005992,#D71049,#ffb300);\"></button>
+<button onclick="setTheme('theme-ocean')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Ocean Trust" style=\"background: linear-gradient(135deg,#003A67,#00aaff,#00ffd0);\"></button>
+<button onclick="setTheme('theme-mint')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Aqua Mint" style=\"background: linear-gradient(135deg,#00ffd0,#00b4ff,#005992);\"></button>
+<button onclick="setTheme('theme-royal')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Royal Gold" style=\"background: linear-gradient(135deg,#001b44,#005992,#8e2de2);\"></button>
 
 <!-- Expanded themes -->
-<button onclick="setTheme('theme-aurora')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Aurora Pulse">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#001B33] via-[#005992] to-[#D71049]"></div>
-</button>
-<button onclick="setTheme('theme-violet')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Violet Depth">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#2B1B7A] via-[#005992] to-[#D71049]"></div>
-</button>
-<button onclick="setTheme('theme-emerald')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Emerald Link">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#005992] via-[#2ed3b7] to-[#D71049]"></div>
-</button>
-<button onclick="setTheme('theme-sakura')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Pearl Sakura">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#005992] via-[#ffffff] to-[#D71049]"></div>
-</button>
-<button onclick="setTheme('theme-solar')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Solar Crest">
-    <div class="absolute inset-0 bg-gradient-to-br from-[#00AAFF] via-[#005992] to-[#ffc400]"></div>
-</button>
+<button onclick="setTheme('theme-aurora')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Aurora Pulse" style=\"background: linear-gradient(135deg,#00aaff,#005992,#D71049);\"></button>
+<button onclick="setTheme('theme-violet')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Violet Depth" style=\"background: linear-gradient(135deg,#2a0845,#8e2de2,#005992);\"></button>
+<button onclick="setTheme('theme-emerald')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Emerald Link" style=\"background: linear-gradient(135deg,#003A67,#00c853,#00aaff);\"></button>
+<button onclick="setTheme('theme-sakura')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Pearl Sakura" style=\"background: linear-gradient(135deg,#005992,#ff5ea8,#ffd1e8);\"></button>
+<button onclick="setTheme('theme-solar')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Solar Crest" style=\"background: linear-gradient(135deg,#ffb300,#D71049,#005992);\"></button>
             </div>
         </div>
         <button onclick="openSecuritySetup()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="shield" class="w-4 h-4"></i></div> Bảo mật & An toàn</button>
