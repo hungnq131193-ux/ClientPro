@@ -1,6 +1,11 @@
 /* --- Thay dòng @import cũ bằng dòng này --- */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 :root {
+  --glass-noise: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='180'%20height='180'%20viewBox='0%200%20180%20180'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.9'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3C/filter%3E%3Crect%20width='180'%20height='180'%20filter='url(%23n)'%20opacity='.35'/%3E%3C/svg%3E");
+  --bg-noise: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='180'%20height='180'%20viewBox='0%200%20180%20180'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.9'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3C/filter%3E%3Crect%20width='180'%20height='180'%20filter='url(%23n)'%20opacity='.35'/%3E%3C/svg%3E");
+  --bg-pattern: none;
+  --bg-vignette: radial-gradient(80% 70% at 50% 35%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.45) 65%, rgba(0,0,0,0.72) 100%);
+
   --app-height: 100dvh;
   /* iOS Safe Area (PWA/standalone). Defaults to 0 on Android/Desktop. */
   --sat: 0px; /* safe-area-inset-top */
@@ -20,7 +25,6 @@
 
 /* --- 1. CẤU HÌNH CƠ BẢN --- */
 body {
-  --bg-pattern: none;
   --text-main: #ffffff;
   --text-sub: #cbd5e1;
 
@@ -29,9 +33,8 @@ body {
 
   /* Mesh Gradient Background */
   background-color: var(--bg-base);
-  background-image: var(--bg-pattern, none), var(--bg-mesh, none);
-  background-blend-mode: normal;
-background-attachment: fixed;
+  background-image: var(--bg-mesh);
+  background-attachment: fixed;
   background-size: cover;
   background-repeat: no-repeat;
 
@@ -42,7 +45,33 @@ background-attachment: fixed;
   width: 100vw;
   overflow: hidden;
   position: fixed;
+  z-index: 0;
 }
+
+/* ===== Global wallpaper overlays (Apple-like) ===== */
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:-1;
+  background-image: var(--bg-pattern), var(--bg-noise);
+  background-size: auto, 180px 180px;
+  background-repeat: repeat, repeat;
+  mix-blend-mode: overlay;
+  opacity: 0.18;
+  transform: translateZ(0);
+}
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:-1;
+  background-image: var(--bg-vignette);
+  opacity: 0.9;
+}
+
 
 /* --- 2. STYLE CHO LOGO VIETINBANK 3D --- */
 .vietin-logo-container {
@@ -120,31 +149,34 @@ body.theme-sunset {
 /* 3. DIGITAL (Xanh Teal) */
 /* 3. DIGITAL (Mermaidcore Teal + Deep Blue) */
 body.theme-ocean {
-  --bg-base: #04121f;
-  --bg-mesh: radial-gradient(at 20% 18%, rgba(0, 89, 146, 0.55) 0px, transparent 60%), radial-gradient(at 80% 82%, rgba(0, 170, 255, 0.18) 0px, transparent 60%);
+  --bg-base: #04131A;
+  --bg-mesh:     radial-gradient(at 15% 20%, rgba(0, 170, 255, 0.35) 0px, transparent 58%),
+    radial-gradient(at 90% 10%, rgba(0, 89, 146, 0.52) 0px, transparent 56%),
+    radial-gradient(at 70% 92%, rgba(46, 211, 183, 0.22) 0px, transparent 60%);
   --bg-panel: rgba(6, 22, 26, 0.72);
   --header-bg: rgba(4, 16, 18, 0.92);
   --border-panel: rgba(46, 211, 183, 0.20);
   --input-bg: rgba(4, 16, 18, 0.56);
   --accent: #2ed3b7;
   --accent-gradient: linear-gradient(135deg, #005992 0%, #00AAFF 45%, #2ed3b7 100%);
-
-  --bg-pattern: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27240%27%20height%3D%27240%27%20viewBox%3D%270%200%20240%20240%27%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27rgba%28255%2C255%2C255%2C0.06%29%27%20stroke-width%3D%271%27%3E%3Cpath%20d%3D%27M20%2060c30-30%2070-30%20100%200s70%2030%20100%200%27/%3E%3Cpath%20d%3D%27M20%20120c30-30%2070-30%20100%200s70%2030%20100%200%27/%3E%3Cpath%20d%3D%27M20%20180c30-30%2070-30%20100%200s70%2030%20100%200%27/%3E%3Cpath%20d%3D%27M60%2020c-30%2030-30%2070%200%20100s30%2070%200%20100%27/%3E%3Cpath%20d%3D%27M120%2020c-30%2030-30%2070%200%20100s30%2070%200%20100%27/%3E%3Cpath%20d%3D%27M180%2020c-30%2030-30%2070%200%20100s30%2070%200%20100%27/%3E%3C/g%3E%3C/svg%3E");}
+  --bg-pattern: repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 8px, rgba(255,255,255,0) 8px 16px);
+}
 
 
 /* 4. PREMIUM (Xanh Đen Navy) */
 /* 4. PREMIUM (Clubroom Contrast: Navy + Mint Neon) */
 body.theme-mint {
-  --bg-base: #051616;
-  --bg-mesh: none;
+  --bg-base: #061218;
+  --bg-mesh:     radial-gradient(at 12% 15%, rgba(46, 211, 183, 0.26) 0px, transparent 60%),
+    radial-gradient(at 85% 18%, rgba(0, 170, 255, 0.26) 0px, transparent 58%),
+    radial-gradient(at 50% 92%, rgba(215, 16, 73, 0.14) 0px, transparent 64%);
   --bg-panel: rgba(10, 24, 28, 0.70);
   --header-bg: rgba(6, 16, 18, 0.92);
   --border-panel: rgba(0, 170, 255, 0.18);
   --input-bg: rgba(6, 16, 18, 0.54);
   --accent: #00AAFF;
   --accent-gradient: linear-gradient(135deg, #2ed3b7 0%, #005992 55%, #00AAFF 100%);
-
-  --bg-pattern: repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0 2px, rgba(255,255,255,0) 2px 14px), radial-gradient(circle at 15% 20%, rgba(0, 255, 200, 0.18) 0, transparent 55%), radial-gradient(circle at 85% 80%, rgba(0, 180, 255, 0.10) 0, transparent 55%);}
+}
 
 
 /* 5. PRIORITY (Vàng Gold) */
@@ -160,6 +192,7 @@ body.theme-royal {
   --input-bg: rgba(7, 9, 18, 0.55);
   --accent: #ffc400;
   --accent-gradient: linear-gradient(135deg, #003A67 0%, #005992 40%, #ffc400 100%);
+  --bg-pattern: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.10) 0 1px, transparent 2px) 0 0/10px 10px;
 }
 
 
@@ -168,32 +201,34 @@ body.theme-royal {
 /* 6. AURORA (Xanh ngọc - Tím) */
 /* 6. AURORA (Cyan - Purple - Pink, Ethereal Mesh) */
 body.theme-aurora {
-  --bg-base: #061224;
-  --bg-mesh: conic-gradient(from 210deg at 30% 35%, rgba(0, 89, 146, 0.55), rgba(0, 170, 255, 0.12), rgba(215, 16, 73, 0.20), rgba(255, 179, 0, 0.10), rgba(0, 89, 146, 0.55));
+  --bg-base: #04060F;
+  --bg-mesh:     radial-gradient(at 10% 18%, rgba(0, 170, 255, 0.30) 0px, transparent 58%),
+    radial-gradient(at 92% 16%, rgba(64, 140, 255, 0.26) 0px, transparent 56%),
+    radial-gradient(at 45% 92%, rgba(215, 16, 73, 0.22) 0px, transparent 60%);
   --bg-panel: rgba(8, 10, 18, 0.70);
   --header-bg: rgba(4, 5, 10, 0.92);
   --border-panel: rgba(64, 140, 255, 0.22);
   --input-bg: rgba(4, 5, 10, 0.56);
   --accent: #6dd6ff;
   --accent-gradient: linear-gradient(135deg, #001B33 0%, #005992 48%, #D71049 100%);
-
-  --bg-pattern: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27120%27%20height%3D%27120%27%20viewBox%3D%270%200%20120%20120%27%3E%3Cg%20fill%3D%27rgba%28255%2C255%2C255%2C0.06%29%27%3E%3Ccircle%20cx%3D%2710%27%20cy%3D%2710%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2750%27%20cy%3D%2710%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2790%27%20cy%3D%2710%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2730%27%20cy%3D%2730%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2770%27%20cy%3D%2730%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2710%27%20cy%3D%2750%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2750%27%20cy%3D%2750%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2790%27%20cy%3D%2750%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2730%27%20cy%3D%2770%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2770%27%20cy%3D%2770%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2710%27%20cy%3D%2790%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2750%27%20cy%3D%2790%27%20r%3D%271.5%27/%3E%3Ccircle%20cx%3D%2790%27%20cy%3D%2790%27%20r%3D%271.5%27/%3E%3C/g%3E%3C/svg%3E");}
+}
 
 
 /* 7. GRAPHITE (Xám lạnh - Tối giản) */
 body/* 8. VIOLET (Tím - Hồng) */
 /* 7. VIOLET (Ultraviolet Candy: Purple + Rose + Blue) */
 body.theme-violet {
-  --bg-base: #0b0a18;
-  --bg-mesh: radial-gradient(circle at 70% 20%, rgba(142, 45, 226, 0.22), transparent 60%), radial-gradient(circle at 25% 85%, rgba(0, 89, 146, 0.22), transparent 58%);
+  --bg-base: #050512;
+  --bg-mesh:     radial-gradient(at 18% 18%, rgba(120, 92, 255, 0.26) 0px, transparent 58%),
+    radial-gradient(at 88% 12%, rgba(0, 170, 255, 0.22) 0px, transparent 58%),
+    radial-gradient(at 58% 92%, rgba(215, 16, 73, 0.20) 0px, transparent 62%);
   --bg-panel: rgba(10, 10, 24, 0.72);
   --header-bg: rgba(6, 6, 16, 0.92);
   --border-panel: rgba(120, 92, 255, 0.22);
   --input-bg: rgba(6, 6, 16, 0.56);
   --accent: #9b87ff;
   --accent-gradient: linear-gradient(135deg, #2B1B7A 0%, #005992 40%, #D71049 100%);
-
-  --bg-pattern: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27160%27%20height%3D%27160%27%20viewBox%3D%270%200%20160%20160%27%3E%3Cdefs%3E%3Cpattern%20id%3D%27p%27%20width%3D%2720%27%20height%3D%2720%27%20patternUnits%3D%27userSpaceOnUse%27%20patternTransform%3D%27rotate%2845%29%27%3E%3Crect%20width%3D%2720%27%20height%3D%2720%27%20fill%3D%27rgba%28255%2C255%2C255%2C0%29%27/%3E%3Cpath%20d%3D%27M0%2010h20%27%20stroke%3D%27rgba%28255%2C255%2C255%2C0.05%29%27%20stroke-width%3D%272%27/%3E%3Cpath%20d%3D%27M10%200v20%27%20stroke%3D%27rgba%28255%2C255%2C255%2C0.03%29%27%20stroke-width%3D%272%27/%3E%3C/pattern%3E%3C/defs%3E%3Crect%20width%3D%27160%27%20height%3D%27160%27%20fill%3D%27url%28%2523p%29%27/%3E%3C/svg%3E");}
+}
 
 
 /* 9. EMERALD (Xanh lá - Xanh ngọc) */
@@ -209,6 +244,7 @@ body.theme-emerald {
   --input-bg: rgba(4, 12, 10, 0.56);
   --accent: #2ed3b7;
   --accent-gradient: linear-gradient(135deg, #005992 0%, #2ed3b7 55%, #D71049 100%);
+  --bg-pattern: repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, rgba(255,255,255,0) 1px 10px);
 }
 
 
@@ -225,22 +261,24 @@ body.theme-sakura {
   --input-bg: rgba(8, 9, 14, 0.56);
   --accent: #ff6aa2;
   --accent-gradient: linear-gradient(135deg, #005992 0%, #ffffff 45%, #D71049 100%);
+  --bg-pattern: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.09) 0 2px, transparent 3px) 0 0/18px 18px);
 }
 
 
 /* 11. SOLAR (Cam - Vàng) */
 /* 10. SOLAR (Banana Yellow + Coral Heat) */
 body.theme-solar {
-  --bg-base: #120a00;
-  --bg-mesh: conic-gradient(from 180deg at 50% 55%, rgba(255, 179, 0, 0.22), rgba(215, 16, 73, 0.16), rgba(0, 89, 146, 0.28), rgba(255, 179, 0, 0.22));
+  --bg-base: #070C12;
+  --bg-mesh:     radial-gradient(at 18% 20%, rgba(0, 170, 255, 0.22) 0px, transparent 60%),
+    radial-gradient(at 85% 18%, rgba(255, 196, 0, 0.22) 0px, transparent 58%),
+    radial-gradient(at 55% 92%, rgba(0, 89, 146, 0.40) 0px, transparent 62%);
   --bg-panel: rgba(10, 18, 22, 0.72);
   --header-bg: rgba(6, 10, 12, 0.92);
   --border-panel: rgba(255, 196, 0, 0.22);
   --input-bg: rgba(6, 10, 12, 0.56);
   --accent: #ffd24a;
   --accent-gradient: linear-gradient(135deg, #00AAFF 0%, #005992 45%, #ffc400 100%);
-
-  --bg-pattern: repeating-radial-gradient(circle at 50% 55%, rgba(255,255,255,0.05) 0 1px, rgba(255,255,255,0) 1px 18px);}
+}
 
 
 /* 12. MONO (Đen - Trắng) */
@@ -520,8 +558,6 @@ input::placeholder {
   transform: scale(1.1);
 }
 .theme-btn {
-  background-size: cover;
-  background-position: center;
   width: 42px;
   height: 42px;
   border-radius: 12px;
@@ -530,6 +566,42 @@ input::placeholder {
   transition: transform 0.2s;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
+
+.theme-btn{
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.28), 0 1px 0 rgba(255,255,255,0.10) inset;
+}
+.theme-btn > .theme-swatch{
+  position:absolute;
+  inset:0;
+  border-radius: 14px;
+}
+.theme-btn::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: 14px;
+  background: radial-gradient(120% 120% at 20% 15%, rgba(255,255,255,0.40) 0%, rgba(255,255,255,0.10) 22%, rgba(255,255,255,0) 55%);
+  opacity: 0.60;
+  pointer-events:none;
+}
+.theme-btn::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: 14px;
+  background-image: var(--glass-noise);
+  background-size: 180px 180px;
+  mix-blend-mode: overlay;
+  opacity: 0.12;
+  pointer-events:none;
+}
+
 .theme-btn.active {
   transform: scale(1.1);
   border-color: white;
@@ -820,3 +892,13 @@ input::placeholder {
 .gap-2{gap:.5rem;}
 .gap-3{gap:.75rem;}
 .gap-4{gap:1rem;}
+
+/* ===== Settings panel vibrancy boost ===== */
+#settings-menu.glass-panel{
+  backdrop-filter: blur(26px) saturate(220%) contrast(110%);
+  -webkit-backdrop-filter: blur(26px) saturate(220%) contrast(110%);
+  box-shadow:
+    0 24px 70px rgba(0,0,0,0.48),
+    0 1px 0 rgba(255,255,255,0.12) inset,
+    0 0 0 1px rgba(255,255,255,0.06) inset;
+}
