@@ -328,8 +328,8 @@ async function ensureBackupSecret() {
 
   try {
     // 1) check_status (GET) - chỉ để phát hiện locked
-    const q = `?action=check_status&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}&deviceInfo=${encodeURIComponent(deviceInfo)}`;
-    const stRes = await fetch(ADMIN_SERVER_URL + q);
+    const q = `?action=check_status&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}&deviceInfo=${encodeURIComponent(deviceInfo)}&_t=${Date.now()}`;
+    const stRes = await fetch(ADMIN_SERVER_URL + q, { cache: "no-store" });
     const stTxt = await stRes.text();
     let st;
     try { st = JSON.parse(stTxt); } catch (e) { st = stTxt; }
@@ -375,8 +375,8 @@ async function ensureBackupSecret() {
 
     // 2b) Fallback GET querystring
     try {
-      const kdUrl = `${ADMIN_SERVER_URL}?action=issue_kdata&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}`;
-      const kdRes2 = await fetch(kdUrl);
+      const kdUrl = `${ADMIN_SERVER_URL}?action=issue_kdata&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}&_t=${Date.now()}`;
+      const kdRes2 = await fetch(kdUrl, { cache: "no-store" });
       kdTxt = await kdRes2.text();
       try { kd = JSON.parse(kdTxt); } catch (e) { kd = null; }
       if (kd && kd.status === "success" && kd.kdata_b64u) {
