@@ -1,12 +1,17 @@
 /* --- Thay dòng @import cũ bằng dòng này --- */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+
 :root {
   --app-height: 100dvh;
   /* iOS Safe Area (PWA/standalone). Defaults to 0 on Android/Desktop. */
-  --sat: 0px; /* safe-area-inset-top */
-  --sab: 0px; /* safe-area-inset-bottom */
-  --sal: 0px; /* safe-area-inset-left */
-  --sar: 0px; /* safe-area-inset-right */
+  --sat: 0px;
+  /* safe-area-inset-top */
+  --sab: 0px;
+  /* safe-area-inset-bottom */
+  --sal: 0px;
+  /* safe-area-inset-left */
+  --sar: 0px;
+  /* safe-area-inset-right */
 }
 
 @supports (padding: env(safe-area-inset-top)) {
@@ -56,22 +61,26 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
 }
+
 .vietin-logo-img {
   width: 36px;
   height: auto;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
 }
+
 .vietin-text-group {
   display: flex;
   flex-direction: column;
   line-height: 1;
 }
+
 .vietin-brand {
   font-weight: 800;
   font-size: 15px;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
+
 .vietin-sub {
   font-size: 8px;
   font-weight: 700;
@@ -83,118 +92,106 @@ body {
 
 /* --- 3. BỘ THEME MESH GRADIENT (MÀU LOANG & DỄ ĐỌC) --- */
 
-/* 1. SIGNATURE (Xanh Vietin Đậm) */
-/* 1. SIGNATURE (Deep Navy + Electric Cyan) */
+/* 1. MIDNIGHT - Xanh VietinBank Đậm (Theme Chính) */
 body.theme-midnight {
-  /* VietinBank Signature Navy + Cyan (premium glass) */
-  --bg-base: #06122f;
+  --bg-base: #0a1628;
   --bg-mesh:
-    radial-gradient(at 12% 18%, rgba(0, 170, 255, 0.35) 0px, transparent 55%),
-    radial-gradient(at 88% 20%, rgba(0, 82, 204, 0.28) 0px, transparent 58%),
-    radial-gradient(at 35% 92%, rgba(255, 45, 85, 0.14) 0px, transparent 60%);
-  --bg-panel: rgba(8, 18, 44, 0.72);
-  --header-bg: rgba(6, 14, 38, 0.92);
-  --border-panel: rgba(0, 170, 255, 0.22);
-  --input-bg: rgba(6, 14, 38, 0.56);
+    radial-gradient(ellipse 120% 80% at 10% 20%, rgba(0, 91, 159, 0.6) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 90% 80%, rgba(0, 170, 255, 0.4) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(99, 102, 241, 0.3) 0%, transparent 40%);
+  --bg-panel: rgba(15, 30, 60, 0.65);
+  --header-bg: rgba(10, 22, 40, 0.85);
+  --border-panel: rgba(0, 170, 255, 0.35);
+  --input-bg: rgba(15, 30, 60, 0.70);
   --accent: #00aaff;
-  --accent-gradient: linear-gradient(135deg, #003a8c 0%, #00aaff 55%, #1d4ed8 100%);
+  --accent-gradient: linear-gradient(135deg, #005b9f 0%, #00aaff 50%, #22d3ee 100%);
 }
 
 
 
-/* 2. DYNAMIC (Đỏ Trầm) */
-/* 2. DYNAMIC (Tangerine Disco + Magenta Glow) */
+/* 2. SUNSET - Cam Đỏ Rực Rỡ */
 body.theme-sunset {
-  /* VietinBank Blue + Sunset Red (brand contrast) */
-  --bg-base: #0a1635;
+  --bg-base: #1a0a0a;
   --bg-mesh:
-    radial-gradient(at 18% 22%, rgba(255, 45, 85, 0.26) 0px, transparent 56%),
-    radial-gradient(at 86% 18%, rgba(0, 170, 255, 0.30) 0px, transparent 58%),
-    radial-gradient(at 50% 92%, rgba(255, 184, 0, 0.14) 0px, transparent 62%);
-  --bg-panel: rgba(10, 22, 50, 0.72);
-  --header-bg: rgba(8, 18, 44, 0.92);
-  --border-panel: rgba(255, 45, 85, 0.18);
-  --input-bg: rgba(8, 18, 44, 0.56);
-  --accent: #ff2d55;
-  --accent-gradient: linear-gradient(135deg, #003a8c 0%, #ff2d55 45%, #00aaff 100%);
+    radial-gradient(ellipse 120% 80% at 20% 30%, rgba(251, 146, 60, 0.6) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 70%, rgba(244, 63, 94, 0.5) 0%, transparent 45%),
+    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(168, 85, 247, 0.35) 0%, transparent 40%);
+  --bg-panel: rgba(40, 20, 20, 0.65);
+  --header-bg: rgba(30, 15, 15, 0.85);
+  --border-panel: rgba(251, 146, 60, 0.40);
+  --input-bg: rgba(40, 20, 20, 0.70);
+  --accent: #fb923c;
+  --accent-gradient: linear-gradient(135deg, #ea580c 0%, #fb923c 50%, #f43f5e 100%);
 }
 
 
 
-/* 3. DIGITAL (Xanh Teal) */
-/* 3. DIGITAL (Mermaidcore Teal + Deep Blue) */
+/* 3. OCEAN - Xanh Biển Sâu */
 body.theme-ocean {
-  /* VietinBank Deep Blue + Aqua (clean corporate) */
-  --bg-base: #04142f;
+  --bg-base: #041520;
   --bg-mesh:
-    radial-gradient(at 15% 20%, rgba(0, 82, 204, 0.34) 0px, transparent 58%),
-    radial-gradient(at 85% 22%, rgba(0, 200, 255, 0.26) 0px, transparent 60%),
-    radial-gradient(at 40% 92%, rgba(0, 255, 204, 0.14) 0px, transparent 62%);
-  --bg-panel: rgba(6, 20, 46, 0.70);
-  --header-bg: rgba(5, 16, 40, 0.92);
-  --border-panel: rgba(0, 200, 255, 0.18);
-  --input-bg: rgba(5, 16, 40, 0.56);
-  --accent: #00c8ff;
-  --accent-gradient: linear-gradient(135deg, #003a8c 0%, #00c8ff 55%, #00ffcc 100%);
+    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(6, 182, 212, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(14, 165, 233, 0.45) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(37, 99, 235, 0.35) 0%, transparent 40%);
+  --bg-panel: rgba(10, 40, 60, 0.65);
+  --header-bg: rgba(8, 30, 50, 0.85);
+  --border-panel: rgba(6, 182, 212, 0.40);
+  --input-bg: rgba(10, 40, 60, 0.70);
+  --accent: #06b6d4;
+  --accent-gradient: linear-gradient(135deg, #0284c7 0%, #06b6d4 50%, #22d3ee 100%);
 }
 
 
 
-/* 4. PREMIUM (Xanh Đen Navy) */
-/* 4. PREMIUM (Clubroom Contrast: Navy + Mint Neon) */
+/* 4. MINT - Xanh Ngọc Tươi Mát */
 body.theme-mint {
-  /* VietinBank Blue + Mint Glass (fresh, bright) */
-  --bg-base: #061833;
+  --bg-base: #0a1a18;
   --bg-mesh:
-    radial-gradient(at 20% 18%, rgba(0, 255, 204, 0.22) 0px, transparent 60%),
-    radial-gradient(at 82% 24%, rgba(0, 170, 255, 0.26) 0px, transparent 58%),
-    radial-gradient(at 45% 92%, rgba(0, 82, 204, 0.18) 0px, transparent 62%);
-  --bg-panel: rgba(10, 26, 54, 0.70);
-  --header-bg: rgba(8, 20, 44, 0.92);
-  --border-panel: rgba(0, 255, 204, 0.16);
-  --input-bg: rgba(8, 20, 44, 0.56);
-  --accent: #00ffcc;
-  --accent-gradient: linear-gradient(135deg, #003a8c 0%, #00ffcc 55%, #00aaff 100%);
+    radial-gradient(ellipse 120% 80% at 20% 20%, rgba(16, 185, 129, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 80%, rgba(34, 211, 238, 0.45) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(99, 102, 241, 0.30) 0%, transparent 40%);
+  --bg-panel: rgba(15, 45, 40, 0.65);
+  --header-bg: rgba(10, 35, 30, 0.85);
+  --border-panel: rgba(16, 185, 129, 0.40);
+  --input-bg: rgba(15, 45, 40, 0.70);
+  --accent: #10b981;
+  --accent-gradient: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
 }
 
 
 
-/* 5. PRIORITY (Vàng Gold) */
-/* 5. PRIORITY (Emerald + Gold Luxe) */
+/* 5. ROYAL - Vàng Gold Sang Trọng */
 body.theme-royal {
-  /* VietinBank Blue + Royal Indigo (executive) */
-  --bg-base: #07103a;
+  --bg-base: #151008;
   --bg-mesh:
-    radial-gradient(at 18% 20%, rgba(29, 78, 216, 0.34) 0px, transparent 58%),
-    radial-gradient(at 86% 18%, rgba(124, 58, 237, 0.22) 0px, transparent 60%),
-    radial-gradient(at 46% 92%, rgba(0, 170, 255, 0.18) 0px, transparent 62%);
-  --bg-panel: rgba(10, 18, 52, 0.72);
-  --header-bg: rgba(8, 14, 44, 0.92);
-  --border-panel: rgba(124, 58, 237, 0.18);
-  --input-bg: rgba(8, 14, 44, 0.56);
-  --accent: #7c3aed;
-  --accent-gradient: linear-gradient(135deg, #003a8c 0%, #7c3aed 48%, #00aaff 100%);
+    radial-gradient(ellipse 120% 80% at 25% 25%, rgba(245, 158, 11, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 75% 75%, rgba(253, 224, 71, 0.40) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(168, 85, 247, 0.25) 0%, transparent 40%);
+  --bg-panel: rgba(40, 30, 15, 0.65);
+  --header-bg: rgba(30, 22, 10, 0.85);
+  --border-panel: rgba(245, 158, 11, 0.45);
+  --input-bg: rgba(40, 30, 15, 0.70);
+  --accent: #f59e0b;
+  --accent-gradient: linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%);
 }
 
 
 
 /* --- 3B. THEME MỞ RỘNG (THÊM) --- */
 
-/* 6. AURORA (Xanh ngọc - Tím) */
-/* 6. AURORA (Cyan - Purple - Pink, Ethereal Mesh) */
+/* 6. AURORA - Cực Quang Huyền Ảo */
 body.theme-aurora {
-  /* VietinBank Aurora Blue (high-tech) */
-  --bg-base: #04112a;
+  --bg-base: #0a0a1a;
   --bg-mesh:
-    radial-gradient(at 12% 22%, rgba(0, 170, 255, 0.34) 0px, transparent 56%),
-    radial-gradient(at 90% 18%, rgba(0, 255, 204, 0.18) 0px, transparent 60%),
-    radial-gradient(at 50% 92%, rgba(255, 45, 85, 0.12) 0px, transparent 64%);
-  --bg-panel: rgba(6, 18, 44, 0.70);
-  --header-bg: rgba(5, 14, 38, 0.92);
-  --border-panel: rgba(0, 170, 255, 0.18);
-  --input-bg: rgba(5, 14, 38, 0.56);
-  --accent: #00aaff;
-  --accent-gradient: linear-gradient(135deg, #00aaff 0%, #003a8c 55%, #00ffcc 100%);
+    radial-gradient(ellipse 120% 80% at 15% 30%, rgba(34, 211, 238, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 70%, rgba(168, 85, 247, 0.50) 0%, transparent 45%),
+    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(236, 72, 153, 0.35) 0%, transparent 40%);
+  --bg-panel: rgba(20, 20, 40, 0.65);
+  --header-bg: rgba(15, 15, 30, 0.85);
+  --border-panel: rgba(34, 211, 238, 0.40);
+  --input-bg: rgba(20, 20, 40, 0.70);
+  --accent: #22d3ee;
+  --accent-gradient: linear-gradient(135deg, #06b6d4 0%, #a855f7 50%, #ec4899 100%);
 }
 
 
@@ -202,16 +199,12 @@ body.theme-aurora {
 /* 7. GRAPHITE (Xám lạnh - Tối giản) */
 body.theme-graphite {
   --bg-base: #0b1220;
-  --bg-mesh: radial-gradient(
-      at 0% 0%,
+  --bg-mesh: radial-gradient(at 0% 0%,
       hsla(215, 30%, 28%, 0.55) 0px,
-      transparent 55%
-    ),
-    radial-gradient(
-      at 100% 100%,
+      transparent 55%),
+    radial-gradient(at 100% 100%,
       hsla(220, 25%, 18%, 0.75) 0px,
-      transparent 55%
-    );
+      transparent 55%);
   --bg-panel: rgba(15, 23, 42, 0.78);
   --header-bg: rgba(2, 6, 23, 0.92);
   --border-panel: rgba(148, 163, 184, 0.18);
@@ -220,78 +213,70 @@ body.theme-graphite {
   --accent-gradient: linear-gradient(135deg, #334155 0%, #94a3b8 100%);
 }
 
-/* 8. VIOLET (Tím - Hồng) */
-/* 7. VIOLET (Ultraviolet Candy: Purple + Rose + Blue) */
+/* 7. VIOLET - Tím Neon Huyền Bí */
 body.theme-violet {
-  /* VietinBank Blue + Violet Neon (creative) */
-  --bg-base: #0a0f36;
+  --bg-base: #0f0a1a;
   --bg-mesh:
-    radial-gradient(at 16% 20%, rgba(124, 58, 237, 0.26) 0px, transparent 60%),
-    radial-gradient(at 84% 22%, rgba(0, 170, 255, 0.26) 0px, transparent 58%),
-    radial-gradient(at 45% 92%, rgba(29, 78, 216, 0.22) 0px, transparent 62%);
-  --bg-panel: rgba(12, 18, 52, 0.72);
-  --header-bg: rgba(9, 14, 44, 0.92);
-  --border-panel: rgba(124, 58, 237, 0.16);
-  --input-bg: rgba(9, 14, 44, 0.56);
+    radial-gradient(ellipse 120% 80% at 20% 25%, rgba(124, 58, 237, 0.60) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 75%, rgba(168, 85, 247, 0.50) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(244, 114, 182, 0.35) 0%, transparent 40%);
+  --bg-panel: rgba(30, 20, 45, 0.65);
+  --header-bg: rgba(20, 15, 35, 0.85);
+  --border-panel: rgba(124, 58, 237, 0.45);
+  --input-bg: rgba(30, 20, 45, 0.70);
   --accent: #8b5cf6;
-  --accent-gradient: linear-gradient(135deg, #003a8c 0%, #8b5cf6 50%, #00aaff 100%);
+  --accent-gradient: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
 }
 
 
 
-/* 9. EMERALD (Xanh lá - Xanh ngọc) */
-/* 8. EMERALD (Thermal Glow: Emerald + Cyan + Lime) */
+/* 8. EMERALD - Xanh Lá Rừng Sâu */
 body.theme-emerald {
-  /* VietinBank Blue + Emerald Teal (finance dashboard) */
-  --bg-base: #041a2a;
+  --bg-base: #0a150a;
   --bg-mesh:
-    radial-gradient(at 14% 20%, rgba(0, 255, 204, 0.20) 0px, transparent 60%),
-    radial-gradient(at 86% 18%, rgba(0, 170, 255, 0.28) 0px, transparent 58%),
-    radial-gradient(at 50% 92%, rgba(16, 185, 129, 0.18) 0px, transparent 62%);
-  --bg-panel: rgba(6, 26, 44, 0.70);
-  --header-bg: rgba(5, 20, 38, 0.92);
-  --border-panel: rgba(16, 185, 129, 0.16);
-  --input-bg: rgba(5, 20, 38, 0.56);
+    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(16, 185, 129, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(52, 211, 153, 0.45) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(163, 230, 53, 0.30) 0%, transparent 40%);
+  --bg-panel: rgba(20, 45, 25, 0.65);
+  --header-bg: rgba(15, 35, 18, 0.85);
+  --border-panel: rgba(16, 185, 129, 0.45);
+  --input-bg: rgba(20, 45, 25, 0.70);
   --accent: #10b981;
-  --accent-gradient: linear-gradient(135deg, #003a8c 0%, #10b981 50%, #00aaff 100%);
+  --accent-gradient: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
 }
 
 
 
-/* 10. SAKURA (Hồng - Pastel) */
-/* 9. SAKURA (Dusty Rose Pastel: Pink + Peach + Lilac) */
+/* 9. SAKURA - Hồng Anh Đào Dịu Dàng */
 body.theme-sakura {
-  /* VietinBank Blue + Soft Rose (friendly, warm) */
-  --bg-base: #0a1632;
+  --bg-base: #1a0a12;
   --bg-mesh:
-    radial-gradient(at 18% 20%, rgba(255, 45, 85, 0.18) 0px, transparent 60%),
-    radial-gradient(at 84% 18%, rgba(0, 170, 255, 0.28) 0px, transparent 58%),
-    radial-gradient(at 48% 92%, rgba(255, 184, 0, 0.10) 0px, transparent 64%);
-  --bg-panel: rgba(10, 26, 50, 0.70);
-  --header-bg: rgba(8, 20, 44, 0.92);
-  --border-panel: rgba(255, 45, 85, 0.14);
-  --input-bg: rgba(8, 20, 44, 0.56);
-  --accent: #ff2d55;
-  --accent-gradient: linear-gradient(135deg, #00aaff 0%, #003a8c 55%, #ff2d55 100%);
+    radial-gradient(ellipse 120% 80% at 20% 30%, rgba(251, 113, 133, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 70%, rgba(251, 146, 60, 0.40) 0%, transparent 45%),
+    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(168, 85, 247, 0.30) 0%, transparent 40%);
+  --bg-panel: rgba(45, 20, 30, 0.65);
+  --header-bg: rgba(35, 15, 22, 0.85);
+  --border-panel: rgba(251, 113, 133, 0.45);
+  --input-bg: rgba(45, 20, 30, 0.70);
+  --accent: #fb7185;
+  --accent-gradient: linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fda4af 100%);
 }
 
 
 
-/* 11. SOLAR (Cam - Vàng) */
-/* 10. SOLAR (Banana Yellow + Coral Heat) */
+/* 10. SOLAR - Cam Vàng Rực Nắng */
 body.theme-solar {
-  /* VietinBank Blue + Gold Solar (premium highlight) */
-  --bg-base: #061532;
+  --bg-base: #1a1205;
   --bg-mesh:
-    radial-gradient(at 16% 20%, rgba(255, 184, 0, 0.22) 0px, transparent 60%),
-    radial-gradient(at 84% 18%, rgba(0, 170, 255, 0.30) 0px, transparent 58%),
-    radial-gradient(at 50% 92%, rgba(29, 78, 216, 0.20) 0px, transparent 62%);
-  --bg-panel: rgba(10, 24, 52, 0.72);
-  --header-bg: rgba(8, 18, 44, 0.92);
-  --border-panel: rgba(255, 184, 0, 0.16);
-  --input-bg: rgba(8, 18, 44, 0.56);
-  --accent: #ffb800;
-  --accent-gradient: linear-gradient(135deg, #003a8c 0%, #ffb800 50%, #00aaff 100%);
+    radial-gradient(ellipse 120% 80% at 20% 25%, rgba(253, 224, 71, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 75%, rgba(251, 146, 60, 0.50) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(244, 63, 94, 0.30) 0%, transparent 40%);
+  --bg-panel: rgba(45, 35, 15, 0.65);
+  --header-bg: rgba(35, 28, 10, 0.85);
+  --border-panel: rgba(253, 224, 71, 0.45);
+  --input-bg: rgba(45, 35, 15, 0.70);
+  --accent: #fbbf24;
+  --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #fde047 100%);
 }
 
 
@@ -299,11 +284,9 @@ body.theme-solar {
 /* 12. MONO (Đen - Trắng) */
 body.theme-mono {
   --bg-base: #0b0f19;
-  --bg-mesh: radial-gradient(
-      at 0% 0%,
+  --bg-mesh: radial-gradient(at 0% 0%,
       hsla(220, 15%, 18%, 0.7) 0px,
-      transparent 55%
-    ),
+      transparent 55%),
     radial-gradient(at 100% 100%, hsla(0, 0%, 100%, 0.08) 0px, transparent 55%);
   --bg-panel: rgba(17, 24, 39, 0.78);
   --header-bg: rgba(0, 0, 0, 0.88);
@@ -313,13 +296,16 @@ body.theme-mono {
   --accent-gradient: linear-gradient(135deg, #111827 0%, #e5e7eb 100%);
 }
 
-/* 4. GLASS & UTILS */
+/* 4. GLASS & UTILS - Apple-style Glassmorphism */
 .glass-panel {
   background: var(--bg-panel);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(40px) saturate(200%) brightness(1.05);
+  -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.05);
   border: 1px solid var(--border-panel);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.1);
   position: relative;
   z-index: 10;
   will-change: transform, opacity;
@@ -334,6 +320,7 @@ body.theme-mono {
   position: relative;
   z-index: 5;
 }
+
 .glass-panel-lite.selected {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -350,14 +337,17 @@ body.theme-mono {
   border-radius: 6px;
   opacity: 0.9;
 }
+
 .cust-card.cust-approved::before {
   background: rgba(16, 185, 129, 0.9);
   box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25);
 }
+
 .cust-card.cust-pending::before {
   background: rgba(99, 102, 241, 0.9);
   box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
 }
+
 .glass-header {
   background: var(--header-bg);
   backdrop-filter: blur(16px) saturate(180%);
@@ -373,25 +363,30 @@ body.theme-mono {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
+
   .glass-header {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
 }
+
 @keyframes modalPop {
   0% {
     transform: scale(0.96) translateY(10px);
     opacity: 0;
   }
+
   100% {
     transform: scale(1) translateY(0);
     opacity: 1;
   }
 }
+
 .modal-animate {
   animation: modalPop 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   will-change: transform, opacity;
 }
+
 .app-container {
   height: 100%;
   width: 100%;
@@ -432,27 +427,28 @@ body.theme-mono {
 /* Smooth slide transitions for app screens (reduce jank / flicker on mobile). */
 .app-container.transform {
   transform:
-    translate3d(var(--tw-translate-x, 0), var(--tw-translate-y, 0), 0)
-    rotate(var(--tw-rotate, 0))
-    skewX(var(--tw-skew-x, 0))
-    skewY(var(--tw-skew-y, 0))
-    scaleX(var(--tw-scale-x, 1))
-    scaleY(var(--tw-scale-y, 1));
+    translate3d(var(--tw-translate-x, 0), var(--tw-translate-y, 0), 0) rotate(var(--tw-rotate, 0)) skewX(var(--tw-skew-x, 0)) skewY(var(--tw-skew-y, 0)) scaleX(var(--tw-scale-x, 1)) scaleY(var(--tw-scale-y, 1));
 }
+
 .scroll-area {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
+  /* Performance: isolate scroll container from layout recalculations */
+  contain: content;
   /* Reserve space for bottom action area + iOS home indicator safe-area. */
   padding-bottom: calc(140px + var(--sab));
 }
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 3px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }
+
 input,
 select,
 textarea {
@@ -460,21 +456,25 @@ textarea {
   background: var(--input-bg) !important;
   transition: all 0.2s ease;
 }
+
 input:focus {
   border-color: var(--accent) !important;
   background: rgba(0, 0, 0, 0.4) !important;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
+
 input::placeholder {
   color: var(--text-sub) !important;
   opacity: 0.5;
 }
+
 .img-grid-container {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   padding: 12px;
 }
+
 .img-wrapper {
   position: relative;
   width: 100%;
@@ -488,9 +488,11 @@ input::placeholder {
   transition: transform 0.2s;
   will-change: transform;
 }
+
 .img-wrapper:active {
   transform: scale(0.96);
 }
+
 .img-wrapper img {
   position: absolute;
   top: 0;
@@ -500,21 +502,25 @@ input::placeholder {
   object-fit: cover;
   display: block;
 }
+
 #loader {
   backdrop-filter: blur(8px);
   background: rgba(0, 0, 0, 0.6);
   z-index: 200;
 }
+
 #toast {
   transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
     opacity 0.3s;
   z-index: 400;
   will-change: transform, opacity;
 }
+
 .toast-show {
   transform: translateX(-50%) translateY(0) !important;
   opacity: 1 !important;
 }
+
 .keypad-btn {
   width: 72px;
   height: 72px;
@@ -531,10 +537,12 @@ input::placeholder {
   color: white;
   backdrop-filter: blur(5px);
 }
+
 .keypad-btn:active {
   background: rgba(255, 255, 255, 0.2);
   transform: scale(0.95);
 }
+
 .pin-dot {
   width: 14px;
   height: 14px;
@@ -542,11 +550,13 @@ input::placeholder {
   border: 2px solid var(--text-sub);
   transition: all 0.2s;
 }
+
 .pin-dot.filled {
   background: var(--accent);
   border-color: var(--accent);
   transform: scale(1.1);
 }
+
 .theme-btn {
   width: 42px;
   height: 42px;
@@ -556,11 +566,13 @@ input::placeholder {
   transition: transform 0.2s;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
+
 .theme-btn.active {
   transform: scale(1.1);
   border-color: white;
   box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
 }
+
 .select-ring {
   width: 22px;
   height: 22px;
@@ -575,29 +587,35 @@ input::placeholder {
   right: 6px;
   z-index: 20;
 }
+
 .select-ring svg {
   opacity: 0;
   transform: scale(0.5);
   transition: all 0.2s;
 }
+
 .selected .select-ring {
   background: var(--accent);
   border-color: var(--accent);
 }
+
 .selected .select-ring svg {
   opacity: 1;
   transform: scale(1);
 }
+
 .glass-panel.selected {
   border-color: var(--accent) !important;
   background: rgba(99, 102, 241, 0.1) !important;
   box-shadow: 0 0 0 1px var(--accent);
 }
+
 #map-container {
   width: 100%;
   height: 100%;
   z-index: 1;
 }
+
 .leaflet-popup-content-wrapper {
   background: rgba(15, 23, 42, 0.9);
   backdrop-filter: blur(16px) saturate(180%);
@@ -607,21 +625,26 @@ input::placeholder {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
   padding: 0;
 }
+
 .leaflet-popup-tip {
   background: rgba(15, 23, 42, 0.9);
 }
+
 .leaflet-popup-content {
   margin: 0;
   width: 260px !important;
 }
+
 .leaflet-container a.leaflet-popup-close-button {
   color: #fff;
   padding: 8px;
   font-size: 20px;
 }
+
 .map-popup-card {
   padding: 12px;
 }
+
 .map-popup-img {
   width: 100%;
   height: 120px;
@@ -630,6 +653,7 @@ input::placeholder {
   margin-bottom: 8px;
   background: #222;
 }
+
 .map-tag {
   font-size: 10px;
   padding: 2px 6px;
@@ -639,16 +663,19 @@ input::placeholder {
   display: inline-block;
   margin-bottom: 4px;
 }
+
 .map-tag.approved {
   background: rgba(16, 185, 129, 0.2);
   color: #34d399;
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
+
 .map-tag.pending {
   background: rgba(245, 158, 11, 0.2);
   color: #fbbf24;
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
+
 .marker-glow {
   width: 20px;
   height: 20px;
@@ -657,6 +684,7 @@ input::placeholder {
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
   position: relative;
 }
+
 .marker-glow::after {
   content: "";
   position: absolute;
@@ -670,30 +698,37 @@ input::placeholder {
   opacity: 0.5;
   z-index: -1;
 }
+
 .marker-approved {
   background: #10b981;
 }
+
 .marker-approved::after {
   background: #10b981;
   box-shadow: 0 0 15px #10b981;
 }
+
 .marker-pending {
   background: #f59e0b;
 }
+
 .marker-pending::after {
   background: #f59e0b;
   box-shadow: 0 0 15px #f59e0b;
 }
+
 @keyframes pulse {
   0% {
     transform: translate(-50%, -50%) scale(1);
     opacity: 0.8;
   }
+
   100% {
     transform: translate(-50%, -50%) scale(2.5);
     opacity: 0;
   }
 }
+
 .leaflet-control-layers {
   background: rgba(15, 23, 42, 0.9) !important;
   backdrop-filter: blur(10px);
@@ -702,11 +737,13 @@ input::placeholder {
   border-radius: 12px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
 }
+
 .transition-transform {
   transition-property: transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 300ms;
 }
+
 /* --- 5. GLASS EFFECT UTILS (THÊM MỚI) --- */
 .glass-btn {
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
@@ -716,10 +753,12 @@ input::placeholder {
     0 2px 4px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
 }
+
 .glass-btn:active {
   background: rgba(255, 255, 255, 0.1);
   transform: scale(0.98);
 }
+
 /* Hiệu ứng tab kính */
 .glass-tab-active {
   background: rgba(255, 255, 255, 0.1) !important;
@@ -727,11 +766,13 @@ input::placeholder {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   color: white !important;
 }
+
 .glass-tab-inactive {
   border: 1px solid transparent !important;
   color: var(--text-sub) !important;
   opacity: 0.6;
 }
+
 /* --- 6. PROFILE GLASS BOX (Thêm mới) --- */
 .profile-glass-box {
   display: flex;
@@ -748,101 +789,295 @@ input::placeholder {
   border: 1px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
   width: 100%;
-  margin-bottom: 16px; /* Cách các nút bên dưới ra */
+  margin-bottom: 16px;
+  /* Cách các nút bên dưới ra */
 }
 
 
 /* --- iOS Safe-Area fixes for fixed overlays (avoid status bar / notch overlap) --- */
 #toast {
-  top: calc(3rem + var(--sat)); /* Tailwind top-12 */
+  top: calc(3rem + var(--sat));
+  /* Tailwind top-12 */
 }
+
 #settings-menu {
-  top: calc(5rem + var(--sat)); /* Tailwind top-20 */
+  top: calc(5rem + var(--sat));
+  /* Tailwind top-20 */
 }
+
 #cust-selection-bar,
 #selection-bar {
-  padding-bottom: calc(2rem + var(--sab)); /* Tailwind pb-8 + safe-area */
+  padding-bottom: calc(2rem + var(--sab));
+  /* Tailwind pb-8 + safe-area */
 }
+
 #lightbox button[onclick="closeLightbox()"] {
-  top: calc(1.5rem + var(--sat)); /* Tailwind top-6 */
+  top: calc(1.5rem + var(--sat));
+  /* Tailwind top-6 */
 }
 
 /* === TAILWIND CRITICAL UTILITIES (SELF-HOST) ===
    Minimal subset to replace Tailwind CDN for layout/position/transition.
    Focus: prevent overlay/toolbars from stacking in normal flow.
 */
-.hidden{display:none!important;}
-.block{display:block;}
-.inline-block{display:inline-block;}
-.flex{display:flex;}
-.inline-flex{display:inline-flex;}
-.grid{display:grid;}
-.items-center{align-items:center;}
-.items-start{align-items:flex-start;}
-.items-end{align-items:flex-end;}
-.justify-between{justify-content:space-between;}
-.justify-center{justify-content:center;}
-.justify-start{justify-content:flex-start;}
-.justify-end{justify-content:flex-end;}
+.hidden {
+  display: none !important;
+}
 
-.relative{position:relative;}
-.absolute{position:absolute;}
-.fixed{position:fixed;}
-.sticky{position:sticky;}
+.block {
+  display: block;
+}
 
-.top-0{top:0;}
-.bottom-0{bottom:0;}
-.left-0{left:0;}
-.right-0{right:0;}
-.inset-0{top:0;right:0;bottom:0;left:0;}
+.inline-block {
+  display: inline-block;
+}
 
-.w-full{width:100%;}
-.h-full{height:100%;}
-.min-h-0{min-height:0;}
+.flex {
+  display: flex;
+}
 
-.overflow-hidden{overflow:hidden;}
-.overflow-auto{overflow:auto;}
-.overflow-y-auto{overflow-y:auto;}
-.overflow-x-auto{overflow-x:auto;}
+.inline-flex {
+  display: inline-flex;
+}
 
-.pointer-events-none{pointer-events:none;}
-.pointer-events-auto{pointer-events:auto;}
+.grid {
+  display: grid;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.items-start {
+  align-items: flex-start;
+}
+
+.items-end {
+  align-items: flex-end;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-start {
+  justify-content: flex-start;
+}
+
+.justify-end {
+  justify-content: flex-end;
+}
+
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.fixed {
+  position: fixed;
+}
+
+.sticky {
+  position: sticky;
+}
+
+.top-0 {
+  top: 0;
+}
+
+.bottom-0 {
+  bottom: 0;
+}
+
+.left-0 {
+  left: 0;
+}
+
+.right-0 {
+  right: 0;
+}
+
+.inset-0 {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.min-h-0 {
+  min-height: 0;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+.overflow-auto {
+  overflow: auto;
+}
+
+.overflow-y-auto {
+  overflow-y: auto;
+}
+
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+.pointer-events-none {
+  pointer-events: none;
+}
+
+.pointer-events-auto {
+  pointer-events: auto;
+}
 
 /* z-index (subset used across app) */
-.z-0{z-index:0;}
-.z-10{z-index:10;}
-.z-20{z-index:20;}
-.z-30{z-index:30;}
-.z-40{z-index:40;}
-.z-50{z-index:50;}
-.z-\[60\]{z-index:60;}
-.z-\[70\]{z-index:70;}
-.z-\[100\]{z-index:100;}
-.z-\[120\]{z-index:120;}
-.z-\[300\]{z-index:300;}
-.z-\[305\]{z-index:305;}
-.z-\[310\]{z-index:310;}
-.z-\[320\]{z-index:320;}
-.z-\[400\]{z-index:400;}
-.z-\[500\]{z-index:500;}
-.z-\[10050\]{z-index:10050;}
-.z-\[10060\]{z-index:10060;}
-.z-\[10080\]{z-index:10080;}
+.z-0 {
+  z-index: 0;
+}
+
+.z-10 {
+  z-index: 10;
+}
+
+.z-20 {
+  z-index: 20;
+}
+
+.z-30 {
+  z-index: 30;
+}
+
+.z-40 {
+  z-index: 40;
+}
+
+.z-50 {
+  z-index: 50;
+}
+
+.z-\[60\] {
+  z-index: 60;
+}
+
+.z-\[70\] {
+  z-index: 70;
+}
+
+.z-\[100\] {
+  z-index: 100;
+}
+
+.z-\[120\] {
+  z-index: 120;
+}
+
+.z-\[300\] {
+  z-index: 300;
+}
+
+.z-\[305\] {
+  z-index: 305;
+}
+
+.z-\[310\] {
+  z-index: 310;
+}
+
+.z-\[320\] {
+  z-index: 320;
+}
+
+.z-\[400\] {
+  z-index: 400;
+}
+
+.z-\[500\] {
+  z-index: 500;
+}
+
+.z-\[10050\] {
+  z-index: 10050;
+}
+
+.z-\[10060\] {
+  z-index: 10060;
+}
+
+.z-\[10080\] {
+  z-index: 10080;
+}
 
 /* transforms + slide-in bars */
-.translate-y-full{transform:translateY(100%);}
-.translate-y-0{transform:translateY(0);}
-.-translate-y-full{transform:translateY(-100%);}
-.-translate-y-0{transform:translateY(0);}
+.translate-y-full {
+  transform: translateY(100%);
+}
 
-.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms;}
-.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms;}
-.duration-200{transition-duration:200ms;}
-.duration-300{transition-duration:300ms;}
-.ease-in-out{transition-timing-function:cubic-bezier(0.4,0,0.2,1);}
+.translate-y-0 {
+  transform: translateY(0);
+}
+
+.-translate-y-full {
+  transform: translateY(-100%);
+}
+
+.-translate-y-0 {
+  transform: translateY(0);
+}
+
+.transition-transform {
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.transition-opacity {
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.duration-200 {
+  transition-duration: 200ms;
+}
+
+.duration-300 {
+  transition-duration: 300ms;
+}
+
+.ease-in-out {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
 
 /* basic spacing (only most used to keep file small) */
-.gap-1{gap:.25rem;}
-.gap-2{gap:.5rem;}
-.gap-3{gap:.75rem;}
-.gap-4{gap:1rem;}
+.gap-1 {
+  gap: .25rem;
+}
+
+.gap-2 {
+  gap: .5rem;
+}
+
+.gap-3 {
+  gap: .75rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
