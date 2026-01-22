@@ -56,6 +56,9 @@ function referenceAssetPrice(assetIndex) {
             assetName: assetName,
             valuation: val,
             distance: dist,
+            // Bổ sung hiển thị tham khảo: diện tích & mặt tiền (lưu dạng chuỗi, đã giải mã)
+            area: (decryptText(asset.area) || "").trim(),
+            width: (decryptText(asset.width) || "").trim(),
           });
         }
       });
@@ -87,9 +90,13 @@ function showRefModal(results) {
         ? `${Math.round(item.distance)} m`
         : `${(item.distance / 1000).toFixed(2)} km`;
     const valStr = item.valuation.toLocaleString("vi-VN") + " tr₫";
+    const areaStr = (item.area || "").trim();
+    const widthStr = (item.width || "").trim();
+    const areaDisp = areaStr ? `${areaStr} m²` : "—";
+    const widthDisp = widthStr ? `${widthStr} m` : "—";
     const div = document.createElement("div");
     div.className = "bg-white/5 border border-white/10 rounded-lg p-3";
-    div.innerHTML = `<div class="flex justify-between items-center mb-1"><span class="text-xs font-bold text-emerald-400">#${ idx + 1 } • Cách ${distStr}</span><span class="text-sm font-bold text-white">${valStr}</span></div><h4 class="text-sm font-medium text-slate-300 truncate">${ item.assetName }</h4><p class="text-[10px] text-slate-500 mt-1 uppercase">KH: ${ item.customerName }</p>`;
+    div.innerHTML = `<div class="flex justify-between items-center mb-1"><span class="text-xs font-bold text-emerald-400">#${ idx + 1 } • Cách ${distStr}</span><span class="text-sm font-bold text-white">${valStr}</span></div><h4 class="text-sm font-medium text-slate-300 truncate">${ item.assetName }</h4><div class="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-300"><span><span class="text-slate-500">Diện tích:</span> <span class="font-medium text-slate-200">${areaDisp}</span></span><span><span class="text-slate-500">Mặt tiền:</span> <span class="font-medium text-slate-200">${widthDisp}</span></span></div><p class="text-[10px] text-slate-500 mt-1 uppercase">KH: ${ item.customerName }</p>`;
     container.appendChild(div);
   });
   modal.classList.remove("hidden");
