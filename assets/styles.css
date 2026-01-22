@@ -159,7 +159,7 @@ body.theme-ocean {
   --input-bg: rgba(4, 16, 18, 0.56);
   --accent: #2ed3b7;
   --accent-gradient: linear-gradient(135deg, #005992 0%, #00AAFF 45%, #2ed3b7 100%);
-  --bg-pattern: repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 8px, rgba(255,255,255,0) 8px 16px);
+  --bg-pattern: repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 8px, rgba(255,255,255,0) 8px 16px;
 }
 
 
@@ -215,7 +215,7 @@ body.theme-aurora {
 
 
 /* 7. GRAPHITE (Xám lạnh - Tối giản) */
-body/* 8. VIOLET (Tím - Hồng) */
+/* 8. VIOLET (Tím - Hồng) */
 /* 7. VIOLET (Ultraviolet Candy: Purple + Rose + Blue) */
 body.theme-violet {
   --bg-base: #050512;
@@ -244,7 +244,7 @@ body.theme-emerald {
   --input-bg: rgba(4, 12, 10, 0.56);
   --accent: #2ed3b7;
   --accent-gradient: linear-gradient(135deg, #005992 0%, #2ed3b7 55%, #D71049 100%);
-  --bg-pattern: repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, rgba(255,255,255,0) 1px 10px);
+  --bg-pattern: repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, rgba(255,255,255,0) 1px 10px;
 }
 
 
@@ -261,7 +261,7 @@ body.theme-sakura {
   --input-bg: rgba(8, 9, 14, 0.56);
   --accent: #ff6aa2;
   --accent-gradient: linear-gradient(135deg, #005992 0%, #ffffff 45%, #D71049 100%);
-  --bg-pattern: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.09) 0 2px, transparent 3px) 0 0/18px 18px);
+  --bg-pattern: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.09) 0 2px, transparent 3px) 0 0/18px 18px;
 }
 
 
@@ -282,7 +282,7 @@ body.theme-solar {
 
 
 /* 12. MONO (Đen - Trắng) */
-body/* 4. GLASS & UTILS */
+/* 4. GLASS & UTILS */
 .glass-panel {
   background: color-mix(in srgb, var(--bg-panel) 92%, rgba(255,255,255,0.06));
   backdrop-filter: blur(22px) saturate(190%) contrast(105%);
@@ -902,3 +902,26 @@ input::placeholder {
     0 1px 0 rgba(255,255,255,0.12) inset,
     0 0 0 1px rgba(255,255,255,0.06) inset;
 }
+
+
+/* =========================================================
+   HOTFIX: Prevent "UI overlap/ghosting" on full-screen slides
+   Cause: fullscreen containers used backdrop-filter, which
+   blurs underlying app UI -> looks like stacked screens.
+   Fix: disable backdrop-filter on fullscreen containers and
+   keep glass effects on inner panels only.
+   ========================================================= */
+#screen-folder,
+#screen-asset-gallery{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: color-mix(in srgb, var(--bg-panel) 92%, rgba(0,0,0,0.45)) !important;
+}
+
+/* Ensure settings overlay always sits above every screen/bar */
+#menu-overlay{ z-index: 10040 !important; }
+#settings-menu{ z-index: 10050 !important; }
+
+/* Create stable stacking contexts (reduce weird bleed on some Android GPUs) */
+.app-container{ isolation: isolate; }
+.glass-panel, .glass-panel-lite{ isolation: isolate; }
