@@ -74,18 +74,38 @@
                 <div class="px-5 py-5 border-b border-white/5">
             <p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Chọn Giao diện</p>
             <div class="flex flex-wrap gap-4 justify-start">
-<button onclick="setTheme('theme-midnight')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="VietinBank Midnight" style=\"background: linear-gradient(135deg,#003A67,#005992,#35b3ff);\"></button>
-<button onclick="setTheme('theme-sunset')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Blue-Red Horizon" style=\"background: linear-gradient(135deg,#005992,#D71049,#ffb300);\"></button>
-<button onclick="setTheme('theme-ocean')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Ocean Trust" style=\"background: linear-gradient(135deg,#003A67,#00aaff,#00ffd0);\"></button>
-<button onclick="setTheme('theme-mint')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Aqua Mint" style=\"background: linear-gradient(135deg,#00ffd0,#00b4ff,#005992);\"></button>
-<button onclick="setTheme('theme-royal')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Royal Gold" style=\"background: linear-gradient(135deg,#001b44,#005992,#8e2de2);\"></button>
+<button onclick="setTheme('theme-midnight')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="VietinBank Midnight">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #003A67 0%, #005992 45%, #35b3ff 100%);"></div>
+</button>
+<button onclick="setTheme('theme-sunset')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Blue-Red Horizon">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #005992 0%, #D71049 45%, #ffb300 100%);"></div>
+</button>
+<button onclick="setTheme('theme-ocean')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Ocean Trust">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #005992 0%, #00AAFF 45%, #2ed3b7 100%);"></div>
+</button>
+<button onclick="setTheme('theme-mint')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Aqua Mint">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #2ed3b7 0%, #005992 45%, #00AAFF 100%);"></div>
+</button>
+<button onclick="setTheme('theme-royal')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Royal Gold">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #003A67 0%, #005992 45%, #ffc400 100%);"></div>
+</button>
 
 <!-- Expanded themes -->
-<button onclick="setTheme('theme-aurora')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Aurora Pulse" style=\"background: linear-gradient(135deg,#00aaff,#005992,#D71049);\"></button>
-<button onclick="setTheme('theme-violet')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Violet Depth" style=\"background: linear-gradient(135deg,#2a0845,#8e2de2,#005992);\"></button>
-<button onclick="setTheme('theme-emerald')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Emerald Link" style=\"background: linear-gradient(135deg,#003A67,#00c853,#00aaff);\"></button>
-<button onclick="setTheme('theme-sakura')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Pearl Sakura" style=\"background: linear-gradient(135deg,#005992,#ff5ea8,#ffd1e8);\"></button>
-<button onclick="setTheme('theme-solar')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Solar Crest" style=\"background: linear-gradient(135deg,#ffb300,#D71049,#005992);\"></button>
+<button onclick="setTheme('theme-aurora')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Aurora Pulse">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #001B33 0%, #005992 45%, #D71049 100%);"></div>
+</button>
+<button onclick="setTheme('theme-violet')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Violet Depth">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #2B1B7A 0%, #005992 45%, #D71049 100%);"></div>
+</button>
+<button onclick="setTheme('theme-emerald')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Emerald Link">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #005992 0%, #2ed3b7 45%, #D71049 100%);"></div>
+</button>
+<button onclick="setTheme('theme-sakura')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Pearl Sakura">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #005992 0%, #ffffff 45%, #D71049 100%);"></div>
+</button>
+<button onclick="setTheme('theme-solar')" class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg" title="Solar Crest">
+    <div class="theme-swatch" style="background: linear-gradient(135deg, #00AAFF 0%, #005992 45%, #ffc400 100%);"></div>
+</button>
             </div>
         </div>
         <button onclick="openSecuritySetup()" class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors" style="color: var(--text-main);"><div class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="shield" class="w-4 h-4"></i></div> Bảo mật & An toàn</button>
