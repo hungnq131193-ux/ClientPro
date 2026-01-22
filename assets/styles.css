@@ -159,7 +159,7 @@ body.theme-ocean {
   --input-bg: rgba(4, 16, 18, 0.56);
   --accent: #2ed3b7;
   --accent-gradient: linear-gradient(135deg, #005992 0%, #00AAFF 45%, #2ed3b7 100%);
-  --bg-pattern: repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 8px, rgba(255,255,255,0) 8px 16px;
+  --bg-pattern: repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 8px, rgba(255,255,255,0) 8px 16px);
 }
 
 
@@ -244,7 +244,7 @@ body.theme-emerald {
   --input-bg: rgba(4, 12, 10, 0.56);
   --accent: #2ed3b7;
   --accent-gradient: linear-gradient(135deg, #005992 0%, #2ed3b7 55%, #D71049 100%);
-  --bg-pattern: repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, rgba(255,255,255,0) 1px 10px;
+  --bg-pattern: repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, rgba(255,255,255,0) 1px 10px);
 }
 
 
@@ -540,23 +540,32 @@ input::placeholder {
   margin: 0 auto;
   color: white;
   backdrop-filter: blur(5px);
+
+  box-shadow: 0 10px 26px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.10) inset;
 }
 .keypad-btn:active {
   background: rgba(255, 255, 255, 0.2);
   transform: scale(0.95);
+
+  box-shadow: 0 14px 30px rgba(0,0,0,0.45);
 }
 .pin-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--text-sub);
-  transition: all 0.2s;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.55);
+  background: rgba(0,0,0,0.18);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.25) inset;
+  transition: all 0.18s ease;
 }
+
 .pin-dot.filled {
   background: var(--accent);
   border-color: var(--accent);
-  transform: scale(1.1);
+  transform: scale(1.12);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.25) inset, 0 0 14px color-mix(in srgb, var(--accent) 65%, transparent);
 }
+
 .theme-btn {
   width: 42px;
   height: 42px;
@@ -875,11 +884,41 @@ input::placeholder {
 .z-\[10060\]{z-index:10060;}
 .z-\[10080\]{z-index:10080;}
 
-/* transforms + slide-in bars */
-.translate-y-full{transform:translateY(100%);}
-.translate-y-0{transform:translateY(0);}
-.-translate-y-full{transform:translateY(-100%);}
-.-translate-y-0{transform:translateY(0);}
+/* transforms + slide-in bars (Tailwind-like; fixes missing translate-x utilities) */
+:root{
+  --tw-translate-x: 0;
+  --tw-translate-y: 0;
+  --tw-rotate: 0;
+  --tw-skew-x: 0;
+  --tw-skew-y: 0;
+  --tw-scale-x: 1;
+  --tw-scale-y: 1;
+}
+.transform{
+  transform:
+    translate3d(var(--tw-translate-x), var(--tw-translate-y), 0)
+    rotate(var(--tw-rotate))
+    skewX(var(--tw-skew-x))
+    skewY(var(--tw-skew-y))
+    scaleX(var(--tw-scale-x))
+    scaleY(var(--tw-scale-y));
+}
+/* translate Y */
+.translate-y-full{ --tw-translate-y: 100%; }
+.translate-y-0{ --tw-translate-y: 0; }
+.-translate-y-full{ --tw-translate-y: -100%; }
+.-translate-y-0{ --tw-translate-y: 0; }
+/* translate X (critical for screen slide-in/out) */
+.translate-x-full{ --tw-translate-x: 100%; }
+.translate-x-0{ --tw-translate-x: 0; }
+.-translate-x-full{ --tw-translate-x: -100%; }
+.-translate-x-0{ --tw-translate-x: 0; }
+/* common scale/opacity used by menus */
+.scale-95{ --tw-scale-x: .95; --tw-scale-y: .95; }
+.scale-100{ --tw-scale-x: 1; --tw-scale-y: 1; }
+.opacity-0{ opacity: 0; }
+.opacity-100{ opacity: 1; }
+.origin-top-right{ transform-origin: top right; }
 
 .transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms;}
 .transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms;}
