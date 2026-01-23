@@ -51,11 +51,17 @@ function referenceAssetPrice(assetIndex) {
 
           // Chỉ lấy các tài sản trong bán kính 5km (hoặc tùy chỉnh)
           // Ở đây lấy tất cả rồi sort, nhưng có thể if (dist < 5000)
+          // Giải mã diện tích và mặt tiền
+          const assetArea = decryptText(asset.area) || "";
+          const assetWidth = decryptText(asset.width) || "";
+
           candidates.push({
             customerName: custName,
             assetName: assetName,
             valuation: val,
             distance: dist,
+            area: assetArea,
+            width: assetWidth,
           });
         }
       });
@@ -87,9 +93,26 @@ function showRefModal(results) {
         ? `${Math.round(item.distance)} m`
         : `${(item.distance / 1000).toFixed(2)} km`;
     const valStr = item.valuation.toLocaleString("vi-VN") + " tr₫";
+
+    // Badge diện tích và mặt tiền
+    const areaBadge = item.area
+      ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[10px] font-bold">${escapeHTML(item.area)}m²</span>`
+      : '';
+    const widthBadge = item.width
+      ? `<span class="bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded text-[10px] font-bold">MT:${escapeHTML(item.width)}m</span>`
+      : '';
+    const badges = (areaBadge || widthBadge) ? `<div class="flex gap-1 mt-1">${areaBadge}${widthBadge}</div>` : '';
+
     const div = document.createElement("div");
     div.className = "bg-white/5 border border-white/10 rounded-lg p-3";
-    div.innerHTML = `<div class="flex justify-between items-center mb-1"><span class="text-xs font-bold text-emerald-400">#${ idx + 1 } • Cách ${distStr}</span><span class="text-sm font-bold text-white">${valStr}</span></div><h4 class="text-sm font-medium text-slate-300 truncate">${ item.assetName }</h4><p class="text-[10px] text-slate-500 mt-1 uppercase">KH: ${ item.customerName }</p>`;
+    div.innerHTML = `
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-xs font-bold text-emerald-400">#${idx + 1} • Cách ${distStr}</span>
+        <span class="text-sm font-bold text-white">${valStr}</span>
+      </div>
+      <h4 class="text-sm font-medium text-slate-300 truncate">${item.assetName}</h4>
+      ${badges}
+      <p class="text-[10px] text-slate-500 mt-1 uppercase">KH: ${item.customerName}</p>`;
     container.appendChild(div);
   });
   modal.classList.remove("hidden");
@@ -150,11 +173,11 @@ function renderAssets() {
       if (typeof asset.name === "string" && asset.name.startsWith("U2FsdGVkX1")) {
         const dd = _deepDecryptLabel(asset.name);
         if (dd && dd !== asset.name && !String(dd).startsWith("U2FsdGVkX1")) {
-        asset.name = decName;
-        _needSaveMigration = true;
+          asset.name = decName;
+          _needSaveMigration = true;
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     const decLink = decryptText(asset.link) || "";
     const decVal = decryptText(asset.valuation) || "";
     const decLoan = decryptText(asset.loanValue) || "";
@@ -208,9 +231,9 @@ function renderAssets() {
           db.transaction(["customers"], "readwrite")
             .objectStore("customers")
             .put(currentCustomerData);
-        } catch (e) {}
+        } catch (e) { }
       }, 80);
-    } catch (e) {}
+    } catch (e) { }
   }
 }
 function openAssetGallery(id, name, idx) {
@@ -378,11 +401,11 @@ function saveAsset() {
     .transaction(["customers"], "readwrite")
     .objectStore("customers")
     .put(currentCustomerData).onsuccess = () => {
-    closeAssetModal();
-    renderAssets();
-    showToast("Đã lưu TSBĐ");
-    currentAssetId = null;
-  };
+      closeAssetModal();
+      renderAssets();
+      showToast("Đã lưu TSBĐ");
+      currentAssetId = null;
+    };
 }
 // --- NEW GUIDE MODAL LOGIC ---
 function openGuideModal() {

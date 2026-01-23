@@ -69,45 +69,26 @@
     // ============================================================
     async function checkAndAutoBackupDaily() {
         // Skip if disabled
-        if (!isAutoBackupEnabled()) {
-            console.log('[AutoBackup] Disabled by user');
-            return;
-        }
+        if (!isAutoBackupEnabled()) return;
 
         // Skip if no user script URL
         const serverUrl = getUserScriptUrl();
-        if (!serverUrl) {
-            console.log('[AutoBackup] No user script URL - please configure personal GAS');
-            return;
-        }
+        if (!serverUrl) return;
 
         // Skip if not authenticated
         const emp = getEmployeeId();
         const dev = getDeviceIdSafe();
-        if (!emp || !dev) {
-            console.log('[AutoBackup] Not authenticated');
-            return;
-        }
+        if (!emp || !dev) return;
 
-        // Skip if backup secret not ready
-        if (!APP_BACKUP_KDATA_B64U) {
-            console.log('[AutoBackup] Backup secret not ready');
-            return;
-        }
+        if (!APP_BACKUP_KDATA_B64U) return;
 
         // Check last backup time
         const lastBackup = getLastAutoBackupTime();
         const now = Date.now();
         const elapsed = now - lastBackup;
 
-        if (elapsed < AUTO_BACKUP_INTERVAL_MS) {
-            const hoursLeft = Math.round((AUTO_BACKUP_INTERVAL_MS - elapsed) / 3600000);
-            console.log(`[AutoBackup] Next backup in ~${hoursLeft}h`);
-            return;
-        }
+        if (elapsed < AUTO_BACKUP_INTERVAL_MS) return;
 
-        // Perform auto backup
-        console.log('[AutoBackup] Starting daily backup...');
         await performAutoBackup();
     }
 
@@ -129,7 +110,6 @@
             });
 
             if (!customers.length) {
-                console.log('[AutoBackup] No customers to backup');
                 setLastAutoBackupTime(Date.now());
                 return;
             }
@@ -188,22 +168,10 @@
 
             // Mark backup time
             setLastAutoBackupTime(Date.now());
-            console.log('[AutoBackup] Completed successfully');
 
         } catch (err) {
             console.error('[AutoBackup] Error:', err);
         }
-    }
-
-    // GAS-safe form body helper
-    function _toFormBody(obj) {
-        const p = new URLSearchParams();
-        Object.keys(obj || {}).forEach((k) => {
-            const v = obj[k];
-            if (v === undefined || v === null) return;
-            p.append(k, String(v));
-        });
-        return p.toString();
     }
 
     async function uploadAutoBackupToServer(encryptedContent) {
@@ -229,8 +197,6 @@
         if (result.status !== 'success') {
             throw new Error(result.message || 'Upload failed');
         }
-
-        console.log('[AutoBackup] Uploaded:', result.filename);
 
         // Optimistic UI: add to cache immediately
         if (result.fileId && result.filename) {
