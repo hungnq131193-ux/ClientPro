@@ -191,6 +191,17 @@
         }
     }
 
+    // GAS-safe form body helper
+    function _toFormBody(obj) {
+        const p = new URLSearchParams();
+        Object.keys(obj || {}).forEach((k) => {
+            const v = obj[k];
+            if (v === undefined || v === null) return;
+            p.append(k, String(v));
+        });
+        return p.toString();
+    }
+
     async function uploadAutoBackupToServer(encryptedContent) {
         const serverUrl = getAdminServerUrl();
         const emp = getEmployeeId();
@@ -203,10 +214,11 @@
             encrypted: encryptedContent
         };
 
+        // Use form-urlencoded for GAS CORS compatibility
         const response = await fetch(serverUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: _toFormBody(payload)
         });
 
         const result = await response.json();
@@ -231,18 +243,9 @@
             throw new Error('Not authenticated');
         }
 
-        const payload = {
-            action: 'list_my_backups',
-            employeeId: emp,
-            deviceId: dev
-        };
-
-        const response = await fetch(serverUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
+        // Use GET with URL params for GAS CORS compatibility
+        const url = `${serverUrl}?action=list_my_backups&employeeId=${encodeURIComponent(emp)}&deviceId=${encodeURIComponent(dev)}`;
+        const response = await fetch(url, { method: 'GET' });
         const result = await response.json();
 
         if (result.status !== 'success') {
@@ -260,19 +263,9 @@
         const emp = getEmployeeId();
         const dev = getDeviceIdSafe();
 
-        const payload = {
-            action: 'download_my_backup',
-            employeeId: emp,
-            deviceId: dev,
-            fileId: fileId
-        };
-
-        const response = await fetch(serverUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
+        // Use GET with URL params for GAS CORS compatibility
+        const url = `${serverUrl}?action=download_my_backup&employeeId=${encodeURIComponent(emp)}&deviceId=${encodeURIComponent(dev)}&fileId=${encodeURIComponent(fileId)}`;
+        const response = await fetch(url, { method: 'GET' });
         const result = await response.json();
 
         if (result.status !== 'success') {
@@ -344,10 +337,11 @@
             fileId: fileId
         };
 
+        // Use form-urlencoded for GAS CORS compatibility
         const response = await fetch(serverUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: _toFormBody(payload)
         });
 
         const result = await response.json();
