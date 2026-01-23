@@ -27,11 +27,18 @@
     }
 
     function getEmployeeId() {
-        return typeof employeeId !== 'undefined' ? employeeId : (localStorage.getItem('employeeId') || '');
+        // Use EMPLOYEE_KEY if defined, fallback to 'app_employee_id'
+        const key = (typeof EMPLOYEE_KEY !== 'undefined') ? EMPLOYEE_KEY : 'app_employee_id';
+        return (localStorage.getItem(key) || '').trim();
     }
 
     function getDeviceIdSafe() {
-        return typeof getDeviceId === 'function' ? getDeviceId() : (localStorage.getItem('deviceId') || '');
+        // Use getDeviceId() function if available
+        if (typeof getDeviceId === 'function') {
+            try { return getDeviceId(); } catch (e) { }
+        }
+        // Fallback to localStorage
+        return (localStorage.getItem('app_device_unique_id') || '').trim();
     }
 
     function isAutoBackupEnabled() {
