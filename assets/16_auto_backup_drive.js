@@ -24,8 +24,10 @@
     // ============================================================
     // HELPERS
     // ============================================================
-    function getAdminServerUrl() {
-        return typeof ADMIN_SERVER_URL !== 'undefined' ? ADMIN_SERVER_URL : '';
+    function getUserScriptUrl() {
+        // Use USER_SCRIPT_KEY for user's personal GAS (backup goes to their Drive)
+        const key = (typeof USER_SCRIPT_KEY !== 'undefined') ? USER_SCRIPT_KEY : 'app_user_script_url';
+        return (localStorage.getItem(key) || '').trim();
     }
 
     function getEmployeeId() {
@@ -72,10 +74,10 @@
             return;
         }
 
-        // Skip if no server URL
-        const serverUrl = getAdminServerUrl();
+        // Skip if no user script URL
+        const serverUrl = getUserScriptUrl();
         if (!serverUrl) {
-            console.log('[AutoBackup] No admin server URL');
+            console.log('[AutoBackup] No user script URL - please configure personal GAS');
             return;
         }
 
@@ -205,22 +207,21 @@
     }
 
     async function uploadAutoBackupToServer(encryptedContent) {
-        const serverUrl = getAdminServerUrl();
+        const serverUrl = getUserScriptUrl();
         const emp = getEmployeeId();
         const dev = getDeviceIdSafe();
+        const filename = `BACKUP_${emp}_${dev}_${Date.now()}.cpb`;
 
         const payload = {
-            action: 'auto_backup',
-            employeeId: emp,
-            deviceId: dev,
-            encrypted: encryptedContent
+            action: 'backup',
+            encrypted: encryptedContent,
+            filename: filename
         };
 
-        // Use form-urlencoded for GAS CORS compatibility
+        // Use JSON.stringify like 07_drive.js (proven to work)
         const response = await fetch(serverUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-            body: _toFormBody(payload)
+            body: JSON.stringify(payload)
         });
 
         const result = await response.json();
@@ -275,9 +276,7 @@
 
     async function listMyDriveBackups(opts) {
         const o = opts || {};
-        const serverUrl = getAdminServerUrl();
-        const emp = getEmployeeId();
-        const dev = getDeviceIdSafe();
+        const serverUrl = getUserScriptUrl();
 
         // Return cached data if fresh and allowed
         const cached = readBackupsCache_();
@@ -286,12 +285,12 @@
             return cached.backups;
         }
 
-        if (!serverUrl || !emp || !dev) {
-            throw new Error('Not authenticated');
+        if (!serverUrl) {
+            throw new Error('User script URL not configured');
         }
 
         // Use GET with URL params for GAS CORS compatibility
-        const url = `${serverUrl}?action=list_my_backups&employeeId=${encodeURIComponent(emp)}&deviceId=${encodeURIComponent(dev)}`;
+        const url = `${serverUrl}?action=list_backups`;
         const response = await fetch(url, { method: 'GET' });
         const result = await response.json();
 
@@ -308,12 +307,10 @@
     // RESTORE FROM DRIVE BACKUP
     // ============================================================
     async function downloadDriveBackup(fileId) {
-        const serverUrl = getAdminServerUrl();
-        const emp = getEmployeeId();
-        const dev = getDeviceIdSafe();
+        const serverUrl = getUserScriptUrl();
 
         // Use GET with URL params for GAS CORS compatibility
-        const url = `${serverUrl}?action=download_my_backup&employeeId=${encodeURIComponent(emp)}&deviceId=${encodeURIComponent(dev)}&fileId=${encodeURIComponent(fileId)}`;
+        const url = `${serverUrl}?action=download_backup&fileId=${encodeURIComponent(fileId)}`;
         const response = await fetch(url, { method: 'GET' });
         const result = await response.json();
 
@@ -375,22 +372,17 @@
     // DELETE DRIVE BACKUP
     // ============================================================
     async function deleteDriveBackup(fileId) {
-        const serverUrl = getAdminServerUrl();
-        const emp = getEmployeeId();
-        const dev = getDeviceIdSafe();
+        const serverUrl = getUserScriptUrl();
 
         const payload = {
-            action: 'delete_my_backup',
-            employeeId: emp,
-            deviceId: dev,
+            action: 'delete_backup',
             fileId: fileId
         };
 
-        // Use form-urlencoded for GAS CORS compatibility
+        // Use JSON.stringify like 07_drive.js
         const response = await fetch(serverUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-            body: _toFormBody(payload)
+            body: JSON.stringify(payload)
         });
 
         const result = await response.json();
