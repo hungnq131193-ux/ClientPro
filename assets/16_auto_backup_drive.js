@@ -17,6 +17,8 @@
     // ============================================================
     const LAST_AUTO_BACKUP_KEY = 'CLIENTPRO_LAST_AUTO_BACKUP';
     const AUTO_BACKUP_ENABLED_KEY = 'CLIENTPRO_AUTO_BACKUP_ENABLED';
+    const DRIVE_BACKUPS_CACHE_KEY = 'CLIENTPRO_DRIVE_BACKUPS_CACHE';
+    const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes cache
     const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     // ============================================================
@@ -228,16 +230,61 @@
         }
 
         console.log('[AutoBackup] Uploaded:', result.filename);
+
+        // Optimistic UI: add to cache immediately
+        if (result.fileId && result.filename) {
+            const cached = readBackupsCache_();
+            const newBackup = {
+                id: result.fileId,
+                filename: result.filename,
+                createdAt: result.createdAt || new Date().toISOString(),
+                size: encryptedContent.length
+            };
+            const backups = cached && cached.backups ? [newBackup, ...cached.backups] : [newBackup];
+            writeBackupsCache_(backups);
+
+            // Re-render if Drive tab is visible
+            const container = document.getElementById('drive-backup-list');
+            if (container) renderBackupsHTML_(backups, container);
+        }
+
         return result;
     }
 
     // ============================================================
-    // LIST BACKUPS FROM DRIVE
+    // LIST BACKUPS FROM DRIVE (with cache)
     // ============================================================
-    async function listMyDriveBackups() {
+    function readBackupsCache_() {
+        try {
+            const raw = localStorage.getItem(DRIVE_BACKUPS_CACHE_KEY);
+            if (!raw) return null;
+            const obj = JSON.parse(raw);
+            if (!obj || !Array.isArray(obj.backups)) return null;
+            return obj;
+        } catch (e) { return null; }
+    }
+
+    function writeBackupsCache_(backups) {
+        try {
+            localStorage.setItem(DRIVE_BACKUPS_CACHE_KEY, JSON.stringify({
+                ts: Date.now(),
+                backups: backups || []
+            }));
+        } catch (e) { }
+    }
+
+    async function listMyDriveBackups(opts) {
+        const o = opts || {};
         const serverUrl = getAdminServerUrl();
         const emp = getEmployeeId();
         const dev = getDeviceIdSafe();
+
+        // Return cached data if fresh and allowed
+        const cached = readBackupsCache_();
+        const cacheFresh = cached && (Date.now() - (cached.ts || 0) < CACHE_TTL_MS);
+        if (o.allowCached && cacheFresh && cached.backups.length) {
+            return cached.backups;
+        }
 
         if (!serverUrl || !emp || !dev) {
             throw new Error('Not authenticated');
@@ -252,7 +299,9 @@
             throw new Error(result.message || 'List failed');
         }
 
-        return result.backups || [];
+        const backups = result.backups || [];
+        writeBackupsCache_(backups);
+        return backups;
     }
 
     // ============================================================
@@ -354,34 +403,26 @@
     }
 
     // ============================================================
-    // UI: RENDER DRIVE BACKUPS LIST
+    // UI: RENDER DRIVE BACKUPS LIST (cache-first for speed)
     // ============================================================
-    async function renderDriveBackupsList(containerId) {
-        const container = document.getElementById(containerId);
-        if (!container) return;
+    function renderBackupsHTML_(backups, container) {
+        if (!backups || !backups.length) {
+            container.innerHTML = '<p class="text-center text-sm opacity-60 py-4">Chưa có backup trên Drive</p>';
+            return;
+        }
 
-        container.innerHTML = '<p class="text-center text-sm opacity-60">Đang tải...</p>';
+        const formatDate = (iso) => {
+            const d = new Date(iso);
+            return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        };
 
-        try {
-            const backups = await listMyDriveBackups();
+        const formatSize = (bytes) => {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        };
 
-            if (!backups.length) {
-                container.innerHTML = '<p class="text-center text-sm opacity-60">Chưa có backup trên Drive</p>';
-                return;
-            }
-
-            const formatDate = (iso) => {
-                const d = new Date(iso);
-                return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-            };
-
-            const formatSize = (bytes) => {
-                if (bytes < 1024) return bytes + ' B';
-                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-            };
-
-            container.innerHTML = backups.map((b) => `
+        container.innerHTML = backups.map((b) => `
         <div class="p-4 rounded-xl border mb-3" style="border-color: var(--border-panel); background: rgba(255,255,255,0.03);">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
@@ -409,11 +450,31 @@
         </div>
       `).join('');
 
-            if (window.lucide) lucide.createIcons();
+        if (window.lucide) lucide.createIcons();
+    }
 
+    async function renderDriveBackupsList(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        // 1. Show cached data immediately (instant UI)
+        const cached = readBackupsCache_();
+        if (cached && cached.backups && cached.backups.length) {
+            renderBackupsHTML_(cached.backups, container);
+        } else {
+            container.innerHTML = '<p class="text-center text-sm opacity-60">Đang tải...</p>';
+        }
+
+        // 2. Fetch fresh data in background
+        try {
+            const backups = await listMyDriveBackups();
+            renderBackupsHTML_(backups, container);
         } catch (err) {
             console.error('[DriveBackups] Error:', err);
-            container.innerHTML = `<p class="text-center text-sm text-red-400">${err.message}</p>`;
+            // Only show error if no cached data was shown
+            if (!cached || !cached.backups || !cached.backups.length) {
+                container.innerHTML = `<p class="text-center text-sm text-red-400">${err.message}</p>`;
+            }
         }
     }
 
@@ -438,13 +499,24 @@
         delete: async (fileId) => {
             if (!confirm('Xóa backup này trên Drive?')) return;
             try {
+                // Optimistic UI: remove from cache immediately
+                const cached = readBackupsCache_();
+                if (cached && cached.backups) {
+                    cached.backups = cached.backups.filter(b => b.id !== fileId);
+                    writeBackupsCache_(cached.backups);
+                    // Re-render immediately with updated cache
+                    const container = document.getElementById('drive-backup-list');
+                    if (container) renderBackupsHTML_(cached.backups, container);
+                }
+
+                // Delete on server (in background)
                 await deleteDriveBackup(fileId);
                 if (typeof showToast === 'function') showToast('Đã xóa backup');
-                // Refresh list if container exists
-                const container = document.getElementById('drive-backup-list');
-                if (container) renderDriveBackupsList('drive-backup-list');
             } catch (err) {
                 alert('Lỗi xóa: ' + err.message);
+                // Refresh from server on error
+                const container = document.getElementById('drive-backup-list');
+                if (container) renderDriveBackupsList('drive-backup-list');
             }
         },
 
