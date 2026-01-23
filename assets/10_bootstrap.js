@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     const ld = getEl && getEl("loader");
     if (ld) ld.classList.add("hidden");
-  } catch (e) {}
+  } catch (e) { }
 
   lucide.createIcons();
   const setAppHeight = () =>
@@ -107,9 +107,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // AuthGate: kiểm tra quyền sau khi UI đã render local (tránh cảm giác chậm khi mở app)
     try {
       if (window.AuthGate && typeof window.AuthGate.preflight === 'function') {
-        setTimeout(() => { try { window.AuthGate.preflight(); } catch (e) {} }, 12000);
+        setTimeout(() => { try { window.AuthGate.preflight(); } catch (e) { } }, 12000);
       }
-    } catch (e) {}
+    } catch (e) { }
 
 
     // Cloud transfer inbox polling (notify when other users send backups)
@@ -117,7 +117,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (window.CloudTransferUI && typeof window.CloudTransferUI.startPolling === 'function') {
         window.CloudTransferUI.startPolling();
       }
-    } catch (err) {}
+    } catch (err) { }
+
+    // Auto backup to Drive (daily check)
+    try {
+      if (window.DriveBackup && typeof window.DriveBackup.checkDaily === 'function') {
+        // Delay to avoid blocking UI on startup
+        setTimeout(() => { window.DriveBackup.checkDaily(); }, 15000);
+      }
+    } catch (err) { }
   };
   // Debounce search to avoid decrypt + render on every single keystroke (mượt hơn với danh sách lớn)
   const onSearchInput = (e) => loadCustomers(e.target.value);
