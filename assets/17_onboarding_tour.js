@@ -290,26 +290,55 @@
         }
     };
 
-    // Auto-start tour after app loads (if first time)
+    // Auto-start tour after app loads (if first time) - MUST wait for PIN unlock
     function checkAndStartTour() {
-        // Wait for app to be ready
+        // Wait for customer list to exist (app loaded)
         if (!document.querySelector('#customer-list')) {
             setTimeout(checkAndStartTour, 500);
             return;
         }
 
-        // Additional delay to let UI settle
+        // CRITICAL: Wait until user has unlocked the app
+        // masterKey is set only after successful PIN entry
+        if (typeof masterKey === 'undefined' || !masterKey) {
+            // Not unlocked yet, keep checking
+            setTimeout(checkAndStartTour, 1000);
+            return;
+        }
+
+        // Also check if lock screen is visible
+        const lockScreen = document.getElementById('screen-lock');
+        const activationModal = document.getElementById('activation-modal');
+        const setupModal = document.getElementById('setup-lock-modal');
+
+        if (lockScreen && !lockScreen.classList.contains('hidden')) {
+            setTimeout(checkAndStartTour, 1000);
+            return;
+        }
+        if (activationModal && !activationModal.classList.contains('hidden')) {
+            setTimeout(checkAndStartTour, 1000);
+            return;
+        }
+        if (setupModal && !setupModal.classList.contains('hidden')) {
+            setTimeout(checkAndStartTour, 1000);
+            return;
+        }
+
+        // App is unlocked, check if tour should show
         setTimeout(() => {
             if (shouldShowTour()) {
                 startTour();
             }
-        }, 1500);
+        }, 800);
     }
 
     // Initialize after DOM ready
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', checkAndStartTour);
+        document.addEventListener('DOMContentLoaded', () => {
+            // Delay start to ensure security modules are loaded
+            setTimeout(checkAndStartTour, 2000);
+        });
     } else {
-        checkAndStartTour();
+        setTimeout(checkAndStartTour, 2000);
     }
 })();
