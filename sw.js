@@ -1,10 +1,10 @@
-// BUILD: 2026-01-21_2006
+// BUILD: 2026-01-24_1300
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-// v4.1.0: Force SW update + deliver GPS button alignment fix reliably (GitHub Pages cache-bust via assets/pwa.js)
-const VERSION = 'v4.2.1gpsalign';
+// v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
+const VERSION = 'v4.3.0_onboarding';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -14,8 +14,8 @@ const RUNTIME_TILE_CACHE = `clientpro-runtime-tile-${VERSION}`;
 // Cache limits (tuned for long-term stability on mobile devices)
 const LIMITS = {
   sameOrigin: { maxEntries: 220, maxAgeMs: 30 * 24 * 60 * 60 * 1000 }, // 30 days
-  cdn:        { maxEntries: 160, maxAgeMs: 14 * 24 * 60 * 60 * 1000 }, // 14 days
-  tiles:      { maxEntries: 260, maxAgeMs: 30 * 24 * 60 * 60 * 1000 }, // 30 days
+  cdn: { maxEntries: 160, maxAgeMs: 14 * 24 * 60 * 60 * 1000 }, // 14 days
+  tiles: { maxEntries: 260, maxAgeMs: 30 * 24 * 60 * 60 * 1000 }, // 30 days
 };
 
 const META_HEADER = 'sw-cache-time';
@@ -53,6 +53,8 @@ const STATIC_ASSETS = [
   './assets/13_ui_select_customers.js',
   './assets/14_cloud_transfer.js',
   './assets/15_auth_gate.js',
+  './assets/16_auto_backup_drive.js',
+  './assets/17_onboarding_tour.js',
 
   './assets/ui/load_modals.js',
 
@@ -86,7 +88,7 @@ self.addEventListener('message', (event) => {
     if (event && event.data && event.data.type === 'SKIP_WAITING') {
       self.skipWaiting();
     }
-  } catch (e) {}
+  } catch (e) { }
 });
 
 self.addEventListener('activate', (event) => {
@@ -96,7 +98,7 @@ self.addEventListener('activate', (event) => {
       if (self.registration && self.registration.navigationPreload) {
         await self.registration.navigationPreload.enable();
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Xóa cache cũ
     const keys = await caches.keys();
@@ -200,7 +202,7 @@ async function cacheFirst(event, request, cacheName, policy) {
 
   const res = await fetch(request);
   const toStore = stampResponseIfPossible(res.clone());
-  try { await cache.put(request, toStore); } catch (e) {}
+  try { await cache.put(request, toStore); } catch (e) { }
   if (event && event.waitUntil) event.waitUntil(cleanupCache(cacheName, policy));
   return res;
 }
@@ -215,7 +217,7 @@ async function networkFirst(event, request, cacheName, policy) {
     const preloaded = preload ? await preload : null;
     const res = preloaded || await fetch(request);
     const toStore = stampResponseIfPossible(res.clone());
-    try { await cache.put(request, toStore); } catch (e) {}
+    try { await cache.put(request, toStore); } catch (e) { }
     if (event && event.waitUntil) event.waitUntil(cleanupCache(cacheName, policy));
     return res;
   } catch (e) {
@@ -232,7 +234,7 @@ async function staleWhileRevalidate(event, request, cacheName, policy) {
   const fetchPromise = fetch(request)
     .then((res) => {
       const toStore = stampResponseIfPossible(res.clone());
-      try { cache.put(request, toStore); } catch (e) {}
+      try { cache.put(request, toStore); } catch (e) { }
       if (event && event.waitUntil) event.waitUntil(cleanupCache(cacheName, policy));
       return res;
     })
@@ -280,7 +282,7 @@ self.addEventListener('fetch', (event) => {
       event.respondWith(staleWhileRevalidate(event, req, RUNTIME_TILE_CACHE, LIMITS.tiles));
       return;
     }
-  } catch (e) {}
+  } catch (e) { }
 
   event.respondWith(staleWhileRevalidate(event, req, RUNTIME_CDN_CACHE, LIMITS.cdn));
 });
