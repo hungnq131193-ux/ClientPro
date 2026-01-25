@@ -3,8 +3,8 @@
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-// v4.3.4: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v4.3.4_onboarding';
+// v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
+const VERSION = 'v4.3.1_onboarding';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -278,6 +278,16 @@ self.addEventListener('fetch', (event) => {
   // Cross-origin (CDN/tiles): stale-while-revalidate
   try {
     const url = new URL(req.url);
+
+    // 🔒 CRITICAL: NEVER cache Google Apps Script requests
+    // GAS endpoints handle auth, backup secrets, cloud transfer - caching causes security issues
+    if (url.hostname.includes('script.google.com') ||
+      url.hostname.includes('script.googleusercontent.com') ||
+      url.hostname.includes('googleapis.com')) {
+      // Let browser handle normally - no SW interference
+      return;
+    }
+
     if (isTileRequest(url, req)) {
       event.respondWith(staleWhileRevalidate(event, req, RUNTIME_TILE_CACHE, LIMITS.tiles));
       return;
