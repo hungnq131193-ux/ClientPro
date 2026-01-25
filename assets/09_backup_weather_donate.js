@@ -16,11 +16,27 @@ function toggleMenu() {
   }
 }
 
+// Toggle theme panel in settings
+function toggleThemePanel() {
+  const panel = getEl("theme-panel");
+  const chevron = getEl("theme-chevron");
+  if (!panel) return;
+
+  if (panel.classList.contains("hidden")) {
+    panel.classList.remove("hidden");
+    if (chevron) chevron.style.transform = "rotate(180deg)";
+  } else {
+    panel.classList.add("hidden");
+    if (chevron) chevron.style.transform = "rotate(0deg)";
+  }
+  try { lucide.createIcons(); } catch (e) { }
+}
+
 function _closeMenuIfOpen() {
   try {
     const m = getEl("settings-menu");
     if (m && !m.classList.contains("hidden")) toggleMenu();
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // ============================================================
@@ -101,7 +117,7 @@ async function openBackupManager() {
     if (window.CloudTransferUI && typeof window.CloudTransferUI.prefetchUsers === 'function') {
       window.CloudTransferUI.prefetchUsers();
     }
-  } catch (e) {}
+  } catch (e) { }
 
   await renderBackupList();
   if (window.lucide) lucide.createIcons();
@@ -379,7 +395,7 @@ async function backupData() {
       if (modal && !modal.classList.contains("hidden")) {
         await renderBackupList();
       }
-    } catch (e) {}
+    } catch (e) { }
   } catch (err) {
     console.error(err);
     alert("Lỗi tạo backup");
@@ -402,7 +418,7 @@ async function restoreData(input) {
     if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
       getEl("loader").classList.add("hidden");
       alert(
-        `BẢO MẬT: ${ sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật." }\n\nVui lòng kết nối mạng và thử lại.`
+        `BẢO MẬT: ${sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật."}\n\nVui lòng kết nối mạng và thử lại.`
       );
       return;
     }
