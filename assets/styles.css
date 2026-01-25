@@ -576,13 +576,13 @@ input::placeholder {
 }
 
 .theme-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   border: 2px solid transparent;
   cursor: pointer;
   transition: transform 0.2s;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
 }
 
 .theme-btn.active {
