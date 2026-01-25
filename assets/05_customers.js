@@ -703,8 +703,8 @@ function openFolder(id) {
         selectedImages.clear();
         updateSelectionUI();
 
-        // Về tab Hồ sơ ảnh, load ảnh + TSBĐ
-        switchTab('images');
+        // Về tab Thông tin (mặc định)
+        switchTab('info');
 
         // Decrypt assets theo batch sau khi animation ổn định.
         // Nếu người dùng chuyển sang tab TSBĐ, renderAssets sẽ dùng cache __dec để nhanh hơn.
@@ -745,30 +745,85 @@ function closeFolder() {
     }
 }
 function switchTab(tabName) {
+    const tabInfo = getEl('tab-btn-info');
     const tabImages = getEl('tab-btn-images');
     const tabAssets = getEl('tab-btn-assets');
 
-    // Reset classes
-    const activeClass = "glass-tab-active flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all";
-    const inactiveClass = "glass-tab-inactive flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all hover:bg-white/5";
+    // Reset classes - smaller text for 3 tabs
+    const activeClass = "glass-tab-active flex-1 py-2.5 text-[10px] font-bold uppercase rounded-lg transition-all";
+    const inactiveClass = "glass-tab-inactive flex-1 py-2.5 text-[10px] font-bold uppercase rounded-lg transition-all hover:bg-white/5";
 
-    if (tabName === 'images') {
+    // Hide all content and actions first
+    getEl('content-info').classList.add('hidden');
+    getEl('content-images').classList.add('hidden');
+    getEl('content-assets').classList.add('hidden');
+    getEl('actions-images').classList.add('hidden');
+    getEl('actions-assets').classList.add('hidden');
+
+    // Reset all tabs to inactive
+    if (tabInfo) tabInfo.className = inactiveClass;
+    tabImages.className = inactiveClass;
+    tabAssets.className = inactiveClass;
+
+    if (tabName === 'info') {
+        if (tabInfo) tabInfo.className = activeClass;
+        getEl('content-info').classList.remove('hidden');
+        renderCustomerInfo();
+    } else if (tabName === 'images') {
         tabImages.className = activeClass;
-        tabAssets.className = inactiveClass;
         getEl('content-images').classList.remove('hidden');
-        getEl('content-assets').classList.add('hidden');
         getEl('actions-images').classList.remove('hidden');
-        getEl('actions-assets').classList.add('hidden');
         loadProfileImages();
-    } else {
-        tabImages.className = inactiveClass;
+    } else if (tabName === 'assets') {
         tabAssets.className = activeClass;
-        getEl('content-images').classList.add('hidden');
         getEl('content-assets').classList.remove('hidden');
-        getEl('actions-images').classList.add('hidden');
         getEl('actions-assets').classList.remove('hidden');
         renderAssets();
     }
     isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
+}
+
+// Render customer info in the Info tab
+function renderCustomerInfo() {
+    if (!currentCustomerData) return;
+
+    getEl('info-name').textContent = currentCustomerData.name || '--';
+    getEl('info-phone').textContent = currentCustomerData.phone || '--';
+    getEl('info-cccd').textContent = currentCustomerData.cccd || '--';
+
+    // Format created date
+    if (currentCustomerData.createdAt) {
+        const date = new Date(currentCustomerData.createdAt);
+        getEl('info-created').textContent = date.toLocaleDateString('vi-VN', {
+            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+    } else {
+        getEl('info-created').textContent = '--';
+    }
+
+    // Load notes
+    const notesEl = getEl('notes-editor');
+    if (notesEl) {
+        notesEl.value = decryptText(currentCustomerData.notes) || '';
+    }
+
+    try { lucide.createIcons(); } catch (e) { }
+}
+
+// Save notes to customer record
+function saveNotes() {
+    if (!currentCustomerData) return;
+
+    const notesEl = getEl('notes-editor');
+    if (!notesEl) return;
+
+    const notes = notesEl.value || '';
+    currentCustomerData.notes = encryptText(notes);
+
+    db.transaction(['customers'], 'readwrite')
+        .objectStore('customers')
+        .put(currentCustomerData).onsuccess = () => {
+            showToast('Đã lưu ghi chú');
+        };
 }
 

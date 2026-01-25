@@ -90,121 +90,128 @@ body {
   margin-top: 2px;
 }
 
-/* --- 3. BỘ THEME MESH GRADIENT (MÀU LOANG & DỄ ĐỌC) --- */
+/* --- 3. BỘ THEME NỀN MỚI (PATTERNS + TEXTURES + GRADIENTS) --- */
 
-/* 1. MIDNIGHT - Xanh VietinBank Đậm (Theme Chính) */
+/* 1. MIDNIGHT - Geometric Grid Pattern */
 body.theme-midnight {
   --bg-base: #0a1628;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 10% 20%, rgba(0, 91, 159, 0.6) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 90% 80%, rgba(0, 170, 255, 0.4) 0%, transparent 45%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(99, 102, 241, 0.3) 0%, transparent 40%);
-  --bg-panel: rgba(15, 30, 60, 0.65);
-  --header-bg: rgba(10, 22, 40, 0.85);
+    /* Subtle grid pattern */
+    repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(0, 170, 255, 0.03) 50px, rgba(0, 170, 255, 0.03) 51px),
+    repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(0, 170, 255, 0.03) 50px, rgba(0, 170, 255, 0.03) 51px),
+    /* Glow spots */
+    radial-gradient(ellipse 120% 80% at 10% 20%, rgba(0, 91, 159, 0.5) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 90% 80%, rgba(0, 170, 255, 0.35) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 60%);
+  --bg-panel: rgba(15, 30, 60, 0.75);
+  --header-bg: rgba(10, 22, 40, 0.88);
   --border-panel: rgba(0, 170, 255, 0.35);
   --input-bg: rgba(15, 30, 60, 0.70);
   --accent: #00aaff;
   --accent-gradient: linear-gradient(135deg, #005b9f 0%, #00aaff 50%, #22d3ee 100%);
 }
 
-
-
-/* 2. SUNSET - Cam Đỏ Rực Rỡ */
+/* 2. SUNSET - Noise Texture + Warm Glow */
 body.theme-sunset {
   --bg-base: #1a0a0a;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 20% 30%, rgba(251, 146, 60, 0.6) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 80% 70%, rgba(244, 63, 94, 0.5) 0%, transparent 45%),
-    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(168, 85, 247, 0.35) 0%, transparent 40%);
-  --bg-panel: rgba(40, 20, 20, 0.65);
-  --header-bg: rgba(30, 15, 15, 0.85);
+    /* Diagonal lines pattern */
+    repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(251, 146, 60, 0.02) 20px, rgba(251, 146, 60, 0.02) 21px),
+    /* Warm glows */
+    radial-gradient(ellipse 120% 80% at 20% 30%, rgba(251, 146, 60, 0.5) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 70%, rgba(244, 63, 94, 0.4) 0%, transparent 45%),
+    radial-gradient(circle at 30% 80%, rgba(168, 85, 247, 0.25) 0%, transparent 40%);
+  --bg-panel: rgba(40, 20, 20, 0.75);
+  --header-bg: rgba(30, 15, 15, 0.88);
   --border-panel: rgba(251, 146, 60, 0.40);
   --input-bg: rgba(40, 20, 20, 0.70);
   --accent: #fb923c;
   --accent-gradient: linear-gradient(135deg, #ea580c 0%, #fb923c 50%, #f43f5e 100%);
 }
 
-
-
-/* 3. OCEAN - Xanh Biển Sâu */
+/* 3. OCEAN - Wave Pattern */
 body.theme-ocean {
   --bg-base: #041520;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(6, 182, 212, 0.55) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(14, 165, 233, 0.45) 0%, transparent 45%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(37, 99, 235, 0.35) 0%, transparent 40%);
-  --bg-panel: rgba(10, 40, 60, 0.65);
-  --header-bg: rgba(8, 30, 50, 0.85);
+    /* Wave-like curves */
+    repeating-linear-gradient(100deg, transparent, transparent 30px, rgba(6, 182, 212, 0.04) 30px, rgba(6, 182, 212, 0.04) 60px),
+    repeating-linear-gradient(-100deg, transparent, transparent 30px, rgba(14, 165, 233, 0.03) 30px, rgba(14, 165, 233, 0.03) 60px),
+    /* Depth gradients */
+    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(6, 182, 212, 0.45) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(14, 165, 233, 0.35) 0%, transparent 45%),
+    linear-gradient(180deg, transparent 0%, rgba(37, 99, 235, 0.2) 100%);
+  --bg-panel: rgba(10, 40, 60, 0.75);
+  --header-bg: rgba(8, 30, 50, 0.88);
   --border-panel: rgba(6, 182, 212, 0.40);
   --input-bg: rgba(10, 40, 60, 0.70);
   --accent: #06b6d4;
   --accent-gradient: linear-gradient(135deg, #0284c7 0%, #06b6d4 50%, #22d3ee 100%);
 }
 
-
-
-/* 4. MINT - Xanh Ngọc Tươi Mát */
+/* 4. MINT - Dot Matrix Pattern */
 body.theme-mint {
   --bg-base: #0a1a18;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 20% 20%, rgba(16, 185, 129, 0.55) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 80% 80%, rgba(34, 211, 238, 0.45) 0%, transparent 45%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(99, 102, 241, 0.30) 0%, transparent 40%);
-  --bg-panel: rgba(15, 45, 40, 0.65);
-  --header-bg: rgba(10, 35, 30, 0.85);
+    /* Dot pattern */
+    radial-gradient(circle at 25% 25%, rgba(16, 185, 129, 0.08) 1px, transparent 1px),
+    radial-gradient(circle at 75% 75%, rgba(34, 211, 238, 0.06) 1px, transparent 1px),
+    /* Glow */
+    radial-gradient(ellipse 120% 80% at 20% 20%, rgba(16, 185, 129, 0.45) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 80%, rgba(34, 211, 238, 0.35) 0%, transparent 45%);
+  background-size: 20px 20px, 20px 20px, auto, auto;
+  --bg-panel: rgba(15, 45, 40, 0.75);
+  --header-bg: rgba(10, 35, 30, 0.88);
   --border-panel: rgba(16, 185, 129, 0.40);
   --input-bg: rgba(15, 45, 40, 0.70);
   --accent: #10b981;
   --accent-gradient: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
 }
 
-
-
-/* 5. ROYAL - Vàng Gold Sang Trọng */
+/* 5. ROYAL - Diamond Pattern */
 body.theme-royal {
   --bg-base: #151008;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 25% 25%, rgba(245, 158, 11, 0.55) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 75% 75%, rgba(253, 224, 71, 0.40) 0%, transparent 45%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(168, 85, 247, 0.25) 0%, transparent 40%);
-  --bg-panel: rgba(40, 30, 15, 0.65);
-  --header-bg: rgba(30, 22, 10, 0.85);
+    /* Diamond/rhombus pattern */
+    repeating-linear-gradient(45deg, transparent, transparent 15px, rgba(245, 158, 11, 0.03) 15px, rgba(245, 158, 11, 0.03) 16px),
+    repeating-linear-gradient(-45deg, transparent, transparent 15px, rgba(253, 224, 71, 0.02) 15px, rgba(253, 224, 71, 0.02) 16px),
+    /* Gold glows */
+    radial-gradient(ellipse 120% 80% at 25% 25%, rgba(245, 158, 11, 0.45) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 75% 75%, rgba(253, 224, 71, 0.3) 0%, transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(168, 85, 247, 0.15) 0%, transparent 40%);
+  --bg-panel: rgba(40, 30, 15, 0.75);
+  --header-bg: rgba(30, 22, 10, 0.88);
   --border-panel: rgba(245, 158, 11, 0.45);
   --input-bg: rgba(40, 30, 15, 0.70);
   --accent: #f59e0b;
   --accent-gradient: linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%);
 }
 
-
-
-/* --- 3B. THEME MỞ RỘNG (THÊM) --- */
-
-/* 6. AURORA - Cực Quang Huyền Ảo */
+/* 6. AURORA - Animated Shimmer Effect */
 body.theme-aurora {
   --bg-base: #0a0a1a;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 15% 30%, rgba(34, 211, 238, 0.55) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 85% 70%, rgba(168, 85, 247, 0.50) 0%, transparent 45%),
-    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(236, 72, 153, 0.35) 0%, transparent 40%);
-  --bg-panel: rgba(20, 20, 40, 0.65);
-  --header-bg: rgba(15, 15, 30, 0.85);
+    /* Horizontal bands */
+    repeating-linear-gradient(180deg, transparent, transparent 100px, rgba(34, 211, 238, 0.05) 100px, rgba(168, 85, 247, 0.05) 200px),
+    /* Aurora glows */
+    radial-gradient(ellipse 120% 80% at 15% 30%, rgba(34, 211, 238, 0.45) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 70%, rgba(168, 85, 247, 0.4) 0%, transparent 45%),
+    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(236, 72, 153, 0.25) 0%, transparent 40%);
+  --bg-panel: rgba(20, 20, 40, 0.75);
+  --header-bg: rgba(15, 15, 30, 0.88);
   --border-panel: rgba(34, 211, 238, 0.40);
   --input-bg: rgba(20, 20, 40, 0.70);
   --accent: #22d3ee;
   --accent-gradient: linear-gradient(135deg, #06b6d4 0%, #a855f7 50%, #ec4899 100%);
 }
 
-
-
-/* 7. GRAPHITE (Xám lạnh - Tối giản) */
+/* 7. GRAPHITE - Minimal Grid */
 body.theme-graphite {
   --bg-base: #0b1220;
-  --bg-mesh: radial-gradient(at 0% 0%,
-      hsla(215, 30%, 28%, 0.55) 0px,
-      transparent 55%),
-    radial-gradient(at 100% 100%,
-      hsla(220, 25%, 18%, 0.75) 0px,
-      transparent 55%);
+  --bg-mesh:
+    repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(148, 163, 184, 0.02) 40px, rgba(148, 163, 184, 0.02) 41px),
+    repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(148, 163, 184, 0.02) 40px, rgba(148, 163, 184, 0.02) 41px),
+    radial-gradient(at 0% 0%, hsla(215, 30%, 28%, 0.45) 0px, transparent 55%),
+    radial-gradient(at 100% 100%, hsla(220, 25%, 18%, 0.55) 0px, transparent 55%);
   --bg-panel: rgba(15, 23, 42, 0.78);
   --header-bg: rgba(2, 6, 23, 0.92);
   --border-panel: rgba(148, 163, 184, 0.18);
@@ -213,81 +220,92 @@ body.theme-graphite {
   --accent-gradient: linear-gradient(135deg, #334155 0%, #94a3b8 100%);
 }
 
-/* 7. VIOLET - Tím Neon Huyền Bí */
+/* 8. VIOLET - Bokeh Circles */
 body.theme-violet {
   --bg-base: #0f0a1a;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 20% 25%, rgba(124, 58, 237, 0.60) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 80% 75%, rgba(168, 85, 247, 0.50) 0%, transparent 45%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(244, 114, 182, 0.35) 0%, transparent 40%);
-  --bg-panel: rgba(30, 20, 45, 0.65);
-  --header-bg: rgba(20, 15, 35, 0.85);
+    /* Bokeh effect */
+    radial-gradient(circle at 20% 30%, rgba(124, 58, 237, 0.25) 0%, rgba(124, 58, 237, 0.1) 10%, transparent 20%),
+    radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.2) 0%, rgba(168, 85, 247, 0.08) 8%, transparent 16%),
+    radial-gradient(circle at 60% 70%, rgba(244, 114, 182, 0.15) 0%, rgba(244, 114, 182, 0.06) 12%, transparent 24%),
+    radial-gradient(circle at 10% 80%, rgba(139, 92, 246, 0.2) 0%, rgba(139, 92, 246, 0.08) 6%, transparent 12%),
+    /* Base glow */
+    radial-gradient(ellipse 120% 80% at 20% 25%, rgba(124, 58, 237, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 75%, rgba(168, 85, 247, 0.35) 0%, transparent 45%);
+  --bg-panel: rgba(30, 20, 45, 0.75);
+  --header-bg: rgba(20, 15, 35, 0.88);
   --border-panel: rgba(124, 58, 237, 0.45);
   --input-bg: rgba(30, 20, 45, 0.70);
   --accent: #8b5cf6;
   --accent-gradient: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
 }
 
-
-
-/* 8. EMERALD - Xanh Lá Rừng Sâu */
+/* 9. EMERALD - Leaf Veins Pattern */
 body.theme-emerald {
   --bg-base: #0a150a;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(16, 185, 129, 0.55) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(52, 211, 153, 0.45) 0%, transparent 45%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(163, 230, 53, 0.30) 0%, transparent 40%);
-  --bg-panel: rgba(20, 45, 25, 0.65);
-  --header-bg: rgba(15, 35, 18, 0.85);
+    /* Organic curved lines */
+    repeating-linear-gradient(60deg, transparent, transparent 25px, rgba(16, 185, 129, 0.03) 25px, rgba(16, 185, 129, 0.03) 26px),
+    repeating-linear-gradient(120deg, transparent, transparent 25px, rgba(52, 211, 153, 0.02) 25px, rgba(52, 211, 153, 0.02) 26px),
+    /* Forest glows */
+    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(16, 185, 129, 0.45) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(52, 211, 153, 0.35) 0%, transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(163, 230, 53, 0.2) 0%, transparent 40%);
+  --bg-panel: rgba(20, 45, 25, 0.75);
+  --header-bg: rgba(15, 35, 18, 0.88);
   --border-panel: rgba(16, 185, 129, 0.45);
   --input-bg: rgba(20, 45, 25, 0.70);
   --accent: #10b981;
   --accent-gradient: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
 }
 
-
-
-/* 9. SAKURA - Hồng Anh Đào Dịu Dàng */
+/* 10. SAKURA - Petal Scatter Pattern */
 body.theme-sakura {
   --bg-base: #1a0a12;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 20% 30%, rgba(251, 113, 133, 0.55) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 80% 70%, rgba(251, 146, 60, 0.40) 0%, transparent 45%),
-    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(168, 85, 247, 0.30) 0%, transparent 40%);
-  --bg-panel: rgba(45, 20, 30, 0.65);
-  --header-bg: rgba(35, 15, 22, 0.85);
+    /* Scattered petals (small circles) */
+    radial-gradient(circle at 15% 20%, rgba(251, 113, 133, 0.15) 2px, transparent 4px),
+    radial-gradient(circle at 85% 15%, rgba(253, 164, 175, 0.12) 1.5px, transparent 3px),
+    radial-gradient(circle at 25% 70%, rgba(251, 113, 133, 0.1) 2px, transparent 4px),
+    radial-gradient(circle at 70% 80%, rgba(253, 164, 175, 0.08) 1.5px, transparent 3px),
+    radial-gradient(circle at 50% 40%, rgba(251, 113, 133, 0.12) 1px, transparent 2px),
+    /* Soft glows */
+    radial-gradient(ellipse 120% 80% at 20% 30%, rgba(251, 113, 133, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 70%, rgba(251, 146, 60, 0.25) 0%, transparent 45%);
+  --bg-panel: rgba(45, 20, 30, 0.75);
+  --header-bg: rgba(35, 15, 22, 0.88);
   --border-panel: rgba(251, 113, 133, 0.45);
   --input-bg: rgba(45, 20, 30, 0.70);
   --accent: #fb7185;
   --accent-gradient: linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fda4af 100%);
 }
 
-
-
-/* 10. SOLAR - Cam Vàng Rực Nắng */
+/* 11. SOLAR - Sun Rays Pattern */
 body.theme-solar {
   --bg-base: #1a1205;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 20% 25%, rgba(253, 224, 71, 0.55) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 80% 75%, rgba(251, 146, 60, 0.50) 0%, transparent 45%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(244, 63, 94, 0.30) 0%, transparent 40%);
-  --bg-panel: rgba(45, 35, 15, 0.65);
-  --header-bg: rgba(35, 28, 10, 0.85);
+    /* Radiating lines from top-left */
+    repeating-conic-gradient(from 0deg at 0% 0%, transparent 0deg, transparent 10deg, rgba(253, 224, 71, 0.02) 10deg, rgba(253, 224, 71, 0.02) 11deg),
+    /* Sun glows */
+    radial-gradient(circle at 10% 10%, rgba(253, 224, 71, 0.35) 0%, transparent 40%),
+    radial-gradient(ellipse 120% 80% at 20% 25%, rgba(253, 224, 71, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 75%, rgba(251, 146, 60, 0.35) 0%, transparent 45%),
+    radial-gradient(circle at 90% 90%, rgba(244, 63, 94, 0.2) 0%, transparent 40%);
+  --bg-panel: rgba(45, 35, 15, 0.75);
+  --header-bg: rgba(35, 28, 10, 0.88);
   --border-panel: rgba(253, 224, 71, 0.45);
   --input-bg: rgba(45, 35, 15, 0.70);
   --accent: #fbbf24;
   --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #fde047 100%);
 }
 
-
-
-/* 12. MONO (Đen - Trắng) */
+/* 12. MONO (Đen - Trắng) - Clean Lines */
 body.theme-mono {
   --bg-base: #0b0f19;
-  --bg-mesh: radial-gradient(at 0% 0%,
-      hsla(220, 15%, 18%, 0.7) 0px,
-      transparent 55%),
-    radial-gradient(at 100% 100%, hsla(0, 0%, 100%, 0.08) 0px, transparent 55%);
+  --bg-mesh:
+    repeating-linear-gradient(0deg, transparent, transparent 60px, rgba(255, 255, 255, 0.015) 60px, rgba(255, 255, 255, 0.015) 61px),
+    radial-gradient(at 0% 0%, hsla(220, 15%, 18%, 0.5) 0px, transparent 55%),
+    radial-gradient(at 100% 100%, hsla(0, 0%, 100%, 0.06) 0px, transparent 55%);
   --bg-panel: rgba(17, 24, 39, 0.78);
   --header-bg: rgba(0, 0, 0, 0.88);
   --border-panel: rgba(255, 255, 255, 0.12);
