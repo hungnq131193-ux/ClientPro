@@ -870,35 +870,27 @@ function switchTab(tabName) {
     isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
 }
 
-// Load customer info into Info tab
+// Load customer info into Info tab (use already-loaded currentCustomerData)
 function loadCustomerInfo() {
-    if (!currentCustomerId) return;
+    if (!currentCustomerData) return;
 
-    const tx = db.transaction(['customers'], 'readonly');
-    const store = tx.objectStore('customers');
-    const req = store.get(currentCustomerId);
+    const c = currentCustomerData;
+    const phone = decryptText(c.phone) || '--';
+    const cccd = decryptText(c.cccd) || '--';
+    const notes = decryptText(c.notes) || '';
+    const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
 
-    req.onsuccess = (e) => {
-        const c = e.target.result;
-        if (!c) return;
+    const phoneEl = getEl('info-phone');
+    const cccdEl = getEl('info-cccd');
+    const createdEl = getEl('info-created');
+    const notesEl = getEl('info-notes');
 
-        const phone = decryptText(c.phone) || '--';
-        const cccd = decryptText(c.cccd) || '--';
-        const notes = decryptText(c.notes) || '';
-        const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
+    if (phoneEl) phoneEl.textContent = phone;
+    if (cccdEl) cccdEl.textContent = cccd;
+    if (createdEl) createdEl.textContent = `Tạo: ${createdAt}`;
+    if (notesEl) notesEl.value = notes;
 
-        const phoneEl = getEl('info-phone');
-        const cccdEl = getEl('info-cccd');
-        const createdEl = getEl('info-created');
-        const notesEl = getEl('info-notes');
-
-        if (phoneEl) phoneEl.textContent = phone;
-        if (cccdEl) cccdEl.textContent = cccd;
-        if (createdEl) createdEl.textContent = `Tạo: ${createdAt}`;
-        if (notesEl) notesEl.value = notes;
-
-        try { lucide.createIcons(); } catch (e) { }
-    };
+    try { lucide.createIcons(); } catch (e) { }
 }
 
 // Save customer notes
