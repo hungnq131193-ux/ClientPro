@@ -293,44 +293,52 @@
                         <span class="vietin-brand">ClientPro</span>
                         <span class="vietin-sub">Quản Lý Khách Hàng</span>
                     </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="openCalendar()"
+                            class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
+                            style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"
+                            title="Lịch nhắc nhở">
+                            <i data-lucide="calendar" class="w-6 h-6"></i>
+                        </button>
+                        <button onclick="toggleMenu()"
+                            class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
+                            style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
+                            <i data-lucide="settings-2" class="w-6 h-6"></i>
+                        </button>
+                    </div>
                 </div>
 
-                <button onclick="toggleMenu()"
-                    class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
-                    style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
-                    <i data-lucide="settings-2" class="w-6 h-6"></i>
-                </button>
-            </div>
-
-            <div class="flex justify-end mb-2 text-[11px] font-medium">
-                <button onclick="refreshWeather()"
-                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-slate-200 hover:bg-white/10 active:scale-95 transition">
-                    <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i>
-                    <span id="current-weather" class="max-w-[160px] truncate">Đang tải thời tiết...</span>
-                </button>
-            </div>
-            <div class="flex p-1 rounded-xl mb-3 bg-black/20 border border-white/5">
-                <button onclick="switchListTab('pending')" id="list-tab-pending"
-                    class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">KH đang
-                    Thẩm Định</button>
-                <button onclick="switchListTab('approved')" id="list-tab-approved"
-                    class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">Khách
-                    hàng đã vay</button>
-            </div>
-            <div class="flex gap-2">
-                <div class="relative flex-1">
-                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50"
-                        style="color: var(--text-main)"></i>
-                    <input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..."
-                        class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors"
-                        style="border-color: var(--border-panel); color: var(--text-main);">
+                <div class="flex justify-end mb-2 text-[11px] font-medium">
+                    <button onclick="refreshWeather()"
+                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-slate-200 hover:bg-white/10 active:scale-95 transition">
+                        <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i>
+                        <span id="current-weather" class="max-w-[160px] truncate">Đang tải thời tiết...</span>
+                    </button>
                 </div>
-                <button onclick="toggleCustSelectionMode()" id="btn-cust-select"
-                    class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20"
-                    style="border-color: var(--border-panel); color: var(--text-sub);">
-                    <i data-lucide="list-checks" class="w-5 h-5"></i>
-                </button>
-            </div>
+                <div class="flex p-1 rounded-xl mb-3 bg-black/20 border border-white/5">
+                    <button onclick="switchListTab('pending')" id="list-tab-pending"
+                        class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">KH
+                        đang
+                        Thẩm Định</button>
+                    <button onclick="switchListTab('approved')" id="list-tab-approved"
+                        class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">Khách
+                        hàng đã vay</button>
+                </div>
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50"
+                            style="color: var(--text-main)"></i>
+                        <input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..."
+                            class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors"
+                            style="border-color: var(--border-panel); color: var(--text-main);">
+                    </div>
+                    <button onclick="toggleCustSelectionMode()" id="btn-cust-select"
+                        class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20"
+                        style="border-color: var(--border-panel); color: var(--text-sub);">
+                        <i data-lucide="list-checks" class="w-5 h-5"></i>
+                    </button>
+                </div>
         </header>
         <div class="scroll-area flex-1 p-4 space-y-3" id="customer-list"></div>
 
@@ -351,14 +359,79 @@
     <div id="screen-map"
         class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black">
         <div id="map-container"></div>
-        <button onclick="toggleMap()"
-            class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i
-                data-lucide="arrow-left" class="w-6 h-6"></i></button>
+        class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border
+        border-white/10 shadow-lg active:scale-95 transition-transform"><i data-lucide="arrow-left"
+            class="w-6 h-6"></i></button>
         <button onclick="locateMe()"
             class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i
                 data-lucide="crosshair" class="w-6 h-6"></i></button>
     </div>
 
+    <!-- CALENDAR SCREEN -->
+    <div id="screen-calendar"
+        class="app-container z-20 transform translate-x-full transition-transform duration-300 hidden"
+        style="background: var(--bg-base);">
+
+        <!-- Header -->
+        <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="closeCalendar()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="arrow-left" class="w-6 h-6"></i>
+                </button>
+                <h2 class="font-bold text-lg" style="color: var(--text-main)">
+                    <i data-lucide="calendar" class="w-5 h-5 inline mr-2"></i> Lịch Nhắc Nhở
+                </h2>
+                <button onclick="goToToday()" class="px-3 py-1.5 rounded-lg text-xs font-bold"
+                    style="background: var(--accent); color: white;">
+                    Hôm nay
+                </button>
+            </div>
+
+            <!-- Month Navigation -->
+            <div class="flex items-center justify-between px-2">
+                <button onclick="prevMonth()" class="p-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                </button>
+                <span id="calendar-month-label" class="font-bold text-base" style="color: var(--text-main)">
+                    Tháng 1, 2026
+                </span>
+                <button onclick="nextMonth()" class="p-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Calendar Grid -->
+        <div class="px-4 py-3">
+            <!-- Weekday Headers -->
+            <div class="grid grid-cols-7 gap-1 mb-2 text-center">
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T2</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T3</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T4</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T5</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T6</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T7</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">CN</span>
+            </div>
+            <!-- Days Grid -->
+            <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
+        </div>
+
+        <!-- Day Reminders -->
+        <div class="flex-1 scroll-area px-4 pb-24">
+            <div id="day-reminders"></div>
+        </div>
+
+        <!-- FAB Add Reminder -->
+        <button onclick="openReminderModal()"
+            class="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-transform"
+            style="background: var(--accent-gradient);">
+            <i data-lucide="plus" class="w-7 h-7 text-white"></i>
+        </button>
+    </div>
     <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300"
         style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
         <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
@@ -622,6 +695,8 @@
     <script src="./assets/16_auto_backup_drive.js" defer></script>
     <!-- Onboarding tour for new users -->
     <script src="./assets/17_onboarding_tour.js" defer></script>
+    <!-- Calendar & Reminders -->
+    <script src="./assets/19_calendar.js" defer></script>
     <script src="./assets/10_bootstrap.js" defer></script>
     <script src="./assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
     <script src="./assets/pwa.js" defer></script>
