@@ -263,11 +263,19 @@
                     </div>
                 </div>
 
-                <button onclick="toggleMenu()"
-                    class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
-                    style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
-                    <i data-lucide="settings-2" class="w-6 h-6"></i>
-                </button>
+                <div class="flex gap-2">
+                    <button onclick="openCalendar()"
+                        class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
+                        style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"
+                        title="Lịch nhắc nhở">
+                        <i data-lucide="calendar" class="w-6 h-6"></i>
+                    </button>
+                    <button onclick="toggleMenu()"
+                        class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
+                        style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
+                        <i data-lucide="settings-2" class="w-6 h-6"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="flex justify-end mb-2 text-[11px] font-medium">
