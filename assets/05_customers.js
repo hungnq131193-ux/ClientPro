@@ -865,7 +865,8 @@ function switchTab(tabName) {
     if (tabName === 'info') {
         if (tabInfo) tabInfo.className = activeClass;
         if (contentInfo) contentInfo.classList.remove('hidden');
-        loadCustomerInfo();
+        // Small delay to ensure DB transaction is complete
+        setTimeout(loadCustomerInfo, 50);
     } else if (tabName === 'images') {
         if (tabImages) tabImages.className = activeClass;
         if (contentImages) contentImages.classList.remove('hidden');

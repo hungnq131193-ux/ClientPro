@@ -14,7 +14,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v4.3.2_fix_info';
+  var SW_BUILD = 'v4.3.4_cal_fix';
 
   function sendSkipWaiting(sw) {
     try {
