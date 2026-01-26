@@ -24,7 +24,7 @@ function openAssetGallery(id, name, idx) {
       grid.innerHTML = "";
       grid.scrollTop = 0;
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // Hiển thị màn hình Gallery (slide-in on next frame for smoother compositing)
   if (typeof nextFrame === "function") nextFrame(() => galScreen.classList.remove("translate-x-full"));
@@ -149,7 +149,7 @@ function _ensureLazyImgObserver() {
         if (src && !img.src) {
           img.src = src;
         }
-        try { __lazyImgObserver.unobserve(img); } catch (e) {}
+        try { __lazyImgObserver.unobserve(img); } catch (e) { }
       });
     },
     { root: null, rootMargin: '200px 0px', threshold: 0.01 }
@@ -190,7 +190,7 @@ async function shareSelectedImages() {
             resolve(
               new File(
                 [blob],
-                `img_${Date.now()}_${Math.random() .toString(36) .substr(2, 5)}.jpg`,
+                `img_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.jpg`,
                 { type: "image/jpeg" }
               )
             );
@@ -226,63 +226,63 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
     .objectStore("images")
     .index("customerId")
     .getAll(currentCustomerId).onsuccess = (e) => {
-    let imgs = e.target.result || [];
-    imgs = imgs.filter(filterFn);
-    imgs.sort((a, b) => b.createdAt - a.createdAt);
-    if (
-      targetId === "content-images" &&
-      !getEl("screen-asset-gallery").classList.contains("translate-x-full")
-    ) {
-    } else {
-      currentLightboxList = imgs;
-    }
-    const grid = getEl(targetId);
-    if (!grid) return;
-    grid.innerHTML = "";
-    if (imgs.length === 0) {
-      grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
-      return;
-    }
-
-    const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-
-    let i = 0;
-    const CHUNK = 24;
-    const renderChunk = () => {
-      const frag = document.createDocumentFragment();
-      const end = Math.min(i + CHUNK, imgs.length);
-      for (; i < end; i++) {
-        const img = imgs[i];
-        const div = document.createElement("div");
-        div.className = "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
-        if (isSelectionMode && selectedImages.has(img.id)) div.classList.add("selected");
-
-        const imgEl = document.createElement('img');
-        imgEl.className = 'pointer-events-none';
-        _attachLazySrc(imgEl, img.data);
-
-        div.appendChild(imgEl);
-
-        if (isSelectionMode) {
-          const ring = document.createElement('div');
-          ring.className = 'select-ring';
-          ring.innerHTML = svgCheck;
-          div.appendChild(ring);
-        }
-
-        const idx = i;
-        div.onclick = () => {
-          if (isSelectionMode) toggleImage(img.id, div);
-          else openLightbox(img.data, img.id, idx, imgs);
-        };
-        frag.appendChild(div);
+      let imgs = e.target.result || [];
+      imgs = imgs.filter(filterFn);
+      imgs.sort((a, b) => b.createdAt - a.createdAt);
+      if (
+        targetId === "content-images" &&
+        !getEl("screen-asset-gallery").classList.contains("translate-x-full")
+      ) {
+      } else {
+        currentLightboxList = imgs;
       }
-      grid.appendChild(frag);
-      if (i < imgs.length) requestAnimationFrame(renderChunk);
-    };
+      const grid = getEl(targetId);
+      if (!grid) return;
+      grid.innerHTML = "";
+      if (imgs.length === 0) {
+        grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
+        return;
+      }
 
-    requestAnimationFrame(renderChunk);
-  };
+      const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+      let i = 0;
+      const CHUNK = 24;
+      const renderChunk = () => {
+        const frag = document.createDocumentFragment();
+        const end = Math.min(i + CHUNK, imgs.length);
+        for (; i < end; i++) {
+          const img = imgs[i];
+          const div = document.createElement("div");
+          div.className = "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
+          if (isSelectionMode && selectedImages.has(img.id)) div.classList.add("selected");
+
+          const imgEl = document.createElement('img');
+          imgEl.className = 'pointer-events-none';
+          _attachLazySrc(imgEl, img.data);
+
+          div.appendChild(imgEl);
+
+          if (isSelectionMode) {
+            const ring = document.createElement('div');
+            ring.className = 'select-ring';
+            ring.innerHTML = svgCheck;
+            div.appendChild(ring);
+          }
+
+          const idx = i;
+          div.onclick = () => {
+            if (isSelectionMode) toggleImage(img.id, div);
+            else openLightbox(img.data, img.id, idx, imgs);
+          };
+          frag.appendChild(div);
+        }
+        grid.appendChild(frag);
+        if (i < imgs.length) requestAnimationFrame(renderChunk);
+      };
+
+      requestAnimationFrame(renderChunk);
+    };
 }
 function loadProfileImages() {
   loadImagesFiltered((img) => !img.assetId);
@@ -293,55 +293,55 @@ function loadAssetImages(id) {
     .objectStore("images")
     .index("customerId")
     .getAll(currentCustomerId).onsuccess = (e) => {
-    let imgs = e.target.result || [];
-    imgs = imgs.filter((img) => img.assetId === id);
-    imgs.sort((a, b) => b.createdAt - a.createdAt);
-    currentLightboxList = imgs;
-    const grid = getEl("asset-gallery-grid");
-    grid.innerHTML = "";
-    if (imgs.length === 0) {
-      grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
-      return;
-    }
-
-    const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-
-    let i = 0;
-    const CHUNK = 24;
-    const renderChunk = () => {
-      const frag = document.createDocumentFragment();
-      const end = Math.min(i + CHUNK, imgs.length);
-      for (; i < end; i++) {
-        const img = imgs[i];
-        const div = document.createElement("div");
-        div.className = "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
-        if (isSelectionMode && selectedImages.has(img.id)) div.classList.add("selected");
-
-        const imgEl = document.createElement('img');
-        imgEl.className = 'pointer-events-none';
-        _attachLazySrc(imgEl, img.data);
-        div.appendChild(imgEl);
-
-        if (isSelectionMode) {
-          const ring = document.createElement('div');
-          ring.className = 'select-ring';
-          ring.innerHTML = svgCheck;
-          div.appendChild(ring);
-        }
-
-        const idx = i;
-        div.onclick = () => {
-          if (isSelectionMode) toggleImage(img.id, div);
-          else openLightbox(img.data, img.id, idx, imgs);
-        };
-
-        frag.appendChild(div);
+      let imgs = e.target.result || [];
+      imgs = imgs.filter((img) => img.assetId === id);
+      imgs.sort((a, b) => b.createdAt - a.createdAt);
+      currentLightboxList = imgs;
+      const grid = getEl("asset-gallery-grid");
+      grid.innerHTML = "";
+      if (imgs.length === 0) {
+        grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
+        return;
       }
-      grid.appendChild(frag);
-      if (i < imgs.length) requestAnimationFrame(renderChunk);
+
+      const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+      let i = 0;
+      const CHUNK = 24;
+      const renderChunk = () => {
+        const frag = document.createDocumentFragment();
+        const end = Math.min(i + CHUNK, imgs.length);
+        for (; i < end; i++) {
+          const img = imgs[i];
+          const div = document.createElement("div");
+          div.className = "img-wrapper cursor-pointer transition-all active:scale-[0.98]";
+          if (isSelectionMode && selectedImages.has(img.id)) div.classList.add("selected");
+
+          const imgEl = document.createElement('img');
+          imgEl.className = 'pointer-events-none';
+          _attachLazySrc(imgEl, img.data);
+          div.appendChild(imgEl);
+
+          if (isSelectionMode) {
+            const ring = document.createElement('div');
+            ring.className = 'select-ring';
+            ring.innerHTML = svgCheck;
+            div.appendChild(ring);
+          }
+
+          const idx = i;
+          div.onclick = () => {
+            if (isSelectionMode) toggleImage(img.id, div);
+            else openLightbox(img.data, img.id, idx, imgs);
+          };
+
+          frag.appendChild(div);
+        }
+        grid.appendChild(frag);
+        if (i < imgs.length) requestAnimationFrame(renderChunk);
+      };
+      requestAnimationFrame(renderChunk);
     };
-    requestAnimationFrame(renderChunk);
-  };
 }
 
 function compressImage(base64, cb) {
@@ -451,23 +451,23 @@ function saveImageToDB(rawBase64) {
         .transaction(["images"], "readwrite")
         .objectStore("images")
         .add(newImg).onsuccess = () => {
-        getEl("loader").classList.add("hidden");
-        showToast("Đã lưu ảnh");
+          getEl("loader").classList.add("hidden");
+          showToast("Đã lưu ảnh");
 
-        // Refresh giao diện ngay lập tức
-        if (
-          currentAssetId &&
-          !getEl("screen-asset-gallery").classList.contains("translate-x-full")
-        ) {
-          loadAssetImages(currentAssetId);
-        } else if (captureMode === "asset" && currentAssetId) {
-          loadAssetImages(currentAssetId);
-        } else {
-          loadProfileImages();
-        }
+          // Refresh giao diện ngay lập tức
+          if (
+            currentAssetId &&
+            !getEl("screen-asset-gallery").classList.contains("translate-x-full")
+          ) {
+            loadAssetImages(currentAssetId);
+          } else if (captureMode === "asset" && currentAssetId) {
+            loadAssetImages(currentAssetId);
+          } else {
+            loadProfileImages();
+          }
 
-        resolve();
-      };
+          resolve();
+        };
     });
   });
 }
@@ -491,14 +491,14 @@ function handleFileUpload(input, mode) {
   // Reset input để lần sau chọn lại vẫn trigger onchange
   input.value = "";
 }
-async function tryOpenCamera(mode) {
+// Renamed to _tryOpenCameraReal for lazy loading wrapper
+async function _tryOpenCameraReal(mode) {
   captureMode = mode;
   try {
     getEl("camera-modal").classList.remove("hidden");
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: "environment" },
-        // Ưu tiên Full HD trở lên
         width: { min: 1280, ideal: 1920, max: 2560 },
         height: { min: 720, ideal: 1080, max: 1440 },
       },
@@ -515,7 +515,6 @@ function closeCamera() {
   getEl("camera-modal").classList.add("hidden");
   if (stream) stream.getTracks().forEach((t) => t.stop());
 }
-// CHỤP ẢNH TỪ CAMERA + OCR TRƯỚC KHI NÉN
 // CHỤP ẢNH TỪ CAMERA
 async function capturePhoto() {
   const v = getEl("camera-feed");
@@ -526,15 +525,8 @@ async function capturePhoto() {
   const ctx = c.getContext("2d");
   ctx.drawImage(v, 0, 0);
 
-  // Ảnh gốc chất lượng cao
   const rawBase64 = c.toDataURL("image/jpeg", 1.0);
-
-  // Tắt camera trước khi xử lý
   closeCamera();
-
-  // Bỏ qua xử lý OCR ở chế độ 'ocr' vì đã chuyển sang quét QR offline
-
-  // Lưu ảnh vào DB như cũ (hồ sơ / tài sản / bìa đỏ đều dùng chung)
   await saveImageToDB(rawBase64);
 }
 function shareOpenedImage() {
@@ -554,14 +546,17 @@ function deleteOpenedImage() {
       .transaction(["images"], "readwrite")
       .objectStore("images")
       .delete(currentImageId).onsuccess = () => {
-      closeLightbox();
-      if (
-        currentAssetId &&
-        getEl("screen-asset-gallery").classList.contains("translate-x-full") ===
+        closeLightbox();
+        if (
+          currentAssetId &&
+          getEl("screen-asset-gallery").classList.contains("translate-x-full") ===
           false
-      )
-        loadAssetImages(currentAssetId);
-      else loadProfileImages();
-    };
+        )
+          loadAssetImages(currentAssetId);
+        else loadProfileImages();
+      };
   }
 }
+
+// Export for lazy loading wrapper
+window._tryOpenCameraReal = _tryOpenCameraReal;

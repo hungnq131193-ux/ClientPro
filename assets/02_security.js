@@ -123,26 +123,23 @@ async function decryptBackupPayload(content, kdata_b64u) {
       const bytes = CryptoJS.AES.decrypt(String(s), String(APP_BACKUP_SECRET));
       const plaintext = bytes.toString(CryptoJS.enc.Utf8);
       if (plaintext) return { plaintext, envelope: { magic: "LEGACY_CJS", v: 1 } };
-    } catch (e) {}
+    } catch (e) { }
   }
 
   throw new Error("UNSUPPORTED_CPB_FORMAT");
 }
 
-/** * Encrypt a text value using AES và masterKey. Nếu chưa có masterKey thì trả về nguyên bản. * @param {string} text * @returns {string} */
-// --- THÊM ĐOẠN NÀY ---
 function getDeviceId() {
   const STORAGE_KEY = "app_device_unique_id";
   let deviceId = localStorage.getItem(STORAGE_KEY);
-  // Nếu chưa có ID (máy mới), tạo ID ngẫu nhiên và lưu lại
   if (!deviceId) {
-    deviceId =
-      "dev_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+    deviceId = "dev_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
     localStorage.setItem(STORAGE_KEY, deviceId);
   }
   return deviceId;
 }
-// ---------------------
+
+/** Encrypt a text value using AES và masterKey. */
 
 function encryptText(text) {
   if (!masterKey || text === undefined || text === null) return text;
@@ -225,7 +222,7 @@ function escapeHTML(str) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
-// --- EXISTING LOGIC ---
+
 function setTheme(themeName) {
   document.body.className = themeName;
   localStorage.setItem(THEME_KEY, themeName);
@@ -267,7 +264,7 @@ async function checkSecurity() {
     const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || "";
     if (savedEmp) {
       // Theo bản index trước đó chạy ổn: check_status chỉ cần employeeId + deviceInfo
-      const query = `?action=check_status&employeeId=${encodeURIComponent( savedEmp )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
+      const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
 
       const res = await fetch(ADMIN_SERVER_URL + query);
       const txt = await res.text();
@@ -286,8 +283,8 @@ async function checkSecurity() {
           ? String(result.status).toLowerCase()
           : typeof result === "string" &&
             result.toLowerCase().includes("locked")
-          ? "locked"
-          : "";
+            ? "locked"
+            : "";
       const msg =
         result && typeof result === "object" && result.message
           ? result.message
@@ -338,11 +335,11 @@ async function ensureBackupSecret() {
       st && typeof st === "object" && st.status
         ? String(st.status).toLowerCase()
         : typeof st === "string" && st.toLowerCase().includes("locked")
-        ? "locked"
-        : "";
+          ? "locked"
+          : "";
 
     if (statusStr === "locked") {
-      try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
+      try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) { }
       const modal = getEl("activation-modal");
       if (modal) modal.classList.remove("hidden");
       const titleEl = document.getElementById("activation-title");
@@ -389,7 +386,7 @@ async function ensureBackupSecret() {
 
     try {
       console.log("[ensureBackupSecret] issue_kdata failed:", kdTxt && kdTxt.length > 300 ? kdTxt.slice(0, 300) + "..." : kdTxt);
-    } catch (e) {}
+    } catch (e) { }
 
     return { ok: false, message: "Không lấy được khóa KDATA từ server." };
   } catch (e) {
@@ -523,9 +520,7 @@ async function checkRecovery() {
   }
 }
 
-/** * Xử lý kích hoạt ứng dụng bằng cách gửi mã key và mã nhân viên lên server. * Sau khi server xác nhận thành công, lưu trạng thái kích hoạt và mã nhân viên vào localStorage rồi mở giao diện thiết lập PIN. */
-// Tìm hàm activateApp cũ và thay thế phần đầu bằng đoạn code sau:
-
+/** Xử lý kích hoạt ứng dụng bằng cách gửi mã key và mã nhân viên lên server. */
 async function activateApp() {
   const keyInput = getEl("activation-key");
   const empInput = getEl("activation-employee");
@@ -537,27 +532,14 @@ async function activateApp() {
     return;
   }
 
-  // --- BẮT ĐẦU THAY ĐỔI TỪ ĐÂY ---
-
-  // 1. Gọi hàm lấy ID thiết bị vừa viết ở bước trên
   const deviceId = getDeviceId();
-
   const scriptUrl = ADMIN_SERVER_URL;
-
-  // 2. Sửa dòng query cũ (XÓA DÒNG CŨ ĐI)
-  // Dòng cũ: const query = `?action=activate&key=${encodeURIComponent(key)}&employeeId=${encodeURIComponent(employeeId)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-
-  // 3. THAY BẰNG DÒNG MỚI (Có thêm &deviceId=...)
-  const query = `?action=activate&key=${encodeURIComponent( key )}&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent( deviceId )}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-
-  // --- KẾT THÚC THAY ĐỔI ---
+  const query = `?action=activate&key=${encodeURIComponent(key)}&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
 
   try {
     const res = await fetch(scriptUrl + query);
-    // ... (Phần code xử lý kết quả bên dưới giữ nguyên không cần sửa) ...
     let result;
-    // --- ĐOẠN CODE ĐÃ SỬA ---
-    const txt = await res.text(); // Đọc dữ liệu ra text 1 lần duy nhất
+    const txt = await res.text();
     try {
       result = JSON.parse(txt); // Thử chuyển nó sang JSON
     } catch (e) {
@@ -623,7 +605,7 @@ async function activateApp() {
               // Xóa toàn bộ localStorage và CSDL
               localStorage.clear();
               indexedDB.deleteDatabase(DB_NAME);
-            } catch (e) {}
+            } catch (e) { }
             // Đặt lại masterKey và lưu trạng thái kích hoạt mới
             masterKey = null;
             localStorage.setItem(ACTIVATED_KEY, "true");
