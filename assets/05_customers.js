@@ -734,6 +734,16 @@ function openFolder(id) {
         // Reset scroll so user doesn't see previous scroll position
         if (imgArea) imgArea.scrollTop = 0;
         if (assetArea) assetArea.scrollTop = 0;
+
+        // Reset info tab fields to prevent stale data display
+        const phoneEl = getEl('info-phone');
+        const cccdEl = getEl('info-cccd');
+        const createdEl = getEl('info-created');
+        const notesEl = getEl('info-notes');
+        if (phoneEl) phoneEl.textContent = '--';
+        if (cccdEl) cccdEl.textContent = '--';
+        if (createdEl) createdEl.textContent = 'Đang tải...';
+        if (notesEl) notesEl.value = '';
     } catch (e) { }
 
     // Slide-in on next frame for smoother compositing
