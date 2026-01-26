@@ -28,28 +28,8 @@ function showToast(msg) { const t = getEl('toast'); getEl('toast-msg').textConte
 function formatLink(link) { if (!link) return ''; if (link.startsWith('http')) return link; return 'https://' + link; }
 
 // ============================================================
-// LAZY LOADING WRAPPERS
-// These functions load heavy modules on-demand for faster startup
+// LAZY LOADING WRAPPER (Camera only - other modules load normally)
 // ============================================================
-
-// Map: Lazy load then call toggleMap
-async function toggleMap() {
-    try {
-        if (typeof LazyLoader !== 'undefined' && !LazyLoader.isLoaded('map')) {
-            getEl('loader').classList.remove('hidden');
-            getEl('loader-text').textContent = 'Đang tải bản đồ...';
-            await LazyLoader.loadMap();
-            getEl('loader').classList.add('hidden');
-        }
-        // Call actual toggleMap from 03_map.js
-        if (typeof window._toggleMapReal === 'function') {
-            window._toggleMapReal();
-        }
-    } catch (e) {
-        getEl('loader').classList.add('hidden');
-        showToast('Không tải được bản đồ');
-    }
-}
 
 // Camera: Lazy load then call tryOpenCamera
 async function tryOpenCamera(mode) {
@@ -67,12 +47,5 @@ async function tryOpenCamera(mode) {
     } catch (e) {
         getEl('loader').classList.add('hidden');
         showToast('Không tải được camera');
-    }
-}
-
-// CloudTransfer: Lazy load (called by CloudTransferUI)
-async function ensureCloudTransferLoaded() {
-    if (typeof LazyLoader !== 'undefined' && !LazyLoader.isLoaded('cloud')) {
-        await LazyLoader.loadCloudTransfer();
     }
 }

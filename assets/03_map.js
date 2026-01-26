@@ -181,8 +181,7 @@ function parseMoneyToNumber(str) { if (!str) return 0; return parseInt(str.toStr
 // Removed enhanceDocumentWithAI as OCR is no longer used
 
 // --- MAP FUNCTIONS ---
-// Renamed to _toggleMapReal for lazy loading wrapper
-async function _toggleMapReal() {
+async function toggleMap() {
     const mapScreen = getEl('screen-map');
     if (mapScreen.classList.contains('translate-x-full')) {
         // Slide-in first (avoid blocking animation with heavy map work)
@@ -350,5 +349,4 @@ function locateMe() {
     }
 }
 
-// Export for lazy loading wrapper
-window._toggleMapReal = _toggleMapReal;
+
