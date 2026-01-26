@@ -110,7 +110,7 @@
     <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleMenu()">
     </div>
     <div id="settings-menu"
-        class="fixed top-20 right-4 w-80 glass-panel rounded-2xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300 max-h-[85vh] overflow-y-auto custom-scrollbar">
+        class="fixed top-20 right-4 w-80 glass-panel rounded-2xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
         <div class="px-5 py-4 border-b border-white/5">
             <h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3>
             <p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro</p>
@@ -263,19 +263,11 @@
                     </div>
                 </div>
 
-                <div class="flex gap-2">
-                    <button onclick="openCalendar()"
-                        class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
-                        style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"
-                        title="Lịch nhắc nhở">
-                        <i data-lucide="calendar" class="w-6 h-6"></i>
-                    </button>
-                    <button onclick="toggleMenu()"
-                        class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
-                        style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
-                        <i data-lucide="settings-2" class="w-6 h-6"></i>
-                    </button>
-                </div>
+                <button onclick="toggleMenu()"
+                    class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
+                    style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
+                    <i data-lucide="settings-2" class="w-6 h-6"></i>
+                </button>
             </div>
 
             <div class="flex justify-end mb-2 text-[11px] font-medium">
@@ -340,7 +332,6 @@
         class="app-container z-20 transform translate-x-full transition-transform duration-300 hidden"
         style="background: var(--bg-base);">
 
-        <!-- Header -->
         <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
             <div class="flex items-center justify-between mb-4">
                 <button onclick="closeCalendar()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
@@ -356,7 +347,6 @@
                 </button>
             </div>
 
-            <!-- Month Navigation -->
             <div class="flex items-center justify-between px-2">
                 <button onclick="prevMonth()" class="p-2 rounded-full hover:bg-white/10 transition"
                     style="color: var(--text-main)">
@@ -372,9 +362,7 @@
             </div>
         </header>
 
-        <!-- Calendar Grid -->
         <div class="px-4 py-3">
-            <!-- Weekday Headers -->
             <div class="grid grid-cols-7 gap-1 mb-2 text-center">
                 <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T2</span>
                 <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T3</span>
@@ -384,21 +372,21 @@
                 <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T7</span>
                 <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">CN</span>
             </div>
-            <!-- Days Grid -->
             <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
         </div>
 
-        <!-- Day Reminders -->
-        <div class="flex-1 scroll-area px-4 pb-24">
+        <div class="flex-1 scroll-area px-4 pb-28">
             <div id="day-reminders"></div>
         </div>
 
-        <!-- FAB Add Reminder -->
-        <button onclick="openReminderModal()"
-            class="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-transform"
-            style="background: var(--accent-gradient);">
-            <i data-lucide="plus" class="w-7 h-7 text-white"></i>
-        </button>
+        <!-- FAB inside screen-calendar, not fixed globally -->
+        <div class="absolute bottom-6 right-6">
+            <button onclick="openReminderModal()"
+                class="w-14 h-14 rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-transform"
+                style="background: var(--accent-gradient);">
+                <i data-lucide="plus" class="w-7 h-7 text-white"></i>
+            </button>
+        </div>
     </div>
 
     <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300"
@@ -605,8 +593,6 @@
     <script src="./assets/16_auto_backup_drive.js" defer></script>
     <!-- Onboarding tour for new users -->
     <script src="./assets/17_onboarding_tour.js" defer></script>
-    <!-- Calendar & Reminders -->
-    <script src="./assets/19_calendar.js" defer></script>
     <script src="./assets/10_bootstrap.js" defer></script>
     <script src="./assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
     <script src="./assets/pwa.js" defer></script>
