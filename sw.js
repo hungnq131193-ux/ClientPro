@@ -3,8 +3,8 @@
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-// v4.4.0: Added calendar reminders feature
-const VERSION = 'v4.5.5calendar';
+// v4.5.6: Added calendar reminders feature
+const VERSION = 'v4.5.6';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
