@@ -143,6 +143,7 @@ function getLunarDateStr(dd, mm, yy) {
 function openCalendar() {
     const screen = getEl('screen-calendar');
     const dashboard = getEl('screen-dashboard');
+    const fab = getEl('fab-add-reminder');
     if (!screen) return;
 
     // Reset to current month
@@ -157,6 +158,9 @@ function openCalendar() {
         dashboard.style.transform = 'translateX(-30%)';
     }, 10);
 
+    // Show FAB button
+    if (fab) fab.style.display = 'flex';
+
     renderCalendar();
     loadDayReminders(selectedDate);
     requestNotificationPermission();
@@ -166,9 +170,13 @@ function openCalendar() {
 function closeCalendar() {
     const screen = getEl('screen-calendar');
     const dashboard = getEl('screen-dashboard');
+    const fab = getEl('fab-add-reminder');
 
     screen.classList.add('translate-x-full');
     dashboard.style.transform = '';
+
+    // Hide FAB button
+    if (fab) fab.style.display = 'none';
 
     setTimeout(() => {
         screen.classList.add('hidden');
