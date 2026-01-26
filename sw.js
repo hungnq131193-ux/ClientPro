@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.5.6: Added calendar reminders feature
-const VERSION = 'v4.5.8';
+const VERSION = 'v4.5.9';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
