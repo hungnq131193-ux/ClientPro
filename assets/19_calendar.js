@@ -10,6 +10,133 @@ let calendarMonth = new Date().getMonth();
 let selectedDate = null;
 
 // ============================================================
+// VIETNAMESE LUNAR CALENDAR CONVERSION
+// Based on Ho Ngoc Duc's algorithm
+// ============================================================
+
+const PI = Math.PI;
+
+function jdFromDate(dd, mm, yy) {
+    const a = Math.floor((14 - mm) / 12);
+    const y = yy + 4800 - a;
+    const m = mm + 12 * a - 3;
+    let jd = dd + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+    if (jd < 2299161) {
+        jd = dd + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - 32083;
+    }
+    return jd;
+}
+
+function getNewMoonDay(k) {
+    const T = k / 1236.85;
+    const T2 = T * T;
+    const T3 = T2 * T;
+    const dr = PI / 180;
+    let Jd1 = 2415020.75933 + 29.53058868 * k + 0.0001178 * T2 - 0.000000155 * T3;
+    Jd1 = Jd1 + 0.00033 * Math.sin((166.56 + 132.87 * T - 0.009173 * T2) * dr);
+    const M = 359.2242 + 29.10535608 * k - 0.0000333 * T2 - 0.00000347 * T3;
+    const Mpr = 306.0253 + 385.81691806 * k + 0.0107306 * T2 + 0.00001236 * T3;
+    const F = 21.2964 + 390.67050646 * k - 0.0016528 * T2 - 0.00000239 * T3;
+    let C1 = (0.1734 - 0.000393 * T) * Math.sin(M * dr) + 0.0021 * Math.sin(2 * dr * M);
+    C1 = C1 - 0.4068 * Math.sin(Mpr * dr) + 0.0161 * Math.sin(dr * 2 * Mpr);
+    C1 = C1 - 0.0004 * Math.sin(dr * 3 * Mpr);
+    C1 = C1 + 0.0104 * Math.sin(dr * 2 * F) - 0.0051 * Math.sin(dr * (M + Mpr));
+    C1 = C1 - 0.0074 * Math.sin(dr * (M - Mpr)) + 0.0004 * Math.sin(dr * (2 * F + M));
+    C1 = C1 - 0.0004 * Math.sin(dr * (2 * F - M)) - 0.0006 * Math.sin(dr * (2 * F + Mpr));
+    C1 = C1 + 0.0010 * Math.sin(dr * (2 * F - Mpr)) + 0.0005 * Math.sin(dr * (2 * Mpr + M));
+    let deltat;
+    if (T < -11) {
+        deltat = 0.001 + 0.000839 * T + 0.0002261 * T2 - 0.00000845 * T3 - 0.000000081 * T * T3;
+    } else {
+        deltat = -0.000278 + 0.000265 * T + 0.000262 * T2;
+    }
+    return Math.floor(Jd1 + C1 - deltat + 0.5 + 0.5);
+}
+
+function getSunLongitude(jdn) {
+    const T = (jdn - 2451545.5 - 0.5) / 36525;
+    const T2 = T * T;
+    const dr = PI / 180;
+    const M = 357.52910 + 35999.05030 * T - 0.0001559 * T2 - 0.00000048 * T * T2;
+    const L0 = 280.46645 + 36000.76983 * T + 0.0003032 * T2;
+    let DL = (1.914600 - 0.004817 * T - 0.000014 * T2) * Math.sin(dr * M);
+    DL = DL + (0.019993 - 0.000101 * T) * Math.sin(dr * 2 * M) + 0.000290 * Math.sin(dr * 3 * M);
+    let L = L0 + DL;
+    L = L * dr;
+    L = L - PI * 2 * (Math.floor(L / (PI * 2)));
+    return Math.floor(L / PI * 6);
+}
+
+function getLunarMonth11(yy) {
+    const off = jdFromDate(31, 12, yy) - 2415021;
+    const k = Math.floor(off / 29.530588853);
+    let nm = getNewMoonDay(k);
+    const sunLong = getSunLongitude(nm);
+    if (sunLong >= 9) {
+        nm = getNewMoonDay(k - 1);
+    }
+    return nm;
+}
+
+function getLeapMonthOffset(a11) {
+    const k = Math.floor((a11 - 2415021.076998695) / 29.530588853 + 0.5);
+    let last = 0;
+    let i = 1;
+    let arc = getSunLongitude(getNewMoonDay(k + i));
+    do {
+        last = arc;
+        i++;
+        arc = getSunLongitude(getNewMoonDay(k + i));
+    } while (arc !== last && i < 14);
+    return i - 1;
+}
+
+function convertSolar2Lunar(dd, mm, yy) {
+    const dayNumber = jdFromDate(dd, mm, yy);
+    const k = Math.floor((dayNumber - 2415021.076998695) / 29.530588853);
+    let monthStart = getNewMoonDay(k + 1);
+    if (monthStart > dayNumber) {
+        monthStart = getNewMoonDay(k);
+    }
+    let a11 = getLunarMonth11(yy);
+    let b11 = a11;
+    let lunarYear;
+    if (a11 >= monthStart) {
+        lunarYear = yy;
+        a11 = getLunarMonth11(yy - 1);
+    } else {
+        lunarYear = yy + 1;
+        b11 = getLunarMonth11(yy + 1);
+    }
+    const lunarDay = dayNumber - monthStart + 1;
+    const diff = Math.floor((monthStart - a11) / 29);
+    let lunarLeap = 0;
+    let lunarMonth = diff + 11;
+    if (b11 - a11 > 365) {
+        const leapMonthDiff = getLeapMonthOffset(a11);
+        if (diff >= leapMonthDiff) {
+            lunarMonth = diff + 10;
+            if (diff === leapMonthDiff) {
+                lunarLeap = 1;
+            }
+        }
+    }
+    if (lunarMonth > 12) {
+        lunarMonth = lunarMonth - 12;
+    }
+    if (lunarMonth >= 11 && diff < 4) {
+        lunarYear -= 1;
+    }
+    return { day: lunarDay, month: lunarMonth, year: lunarYear, leap: lunarLeap };
+}
+
+// Get lunar date string for display
+function getLunarDateStr(dd, mm, yy) {
+    const lunar = convertSolar2Lunar(dd, mm, yy);
+    return `${lunar.day}/${lunar.month}${lunar.leap ? ' nhuận' : ''}`;
+}
+
+// ============================================================
 // CALENDAR NAVIGATION
 // ============================================================
 
@@ -117,13 +244,18 @@ async function renderCalendar() {
         const isSelected = dateStr === selectedDate;
         const hasReminder = reminderDates.has(dateStr);
 
+        // Get lunar date
+        const lunar = convertSolar2Lunar(day, calendarMonth + 1, calendarYear);
+        const lunarStr = lunar.day === 1 ? `${lunar.day}/${lunar.month}` : lunar.day;
+
         let classes = 'calendar-day';
         if (isToday) classes += ' today';
         if (isSelected) classes += ' selected';
         if (hasReminder) classes += ' has-reminder';
 
         html += `<div class="${classes}" onclick="selectDay('${dateStr}')">
-            <span>${day}</span>
+            <span class="solar-day">${day}</span>
+            <span class="lunar-day">${lunarStr}</span>
             ${hasReminder ? '<span class="reminder-dot"></span>' : ''}
         </div>`;
     }
@@ -301,8 +433,8 @@ function closeReminderModal() {
 }
 
 async function populateCustomerDropdown() {
-    const container = getEl('rem-customer-container');
-    if (!container) return;
+    const select = getEl('rem-customer');
+    if (!select) return;
 
     try {
         const tx = db.transaction(['customers'], 'readonly');
@@ -311,75 +443,17 @@ async function populateCustomerDropdown() {
 
         req.onsuccess = (e) => {
             const customers = e.target.result || [];
-            // Store customers globally for search
-            window._reminderCustomers = customers.map(c => ({
-                id: c.id,
-                name: decryptText(c.name) || 'Không tên'
-            }));
+            let html = '<option value="">-- Không liên kết --</option>';
 
-            renderCustomerOptions('');
+            customers.forEach(c => {
+                const name = decryptText(c.name) || 'Không tên';
+                html += `<option value="${c.id}">${escapeHTML(name)}</option>`;
+            });
+
+            select.innerHTML = html;
         };
     } catch (e) { }
 }
-
-function renderCustomerOptions(searchTerm) {
-    const list = getEl('rem-customer-list');
-    const hiddenInput = getEl('rem-customer');
-    if (!list) return;
-
-    const customers = window._reminderCustomers || [];
-    const term = searchTerm.toLowerCase().trim();
-
-    // Filter customers by search term
-    const filtered = term
-        ? customers.filter(c => c.name.toLowerCase().includes(term))
-        : customers;
-
-    let html = `<div class="customer-option" onclick="selectCustomer('', '-- Không liên kết --')">
-        <span class="opacity-60">-- Không liên kết --</span>
-    </div>`;
-
-    filtered.forEach(c => {
-        html += `<div class="customer-option" onclick="selectCustomer('${c.id}', '${escapeHTML(c.name).replace(/'/g, "\\'")}')">
-            <i data-lucide="user" class="w-4 h-4 opacity-50"></i>
-            <span>${escapeHTML(c.name)}</span>
-        </div>`;
-    });
-
-    if (filtered.length === 0 && term) {
-        html = `<div class="text-center py-4 opacity-50 text-sm">Không tìm thấy "${escapeHTML(searchTerm)}"</div>`;
-    }
-
-    list.innerHTML = html;
-    try { lucide.createIcons(); } catch (e) { }
-}
-
-function selectCustomer(id, name) {
-    const hiddenInput = getEl('rem-customer');
-    const searchInput = getEl('rem-customer-search');
-    const list = getEl('rem-customer-list');
-
-    if (hiddenInput) hiddenInput.value = id;
-    if (searchInput) searchInput.value = id ? name : '';
-    if (list) list.classList.add('hidden');
-}
-
-function toggleCustomerList() {
-    const list = getEl('rem-customer-list');
-    if (list) {
-        list.classList.toggle('hidden');
-        if (!list.classList.contains('hidden')) {
-            renderCustomerOptions(getEl('rem-customer-search')?.value || '');
-        }
-    }
-}
-
-function onCustomerSearch(e) {
-    const list = getEl('rem-customer-list');
-    if (list) list.classList.remove('hidden');
-    renderCustomerOptions(e.target.value);
-}
-
 
 async function getReminderById(id) {
     return new Promise((resolve) => {

@@ -348,19 +348,6 @@ body.theme-mono {
   box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
 }
 
-/* Tab button styles for folder screen */
-.glass-tab-active {
-  background: var(--accent);
-  color: white;
-  border-color: transparent;
-}
-
-.glass-tab-inactive {
-  background: transparent;
-  color: var(--text-sub);
-  border-color: transparent;
-}
-
 .glass-header {
   background: var(--header-bg);
   backdrop-filter: blur(16px) saturate(180%);
@@ -1095,10 +1082,7 @@ input::placeholder {
   gap: 1rem;
 }
 
-/* ============================================
-   CALENDAR STYLES
-   ============================================ */
-
+/* Calendar day with lunar date */
 .calendar-day {
   aspect-ratio: 1;
   display: flex;
@@ -1109,9 +1093,20 @@ input::placeholder {
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
+  color: var(--text-main);
+  gap: 1px;
+}
+
+.calendar-day .solar-day {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.calendar-day .lunar-day {
+  font-size: 8px;
+  opacity: 0.5;
+  line-height: 1;
 }
 
 .calendar-day:hover {
@@ -1133,12 +1128,16 @@ input::placeholder {
   color: white;
 }
 
+.calendar-day.selected .lunar-day {
+  opacity: 0.7;
+}
+
 .calendar-day.has-reminder::after {
   content: '';
   position: absolute;
-  bottom: 4px;
-  width: 6px;
-  height: 6px;
+  bottom: 2px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--accent);
 }
