@@ -786,10 +786,8 @@ function openFolder(id) {
         updateSelectionUI();
 
         // Về tab Thông tin khách hàng trước (user request)
+        // switchTab('info') sẽ gọi loadCustomerInfo() bên trong
         switchTab('info');
-
-        // Force load customer info immediately (đảm bảo data hiển thị)
-        loadCustomerInfo();
 
         // Decrypt assets theo batch sau khi animation ổn định.
         // Nếu người dùng chuyển sang tab TSBĐ, renderAssets sẽ dùng cache __dec để nhanh hơn.
@@ -883,28 +881,36 @@ function switchTab(tabName) {
     isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
 }
 
-// Load customer info into Info tab (use already-loaded currentCustomerData)
+// Load customer info into Info tab (always fetch fresh from DB to ensure correct decryption)
 function loadCustomerInfo() {
-    if (!currentCustomerData) return;
+    if (!currentCustomerId || !db) return;
 
-    const c = currentCustomerData;
-    // Note: phone, cccd are already decrypted in openFolder -> decryptCustomerSummary
-    const phone = c.phone || '--';
-    const cccd = c.cccd || '--';
-    const notes = decryptText(c.notes) || '';
-    const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
+    const tx = db.transaction(['customers'], 'readonly');
+    const store = tx.objectStore('customers');
+    const req = store.get(currentCustomerId);
 
-    const phoneEl = getEl('info-phone');
-    const cccdEl = getEl('info-cccd');
-    const createdEl = getEl('info-created');
-    const notesEl = getEl('info-notes');
+    req.onsuccess = (e) => {
+        const c = e.target.result;
+        if (!c) return;
 
-    if (phoneEl) phoneEl.textContent = phone;
-    if (cccdEl) cccdEl.textContent = cccd;
-    if (createdEl) createdEl.textContent = `Tạo: ${createdAt}`;
-    if (notesEl) notesEl.value = notes;
+        // Always decrypt fresh to ensure correct data
+        const phone = decryptText(c.phone) || '--';
+        const cccd = decryptText(c.cccd) || '--';
+        const notes = decryptText(c.notes) || '';
+        const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
 
-    try { lucide.createIcons(); } catch (e) { }
+        const phoneEl = getEl('info-phone');
+        const cccdEl = getEl('info-cccd');
+        const createdEl = getEl('info-created');
+        const notesEl = getEl('info-notes');
+
+        if (phoneEl) phoneEl.textContent = phone;
+        if (cccdEl) cccdEl.textContent = cccd;
+        if (createdEl) createdEl.textContent = `Tạo: ${createdAt}`;
+        if (notesEl) notesEl.value = notes;
+
+        try { lucide.createIcons(); } catch (e) { }
+    };
 }
 
 // Save customer notes
