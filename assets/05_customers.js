@@ -788,6 +788,9 @@ function openFolder(id) {
         // Về tab Thông tin khách hàng trước (user request)
         switchTab('info');
 
+        // Force load customer info immediately (đảm bảo data hiển thị)
+        loadCustomerInfo();
+
         // Decrypt assets theo batch sau khi animation ổn định.
         // Nếu người dùng chuyển sang tab TSBĐ, renderAssets sẽ dùng cache __dec để nhanh hơn.
         const runDecryptAssets = async () => {
@@ -886,7 +889,6 @@ function loadCustomerInfo() {
 
     const c = currentCustomerData;
     // Note: phone, cccd are already decrypted in openFolder -> decryptCustomerSummary
-    // Only notes needs decryption here (not done in summary)
     const phone = c.phone || '--';
     const cccd = c.cccd || '--';
     const notes = decryptText(c.notes) || '';
