@@ -107,7 +107,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
   req.onsuccess = (e) => {
     db = e.target.result;
-    loadCustomers();
+    // Update folder counts on home screen instead of loading customer list directly
+    if (typeof updateFolderCounts === 'function') {
+      updateFolderCounts();
+    }
     getEl("loader").classList.add("hidden");
     checkSecurity();
 

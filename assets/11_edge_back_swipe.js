@@ -207,6 +207,9 @@
     if (isVisibleSlide('screen-calendar')) {
       return callIfFn('closeCalendar') || (get('screen-calendar').classList.add('translate-x-full'), true);
     }
+    if (isVisibleSlide('screen-customer-list')) {
+      return callIfFn('closeCustomerList') || (get('screen-customer-list').classList.add('translate-x-full'), true);
+    }
     if (isVisibleSlide('screen-folder')) {
       return callIfFn('closeFolder') || (get('screen-folder').classList.add('translate-x-full'), true);
     }

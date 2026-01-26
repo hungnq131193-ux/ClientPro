@@ -139,10 +139,80 @@ function deleteSelectedCustomers() {
 }
 
 function switchListTab(tab) {
-    activeListTab = tab; const tabPending = getEl('list-tab-pending'); const tabApproved = getEl('list-tab-approved');
-    if (tab === 'pending') { tabPending.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 bg-white/10 text-white shadow-md border border-white/10"; tabApproved.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 text-slate-400 hover:text-white"; }
-    else { tabPending.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 text-slate-400 hover:text-white"; tabApproved.className = "flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300 bg-emerald-500/10 text-emerald-400 shadow-md border border-emerald-500/20"; }
+    activeListTab = tab;
     loadCustomers(getEl('search-input').value);
+}
+
+// ============================================================
+// FOLDER-BASED NAVIGATION
+// ============================================================
+
+function openCustomerList(type) {
+    activeListTab = type;
+
+    const screen = getEl('screen-customer-list');
+    const dashboard = getEl('screen-dashboard');
+    const titleEl = getEl('customer-list-title');
+
+    if (!screen) return;
+
+    // Set title based on type
+    if (titleEl) {
+        titleEl.textContent = type === 'approved' ? 'Khách hàng đã vay' : 'KH đang thẩm định';
+    }
+
+    // Show screen with slide animation
+    screen.classList.remove('hidden');
+    setTimeout(() => {
+        screen.classList.remove('translate-x-full');
+        if (dashboard) dashboard.style.transform = 'translateX(-30%)';
+    }, 10);
+
+    // Load customers for this type
+    loadCustomers('');
+    try { lucide.createIcons(); } catch (e) { }
+}
+
+function closeCustomerList() {
+    const screen = getEl('screen-customer-list');
+    const dashboard = getEl('screen-dashboard');
+
+    if (!screen) return;
+
+    screen.classList.add('translate-x-full');
+    if (dashboard) dashboard.style.transform = '';
+
+    setTimeout(() => {
+        screen.classList.add('hidden');
+    }, 300);
+}
+
+// Update folder counts on home screen
+async function updateFolderCounts() {
+    if (!db) return;
+
+    try {
+        const list = await new Promise((resolve) => {
+            const tx = db.transaction(['customers'], 'readonly');
+            const req = tx.objectStore('customers').getAll();
+            req.onsuccess = (e) => resolve(e.target.result || []);
+            req.onerror = () => resolve([]);
+        });
+
+        let approvedCount = 0;
+        let pendingCount = 0;
+
+        list.forEach(c => {
+            if (c && c.status === 'approved') approvedCount++;
+            else pendingCount++;
+        });
+
+        const approvedEl = getEl('count-approved');
+        const pendingEl = getEl('count-pending');
+
+        if (approvedEl) approvedEl.textContent = approvedCount;
+        if (pendingEl) pendingEl.textContent = pendingCount;
+    } catch (e) { }
 }
 
 // =======================
@@ -703,8 +773,8 @@ function openFolder(id) {
         selectedImages.clear();
         updateSelectionUI();
 
-        // Về tab Hồ sơ ảnh, load ảnh + TSBĐ
-        switchTab('images');
+        // Về tab Thông tin khách hàng trước (user request)
+        switchTab('info');
 
         // Decrypt assets theo batch sau khi animation ổn định.
         // Nếu người dùng chuyển sang tab TSBĐ, renderAssets sẽ dùng cache __dec để nhanh hơn.
