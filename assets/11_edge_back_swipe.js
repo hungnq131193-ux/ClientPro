@@ -200,7 +200,7 @@
       return callIfFn('closeBackupManagerModal') || (get('backup-manager-modal').classList.add('hidden'), true);
     }
 
-    // Slide panels
+    // Slide panels (order matters: most nested first)
     if (isVisibleSlide('screen-asset-gallery')) {
       return callIfFn('closeAssetGallery') || (get('screen-asset-gallery').classList.add('translate-x-full'), true);
     }
@@ -210,11 +210,12 @@
     if (isVisibleSlide('screen-calendar')) {
       return callIfFn('closeCalendar') || (get('screen-calendar').classList.add('translate-x-full'), true);
     }
-    if (isVisibleSlide('screen-customer-list')) {
-      return callIfFn('closeCustomerList') || (get('screen-customer-list').classList.add('translate-x-full'), true);
-    }
+    // screen-folder is nested inside screen-customer-list, so close it first
     if (isVisibleSlide('screen-folder')) {
       return callIfFn('closeFolder') || (get('screen-folder').classList.add('translate-x-full'), true);
+    }
+    if (isVisibleSlide('screen-customer-list')) {
+      return callIfFn('closeCustomerList') || (get('screen-customer-list').classList.add('translate-x-full'), true);
     }
 
     // Reminder modal
