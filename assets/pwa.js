@@ -14,17 +14,17 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v4.0.8_gpsalign';
+  var SW_BUILD = 'v4.3.2_fix_info';
 
   function sendSkipWaiting(sw) {
     try {
       if (sw) sw.postMessage({ type: "SKIP_WAITING" });
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Prevent infinite reload loops: only reload once per tab/session
   function markReloaded() {
-    try { sessionStorage.setItem("clientpro_sw_reloaded", "1"); } catch (e) {}
+    try { sessionStorage.setItem("clientpro_sw_reloaded", "1"); } catch (e) { }
   }
   function hasReloaded() {
     try { return sessionStorage.getItem("clientpro_sw_reloaded") === "1"; } catch (e) { return false; }
