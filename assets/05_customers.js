@@ -184,6 +184,8 @@ function closeCustomerList() {
 
     setTimeout(() => {
         screen.classList.add('hidden');
+        // Refresh folder counts when returning to home
+        updateFolderCounts();
     }, 300);
 }
 
@@ -798,19 +800,27 @@ function openFolder(id) {
 }
 function closeFolder() {
     const folderScreen = getEl('screen-folder');
+    const customerListScreen = getEl('screen-customer-list');
+
     folderScreen.classList.add('translate-x-full');
 
-    // Defer heavy list reload until after the slide-out ends to avoid jank
-    const q = (getEl('search-input') && getEl('search-input').value) || '';
+    // Reset customer ID after animation
     if (typeof afterTransition === 'function') {
         afterTransition(folderScreen, () => {
             currentCustomerId = null;
-            loadCustomers(q);
+            // Reload customer list if still visible
+            if (customerListScreen && !customerListScreen.classList.contains('hidden') && !customerListScreen.classList.contains('translate-x-full')) {
+                const q = (getEl('search-input') && getEl('search-input').value) || '';
+                loadCustomers(q);
+            }
         });
     } else {
         setTimeout(() => {
             currentCustomerId = null;
-            loadCustomers(q);
+            if (customerListScreen && !customerListScreen.classList.contains('hidden') && !customerListScreen.classList.contains('translate-x-full')) {
+                const q = (getEl('search-input') && getEl('search-input').value) || '';
+                loadCustomers(q);
+            }
         }, 360);
     }
 }

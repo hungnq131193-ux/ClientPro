@@ -196,6 +196,9 @@
     if (isVisibleModal('forgot-pin-modal')) {
       return callIfFn('closeForgotModal') || (get('forgot-pin-modal').classList.add('hidden'), true);
     }
+    if (isVisibleModal('backup-manager-modal')) {
+      return callIfFn('closeBackupManagerModal') || (get('backup-manager-modal').classList.add('hidden'), true);
+    }
 
     // Slide panels
     if (isVisibleSlide('screen-asset-gallery')) {
