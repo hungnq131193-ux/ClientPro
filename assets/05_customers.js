@@ -885,8 +885,10 @@ function loadCustomerInfo() {
     if (!currentCustomerData) return;
 
     const c = currentCustomerData;
-    const phone = decryptText(c.phone) || '--';
-    const cccd = decryptText(c.cccd) || '--';
+    // Note: phone, cccd are already decrypted in openFolder -> decryptCustomerSummary
+    // Only notes needs decryption here (not done in summary)
+    const phone = c.phone || '--';
+    const cccd = c.cccd || '--';
     const notes = decryptText(c.notes) || '';
     const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
 
