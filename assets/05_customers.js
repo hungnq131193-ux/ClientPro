@@ -745,30 +745,102 @@ function closeFolder() {
     }
 }
 function switchTab(tabName) {
+    const tabInfo = getEl('tab-btn-info');
     const tabImages = getEl('tab-btn-images');
     const tabAssets = getEl('tab-btn-assets');
 
-    // Reset classes
     const activeClass = "glass-tab-active flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all";
     const inactiveClass = "glass-tab-inactive flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all hover:bg-white/5";
 
-    if (tabName === 'images') {
-        tabImages.className = activeClass;
-        tabAssets.className = inactiveClass;
-        getEl('content-images').classList.remove('hidden');
-        getEl('content-assets').classList.add('hidden');
-        getEl('actions-images').classList.remove('hidden');
-        getEl('actions-assets').classList.add('hidden');
+    // Reset all tabs
+    if (tabInfo) tabInfo.className = inactiveClass;
+    if (tabImages) tabImages.className = inactiveClass;
+    if (tabAssets) tabAssets.className = inactiveClass;
+
+    // Hide all content
+    const contentInfo = getEl('content-info');
+    const contentImages = getEl('content-images');
+    const contentAssets = getEl('content-assets');
+    const actionsImages = getEl('actions-images');
+    const actionsAssets = getEl('actions-assets');
+
+    if (contentInfo) contentInfo.classList.add('hidden');
+    if (contentImages) contentImages.classList.add('hidden');
+    if (contentAssets) contentAssets.classList.add('hidden');
+    if (actionsImages) actionsImages.classList.add('hidden');
+    if (actionsAssets) actionsAssets.classList.add('hidden');
+
+    // Show selected tab
+    if (tabName === 'info') {
+        if (tabInfo) tabInfo.className = activeClass;
+        if (contentInfo) contentInfo.classList.remove('hidden');
+        loadCustomerInfo();
+    } else if (tabName === 'images') {
+        if (tabImages) tabImages.className = activeClass;
+        if (contentImages) contentImages.classList.remove('hidden');
+        if (actionsImages) actionsImages.classList.remove('hidden');
         loadProfileImages();
-    } else {
-        tabImages.className = inactiveClass;
-        tabAssets.className = activeClass;
-        getEl('content-images').classList.add('hidden');
-        getEl('content-assets').classList.remove('hidden');
-        getEl('actions-images').classList.add('hidden');
-        getEl('actions-assets').classList.remove('hidden');
+    } else if (tabName === 'assets') {
+        if (tabAssets) tabAssets.className = activeClass;
+        if (contentAssets) contentAssets.classList.remove('hidden');
+        if (actionsAssets) actionsAssets.classList.remove('hidden');
         renderAssets();
     }
+
     isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
 }
 
+// Load customer info into Info tab
+function loadCustomerInfo() {
+    if (!currentCustomerId) return;
+
+    const tx = db.transaction(['customers'], 'readonly');
+    const store = tx.objectStore('customers');
+    const req = store.get(currentCustomerId);
+
+    req.onsuccess = (e) => {
+        const c = e.target.result;
+        if (!c) return;
+
+        const phone = decryptText(c.phone) || '--';
+        const cccd = decryptText(c.cccd) || '--';
+        const notes = decryptText(c.notes) || '';
+        const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
+
+        const phoneEl = getEl('info-phone');
+        const cccdEl = getEl('info-cccd');
+        const createdEl = getEl('info-created');
+        const notesEl = getEl('info-notes');
+
+        if (phoneEl) phoneEl.textContent = phone;
+        if (cccdEl) cccdEl.textContent = cccd;
+        if (createdEl) createdEl.textContent = `Tạo: ${createdAt}`;
+        if (notesEl) notesEl.value = notes;
+
+        try { lucide.createIcons(); } catch (e) { }
+    };
+}
+
+// Save customer notes
+async function saveCustomerNotes() {
+    if (!currentCustomerId) return;
+
+    const notesEl = getEl('info-notes');
+    const notesText = notesEl ? notesEl.value.trim() : '';
+
+    const tx = db.transaction(['customers'], 'readwrite');
+    const store = tx.objectStore('customers');
+    const req = store.get(currentCustomerId);
+
+    req.onsuccess = (e) => {
+        const c = e.target.result;
+        if (!c) return;
+
+        // Encrypt notes before saving
+        c.notes = encryptText(notesText);
+        c.updatedAt = Date.now();
+
+        store.put(c);
+        showToast('Đã lưu ghi chú');
+    };
+}

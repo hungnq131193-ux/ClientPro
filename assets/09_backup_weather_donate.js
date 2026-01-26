@@ -236,6 +236,7 @@ async function _restoreFromEncryptedContent(encryptedContent) {
     cust.name = enc(cust.name);
     cust.phone = enc(cust.phone);
     cust.cccd = enc(cust.cccd);
+    cust.notes = enc(cust.notes);
 
     if (cust.assets && Array.isArray(cust.assets)) {
       cust.assets = cust.assets.map((a) => {
@@ -306,6 +307,7 @@ async function backupData() {
       cust.name = decryptText(cust.name);
       cust.phone = decryptText(cust.phone);
       cust.cccd = decryptText(cust.cccd);
+      cust.notes = decryptText(cust.notes);
       cust.driveLink = null;
 
       if (cust.assets && Array.isArray(cust.assets)) {
