@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 🌤 Khởi động thời tiết
   initWeather();
 
-  const req = indexedDB.open(DB_NAME, 4);
+  const req = indexedDB.open(DB_NAME, 5);
   req.onupgradeneeded = (e) => {
     db = e.target.result;
 
@@ -96,6 +96,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (!bkStore.indexNames.contains("deviceId")) {
       bkStore.createIndex("deviceId", "deviceId", { unique: false });
+    }
+
+    // Reminders (Calendar feature)
+    if (!db.objectStoreNames.contains("reminders")) {
+      const remStore = db.createObjectStore("reminders", { keyPath: "id" });
+      remStore.createIndex("datetime", "datetime", { unique: false });
+      remStore.createIndex("customerId", "customerId", { unique: false });
     }
   };
   req.onsuccess = (e) => {
