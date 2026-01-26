@@ -452,14 +452,58 @@
             </div>
 
             <div class="p-1 rounded-xl bg-black/20 border border-white/5 mx-0 mb-3 flex gap-1">
+                <button onclick="switchTab('info')" id="tab-btn-info"
+                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Thông
+                    Tin</button>
                 <button onclick="switchTab('images')" id="tab-btn-images"
                     class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Hồ
                     Sơ Ảnh</button>
                 <button onclick="switchTab('assets')" id="tab-btn-assets"
                     class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Tài
-                    Sản Bảo Đảm</button>
+                    Sản</button>
             </div>
         </div>
+
+        <!-- Tab: Thông tin KH -->
+        <div id="content-info" class="hidden scroll-area flex-1 p-4 space-y-4">
+            <div class="glass-panel p-4 rounded-xl space-y-3">
+                <div class="flex items-center gap-2 mb-3">
+                    <i data-lucide="user" class="w-5 h-5" style="color: var(--accent)"></i>
+                    <span class="font-bold text-sm" style="color: var(--text-main)">Thông tin liên hệ</span>
+                </div>
+                <div class="space-y-2 text-sm" style="color: var(--text-sub)">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="phone" class="w-4 h-4 opacity-50"></i>
+                        <span id="info-phone">--</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="credit-card" class="w-4 h-4 opacity-50"></i>
+                        <span id="info-cccd">--</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="calendar" class="w-4 h-4 opacity-50"></i>
+                        <span id="info-created">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 rounded-xl">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="file-text" class="w-5 h-5" style="color: var(--accent)"></i>
+                        <span class="font-bold text-sm" style="color: var(--text-main)">Ghi chú</span>
+                    </div>
+                    <button onclick="saveCustomerNotes()" class="px-3 py-1 rounded-lg text-xs font-bold"
+                        style="background: var(--accent); color: white;">
+                        <i data-lucide="save" class="w-3 h-3 inline mr-1"></i> Lưu
+                    </button>
+                </div>
+                <textarea id="info-notes" rows="6" placeholder="Nhập ghi chú về khách hàng..."
+                    class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm outline-none resize-none"
+                    style="color: var(--text-main)"></textarea>
+            </div>
+        </div>
+
         <div id="content-images" class="scroll-area flex-1 img-grid-container content-start"></div>
         <div id="content-assets" class="hidden scroll-area flex-1 p-4 space-y-4"></div>
         <div class="glass-panel border-t p-4 pb-8 flex gap-3 flex-none z-30" style="border-color: var(--border-panel)">
