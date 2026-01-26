@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 🌤 Khởi động thời tiết
   initWeather();
 
-  const req = indexedDB.open(DB_NAME, 4);
+  const req = indexedDB.open(DB_NAME, 5);
   req.onupgradeneeded = (e) => {
     db = e.target.result;
 
@@ -97,6 +97,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!bkStore.indexNames.contains("deviceId")) {
       bkStore.createIndex("deviceId", "deviceId", { unique: false });
     }
+
+    // Reminders (Calendar feature)
+    let remStore;
+    if (!db.objectStoreNames.contains("reminders")) {
+      remStore = db.createObjectStore("reminders", { keyPath: "id" });
+    } else {
+      remStore = e.target.transaction.objectStore("reminders");
+    }
+    if (!remStore.indexNames.contains("datetime")) {
+      remStore.createIndex("datetime", "datetime", { unique: false });
+    }
+    if (!remStore.indexNames.contains("customerId")) {
+      remStore.createIndex("customerId", "customerId", { unique: false });
+    }
+    if (!remStore.indexNames.contains("status")) {
+      remStore.createIndex("status", "status", { unique: false });
+    }
   };
   req.onsuccess = (e) => {
     db = e.target.result;
@@ -108,6 +125,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       if (window.AuthGate && typeof window.AuthGate.preflight === 'function') {
         setTimeout(() => { try { window.AuthGate.preflight(); } catch (e) { } }, 12000);
+      }
+    } catch (e) { }
+
+    // Schedule pending reminder notifications (non-blocking)
+    try {
+      if (typeof checkPendingReminders === 'function') {
+        setTimeout(() => { try { checkPendingReminders(); } catch (e) { } }, 3000);
       }
     } catch (e) { }
 

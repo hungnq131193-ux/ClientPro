@@ -1119,3 +1119,59 @@ input::placeholder {
 .gap-4 {
   gap: 1rem;
 }
+
+/* ============================================
+   CALENDAR STYLES
+   ============================================ */
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.calendar-day:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.calendar-day.empty {
+  cursor: default;
+  background: transparent;
+}
+
+.calendar-day.today {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid var(--accent);
+}
+
+.calendar-day.selected {
+  background: var(--accent);
+  color: white;
+}
+
+.calendar-day.has-reminder::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.calendar-day.selected.has-reminder::after {
+  background: white;
+}
+
+.reminder-dot {
+  display: none;
+}
