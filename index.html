@@ -387,14 +387,12 @@
             <div id="day-reminders"></div>
         </div>
 
-        <!-- FAB inside screen-calendar, not fixed globally -->
-        <div class="absolute bottom-6 right-6">
-            <button onclick="openReminderModal()"
-                class="w-14 h-14 rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-transform"
-                style="background: var(--accent-gradient);">
-                <i data-lucide="plus" class="w-7 h-7 text-white"></i>
-            </button>
-        </div>
+        <!-- FAB for adding reminder - fixed position so it's always visible -->
+        <button id="fab-add-reminder" onclick="openReminderModal()"
+            class="fixed bottom-6 right-6 z-[500] w-14 h-14 rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-transform"
+            style="background: var(--accent-gradient); display: none;">
+            <i data-lucide="plus" class="w-7 h-7 text-white"></i>
+        </button>
     </div>
 
     <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300"
