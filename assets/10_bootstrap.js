@@ -98,7 +98,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       bkStore.createIndex("deviceId", "deviceId", { unique: false });
     }
 
-    // Reminders (Calendar feature)
+    // Reminders (Calendar feature) - personal data, not synced/backed up
     let remStore;
     if (!db.objectStoreNames.contains("reminders")) {
       remStore = db.createObjectStore("reminders", { keyPath: "id" });
@@ -110,9 +110,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (!remStore.indexNames.contains("customerId")) {
       remStore.createIndex("customerId", "customerId", { unique: false });
-    }
-    if (!remStore.indexNames.contains("status")) {
-      remStore.createIndex("status", "status", { unique: false });
     }
   };
   req.onsuccess = (e) => {
@@ -134,7 +131,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         setTimeout(() => { try { checkPendingReminders(); } catch (e) { } }, 3000);
       }
     } catch (e) { }
-
 
     // Cloud transfer inbox polling (notify when other users send backups)
     try {

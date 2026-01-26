@@ -301,8 +301,8 @@ function closeReminderModal() {
 }
 
 async function populateCustomerDropdown() {
-    const select = getEl('rem-customer');
-    if (!select) return;
+    const container = getEl('rem-customer-container');
+    if (!container) return;
 
     try {
         const tx = db.transaction(['customers'], 'readonly');
@@ -311,17 +311,75 @@ async function populateCustomerDropdown() {
 
         req.onsuccess = (e) => {
             const customers = e.target.result || [];
-            let html = '<option value="">-- Không liên kết --</option>';
+            // Store customers globally for search
+            window._reminderCustomers = customers.map(c => ({
+                id: c.id,
+                name: decryptText(c.name) || 'Không tên'
+            }));
 
-            customers.forEach(c => {
-                const name = decryptText(c.name) || 'Không tên';
-                html += `<option value="${c.id}">${escapeHTML(name)}</option>`;
-            });
-
-            select.innerHTML = html;
+            renderCustomerOptions('');
         };
     } catch (e) { }
 }
+
+function renderCustomerOptions(searchTerm) {
+    const list = getEl('rem-customer-list');
+    const hiddenInput = getEl('rem-customer');
+    if (!list) return;
+
+    const customers = window._reminderCustomers || [];
+    const term = searchTerm.toLowerCase().trim();
+
+    // Filter customers by search term
+    const filtered = term
+        ? customers.filter(c => c.name.toLowerCase().includes(term))
+        : customers;
+
+    let html = `<div class="customer-option" onclick="selectCustomer('', '-- Không liên kết --')">
+        <span class="opacity-60">-- Không liên kết --</span>
+    </div>`;
+
+    filtered.forEach(c => {
+        html += `<div class="customer-option" onclick="selectCustomer('${c.id}', '${escapeHTML(c.name).replace(/'/g, "\\'")}')">
+            <i data-lucide="user" class="w-4 h-4 opacity-50"></i>
+            <span>${escapeHTML(c.name)}</span>
+        </div>`;
+    });
+
+    if (filtered.length === 0 && term) {
+        html = `<div class="text-center py-4 opacity-50 text-sm">Không tìm thấy "${escapeHTML(searchTerm)}"</div>`;
+    }
+
+    list.innerHTML = html;
+    try { lucide.createIcons(); } catch (e) { }
+}
+
+function selectCustomer(id, name) {
+    const hiddenInput = getEl('rem-customer');
+    const searchInput = getEl('rem-customer-search');
+    const list = getEl('rem-customer-list');
+
+    if (hiddenInput) hiddenInput.value = id;
+    if (searchInput) searchInput.value = id ? name : '';
+    if (list) list.classList.add('hidden');
+}
+
+function toggleCustomerList() {
+    const list = getEl('rem-customer-list');
+    if (list) {
+        list.classList.toggle('hidden');
+        if (!list.classList.contains('hidden')) {
+            renderCustomerOptions(getEl('rem-customer-search')?.value || '');
+        }
+    }
+}
+
+function onCustomerSearch(e) {
+    const list = getEl('rem-customer-list');
+    if (list) list.classList.remove('hidden');
+    renderCustomerOptions(e.target.value);
+}
+
 
 async function getReminderById(id) {
     return new Promise((resolve) => {
