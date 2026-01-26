@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 🌤 Khởi động thời tiết
   initWeather();
 
-  const req = indexedDB.open(DB_NAME, 5);
+  const req = indexedDB.open(DB_NAME, 4);
   req.onupgradeneeded = (e) => {
     db = e.target.result;
 
@@ -97,20 +97,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!bkStore.indexNames.contains("deviceId")) {
       bkStore.createIndex("deviceId", "deviceId", { unique: false });
     }
-
-    // Reminders (Calendar feature) - personal data, not synced/backed up
-    let remStore;
-    if (!db.objectStoreNames.contains("reminders")) {
-      remStore = db.createObjectStore("reminders", { keyPath: "id" });
-    } else {
-      remStore = e.target.transaction.objectStore("reminders");
-    }
-    if (!remStore.indexNames.contains("datetime")) {
-      remStore.createIndex("datetime", "datetime", { unique: false });
-    }
-    if (!remStore.indexNames.contains("customerId")) {
-      remStore.createIndex("customerId", "customerId", { unique: false });
-    }
   };
   req.onsuccess = (e) => {
     db = e.target.result;
@@ -125,12 +111,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     } catch (e) { }
 
-    // Schedule pending reminder notifications (non-blocking)
-    try {
-      if (typeof checkPendingReminders === 'function') {
-        setTimeout(() => { try { checkPendingReminders(); } catch (e) { } }, 3000);
-      }
-    } catch (e) { }
 
     // Cloud transfer inbox polling (notify when other users send backups)
     try {
