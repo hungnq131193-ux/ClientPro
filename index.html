@@ -285,30 +285,34 @@
                     <span id="current-weather" class="max-w-[160px] truncate">Đang tải thời tiết...</span>
                 </button>
             </div>
-            <div class="flex p-1 rounded-xl mb-3 bg-black/20 border border-white/5">
-                <button onclick="switchListTab('pending')" id="list-tab-pending"
-                    class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">KH đang
-                    Thẩm Định</button>
-                <button onclick="switchListTab('approved')" id="list-tab-approved"
-                    class="flex-1 py-2.5 text-[11px] font-bold uppercase rounded-lg transition-all duration-300">Khách
-                    hàng đã vay</button>
-            </div>
-            <div class="flex gap-2">
-                <div class="relative flex-1">
-                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50"
-                        style="color: var(--text-main)"></i>
-                    <input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..."
-                        class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors"
-                        style="border-color: var(--border-panel); color: var(--text-main);">
-                </div>
-                <button onclick="toggleCustSelectionMode()" id="btn-cust-select"
-                    class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20"
-                    style="border-color: var(--border-panel); color: var(--text-sub);">
-                    <i data-lucide="list-checks" class="w-5 h-5"></i>
-                </button>
-            </div>
         </header>
-        <div class="scroll-area flex-1 p-4 space-y-3" id="customer-list"></div>
+
+        <!-- Folder Cards View -->
+        <div class="scroll-area flex-1 p-4 space-y-4" id="folder-view">
+            <!-- Approved Customers Folder -->
+            <div class="folder-card" onclick="openCustomerList('approved')">
+                <div class="folder-icon approved">
+                    <i data-lucide="folder-check" class="w-8 h-8"></i>
+                </div>
+                <div class="folder-info">
+                    <span class="folder-title">Khách hàng đã vay</span>
+                    <span class="folder-count"><span id="count-approved">0</span> hồ sơ</span>
+                </div>
+                <i data-lucide="chevron-right" class="w-5 h-5 opacity-40" style="color: var(--text-sub)"></i>
+            </div>
+
+            <!-- Pending Customers Folder -->
+            <div class="folder-card" onclick="openCustomerList('pending')">
+                <div class="folder-icon pending">
+                    <i data-lucide="folder-clock" class="w-8 h-8"></i>
+                </div>
+                <div class="folder-info">
+                    <span class="folder-title">KH đang thẩm định</span>
+                    <span class="folder-count"><span id="count-pending">0</span> hồ sơ</span>
+                </div>
+                <i data-lucide="chevron-right" class="w-5 h-5 opacity-40" style="color: var(--text-sub)"></i>
+            </div>
+        </div>
 
         <div class="absolute bottom-8 right-6 flex items-center gap-4 z-[100]">
             <button onclick="toggleMap()"
@@ -322,6 +326,45 @@
                 <i data-lucide="plus" class="w-6 h-6"></i> <span class="text-sm">Thêm Mới</span>
             </button>
         </div>
+    </div>
+
+    <!-- CUSTOMER LIST SCREEN (Slide Panel) -->
+    <div id="screen-customer-list"
+        class="app-container z-20 transform translate-x-full transition-transform duration-300 hidden"
+        style="background: var(--bg-base);">
+
+        <header class="glass-header px-4 py-4 flex-none w-full">
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="closeCustomerList()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="arrow-left" class="w-6 h-6"></i>
+                </button>
+                <h2 id="customer-list-title" class="font-bold text-lg" style="color: var(--text-main)">
+                    Danh sách KH
+                </h2>
+                <button onclick="openModal()" class="p-2 -mr-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--accent)">
+                    <i data-lucide="plus" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <div class="flex gap-2">
+                <div class="relative flex-1">
+                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50"
+                        style="color: var(--text-main)"></i>
+                    <input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..."
+                        class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors"
+                        style="border-color: var(--border-panel); color: var(--text-main); background: transparent;">
+                </div>
+                <button onclick="toggleCustSelectionMode()" id="btn-cust-select"
+                    class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20"
+                    style="border-color: var(--border-panel); color: var(--text-sub);">
+                    <i data-lucide="list-checks" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="scroll-area flex-1 p-4 space-y-3" id="customer-list"></div>
     </div>
 
     <div id="screen-map"
