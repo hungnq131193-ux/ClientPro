@@ -23,7 +23,7 @@
         'body{touch-action:pan-y;}'
       ].join('');
       document.head.appendChild(st);
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // --- Gesture tuning ---
@@ -204,8 +204,16 @@
     if (isVisibleSlide('screen-map')) {
       return callIfFn('toggleMap') || (get('screen-map').classList.add('translate-x-full'), true);
     }
+    if (isVisibleSlide('screen-calendar')) {
+      return callIfFn('closeCalendar') || (get('screen-calendar').classList.add('translate-x-full'), true);
+    }
     if (isVisibleSlide('screen-folder')) {
       return callIfFn('closeFolder') || (get('screen-folder').classList.add('translate-x-full'), true);
+    }
+
+    // Reminder modal
+    if (isVisibleModal('reminder-modal')) {
+      return callIfFn('closeReminderModal') || (get('reminder-modal').classList.add('hidden'), true);
     }
 
     // Fallback: close any top-most overlay/panel even if IDs differ
@@ -334,7 +342,7 @@
         const ok = runBackAction();
         if (ok) history.pushState(SENTINEL_STATE, document.title, location.href);
       });
-    } catch (_) {}
+    } catch (_) { }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
