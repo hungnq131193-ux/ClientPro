@@ -345,7 +345,7 @@ function renderList(list) {
                     </span>
                    </div>`
                 : `<div class="flex items-center gap-1.5 mt-1.5">
-                    <span class="text-[10px] font-medium text-indigo-300 bg-indigo-500/15 px-2 py-0.5 rounded-full border border-indigo-500/30 flex items-center gap-1 animate-pulse">
+                    <span class="text-[10px] font-medium text-indigo-300 bg-indigo-500/15 px-2 py-0.5 rounded-full border border-indigo-500/30 flex items-center gap-1">
                         <i data-lucide="clock" class="w-3 h-3"></i> Đang thẩm định
                     </span>
                    </div>`;
