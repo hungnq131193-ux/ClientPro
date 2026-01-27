@@ -786,8 +786,10 @@ function openFolder(id) {
         updateSelectionUI();
 
         // Về tab Thông tin khách hàng trước (user request)
-        // switchTab('info') sẽ gọi loadCustomerInfo() bên trong
         switchTab('info');
+
+        // Đảm bảo thông tin được cập nhật ngay lập tức
+        loadCustomerInfo();
 
         // Decrypt assets theo batch sau khi animation ổn định.
         // Nếu người dùng chuyển sang tab TSBĐ, renderAssets sẽ dùng cache __dec để nhanh hơn.
