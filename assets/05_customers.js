@@ -868,7 +868,10 @@ function switchTab(tabName) {
         renderAssets();
     }
 
-    isSelectionMode = false; selectedImages.clear(); updateSelectionUI();
+
+    isSelectionMode = false;
+    if (typeof selectedImages !== 'undefined' && selectedImages.clear) selectedImages.clear();
+    if (typeof updateSelectionUI === 'function') updateSelectionUI();
 }
 
 // Load customer info into Info tab
