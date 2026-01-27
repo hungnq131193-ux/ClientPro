@@ -715,49 +715,15 @@ function renderFolderHeader(data) {
 
 function openFolder(id) {
     currentCustomerId = id;
-
     const folderScreen = getEl('screen-folder');
 
-    // Prevent "flash" of stale customer data during slide-in
-    try {
-        getEl('folder-customer-name').textContent = 'Đang tải...';
-        getEl('folder-avatar').textContent = '…';
-        const badge = getEl('detail-status-badge');
-        if (badge) {
-            badge.className = "glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2";
-            badge.innerHTML = '<span>Đang tải</span>';
-        }
-        const imgArea = getEl('content-images');
-        if (imgArea) imgArea.innerHTML = '';
-        const assetArea = getEl('content-assets');
-        if (assetArea) assetArea.innerHTML = '';
-        // Reset scroll so user doesn't see previous scroll position
-        if (imgArea) imgArea.scrollTop = 0;
-        if (assetArea) assetArea.scrollTop = 0;
-
-        // Reset info tab fields to prevent stale data display
-        const phoneEl = getEl('info-phone');
-        const cccdEl = getEl('info-cccd');
-        const createdEl = getEl('info-created');
-        const notesEl = getEl('info-notes');
-        if (phoneEl) phoneEl.textContent = '--';
-        if (cccdEl) cccdEl.textContent = '--';
-        if (createdEl) createdEl.textContent = 'Đang tải...';
-        if (notesEl) notesEl.value = '';
-    } catch (e) { }
-
-    // Slide-in on next frame for smoother compositing
-    if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
-    else folderScreen.classList.remove('translate-x-full');
-
-    // Lấy data khách hàng
+    // Fetch data FIRST, then show folder with data ready
     const tx = db.transaction(['customers'], 'readonly');
     tx.objectStore('customers').get(id).onsuccess = (e) => {
         currentCustomerData = e.target.result;
         if (!currentCustomerData) return;
 
-        // PERF: chỉ giải mã summary trước để header hiện ngay.
-        // Assets sẽ decrypt theo batch ở background (không block UI).
+        // Decrypt summary fields
         try {
             if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(currentCustomerData);
             else {
@@ -768,41 +734,44 @@ function openFolder(id) {
             currentCustomerData.driveLink = decryptText(currentCustomerData.driveLink);
         } catch (err) { }
 
-        // Sửa dữ liệu cũ nếu thiếu
+        // Fix old data if missing fields
         if (!currentCustomerData.status) currentCustomerData.status = 'pending';
         if (!currentCustomerData.assets) currentCustomerData.assets = [];
 
-        // Header: tên, SĐT, trạng thái
+        // Clear previous content
+        const imgArea = getEl('content-images');
+        const assetArea = getEl('content-assets');
+        if (imgArea) { imgArea.innerHTML = ''; imgArea.scrollTop = 0; }
+        if (assetArea) { assetArea.innerHTML = ''; assetArea.scrollTop = 0; }
+
+        // Render header with ACTUAL data (not placeholder)
         renderFolderHeader(currentCustomerData);
 
-        // ⭐ Quan trọng: hiển thị lại trạng thái Drive sau khi reload / restore
+        // Render Drive status
         if (typeof renderDriveStatus === "function") {
             renderDriveStatus(currentCustomerData.driveLink || null);
         }
 
-        // Reset chọn ảnh nếu có
+        // Reset selection mode
         isSelectionMode = false;
         selectedImages.clear();
         updateSelectionUI();
 
-        // Về tab Thông tin khách hàng trước (user request)
+        // Switch to info tab and load info data BEFORE showing folder
         switchTab('info');
-
-        // Đảm bảo thông tin được cập nhật ngay lập tức
         loadCustomerInfo();
 
-        // Decrypt assets theo batch sau khi animation ổn định.
-        // Nếu người dùng chuyển sang tab TSBĐ, renderAssets sẽ dùng cache __dec để nhanh hơn.
+        // NOW show folder slide-in (data is already populated)
+        if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
+        else folderScreen.classList.remove('translate-x-full');
+
+        // Decrypt assets in background for other tabs
         const runDecryptAssets = async () => {
             try {
                 if (typeof window.decryptCustomerAssetsAsync === 'function') {
                     await window.decryptCustomerAssetsAsync(currentCustomerData, { batchSize: 6 });
                 } else if (typeof window.decryptCustomerObjectAsync === 'function') {
                     await window.decryptCustomerObjectAsync(currentCustomerData, { batchSize: 6 });
-                }
-                const assetsPane = getEl('content-assets');
-                if (assetsPane && !assetsPane.classList.contains('hidden')) {
-                    renderAssets();
                 }
             } catch (err) { }
         };
