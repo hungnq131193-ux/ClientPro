@@ -339,8 +339,16 @@ function renderList(list) {
             };
 
             const limitHtml = isApproved
-                ? `<p class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded mt-1.5 w-fit border border-emerald-500/20 tracking-wider">HM: ${c.creditLimit || '0'}</p>`
-                : `<p class="text-[10px] text-slate-400 mt-1 italic opacity-60">Đang thẩm định...</p>`;
+                ? `<div class="flex items-center gap-1.5 mt-1.5">
+                    <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                        <i data-lucide="check-circle" class="w-3 h-3"></i> HM: ${c.creditLimit || '0'}
+                    </span>
+                   </div>`
+                : `<div class="flex items-center gap-1.5 mt-1.5">
+                    <span class="text-[10px] font-medium text-indigo-300 bg-indigo-500/15 px-2 py-0.5 rounded-full border border-indigo-500/30 flex items-center gap-1 animate-pulse">
+                        <i data-lucide="clock" class="w-3 h-3"></i> Đang thẩm định
+                    </span>
+                   </div>`;
             const checkIcon = isCustSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
 
             // Escape dynamic values to prevent XSS
@@ -348,19 +356,27 @@ function renderList(list) {
             const safePhone = escapeHTML(c.phone || '');
             const safeInitial = escapeHTML((c.name || '').charAt(0).toUpperCase());
 
+            // Avatar styling - glow for approved
+            const avatarClass = isApproved
+                ? 'w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-emerald-400 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/20'
+                : 'w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/10 text-indigo-400 ring-1 ring-indigo-500/30';
+
             el.innerHTML = `
                         ${checkIcon}
-                        <div class="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 border border-white/10 shadow-inner ${isApproved ? 'bg-emerald-500/10 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'}">
+                        <div class="${avatarClass}">
                             ${safeInitial}
                         </div>
                         <div class="flex-1 min-w-0">
-                            <h3 class="font-bold text-white truncate text-base mb-0.5 leading-tight">${safeName}</h3>
+                            <h3 class="font-bold text-white truncate text-base mb-0.5 leading-tight flex items-center gap-1.5">
+                                ${safeName}
+                                ${isApproved ? '<i data-lucide="badge-check" class="w-4 h-4 text-emerald-400 shrink-0"></i>' : ''}
+                            </h3>
                             <p class="text-xs text-slate-400 font-mono flex items-center gap-1.5"><i data-lucide="smartphone" class="w-3 h-3 opacity-70"></i> ${safePhone}</p>
                             ${limitHtml}
                         </div>
-                        <div class="flex gap-2.5">
-                            <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-10 h-10 flex items-center justify-center text-blue-400 rounded-xl"><i data-lucide="message-circle" class="w-5 h-5"></i></a>
-                            <a href="tel:${c.phone}" class="action-btn glass-btn w-10 h-10 flex items-center justify-center text-green-400 rounded-xl"><i data-lucide="phone" class="w-5 h-5"></i></a>
+                        <div class="flex gap-2">
+                            <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-blue-400 rounded-xl hover:bg-blue-500/20"><i data-lucide="message-circle" class="w-4 h-4"></i></a>
+                            <a href="tel:${c.phone}" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-green-400 rounded-xl hover:bg-green-500/20"><i data-lucide="phone" class="w-4 h-4"></i></a>
                         </div>`;
 
             frag.appendChild(el);

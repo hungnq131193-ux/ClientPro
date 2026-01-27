@@ -573,6 +573,62 @@ input::placeholder {
   box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
 }
 
+/* Compact theme button for settings */
+.theme-btn-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s, border-color 0.15s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.theme-btn-sm:active {
+  transform: scale(0.95);
+}
+
+.theme-btn-sm.active {
+  border-color: white;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+/* Settings action button - 2 column grid */
+.settings-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.15s;
+}
+
+.settings-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Full-width settings button */
+.settings-btn-full {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.settings-btn-full:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .select-ring {
   width: 22px;
   height: 22px;
