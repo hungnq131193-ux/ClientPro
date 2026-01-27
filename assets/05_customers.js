@@ -352,9 +352,12 @@ function renderList(list) {
             const checkIcon = isCustSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
 
             // Escape dynamic values to prevent XSS
-            const safeName = escapeHTML(c.name || '');
-            const safePhone = escapeHTML(c.phone || '');
-            const safeInitial = escapeHTML((c.name || '').charAt(0).toUpperCase());
+            // Fallback if data still looks encrypted
+            const displayName = (c.name && !_looksEncrypted(c.name)) ? c.name : 'Đang tải...';
+            const displayPhone = (c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--';
+            const safeName = escapeHTML(displayName);
+            const safePhone = escapeHTML(displayPhone);
+            const safeInitial = escapeHTML(displayName.charAt(0).toUpperCase());
 
             // Avatar styling - glow for approved
             const avatarClass = isApproved
@@ -415,10 +418,13 @@ function openEditCustomerModal() {
 
     getEl('add-modal').classList.remove('hidden');
 
-    // Fill form with current customer data
-    getEl('new-name').value = currentCustomerData.name || '';
-    getEl('new-phone').value = currentCustomerData.phone || '';
-    if (getEl('new-cccd')) getEl('new-cccd').value = currentCustomerData.cccd || '';
+    // Fill form with current customer data (check for encrypted values)
+    const safeName = (currentCustomerData.name && !_looksEncrypted(currentCustomerData.name)) ? currentCustomerData.name : '';
+    const safePhone = (currentCustomerData.phone && !_looksEncrypted(currentCustomerData.phone)) ? currentCustomerData.phone : '';
+    const safeCccd = (currentCustomerData.cccd && !_looksEncrypted(currentCustomerData.cccd)) ? currentCustomerData.cccd : '';
+    getEl('new-name').value = safeName;
+    getEl('new-phone').value = safePhone;
+    if (getEl('new-cccd')) getEl('new-cccd').value = safeCccd;
     getEl('edit-cust-id').value = currentCustomerData.id || '';
 
     // Update modal title and button
@@ -910,9 +916,11 @@ function loadCustomerInfo() {
 
     // phone, cccd, name are already decrypted by decryptCustomerSummary in openFolder
     // Only notes needs to be decrypted here
-    const phone = c.phone || '--';
-    const cccd = c.cccd || '--';
-    const notes = decryptText(c.notes) || '';
+    // Check if field still looks encrypted - show '--' instead
+    const phone = (c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--';
+    const cccd = (c.cccd && !_looksEncrypted(c.cccd)) ? c.cccd : '--';
+    const rawNotes = decryptText(c.notes);
+    const notes = (rawNotes && !_looksEncrypted(rawNotes)) ? rawNotes : '';
     const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
 
     const phoneEl = getEl('info-phone');
