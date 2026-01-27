@@ -717,68 +717,87 @@ function openFolder(id) {
     currentCustomerId = id;
     const folderScreen = getEl('screen-folder');
 
-    // Fetch data FIRST, then show folder with data ready
-    const tx = db.transaction(['customers'], 'readonly');
-    tx.objectStore('customers').get(id).onsuccess = (e) => {
-        currentCustomerData = e.target.result;
-        if (!currentCustomerData) return;
+    // Check if db is ready
+    if (!db) {
+        console.error('openFolder: db not ready');
+        return;
+    }
 
-        // Decrypt summary fields
-        try {
-            if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(currentCustomerData);
-            else {
-                currentCustomerData.name = decryptText(currentCustomerData.name);
-                currentCustomerData.phone = decryptText(currentCustomerData.phone);
-                currentCustomerData.cccd = decryptText(currentCustomerData.cccd);
+    try {
+        // Fetch data FIRST, then show folder with data ready
+        const tx = db.transaction(['customers'], 'readonly');
+        const req = tx.objectStore('customers').get(id);
+
+        req.onsuccess = (e) => {
+            currentCustomerData = e.target.result;
+            if (!currentCustomerData) {
+                console.error('openFolder: customer not found:', id);
+                return;
             }
-            currentCustomerData.driveLink = decryptText(currentCustomerData.driveLink);
-        } catch (err) { }
 
-        // Fix old data if missing fields
-        if (!currentCustomerData.status) currentCustomerData.status = 'pending';
-        if (!currentCustomerData.assets) currentCustomerData.assets = [];
-
-        // Clear previous content
-        const imgArea = getEl('content-images');
-        const assetArea = getEl('content-assets');
-        if (imgArea) { imgArea.innerHTML = ''; imgArea.scrollTop = 0; }
-        if (assetArea) { assetArea.innerHTML = ''; assetArea.scrollTop = 0; }
-
-        // Render header with ACTUAL data (not placeholder)
-        renderFolderHeader(currentCustomerData);
-
-        // Render Drive status
-        if (typeof renderDriveStatus === "function") {
-            renderDriveStatus(currentCustomerData.driveLink || null);
-        }
-
-        // Reset selection mode
-        isSelectionMode = false;
-        selectedImages.clear();
-        updateSelectionUI();
-
-        // Switch to info tab and load info data BEFORE showing folder
-        switchTab('info');
-        loadCustomerInfo();
-
-        // NOW show folder slide-in (data is already populated)
-        if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
-        else folderScreen.classList.remove('translate-x-full');
-
-        // Decrypt assets in background for other tabs
-        const runDecryptAssets = async () => {
+            // Decrypt summary fields
             try {
-                if (typeof window.decryptCustomerAssetsAsync === 'function') {
-                    await window.decryptCustomerAssetsAsync(currentCustomerData, { batchSize: 6 });
-                } else if (typeof window.decryptCustomerObjectAsync === 'function') {
-                    await window.decryptCustomerObjectAsync(currentCustomerData, { batchSize: 6 });
+                if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(currentCustomerData);
+                else {
+                    currentCustomerData.name = decryptText(currentCustomerData.name);
+                    currentCustomerData.phone = decryptText(currentCustomerData.phone);
+                    currentCustomerData.cccd = decryptText(currentCustomerData.cccd);
                 }
-            } catch (err) { }
+                currentCustomerData.driveLink = decryptText(currentCustomerData.driveLink);
+            } catch (err) { console.error('openFolder decrypt error:', err); }
+
+            // Fix old data if missing fields
+            if (!currentCustomerData.status) currentCustomerData.status = 'pending';
+            if (!currentCustomerData.assets) currentCustomerData.assets = [];
+
+            // Clear previous content
+            const imgArea = getEl('content-images');
+            const assetArea = getEl('content-assets');
+            if (imgArea) { imgArea.innerHTML = ''; imgArea.scrollTop = 0; }
+            if (assetArea) { assetArea.innerHTML = ''; assetArea.scrollTop = 0; }
+
+            // Render header with ACTUAL data (not placeholder)
+            renderFolderHeader(currentCustomerData);
+
+            // Render Drive status
+            if (typeof renderDriveStatus === "function") {
+                renderDriveStatus(currentCustomerData.driveLink || null);
+            }
+
+            // Reset selection mode
+            isSelectionMode = false;
+            selectedImages.clear();
+            updateSelectionUI();
+
+            // Switch to info tab and load info data BEFORE showing folder
+            switchTab('info');
+            loadCustomerInfo();
+
+            // NOW show folder slide-in (data is already populated)
+            if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
+            else folderScreen.classList.remove('translate-x-full');
+
+            // Decrypt assets in background for other tabs
+            const runDecryptAssets = async () => {
+                try {
+                    if (typeof window.decryptCustomerAssetsAsync === 'function') {
+                        await window.decryptCustomerAssetsAsync(currentCustomerData, { batchSize: 6 });
+                    } else if (typeof window.decryptCustomerObjectAsync === 'function') {
+                        await window.decryptCustomerObjectAsync(currentCustomerData, { batchSize: 6 });
+                    }
+                } catch (err) { }
+            };
+
+            if (typeof afterTransition === 'function') afterTransition(folderScreen, runDecryptAssets);
+            else setTimeout(runDecryptAssets, 360);
         };
 
-        if (typeof afterTransition === 'function') afterTransition(folderScreen, runDecryptAssets);
-        else setTimeout(runDecryptAssets, 360);
-    };
+        req.onerror = (e) => {
+            console.error('openFolder DB error:', e);
+        };
+    } catch (err) {
+        console.error('openFolder exception:', err);
+    }
 }
 function closeFolder() {
     const folderScreen = getEl('screen-folder');
