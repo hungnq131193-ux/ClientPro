@@ -766,8 +766,8 @@ function openFolder(id) {
 
             // Reset selection mode
             isSelectionMode = false;
-            selectedImages.clear();
-            updateSelectionUI();
+            if (typeof selectedImages !== 'undefined') selectedImages.clear();
+            if (typeof updateSelectionUI === 'function') updateSelectionUI();
 
             // Switch to info tab and load info data BEFORE showing folder
             switchTab('info');
