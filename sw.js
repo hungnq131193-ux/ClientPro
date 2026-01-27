@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v4.3.7_explicit_load';
+const VERSION = 'v4.3.8_data_first';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
