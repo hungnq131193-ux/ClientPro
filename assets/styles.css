@@ -575,9 +575,9 @@ input::placeholder {
 
 /* Compact theme button for settings */
 .theme-btn-sm {
-  width: 100%;
-  aspect-ratio: 1;
-  max-width: 36px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
   border-radius: 6px;
   border: 2px solid transparent;
   cursor: pointer;
