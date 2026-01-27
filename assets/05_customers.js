@@ -760,6 +760,14 @@ function openFolder(id) {
                     currentCustomerData.cccd = decryptText(currentCustomerData.cccd);
                 }
                 currentCustomerData.driveLink = decryptText(currentCustomerData.driveLink);
+
+                // Verify decryption succeeded - if still looks encrypted, try full decrypt
+                if (_looksEncrypted(currentCustomerData.name) || _looksEncrypted(currentCustomerData.phone)) {
+                    console.warn('openFolder: data still encrypted, attempting full decrypt');
+                    if (typeof decryptCustomerObject === 'function') {
+                        decryptCustomerObject(currentCustomerData);
+                    }
+                }
             } catch (err) { console.error('openFolder decrypt error:', err); }
 
             // Fix old data if missing fields
@@ -825,6 +833,7 @@ function closeFolder() {
     if (typeof afterTransition === 'function') {
         afterTransition(folderScreen, () => {
             currentCustomerId = null;
+            currentCustomerData = null; // Clear stale data
             // Reload customer list if still visible
             if (customerListScreen && !customerListScreen.classList.contains('hidden') && !customerListScreen.classList.contains('translate-x-full')) {
                 const q = (getEl('search-input') && getEl('search-input').value) || '';
@@ -834,6 +843,7 @@ function closeFolder() {
     } else {
         setTimeout(() => {
             currentCustomerId = null;
+            currentCustomerData = null; // Clear stale data
             if (customerListScreen && !customerListScreen.classList.contains('hidden') && !customerListScreen.classList.contains('translate-x-full')) {
                 const q = (getEl('search-input') && getEl('search-input').value) || '';
                 loadCustomers(q);
