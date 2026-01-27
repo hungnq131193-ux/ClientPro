@@ -110,134 +110,94 @@
     <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleMenu()">
     </div>
     <div id="settings-menu"
-        class="fixed top-20 right-4 w-80 glass-panel rounded-2xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
-        <div class="px-5 py-4 border-b border-white/5">
-            <h3 class="font-bold text-lg" style="color: var(--text-main)">Cài Đặt</h3>
-            <p class="text-xs font-mono mt-1 opacity-60" style="color: var(--text-sub)">ClientPro</p>
+        class="fixed top-16 right-3 w-56 glass-panel rounded-xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
+        <div class="px-3 py-2.5 border-b border-white/5">
+            <h3 class="font-bold text-sm" style="color: var(--text-main)">Cài Đặt</h3>
         </div>
-        <div class="px-5 py-5 border-b border-white/5">
-            <p class="text-xs font-bold uppercase mb-4 opacity-60 tracking-wider" style="color: var(--text-sub)">Chọn
+        <!-- Theme Grid - Compact -->
+        <div class="px-3 py-3 border-b border-white/5">
+            <p class="text-[10px] font-bold uppercase mb-2 opacity-60 tracking-wider" style="color: var(--text-sub)">
                 Giao diện</p>
-            <div class="flex flex-wrap gap-4 justify-start">
-                <button onclick="setTheme('theme-midnight')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="VietinBank Signature">
+            <div class="grid grid-cols-5 gap-1.5">
+                <button onclick="setTheme('theme-midnight')" class="theme-btn-sm" title="Midnight">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #005b9f 50%, #00aaff 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-sunset')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="VietinBank Dynamic">
+                <button onclick="setTheme('theme-sunset')" class="theme-btn-sm" title="Sunset">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #da251d 50%, #ff6b6b 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-ocean')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="VietinBank Digital">
+                <button onclick="setTheme('theme-ocean')" class="theme-btn-sm" title="Ocean">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #005b9f 0%, #00c8ff 50%, #00ffcc 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-mint')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="VietinBank Premium">
+                <button onclick="setTheme('theme-mint')" class="theme-btn-sm" title="Mint">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #00ffcc 50%, #10b981 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-royal')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="VietinBank Priority">
+                <button onclick="setTheme('theme-royal')" class="theme-btn-sm" title="Royal">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #c8a86b 50%, #fde047 100%);"></div>
                 </button>
-
-                <!-- Expanded themes -->
-                <button onclick="setTheme('theme-aurora')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="Aurora">
+                <button onclick="setTheme('theme-aurora')" class="theme-btn-sm" title="Aurora">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #005b9f 0%, #00ffcc 50%, #22d3ee 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-violet')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="Violet">
+                <button onclick="setTheme('theme-violet')" class="theme-btn-sm" title="Violet">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #8b5cf6 50%, #a855f7 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-emerald')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="Emerald">
+                <button onclick="setTheme('theme-emerald')" class="theme-btn-sm" title="Emerald">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #10b981 50%, #34d399 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-sakura')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="Sakura">
+                <button onclick="setTheme('theme-sakura')" class="theme-btn-sm" title="Sakura">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #005b9f 0%, #fb7185 50%, #fda4af 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-solar')"
-                    class="theme-btn relative overflow-hidden ring-2 ring-transparent active:ring-white transition-all shadow-lg"
-                    title="Solar Gold">
+                <button onclick="setTheme('theme-solar')" class="theme-btn-sm" title="Solar">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #ffb800 50%, #fde047 100%);"></div>
                 </button>
             </div>
         </div>
-        <button onclick="openSecuritySetup()"
-            class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors"
-            style="color: var(--text-main);">
-            <div class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><i data-lucide="shield" class="w-4 h-4"></i>
-            </div> Bảo mật & An toàn
-        </button>
-        <button onclick="backupData()"
-            class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors"
-            style="color: var(--text-main);">
-            <div class="p-1.5 rounded-lg bg-blue-500/20 text-blue-400"><i data-lucide="database" class="w-4 h-4"></i>
-            </div> Tạo Backup
-        </button>
-        <button onclick="openBackupManager()"
-            class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors"
-            style="color: var(--text-main);">
-            <div class="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400"><i data-lucide="archive" class="w-4 h-4"></i>
-            </div> Quản lý Backup
-        </button>
-
-        <!-- 🌟 NÚT DONATE MỚI -->
-        <button onclick="openDonateModal()"
-            class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 border-b border-white/5 text-sm font-medium transition-colors"
-            style="color: var(--text-main);">
-            <div class="p-1.5 rounded-lg bg-pink-500/20 text-pink-400">
-                <i data-lucide="heart" class="w-4 h-4"></i>
-            </div>
-            Ủng hộ tác giả (Donate)
-        </button>
-        <!-- END NÚT DONATE -->
-        <div class="w-full px-5 py-4 border-b border-white/5">
-            <p class="text-xs font-bold uppercase mb-2 opacity-60" style="color: var(--text-sub)">Kết nối Google Drive
-            </p>
-            <div class="flex gap-2">
-                <input id="user-script-url" type="text" placeholder="Dán Link Apps Script..."
-                    class="flex-1 bg-black/30 border border-white/10 rounded-lg p-2 text-xs text-white outline-none">
+        <!-- Action Buttons - 2 Column Grid -->
+        <div class="grid grid-cols-2 gap-1 p-2 border-b border-white/5">
+            <button onclick="openSecuritySetup()" class="settings-btn text-indigo-400">
+                <i data-lucide="shield" class="w-3.5 h-3.5"></i> Bảo mật
+            </button>
+            <button onclick="backupData()" class="settings-btn text-blue-400">
+                <i data-lucide="database" class="w-3.5 h-3.5"></i> Backup
+            </button>
+            <button onclick="openBackupManager()" class="settings-btn text-cyan-400">
+                <i data-lucide="archive" class="w-3.5 h-3.5"></i> Quản lý
+            </button>
+            <button onclick="openDonateModal()" class="settings-btn text-pink-400">
+                <i data-lucide="heart" class="w-3.5 h-3.5"></i> Donate
+            </button>
+        </div>
+        <!-- Google Drive Link -->
+        <div class="px-3 py-2 border-b border-white/5">
+            <p class="text-[10px] font-bold uppercase mb-1.5 opacity-60" style="color: var(--text-sub)">Google Drive</p>
+            <div class="flex gap-1">
+                <input id="user-script-url" type="text" placeholder="Link Apps Script..."
+                    class="flex-1 bg-black/30 border border-white/10 rounded-lg p-1.5 text-[10px] text-white outline-none">
                 <button onclick="saveScriptUrl()"
-                    class="p-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg font-bold hover:bg-blue-600/30"><i
-                        data-lucide="save" class="w-4 h-4"></i></button>
+                    class="p-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg"><i
+                        data-lucide="save" class="w-3 h-3"></i></button>
             </div>
         </div>
-
-        <label
-            class="w-full text-left px-5 py-4 active:bg-white/5 flex items-center gap-3 cursor-pointer border-b border-white/5 text-sm font-medium transition-colors"
-            style="color: var(--text-main);">
-            <div class="p-1.5 rounded-lg bg-orange-500/20 text-orange-400"><i data-lucide="refresh-cw"
-                    class="w-4 h-4"></i></div> Khôi phục từ file (.cpb)<input type="file" id="restore-input"
-                accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)">
+        <!-- Bottom Actions -->
+        <label class="settings-btn-full text-orange-400 cursor-pointer border-b border-white/5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Khôi phục (.cpb)
+            <input type="file" id="restore-input" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)">
         </label>
-        <button onclick="resetAppData()"
-            class="w-full text-left px-5 py-4 active:bg-red-500/10 flex items-center gap-3 text-sm font-bold text-red-400 transition-colors">
-            <div class="p-1.5 rounded-lg bg-red-500/20"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div> Reset
-            Ứng Dụng
+        <button onclick="resetAppData()" class="settings-btn-full text-red-400">
+            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Reset App
         </button>
-        <div class="px-5 py-3 text-center"><span class="text-[10px] opacity-40" style="color: var(--text-sub)">Phát
-                triển bởi Nguyễn Quốc Hưng - 2025</span></div>
+        <div class="px-3 py-1.5 text-center">
+            <span class="text-[9px] opacity-40" style="color: var(--text-sub)">© Nguyễn Quốc Hưng 2025</span>
+        </div>
     </div>
 
     <div id="screen-dashboard" class="app-container z-10 transition-transform duration-300">
