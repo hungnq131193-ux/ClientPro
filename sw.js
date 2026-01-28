@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v4.5.3_fix_encrypt';
+const VERSION = 'v4.6.0_excel_import';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -55,6 +55,8 @@ const STATIC_ASSETS = [
   './assets/15_auth_gate.js',
   './assets/16_auto_backup_drive.js',
   './assets/17_onboarding_tour.js',
+  './assets/19_calendar.js',
+  './assets/20_excel_import.js',
 
   './assets/ui/load_modals.js',
 
