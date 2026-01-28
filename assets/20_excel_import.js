@@ -94,16 +94,18 @@ function parseDate(value) {
     if (!str) return null;
 
     // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
-    const dmyMatch = str.match(/^(\d{1,2})[\\/\\-\\.](\d{1,2})[\\/\\-\\.](\d{4})$/);
+    const dmyMatch = str.match(/^(\d{1,2})[-\/\.](\d{1,2})[-\/\.](\d{4})$/);
     if (dmyMatch) {
         const [, d, m, y] = dmyMatch;
+        console.log('[Excel Import] DMY parsed:', d, m, y);
         return new Date(parseInt(y), parseInt(m) - 1, parseInt(d)).getTime();
     }
 
     // YYYY-MM-DD or YYYY/MM/DD
-    const ymdMatch = str.match(/^(\d{4})[\\/\\-](\d{1,2})[\\/\\-](\d{1,2})$/);
+    const ymdMatch = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
     if (ymdMatch) {
         const [, y, m, d] = ymdMatch;
+        console.log('[Excel Import] YMD parsed:', y, m, d);
         return new Date(parseInt(y), parseInt(m) - 1, parseInt(d)).getTime();
     }
 
