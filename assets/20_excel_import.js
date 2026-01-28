@@ -77,28 +77,40 @@ function normalizeCCCD(cccd) {
 function parseDate(value) {
     if (!value) return null;
 
-    // If it's already a Date object or number (Excel date serial)
+    // If already a Date object
+    if (value instanceof Date) {
+        return value.getTime();
+    }
+
+    // If it's a number (Excel date serial)
     if (typeof value === 'number') {
-        // Excel date serial number
+        // Excel date serial number (days since 1900-01-01)
         const date = new Date((value - 25569) * 86400 * 1000);
         return date.getTime();
     }
 
     // Try parsing string date
-    const str = String(value).trim();
+    let str = cleanExcelText(value);
+    if (!str) return null;
 
-    // DD/MM/YYYY or DD-MM-YYYY
-    const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[\\/\\-\\.](\d{1,2})[\\/\\-\\.](\d{4})$/);
     if (dmyMatch) {
         const [, d, m, y] = dmyMatch;
         return new Date(parseInt(y), parseInt(m) - 1, parseInt(d)).getTime();
     }
 
-    // YYYY-MM-DD
-    const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    // YYYY-MM-DD or YYYY/MM/DD
+    const ymdMatch = str.match(/^(\d{4})[\\/\\-](\d{1,2})[\\/\\-](\d{1,2})$/);
     if (ymdMatch) {
         const [, y, m, d] = ymdMatch;
         return new Date(parseInt(y), parseInt(m) - 1, parseInt(d)).getTime();
+    }
+
+    // Fallback: try native Date parsing
+    const fallback = Date.parse(str);
+    if (!isNaN(fallback)) {
+        return fallback;
     }
 
     return null;
