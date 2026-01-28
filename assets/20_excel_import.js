@@ -44,13 +44,33 @@ function detectColumns(headers) {
     return mapping;
 }
 
+// Clean Excel text format (removes leading ' used for text numbers)
+function cleanExcelText(value) {
+    if (value == null) return '';
+    let str = String(value);
+    // Remove leading apostrophe (Excel text format)
+    if (str.startsWith("'")) str = str.slice(1);
+    return str.trim();
+}
+
 // Parse phone number to standard format
 function normalizePhone(phone) {
     if (!phone) return '';
-    let p = String(phone).replace(/[^0-9]/g, '');
+    let p = cleanExcelText(phone).replace(/[^0-9]/g, '');
     if (p.startsWith('84') && p.length > 9) p = '0' + p.slice(2);
     if (!p.startsWith('0') && p.length === 9) p = '0' + p;
     return p;
+}
+
+// Normalize CCCD (12 digits, add leading 0 if needed)
+function normalizeCCCD(cccd) {
+    if (!cccd) return '';
+    let c = cleanExcelText(cccd).replace(/[^0-9]/g, '');
+    // CCCD có 12 số, nếu thiếu số 0 đầu thì thêm vào
+    if (c.length === 11 && !c.startsWith('0')) c = '0' + c;
+    // CMND cũ có 9 số, nếu thiếu số 0 đầu thì thêm vào
+    if (c.length === 8 && !c.startsWith('0')) c = '0' + c;
+    return c;
 }
 
 // Parse date from various formats
@@ -192,10 +212,10 @@ async function processExcelData(rows) {
         }
 
         const rowData = {
-            name: colMap.name !== undefined ? String(row[colMap.name] || '').trim() : '',
+            name: colMap.name !== undefined ? cleanExcelText(row[colMap.name]) : '',
             phone: phone,
-            cccd: colMap.cccd !== undefined ? String(row[colMap.cccd] || '').trim() : '',
-            creditLimit: colMap.creditLimit !== undefined ? String(row[colMap.creditLimit] || '').trim() : '',
+            cccd: colMap.cccd !== undefined ? normalizeCCCD(row[colMap.cccd]) : '',
+            creditLimit: colMap.creditLimit !== undefined ? cleanExcelText(row[colMap.creditLimit]) : '',
             dueDate: colMap.dueDate !== undefined ? parseDate(row[colMap.dueDate]) : null
         };
 

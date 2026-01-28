@@ -927,11 +927,25 @@ function loadCustomerInfo() {
     const cccdEl = getEl('info-cccd');
     const createdEl = getEl('info-created');
     const notesEl = getEl('info-notes');
+    const dueDateEl = getEl('info-due-date');
 
     if (phoneEl) phoneEl.textContent = phone;
     if (cccdEl) cccdEl.textContent = cccd;
     if (createdEl) createdEl.textContent = `Tạo: ${createdAt}`;
     if (notesEl) notesEl.value = notes;
+
+    // Display dueDate in date input (YYYY-MM-DD format)
+    if (dueDateEl) {
+        if (c.dueDate) {
+            const d = new Date(c.dueDate);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            dueDateEl.value = `${yyyy}-${mm}-${dd}`;
+        } else {
+            dueDateEl.value = '';
+        }
+    }
 
     try { lucide.createIcons(); } catch (e) { }
 }
@@ -957,5 +971,39 @@ async function saveCustomerNotes() {
 
         store.put(c);
         showToast('Đã lưu ghi chú');
+    };
+}
+
+// Save customer due date
+async function saveDueDate() {
+    if (!currentCustomerId) return;
+
+    const dueDateEl = getEl('info-due-date');
+    const dateValue = dueDateEl ? dueDateEl.value : '';
+
+    const tx = db.transaction(['customers'], 'readwrite');
+    const store = tx.objectStore('customers');
+    const req = store.get(currentCustomerId);
+
+    req.onsuccess = (e) => {
+        const c = e.target.result;
+        if (!c) return;
+
+        // Parse date value to timestamp
+        if (dateValue) {
+            c.dueDate = new Date(dateValue).getTime();
+        } else {
+            c.dueDate = null;
+        }
+        c.updatedAt = Date.now();
+
+        store.put(c);
+
+        // Update currentCustomerData too
+        if (currentCustomerData) {
+            currentCustomerData.dueDate = c.dueDate;
+        }
+
+        showToast('Đã lưu ngày đến hạn');
     };
 }
