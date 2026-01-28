@@ -14,7 +14,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v4.5.3_fix_encrypt';
+  var SW_BUILD = 'v4.6.0_excel_import';
 
   function sendSkipWaiting(sw) {
     try {
