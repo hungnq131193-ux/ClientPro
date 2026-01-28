@@ -490,6 +490,13 @@
                         <i data-lucide="calendar" class="w-4 h-4 opacity-50"></i>
                         <span id="info-created">--</span>
                     </div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4 opacity-50"></i>
+                        <span class="opacity-70">Đến hạn:</span>
+                        <input type="date" id="info-due-date"
+                            class="bg-transparent border-b border-white/20 px-1 text-sm outline-none focus:border-blue-400"
+                            style="color: var(--text-main)" onchange="saveDueDate()">
+                    </div>
                 </div>
             </div>
 
