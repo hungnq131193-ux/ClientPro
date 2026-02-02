@@ -586,7 +586,6 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
 // Create / Update customer (called from add-modal.html: onclick="saveCustomer()")
 // IMPORTANT: Must keep existing data schema and encryption behavior.
 async function saveCustomer() {
-    alert('DEBUG: saveCustomer được gọi!'); // DEBUG - xóa sau khi test
     try {
         // Safety check: ensure db is ready
         if (!db) {

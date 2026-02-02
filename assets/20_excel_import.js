@@ -313,7 +313,7 @@ async function updateExistingCustomer(existing, newData) {
 
     if (hasChanges) {
         existing.updatedAt = Date.now();
-        await saveCustomer(existing);
+        await _saveCustomerToDB(existing);
     }
 
     return hasChanges;
@@ -337,11 +337,11 @@ async function createNewCustomer(data) {
         updatedAt: Date.now()
     };
 
-    await saveCustomer(customer);
+    await _saveCustomerToDB(customer);
 }
 
-// Save customer to DB
-function saveCustomer(customer) {
+// Save customer to DB (internal helper for Excel import)
+function _saveCustomerToDB(customer) {
     return new Promise((resolve, reject) => {
         if (!db) {
             reject(new Error('Database not ready'));
