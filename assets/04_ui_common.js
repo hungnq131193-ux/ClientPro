@@ -28,24 +28,20 @@ function showToast(msg) { const t = getEl('toast'); getEl('toast-msg').textConte
 function formatLink(link) { if (!link) return ''; if (link.startsWith('http')) return link; return 'https://' + link; }
 
 // ============================================================
-// LAZY LOADING WRAPPER (Camera only - other modules load normally)
+// CAMERA WRAPPER (直接 gọi không cần lazy load)
 // ============================================================
 
-// Camera: Lazy load then call tryOpenCamera
-async function tryOpenCamera(mode) {
+// Camera: Gọi trực tiếp camera function
+function tryOpenCamera(mode) {
     try {
-        if (typeof LazyLoader !== 'undefined' && !LazyLoader.isLoaded('camera')) {
-            getEl('loader').classList.remove('hidden');
-            getEl('loader-text').textContent = 'Đang tải camera...';
-            await LazyLoader.loadCamera();
-            getEl('loader').classList.add('hidden');
-        }
         // Call actual tryOpenCamera from 08_images_camera.js
         if (typeof window._tryOpenCameraReal === 'function') {
             window._tryOpenCameraReal(mode);
+        } else {
+            showToast('Camera chưa sẵn sàng');
         }
     } catch (e) {
-        getEl('loader').classList.add('hidden');
-        showToast('Không tải được camera');
+        console.error('tryOpenCamera error:', e);
+        showToast('Không mở được camera');
     }
 }
