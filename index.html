@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <base href="./">
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ClientPro</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="theme-color" content="#005b9f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Tailwind (self-host) -->
+    <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
+    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css">
+    <link rel="stylesheet" href="./assets/css/app.patch.css">
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <!-- Transfer Backup uses TEXT chunks (no QR image) -->
+    <!-- Leaflet is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
+    <!-- CryptoJS library for hashing and encryption -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <script defer src="./assets/head.js"></script>
+    <link rel="stylesheet" href="./assets/styles.css">
+    <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
+    <style>
+        html,
+        body {
+            overscroll-behavior-x: contain;
+        }
+
+        body {
+            touch-action: pan-y;
+        }
+    </style>
+</head>
+
+<body class="theme-midnight">
+
+
+
+
+
+
+    <!-- Modal kích hoạt thiết bị: hiển thị khi lần đầu sử dụng ứng dụng -->
+
+
+
+
+
+
+
+
+
+    <!-- ASSET MODAL UPDATED WITH GPS -->
+
+
+
+
+
+
+
+
+
+
+
+    <!-- DONATE MODAL -->
+
+
+    <!-- END DONATE MODAL -->
+    <div id="toast"
+        class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 transform -translate-y-40 opacity-0 pointer-events-none border border-white/20 z-[400]">
+        <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i><span id="toast-msg"
+            class="font-medium text-sm whitespace-nowrap">Thông báo</span>
+    </div>
+
+    <div id="cust-selection-bar"
+        class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
+        <div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button
+                onclick="toggleCustSelectionMode()" class="p-2 rounded-full hover:bg-white/10 transition"><i
+                    data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count"
+                    class="text-lg font-bold" style="color: var(--accent)">0</span></span></div>
+        <div class="flex gap-3"><button onclick="sendSelectedCustomersToUser()"
+                class="bg-blue-500/10 text-blue-300 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-blue-500/20 active:bg-blue-500/20 transition-colors text-sm"><i
+                    data-lucide="send" class="w-4 h-4"></i> Gửi</button><button onclick="deleteSelectedCustomers()"
+                class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm"><i
+                    data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div>
+    </div>
+    <div id="selection-bar"
+        class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
+        <div class="font-bold text-sm ml-2" style="color: var(--text-main)">Đã chọn: <span id="selection-count"
+                class="text-blue-400 font-bold text-lg">0</span> ảnh</div>
+        <div class="flex gap-3"><button onclick="shareSelectedImages()"
+                class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm"
+                style="background: var(--accent-gradient)"><i data-lucide="share-2" class="w-4 h-4"></i>
+                Gửi</button><button onclick="deleteSelectedImages()"
+                class="bg-red-600/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-600/20 text-sm"><i
+                    data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div>
+    </div>
+
+    <div id="loader" class="fixed inset-0 z-[500] flex flex-col items-center justify-center p-6 text-center">
+        <div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4"
+            style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div>
+        <p id="loader-text" class="text-xs font-bold tracking-widest uppercase opacity-70"
+            style="color: var(--text-main)">Loading...</p>
+    </div>
+
+    <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleMenu()">
+    </div>
+    <div id="settings-menu"
+        class="fixed top-16 right-4 w-80 glass-panel rounded-xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
+        <div class="px-3 py-2.5 border-b border-white/5">
+            <h3 class="font-bold text-sm" style="color: var(--text-main)">Cài Đặt</h3>
+        </div>
+        <!-- Theme Grid - Compact -->
+        <div class="px-3 py-3 border-b border-white/5">
+            <p class="text-[10px] font-bold uppercase mb-2 opacity-60 tracking-wider" style="color: var(--text-sub)">
+                Giao diện</p>
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
+                <button onclick="setTheme('theme-midnight')" class="theme-btn-sm" title="Midnight">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #00346e 0%, #005b9f 50%, #00aaff 100%);"></div>
+                </button>
+                <button onclick="setTheme('theme-sunset')" class="theme-btn-sm" title="Sunset">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #00346e 0%, #da251d 50%, #ff6b6b 100%);"></div>
+                </button>
+                <button onclick="setTheme('theme-ocean')" class="theme-btn-sm" title="Ocean">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #005b9f 0%, #00c8ff 50%, #00ffcc 100%);"></div>
+                </button>
+                <button onclick="setTheme('theme-mint')" class="theme-btn-sm" title="Mint">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #00346e 0%, #00ffcc 50%, #10b981 100%);"></div>
+                </button>
+                <button onclick="setTheme('theme-royal')" class="theme-btn-sm" title="Royal">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #00346e 0%, #c8a86b 50%, #fde047 100%);"></div>
+                </button>
+                <button onclick="setTheme('theme-aurora')" class="theme-btn-sm" title="Aurora">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #005b9f 0%, #00ffcc 50%, #22d3ee 100%);"></div>
+                </button>
+                <button onclick="setTheme('theme-violet')" class="theme-btn-sm" title="Violet">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #00346e 0%, #8b5cf6 50%, #a855f7 100%);"></div>
+                </button>
+                <button onclick="setTheme('theme-emerald')" class="theme-btn-sm" title="Emerald">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #00346e 0%, #10b981 50%, #34d399 100%);"></div>
+                </button>
+                <button onclick="setTheme('theme-sakura')" class="theme-btn-sm" title="Sakura">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #005b9f 0%, #fb7185 50%, #fda4af 100%);"></div>
+                </button>
+                <button onclick="setTheme('theme-solar')" class="theme-btn-sm" title="Solar">
+                    <div class="absolute inset-0"
+                        style="background: linear-gradient(135deg, #00346e 0%, #ffb800 50%, #fde047 100%);"></div>
+                </button>
+            </div>
+        </div>
+        <!-- Action Buttons - 2 Column Grid -->
+        <div class="grid grid-cols-2 gap-1 p-2 border-b border-white/5">
+            <button onclick="openSecuritySetup()" class="settings-btn text-indigo-400">
+                <i data-lucide="shield" class="w-3.5 h-3.5"></i> Bảo mật
+            </button>
+            <button onclick="backupData()" class="settings-btn text-blue-400">
+                <i data-lucide="database" class="w-3.5 h-3.5"></i> Backup
+            </button>
+            <button onclick="openBackupManager()" class="settings-btn text-cyan-400">
+                <i data-lucide="archive" class="w-3.5 h-3.5"></i> Quản lý
+            </button>
+            <button onclick="importFromExcel()" class="settings-btn text-emerald-400">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Nhập Excel
+            </button>
+            <button onclick="openDonateModal()" class="settings-btn text-pink-400">
+                <i data-lucide="heart" class="w-3.5 h-3.5"></i> Donate
+            </button>
+        </div>
+        <!-- Google Drive Link -->
+        <div class="px-3 py-2 border-b border-white/5">
+            <p class="text-[10px] font-bold uppercase mb-1.5 opacity-60" style="color: var(--text-sub)">Google Drive</p>
+            <div class="flex gap-1">
+                <input id="user-script-url" type="text" placeholder="Link Apps Script..."
+                    class="flex-1 bg-black/30 border border-white/10 rounded-lg p-1.5 text-[10px] text-white outline-none">
+                <button onclick="saveScriptUrl()"
+                    class="p-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg"><i
+                        data-lucide="save" class="w-3 h-3"></i></button>
+            </div>
+        </div>
+        <!-- Bottom Actions -->
+        <label class="settings-btn-full text-orange-400 cursor-pointer border-b border-white/5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Khôi phục (.cpb)
+            <input type="file" id="restore-input" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)">
+        </label>
+        <button onclick="resetAppData()" class="settings-btn-full text-red-400">
+            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Reset App
+        </button>
+        <div class="px-3 py-2 text-center">
+            <span class="text-[8px] opacity-40" style="color: var(--text-sub)">© Nguyễn Quốc Hưng 2025</span>
+        </div>
+    </div>
+
+    <div id="screen-dashboard" class="app-container z-10 transition-transform duration-300">
+        <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <div class="vietin-logo-container">
+                    <svg class="vietin-logo-img" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
+                        style="width: 40px; height: 40px;">
+                        <defs>
+                            <mask id="vietin-hole">
+                                <rect width="512" height="512" fill="white" />
+                                <rect x="176" y="176" width="160" height="160" fill="black" />
+                            </mask>
+                        </defs>
+                        <g mask="url(#vietin-hole)">
+                            <circle cx="256" cy="256" r="256" fill="#005b9f" />
+                            <path d="M 26,350 Q 256,240 486,350 A 256,256 0 0 1 26,350 Z" fill="#da251d" />
+                        </g>
+                    </svg>
+                    <div class="vietin-text-group">
+                        <span class="vietin-brand">ClientPro</span>
+                        <span class="vietin-sub">Quản Lý Khách Hàng</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="openCalendar()"
+                        class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
+                        style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"
+                        title="Lịch nhắc nhở">
+                        <i data-lucide="calendar" class="w-6 h-6"></i>
+                    </button>
+                    <button onclick="toggleMenu()"
+                        class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
+                        style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
+                        <i data-lucide="settings-2" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-end mb-2 text-[11px] font-medium">
+                <button onclick="refreshWeather()"
+                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-slate-200 hover:bg-white/10 active:scale-95 transition">
+                    <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i>
+                    <span id="current-weather" class="max-w-[160px] truncate">Đang tải thời tiết...</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Folder Cards View -->
+        <div class="scroll-area flex-1 p-4 space-y-4" id="folder-view">
+            <!-- Approved Customers Folder -->
+            <div class="folder-card" onclick="openCustomerList('approved')">
+                <div class="folder-icon approved">
+                    <i data-lucide="folder-check" class="w-8 h-8"></i>
+                </div>
+                <div class="folder-info">
+                    <span class="folder-title">Khách hàng đã vay</span>
+                    <span class="folder-count"><span id="count-approved">0</span> hồ sơ</span>
+                </div>
+                <i data-lucide="chevron-right" class="w-5 h-5 opacity-40" style="color: var(--text-sub)"></i>
+            </div>
+
+            <!-- Pending Customers Folder -->
+            <div class="folder-card" onclick="openCustomerList('pending')">
+                <div class="folder-icon pending">
+                    <i data-lucide="folder-clock" class="w-8 h-8"></i>
+                </div>
+                <div class="folder-info">
+                    <span class="folder-title">KH đang thẩm định</span>
+                    <span class="folder-count"><span id="count-pending">0</span> hồ sơ</span>
+                </div>
+                <i data-lucide="chevron-right" class="w-5 h-5 opacity-40" style="color: var(--text-sub)"></i>
+            </div>
+        </div>
+
+        <div class="absolute bottom-8 right-6 flex items-center gap-4 z-[100]">
+            <button onclick="toggleMap()"
+                class="w-14 h-14 rounded-full shadow-2xl flex items-center justify-center font-bold text-white transition-transform active:scale-95 border border-white/20 glass-panel"
+                style="background: rgba(16, 185, 129, 0.2); backdrop-filter: blur(20px);">
+                <i data-lucide="map" class="w-6 h-6 text-emerald-400"></i>
+            </button>
+            <button onclick="openModal()"
+                class="h-14 pl-5 pr-6 text-white rounded-full shadow-2xl flex items-center justify-center font-bold gap-2 transition-transform active:scale-95 border border-white/20"
+                style="background: var(--accent-gradient); box-shadow: 0 8px 20px -5px rgba(99, 102, 241, 0.5);">
+                <i data-lucide="plus" class="w-6 h-6"></i> <span class="text-sm">Thêm Mới</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- CUSTOMER LIST SCREEN (Slide Panel) -->
+    <div id="screen-customer-list"
+        class="app-container z-20 transform translate-x-full transition-transform duration-300 hidden"
+        style="background: var(--bg-base);">
+
+        <header class="glass-header px-4 py-4 flex-none w-full">
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="closeCustomerList()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="arrow-left" class="w-6 h-6"></i>
+                </button>
+                <h2 id="customer-list-title" class="font-bold text-lg" style="color: var(--text-main)">
+                    Danh sách KH
+                </h2>
+                <button onclick="openModal()" class="p-2 -mr-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--accent)">
+                    <i data-lucide="plus" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <div class="flex gap-2">
+                <div class="relative flex-1">
+                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50"
+                        style="color: var(--text-main)"></i>
+                    <input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..."
+                        class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors"
+                        style="border-color: var(--border-panel); color: var(--text-main); background: transparent;">
+                </div>
+                <button onclick="toggleCustSelectionMode()" id="btn-cust-select"
+                    class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20"
+                    style="border-color: var(--border-panel); color: var(--text-sub);">
+                    <i data-lucide="list-checks" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="scroll-area flex-1 p-4 space-y-3" id="customer-list"></div>
+    </div>
+
+    <div id="screen-map"
+        class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black">
+        <div id="map-container"></div>
+        <button onclick="toggleMap()"
+            class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i
+                data-lucide="arrow-left" class="w-6 h-6"></i></button>
+        <button onclick="locateMe()"
+            class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i
+                data-lucide="crosshair" class="w-6 h-6"></i></button>
+    </div>
+
+    <!-- CALENDAR SCREEN -->
+    <div id="screen-calendar"
+        class="app-container z-20 transform translate-x-full transition-transform duration-300 hidden"
+        style="background: var(--bg-base); position: relative;">
+
+        <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="closeCalendar()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="arrow-left" class="w-6 h-6"></i>
+                </button>
+                <h2 class="font-bold text-lg" style="color: var(--text-main)">
+                    <i data-lucide="calendar" class="w-5 h-5 inline mr-2"></i> Lịch Nhắc Nhở
+                </h2>
+                <button onclick="goToToday()" class="px-3 py-1.5 rounded-lg text-xs font-bold"
+                    style="background: var(--accent); color: white;">
+                    Hôm nay
+                </button>
+            </div>
+
+            <div class="flex items-center justify-between px-2">
+                <button onclick="prevMonth()" class="p-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                </button>
+                <span id="calendar-month-label" class="font-bold text-base" style="color: var(--text-main)">
+                    Tháng 1, 2026
+                </span>
+                <button onclick="nextMonth()" class="p-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="px-4 py-3">
+            <div class="grid grid-cols-7 gap-1 mb-2 text-center">
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T2</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T3</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T4</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T5</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T6</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T7</span>
+                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">CN</span>
+            </div>
+            <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
+        </div>
+
+        <div class="flex-1 scroll-area px-4 pb-28">
+            <div id="day-reminders"></div>
+        </div>
+
+        <!-- FAB for adding reminder - fixed position so it's always visible -->
+        <button id="fab-add-reminder" onclick="openReminderModal()"
+            class="fixed right-6 z-[500] w-14 h-14 rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-transform"
+            style="background: var(--accent-gradient); display: none; bottom: calc(24px + var(--sab, 0px));">
+            <i data-lucide="plus" class="w-7 h-7 text-white"></i>
+        </button>
+    </div>
+
+    <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300"
+        style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
+        <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="closeFolder()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="arrow-left" class="w-6 h-6"></i>
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="toggleSelectionMode()" id="btn-select-mode"
+                        class="glass-btn px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 transition-colors"
+                        style="color: var(--text-main)">
+                        <i data-lucide="check-square" class="w-4 h-4"></i> Chọn
+                    </button>
+                    <button onclick="deleteCurrentCustomer()"
+                        class="glass-btn p-2 text-red-400 rounded-full active:scale-90 transition-transform">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="profile-glass-box">
+                <button onclick="openEditCustomerModal()"
+                    class="absolute top-3 right-3 p-2 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                </button>
+
+                <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold mb-3 shadow-lg border border-white/20"
+                    style="background: var(--accent-gradient); color: white;" id="folder-avatar">
+                    A
+                </div>
+
+                <h2 id="folder-customer-name"
+                    class="font-bold text-xl text-center px-4 truncate w-full tracking-tight drop-shadow-md"
+                    style="color: var(--text-main)">
+                    Tên Khách Hàng
+                </h2>
+            </div>
+
+            <div class="flex items-center justify-center gap-2.5 mb-6">
+                <a id="btn-detail-call" href="#"
+                    class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:text-white transition"
+                    style="color: var(--text-main)">
+                    <i data-lucide="phone" class="w-3.5 h-3.5"></i> Gọi
+                </a>
+                <a id="btn-detail-zalo" href="#" target="_blank"
+                    class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 text-blue-400 hover:text-white transition">
+                    <span class="font-black text-[10px] border border-current px-1 rounded-[3px]">Z</span> Zalo
+                </a>
+                <button onclick="toggleCustomerStatus()" id="detail-status-badge"
+                    class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 active:scale-95 transition-transform"
+                    style="color: var(--text-sub)">
+                    <span>Trạng thái</span>
+                </button>
+            </div>
+
+            <div class="p-1 rounded-xl bg-black/20 border border-white/5 mx-0 mb-3 flex gap-1">
+                <button onclick="switchTab('info')" id="tab-btn-info"
+                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Thông
+                    Tin</button>
+                <button onclick="switchTab('images')" id="tab-btn-images"
+                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Hồ
+                    Sơ Ảnh</button>
+                <button onclick="switchTab('assets')" id="tab-btn-assets"
+                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Tài
+                    Sản</button>
+            </div>
+        </div>
+
+        <!-- Tab: Thông tin KH (default visible) -->
+        <div id="content-info" class="scroll-area flex-1 p-4 space-y-4">
+            <div class="glass-panel p-4 rounded-xl space-y-3">
+                <div class="flex items-center gap-2 mb-3">
+                    <i data-lucide="user" class="w-5 h-5" style="color: var(--accent)"></i>
+                    <span class="font-bold text-sm" style="color: var(--text-main)">Thông tin liên hệ</span>
+                </div>
+                <div class="space-y-2 text-sm" style="color: var(--text-sub)">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="phone" class="w-4 h-4 opacity-50"></i>
+                        <span id="info-phone">--</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="credit-card" class="w-4 h-4 opacity-50"></i>
+                        <span id="info-cccd">--</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="calendar" class="w-4 h-4 opacity-50"></i>
+                        <span id="info-created">--</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 rounded-xl">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="file-text" class="w-5 h-5" style="color: var(--accent)"></i>
+                        <span class="font-bold text-sm" style="color: var(--text-main)">Ghi chú</span>
+                    </div>
+                    <button onclick="saveCustomerNotes()" class="px-3 py-1 rounded-lg text-xs font-bold"
+                        style="background: var(--accent); color: white;">
+                        <i data-lucide="save" class="w-3 h-3 inline mr-1"></i> Lưu
+                    </button>
+                </div>
+                <textarea id="info-notes" rows="6" placeholder="Nhập ghi chú về khách hàng..."
+                    class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm outline-none resize-none"
+                    style="color: var(--text-main)"></textarea>
+            </div>
+        </div>
+
+        <div id="content-images" class="hidden scroll-area flex-1 img-grid-container content-start"></div>
+        <div id="content-assets" class="hidden scroll-area flex-1 p-4 space-y-4"></div>
+        <div class="glass-panel border-t p-4 pb-8 flex gap-3 flex-none z-30" style="border-color: var(--border-panel)">
+            <div id="actions-images" class="hidden w-full flex flex-col gap-3">
+                <div id="drive-status-area" class="hidden w-full"></div>
+
+                <div class="flex gap-2 w-full">
+                    <button onclick="tryOpenCamera('profile')"
+                        class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20"
+                        style="background: var(--accent-gradient);">
+                        <i data-lucide="camera" class="w-5 h-5"></i> Chụp
+                    </button>
+
+                    <button onclick="uploadToGoogleDrive()" id="btn-upload-drive"
+                        class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
+                        <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up Drive
+                    </button>
+
+                    <input type="file" id="native-camera-profile" accept="image/*" capture="environment" class="hidden"
+                        onchange="handleFileUpload(this, 'profile')">
+                    <label
+                        class="w-12 glass-btn py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]"
+                        style="color: var(--text-sub)">
+                        <i data-lucide="upload" class="w-5 h-5"></i>
+                        <input type="file" id="upload-input" multiple accept="image/*" class="hidden"
+                            onchange="handleFileUpload(this, 'profile')">
+                    </label>
+                </div>
+            </div>
+
+            <div id="actions-assets" class="w-full hidden">
+                <button onclick="openAssetModal()"
+                    class="w-full text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20"
+                    style="background: var(--accent-gradient);">
+                    <i data-lucide="plus-square" class="w-5 h-5"></i> Thêm TSBĐ Mới
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="screen-asset-gallery"
+        class="app-container z-30 transform translate-x-full transition-transform duration-300"
+        style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
+        <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full">
+            <div class="flex items-center justify-between"><button onclick="closeAssetGallery()"
+                    class="p-2 -ml-2 rounded-full hover:bg-white/10" style="color: var(--text-main)"><i
+                        data-lucide="arrow-left" class="w-6 h-6"></i></button>
+                <div class="flex items-center gap-3">
+                    <h2 id="gallery-asset-name" class="font-bold text-sm uppercase truncate max-w-[160px]"
+                        style="color: var(--text-main)">Chi tiết TSBĐ</h2><button onclick="toggleSelectionMode()"
+                        id="btn-select-mode-asset"
+                        class="px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-2 transition-colors bg-black/20"
+                        style="border-color: var(--border-panel); color: var(--text-sub)"><i data-lucide="check-square"
+                            class="w-4 h-4"></i> Chọn</button>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-3 text-xs justify-center w-full font-mono" style="color: var(--text-sub)"><span
+                    id="gallery-asset-val" class="px-3 py-1.5 rounded-lg border bg-black/20"
+                    style="border-color: var(--border-panel)">--</span><span id="gallery-asset-loan"
+                    class="px-3 py-1.5 rounded-lg border bg-blue-900/20 text-blue-400 border-blue-500/30">--</span>
+            </div>
+        </div>
+        <div id="asset-gallery-grid" class="scroll-area flex-1 img-grid-container content-start"></div>
+        <div class="glass-panel border-t p-4 pb-8 flex flex-col gap-3 flex-none z-30"
+            style="border-color: var(--border-panel)">
+
+            <div id="asset-drive-status-area" class="hidden w-full"></div>
+
+            <div class="flex gap-2 w-full">
+                <button onclick="tryOpenCamera('asset')"
+                    class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] border border-white/20"
+                    style="background: var(--accent-gradient);">
+                    <i data-lucide="camera" class="w-5 h-5"></i> Chụp
+                </button>
+
+                <button onclick="uploadAssetToDrive()" id="btn-asset-upload"
+                    class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
+                    <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up
+                </button>
+
+                <input type="file" id="native-camera-asset" accept="image/*" capture="environment" class="hidden"
+                    onchange="handleFileUpload(this, 'asset')">
+
+                <label
+                    class="glass-btn w-12 py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]"
+                    style="color: var(--text-sub)">
+                    <i data-lucide="upload" class="w-5 h-5"></i>
+                    <input type="file" multiple accept="image/*" class="hidden"
+                        onchange="handleFileUpload(this, 'asset')">
+                </label>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="lightbox"
+        class="fixed inset-0 z-[60] bg-black/95 hidden flex flex-col justify-center items-center touch-none backdrop-blur-xl">
+        <button
+            class="lightbox-nav left-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute"
+            onclick="navigateLightbox(-1)"><i data-lucide="chevron-left" class="w-8 h-8 text-white"></i></button><img
+            id="lightbox-img"
+            class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform"><button
+            class="lightbox-nav right-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute"
+            onclick="navigateLightbox(1)"><i data-lucide="chevron-right" class="w-8 h-8 text-white"></i></button><button
+            onclick="closeLightbox()"
+            class="absolute top-6 right-6 text-white p-3 z-[70] bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20"><i
+                data-lucide="x" class="w-6 h-6"></i></button>
+        <div class="absolute bottom-12 text-white text-xs font-bold bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 tracking-widest"
+            id="lightbox-counter">1/1</div>
+        <div class="absolute bottom-12 right-6 flex gap-4"><button onclick="shareOpenedImage()"
+                class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20"><i data-lucide="share-2"
+                    class="w-5 h-5"></i></button><button onclick="deleteOpenedImage()"
+                class="p-3 bg-red-500/20 rounded-full text-red-400 hover:bg-red-500/30"><i data-lucide="trash-2"
+                    class="w-5 h-5"></i></button></div>
+    </div>
+
+    <!-- UI Partials: Modals are loaded from /assets/ui/modals/*.html for maintainability -->
+    <div id="ui-modals-root"></div>
+    <script src="./assets/ui/load_modals.js" defer></script>
+
+    <script src="./assets/00_globals.js" defer></script>
+    <script src="./assets/01_config.js" defer></script>
+    <script src="./assets/02_security.js" defer></script>
+    <script src="./assets/12_backup_core.js" defer></script>
+    <script src="./assets/13_ui_select_customers.js" defer></script>
+    <script src="./assets/15_auth_gate.js" defer></script>
+    <script src="./assets/03_map.js" defer></script>
+    <script src="./assets/04_ui_common.js" defer></script>
+    <script src="./assets/05_customers.js" defer></script>
+    <script src="./assets/06_assets.js" defer></script>
+    <!-- 08_images_camera.js: Lazy loaded via LazyLoader.loadCamera() when camera is opened -->
+    <script src="./assets/09_backup_weather_donate.js" defer></script>
+    <script src="./assets/07_drive.js?v=20260120_fix_asset" defer></script>
+    <!-- Removed missing script: assets/08_qr_info_and_missing.js -->
+    <!-- Cloud transfer backup (send to other users) -->
+    <script src="./assets/14_cloud_transfer.js" defer></script>
+    <!-- Auto backup to Drive -->
+    <script src="./assets/16_auto_backup_drive.js" defer></script>
+    <!-- Onboarding tour for new users -->
+    <script src="./assets/17_onboarding_tour.js" defer></script>
+    <!-- Calendar & Reminders -->
+    <script src="./assets/19_calendar.js" defer></script>
+    <!-- Excel Import (SheetJS) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" defer></script>
+    <script src="./assets/20_excel_import.js" defer></script>
+    <script src="./assets/10_bootstrap.js" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
+    <script src="./assets/pwa.js" defer></script>
+
+
+    <!-- Backup Manager Modal -->
+
+
+
+</body>
+
+</html>

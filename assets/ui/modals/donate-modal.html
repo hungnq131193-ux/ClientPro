@@ -1,0 +1,48 @@
+<div id="donate-modal" class="fixed inset-0 z-[120] bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative border border-pink-500/30 modal-animate">
+        <button onclick="closeDonateModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        
+        <div class="flex flex-col items-center text-center">
+            <div class="w-12 h-12 rounded-2xl mb-3 flex items-center justify-center bg-pink-500/20 text-pink-400 border border-pink-500/40 shadow-lg">
+                <i data-lucide="heart" class="w-6 h-6"></i>
+            </div>
+            <h3 class="font-bold text-lg mb-1" style="color: var(--text-main)">Ủng hộ tác giả</h3>
+            <p class="text-xs mb-4 opacity-70" style="color: var(--text-sub)">
+                Nếu ClientPro giúp anh/chị tối ưu công việc, có thể mời Hưng một ly cà phê ☕ qua VietQR.
+            </p>
+            
+            <div class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-left text-xs mb-4">
+                <p class="mb-1"><span class="opacity-60">Ngân hàng:</span> <span class="font-semibold text-white">VietinBank</span></p>
+                <p class="mb-1"><span class="opacity-60">Tên nhận:</span> <span class="font-semibold text-white">NGUYEN QUOC HUNG</span></p>
+                <div class="flex items-center justify-between gap-2 mt-2">
+                    <div>
+                        <p class="opacity-60 mb-0.5">Số tài khoản</p>
+                        <p class="font-mono font-bold text-base tracking-wide text-white">8888 868 38888</p>
+                    </div>
+                    <button onclick="copyDonateAccount()" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold bg-white/5 hover:bg-white/10 border border-white/15 active:scale-95 transition">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        Copy STK
+                    </button>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-2xl p-3 shadow-inner">
+                <!-- QR VietQR auto tạo từ API img.vietqr.io -->
+                <img
+    id="donate-qr-img"
+    src="https://img.vietqr.io/image/vietinbank-888886838888-compact.jpg?accountName=NGUYEN%20QUOC%20HUNG&addInfo=Ung%20ho%20tac%20gia%20ClientPro"
+    alt="VietQR - VietinBank 888886838888"
+    class="w-56 h-56 object-contain mx-auto"
+/>
+            </div>
+            
+            <p class="text-[11px] mt-3 leading-relaxed opacity-70 px-2" style="color: var(--text-sub)">
+                Mở app ngân hàng & chọn <b>“Quét QR”</b>, thông tin
+                <b>VietinBank - 888886838888 - NGUYEN QUOC HUNG</b> sẽ được
+                tự điền chính xác, tránh nhầm lẫn.
+            </p>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,1276 @@
+/* --- Thay dòng @import cũ bằng dòng này --- */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+
+:root {
+  --app-height: 100dvh;
+  /* iOS Safe Area (PWA/standalone). Defaults to 0 on Android/Desktop. */
+  --sat: 0px;
+  /* safe-area-inset-top */
+  --sab: 0px;
+  /* safe-area-inset-bottom */
+  --sal: 0px;
+  /* safe-area-inset-left */
+  --sar: 0px;
+  /* safe-area-inset-right */
+}
+
+@supports (padding: env(safe-area-inset-top)) {
+  :root {
+    --sat: env(safe-area-inset-top);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
+    --sar: env(safe-area-inset-right);
+  }
+}
+
+/* --- 1. CẤU HÌNH CƠ BẢN --- */
+body {
+  --text-main: #ffffff;
+  --text-sub: #cbd5e1;
+
+  font-family: "Inter", sans-serif;
+  color: var(--text-main);
+
+  /* Mesh Gradient Background */
+  background-color: var(--bg-base);
+  background-image: var(--bg-mesh);
+  background-attachment: fixed;
+  background-size: cover;
+  background-repeat: no-repeat;
+
+  transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+  height: var(--app-height);
+  width: 100vw;
+  overflow: hidden;
+  position: fixed;
+}
+
+/* --- 2. STYLE CHO LOGO VIETINBANK 3D --- */
+.vietin-logo-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Khối kính nổi */
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.vietin-logo-img {
+  width: 36px;
+  height: auto;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+}
+
+.vietin-text-group {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.vietin-brand {
+  font-weight: 800;
+  font-size: 15px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.vietin-sub {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 2px;
+}
+
+/* --- 3. BỘ THEME MESH GRADIENT (MÀU LOANG & DỄ ĐỌC) --- */
+
+/* 1. MIDNIGHT - Xanh VietinBank Đậm (Theme Chính) */
+body.theme-midnight {
+  --bg-base: #0a1628;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 10% 20%, rgba(0, 91, 159, 0.6) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 90% 80%, rgba(0, 170, 255, 0.4) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(99, 102, 241, 0.3) 0%, transparent 40%);
+  --bg-panel: rgba(15, 30, 60, 0.65);
+  --header-bg: rgba(10, 22, 40, 0.85);
+  --border-panel: rgba(0, 170, 255, 0.35);
+  --input-bg: rgba(15, 30, 60, 0.70);
+  --accent: #00aaff;
+  --accent-gradient: linear-gradient(135deg, #005b9f 0%, #00aaff 50%, #22d3ee 100%);
+}
+
+
+
+/* 2. SUNSET - Cam Đỏ Rực Rỡ */
+body.theme-sunset {
+  --bg-base: #1a0a0a;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 20% 30%, rgba(251, 146, 60, 0.6) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 70%, rgba(244, 63, 94, 0.5) 0%, transparent 45%),
+    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(168, 85, 247, 0.35) 0%, transparent 40%);
+  --bg-panel: rgba(40, 20, 20, 0.65);
+  --header-bg: rgba(30, 15, 15, 0.85);
+  --border-panel: rgba(251, 146, 60, 0.40);
+  --input-bg: rgba(40, 20, 20, 0.70);
+  --accent: #fb923c;
+  --accent-gradient: linear-gradient(135deg, #ea580c 0%, #fb923c 50%, #f43f5e 100%);
+}
+
+
+
+/* 3. OCEAN - Xanh Biển Sâu */
+body.theme-ocean {
+  --bg-base: #041520;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(6, 182, 212, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(14, 165, 233, 0.45) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(37, 99, 235, 0.35) 0%, transparent 40%);
+  --bg-panel: rgba(10, 40, 60, 0.65);
+  --header-bg: rgba(8, 30, 50, 0.85);
+  --border-panel: rgba(6, 182, 212, 0.40);
+  --input-bg: rgba(10, 40, 60, 0.70);
+  --accent: #06b6d4;
+  --accent-gradient: linear-gradient(135deg, #0284c7 0%, #06b6d4 50%, #22d3ee 100%);
+}
+
+
+
+/* 4. MINT - Xanh Ngọc Tươi Mát */
+body.theme-mint {
+  --bg-base: #0a1a18;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 20% 20%, rgba(16, 185, 129, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 80%, rgba(34, 211, 238, 0.45) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(99, 102, 241, 0.30) 0%, transparent 40%);
+  --bg-panel: rgba(15, 45, 40, 0.65);
+  --header-bg: rgba(10, 35, 30, 0.85);
+  --border-panel: rgba(16, 185, 129, 0.40);
+  --input-bg: rgba(15, 45, 40, 0.70);
+  --accent: #10b981;
+  --accent-gradient: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
+}
+
+
+
+/* 5. ROYAL - Vàng Gold Sang Trọng */
+body.theme-royal {
+  --bg-base: #151008;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 25% 25%, rgba(245, 158, 11, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 75% 75%, rgba(253, 224, 71, 0.40) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(168, 85, 247, 0.25) 0%, transparent 40%);
+  --bg-panel: rgba(40, 30, 15, 0.65);
+  --header-bg: rgba(30, 22, 10, 0.85);
+  --border-panel: rgba(245, 158, 11, 0.45);
+  --input-bg: rgba(40, 30, 15, 0.70);
+  --accent: #f59e0b;
+  --accent-gradient: linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%);
+}
+
+
+
+/* --- 3B. THEME MỞ RỘNG (THÊM) --- */
+
+/* 6. AURORA - Cực Quang Huyền Ảo */
+body.theme-aurora {
+  --bg-base: #0a0a1a;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 15% 30%, rgba(34, 211, 238, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 70%, rgba(168, 85, 247, 0.50) 0%, transparent 45%),
+    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(236, 72, 153, 0.35) 0%, transparent 40%);
+  --bg-panel: rgba(20, 20, 40, 0.65);
+  --header-bg: rgba(15, 15, 30, 0.85);
+  --border-panel: rgba(34, 211, 238, 0.40);
+  --input-bg: rgba(20, 20, 40, 0.70);
+  --accent: #22d3ee;
+  --accent-gradient: linear-gradient(135deg, #06b6d4 0%, #a855f7 50%, #ec4899 100%);
+}
+
+
+
+/* 7. GRAPHITE (Xám lạnh - Tối giản) */
+body.theme-graphite {
+  --bg-base: #0b1220;
+  --bg-mesh: radial-gradient(at 0% 0%,
+      hsla(215, 30%, 28%, 0.55) 0px,
+      transparent 55%),
+    radial-gradient(at 100% 100%,
+      hsla(220, 25%, 18%, 0.75) 0px,
+      transparent 55%);
+  --bg-panel: rgba(15, 23, 42, 0.78);
+  --header-bg: rgba(2, 6, 23, 0.92);
+  --border-panel: rgba(148, 163, 184, 0.18);
+  --input-bg: rgba(15, 23, 42, 0.55);
+  --accent: #94a3b8;
+  --accent-gradient: linear-gradient(135deg, #334155 0%, #94a3b8 100%);
+}
+
+/* 7. VIOLET - Tím Neon Huyền Bí */
+body.theme-violet {
+  --bg-base: #0f0a1a;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 20% 25%, rgba(124, 58, 237, 0.60) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 75%, rgba(168, 85, 247, 0.50) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(244, 114, 182, 0.35) 0%, transparent 40%);
+  --bg-panel: rgba(30, 20, 45, 0.65);
+  --header-bg: rgba(20, 15, 35, 0.85);
+  --border-panel: rgba(124, 58, 237, 0.45);
+  --input-bg: rgba(30, 20, 45, 0.70);
+  --accent: #8b5cf6;
+  --accent-gradient: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
+}
+
+
+
+/* 8. EMERALD - Xanh Lá Rừng Sâu */
+body.theme-emerald {
+  --bg-base: #0a150a;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(16, 185, 129, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(52, 211, 153, 0.45) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(163, 230, 53, 0.30) 0%, transparent 40%);
+  --bg-panel: rgba(20, 45, 25, 0.65);
+  --header-bg: rgba(15, 35, 18, 0.85);
+  --border-panel: rgba(16, 185, 129, 0.45);
+  --input-bg: rgba(20, 45, 25, 0.70);
+  --accent: #10b981;
+  --accent-gradient: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
+}
+
+
+
+/* 9. SAKURA - Hồng Anh Đào Dịu Dàng */
+body.theme-sakura {
+  --bg-base: #1a0a12;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 20% 30%, rgba(251, 113, 133, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 70%, rgba(251, 146, 60, 0.40) 0%, transparent 45%),
+    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(168, 85, 247, 0.30) 0%, transparent 40%);
+  --bg-panel: rgba(45, 20, 30, 0.65);
+  --header-bg: rgba(35, 15, 22, 0.85);
+  --border-panel: rgba(251, 113, 133, 0.45);
+  --input-bg: rgba(45, 20, 30, 0.70);
+  --accent: #fb7185;
+  --accent-gradient: linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fda4af 100%);
+}
+
+
+
+/* 10. SOLAR - Cam Vàng Rực Nắng */
+body.theme-solar {
+  --bg-base: #1a1205;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 20% 25%, rgba(253, 224, 71, 0.55) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 80% 75%, rgba(251, 146, 60, 0.50) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(244, 63, 94, 0.30) 0%, transparent 40%);
+  --bg-panel: rgba(45, 35, 15, 0.65);
+  --header-bg: rgba(35, 28, 10, 0.85);
+  --border-panel: rgba(253, 224, 71, 0.45);
+  --input-bg: rgba(45, 35, 15, 0.70);
+  --accent: #fbbf24;
+  --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #fde047 100%);
+}
+
+
+
+/* 12. MONO (Đen - Trắng) */
+body.theme-mono {
+  --bg-base: #0b0f19;
+  --bg-mesh: radial-gradient(at 0% 0%,
+      hsla(220, 15%, 18%, 0.7) 0px,
+      transparent 55%),
+    radial-gradient(at 100% 100%, hsla(0, 0%, 100%, 0.08) 0px, transparent 55%);
+  --bg-panel: rgba(17, 24, 39, 0.78);
+  --header-bg: rgba(0, 0, 0, 0.88);
+  --border-panel: rgba(255, 255, 255, 0.12);
+  --input-bg: rgba(17, 24, 39, 0.55);
+  --accent: #e5e7eb;
+  --accent-gradient: linear-gradient(135deg, #111827 0%, #e5e7eb 100%);
+}
+
+/* 4. GLASS & UTILS - Apple-style Glassmorphism */
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(40px) saturate(200%) brightness(1.05);
+  -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.05);
+  border: 1px solid var(--border-panel);
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 10;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+/* PERF: Lite glass panel for long scrolling lists (avoid heavy blur/shadow per item) */
+.glass-panel-lite {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  position: relative;
+  z-index: 5;
+}
+
+.glass-panel-lite.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Customer list: status bar without per-item inline boxShadow */
+.cust-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 6px;
+  opacity: 0.9;
+}
+
+.cust-card.cust-approved::before {
+  background: rgba(16, 185, 129, 0.9);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25);
+}
+
+.cust-card.cust-pending::before {
+  background: rgba(99, 102, 241, 0.9);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
+}
+
+.glass-header {
+  background: var(--header-bg);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid var(--border-panel);
+  z-index: 40;
+  will-change: transform;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+  .glass-panel {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .glass-header {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+}
+
+@keyframes modalPop {
+  0% {
+    transform: scale(0.96) translateY(10px);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-animate {
+  animation: modalPop 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.app-container {
+  height: 100%;
+  width: 100%;
+  /* Respect iOS notch / status bar. */
+  padding-top: var(--sat);
+  /*
+    IMPORTANT:
+    Do NOT apply safe-area bottom padding at the screen container level.
+    On iOS, `var(--sab)` is typically ~34px (home indicator).
+    If we add bottom padding here, any bottom action buttons placed in normal
+    layout flow (e.g. Home: “Bản đồ / Thêm mới”) will be pushed up and look
+    “too high”.
+    Instead, we apply safe-area bottom padding only to FIXED bars/overlays.
+  */
+  padding-bottom: 0px;
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+  box-sizing: border-box;
+  height: calc(100% - var(--sat));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-main);
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Performance: keep screen transitions on compositor, isolate layout/paint */
+  will-change: transform;
+  contain: layout paint style;
+  backface-visibility: hidden;
+  /* Note: many screens also carry Tailwind's `transform` utility class.
+     Tailwind will set `transform:` based on CSS variables; the rule below
+     re-maps translate() -> translate3d() to keep the transition on GPU. */
+  transform: translate3d(0, 0, 0);
+  z-index: 1;
+}
+
+/* Smooth slide transitions for app screens (reduce jank / flicker on mobile). */
+.app-container.transform {
+  transform:
+    translate3d(var(--tw-translate-x, 0), var(--tw-translate-y, 0), 0) rotate(var(--tw-rotate, 0)) skewX(var(--tw-skew-x, 0)) skewY(var(--tw-skew-y, 0)) scaleX(var(--tw-scale-x, 1)) scaleY(var(--tw-scale-y, 1));
+}
+
+.scroll-area {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  /* Performance: isolate scroll container from layout recalculations */
+  contain: content;
+  /* Reserve space for bottom action area + iOS home indicator safe-area. */
+  padding-bottom: calc(140px + var(--sab));
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+input,
+select,
+textarea {
+  color: var(--text-main) !important;
+  background: var(--input-bg) !important;
+  transition: all 0.2s ease;
+}
+
+input:focus {
+  border-color: var(--accent) !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+input::placeholder {
+  color: var(--text-sub) !important;
+  opacity: 0.5;
+}
+
+.img-grid-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px;
+}
+
+.img-wrapper {
+  position: relative;
+  width: 100%;
+  padding-bottom: 100%;
+  height: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-panel);
+  background: rgba(255, 255, 255, 0.03);
+  transition: transform 0.2s;
+  will-change: transform;
+}
+
+.img-wrapper:active {
+  transform: scale(0.96);
+}
+
+.img-wrapper img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+#loader {
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 200;
+}
+
+#toast {
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+    opacity 0.3s;
+  z-index: 400;
+  will-change: transform, opacity;
+}
+
+.toast-show {
+  transform: translateX(-50%) translateY(0) !important;
+  opacity: 1 !important;
+}
+
+.keypad-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  font-size: 26px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  margin: 0 auto;
+  color: white;
+  backdrop-filter: blur(5px);
+}
+
+.keypad-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(0.95);
+}
+
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--text-sub);
+  transition: all 0.2s;
+}
+
+.pin-dot.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.1);
+}
+
+.theme-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.2s;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.theme-btn.active {
+  transform: scale(1.1);
+  border-color: white;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+}
+
+/* Compact theme button for settings */
+.theme-btn-sm {
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 34px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s, border-color 0.15s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.theme-btn-sm:active {
+  transform: scale(0.95);
+}
+
+.theme-btn-sm.active {
+  border-color: white;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+/* Settings action button - 2 column grid */
+.settings-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.15s;
+}
+
+.settings-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Full-width settings button */
+.settings-btn-full {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.settings-btn-full:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.select-ring {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 20;
+}
+
+.select-ring svg {
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s;
+}
+
+.selected .select-ring {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.selected .select-ring svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.glass-panel.selected {
+  border-color: var(--accent) !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+#map-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.leaflet-popup-content-wrapper {
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(16px) saturate(180%);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  padding: 0;
+}
+
+.leaflet-popup-tip {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  width: 260px !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: #fff;
+  padding: 8px;
+  font-size: 20px;
+}
+
+.map-popup-card {
+  padding: 12px;
+}
+
+.map-popup-img {
+  width: 100%;
+  height: 120px;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-bottom: 8px;
+  background: #222;
+}
+
+.map-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+.map-tag.approved {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.map-tag.pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.marker-glow {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.marker-glow::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+  opacity: 0.5;
+  z-index: -1;
+}
+
+.marker-approved {
+  background: #10b981;
+}
+
+.marker-approved::after {
+  background: #10b981;
+  box-shadow: 0 0 15px #10b981;
+}
+
+.marker-pending {
+  background: #f59e0b;
+}
+
+.marker-pending::after {
+  background: #f59e0b;
+  box-shadow: 0 0 15px #f59e0b;
+}
+
+@keyframes pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+.leaflet-control-layers {
+  background: rgba(15, 23, 42, 0.9) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.transition-transform {
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* --- 5. GLASS EFFECT UTILS (THÊM MỚI) --- */
+.glass-btn {
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.glass-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(0.98);
+}
+
+/* Hiệu ứng tab kính */
+.glass-tab-active {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  color: white !important;
+}
+
+.glass-tab-inactive {
+  border: 1px solid transparent !important;
+  color: var(--text-sub) !important;
+  opacity: 0.6;
+}
+
+/* --- 6. PROFILE GLASS BOX (Thêm mới) --- */
+.profile-glass-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  /* Copy hiệu ứng từ logo VietinBank */
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 16px 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  margin-bottom: 16px;
+  /* Cách các nút bên dưới ra */
+}
+
+
+/* --- iOS Safe-Area fixes for fixed overlays (avoid status bar / notch overlap) --- */
+#toast {
+  top: calc(3rem + var(--sat));
+  /* Tailwind top-12 */
+}
+
+#settings-menu {
+  top: calc(5rem + var(--sat));
+  /* Tailwind top-20 */
+}
+
+#cust-selection-bar,
+#selection-bar {
+  padding-bottom: calc(2rem + var(--sab));
+  /* Tailwind pb-8 + safe-area */
+}
+
+#lightbox button[onclick="closeLightbox()"] {
+  top: calc(1.5rem + var(--sat));
+  /* Tailwind top-6 */
+}
+
+/* === TAILWIND CRITICAL UTILITIES (SELF-HOST) ===
+   Minimal subset to replace Tailwind CDN for layout/position/transition.
+   Focus: prevent overlay/toolbars from stacking in normal flow.
+*/
+.hidden {
+  display: none !important;
+}
+
+.block {
+  display: block;
+}
+
+.inline-block {
+  display: inline-block;
+}
+
+.flex {
+  display: flex;
+}
+
+.inline-flex {
+  display: inline-flex;
+}
+
+.grid {
+  display: grid;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.items-start {
+  align-items: flex-start;
+}
+
+.items-end {
+  align-items: flex-end;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-start {
+  justify-content: flex-start;
+}
+
+.justify-end {
+  justify-content: flex-end;
+}
+
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.fixed {
+  position: fixed;
+}
+
+.sticky {
+  position: sticky;
+}
+
+.top-0 {
+  top: 0;
+}
+
+.bottom-0 {
+  bottom: 0;
+}
+
+.left-0 {
+  left: 0;
+}
+
+.right-0 {
+  right: 0;
+}
+
+.inset-0 {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.min-h-0 {
+  min-height: 0;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+.overflow-auto {
+  overflow: auto;
+}
+
+.overflow-y-auto {
+  overflow-y: auto;
+}
+
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+.pointer-events-none {
+  pointer-events: none;
+}
+
+.pointer-events-auto {
+  pointer-events: auto;
+}
+
+/* z-index (subset used across app) */
+.z-0 {
+  z-index: 0;
+}
+
+.z-10 {
+  z-index: 10;
+}
+
+.z-20 {
+  z-index: 20;
+}
+
+.z-30 {
+  z-index: 30;
+}
+
+.z-40 {
+  z-index: 40;
+}
+
+.z-50 {
+  z-index: 50;
+}
+
+.z-\[60\] {
+  z-index: 60;
+}
+
+.z-\[70\] {
+  z-index: 70;
+}
+
+.z-\[100\] {
+  z-index: 100;
+}
+
+.z-\[120\] {
+  z-index: 120;
+}
+
+.z-\[300\] {
+  z-index: 300;
+}
+
+.z-\[305\] {
+  z-index: 305;
+}
+
+.z-\[310\] {
+  z-index: 310;
+}
+
+.z-\[320\] {
+  z-index: 320;
+}
+
+.z-\[400\] {
+  z-index: 400;
+}
+
+.z-\[500\] {
+  z-index: 500;
+}
+
+.z-\[10050\] {
+  z-index: 10050;
+}
+
+.z-\[10060\] {
+  z-index: 10060;
+}
+
+.z-\[10080\] {
+  z-index: 10080;
+}
+
+/* transforms + slide-in bars */
+.translate-y-full {
+  transform: translateY(100%);
+}
+
+.translate-y-0 {
+  transform: translateY(0);
+}
+
+.-translate-y-full {
+  transform: translateY(-100%);
+}
+
+.-translate-y-0 {
+  transform: translateY(0);
+}
+
+.transition-transform {
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.transition-opacity {
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.duration-200 {
+  transition-duration: 200ms;
+}
+
+.duration-300 {
+  transition-duration: 300ms;
+}
+
+.ease-in-out {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* basic spacing (only most used to keep file small) */
+.gap-1 {
+  gap: .25rem;
+}
+
+.gap-2 {
+  gap: .5rem;
+}
+
+.gap-3 {
+  gap: .75rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+/* Calendar day with lunar date */
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  color: var(--text-main);
+  gap: 1px;
+}
+
+.calendar-day .solar-day {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.calendar-day .lunar-day {
+  font-size: 8px;
+  opacity: 0.5;
+  line-height: 1;
+}
+
+.calendar-day:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.calendar-day.empty {
+  cursor: default;
+  background: transparent;
+}
+
+.calendar-day.today {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid var(--accent);
+}
+
+.calendar-day.selected {
+  background: var(--accent);
+  color: white;
+}
+
+.calendar-day.selected .lunar-day {
+  opacity: 0.7;
+}
+
+.calendar-day.has-reminder::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.calendar-day.selected.has-reminder::after {
+  background: white;
+}
+
+.grid-cols-7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+/* ============================================
+   FOLDER CARDS (Home Screen)
+   ============================================ */
+
+.folder-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.folder-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
+}
+
+.folder-card:active {
+  transform: scale(0.98);
+}
+
+.folder-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.folder-icon.approved {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 95, 70, 0.3) 100%);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.folder-icon.pending {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(180, 83, 9, 0.3) 100%);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.folder-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folder-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.folder-count {
+  font-size: 13px;
+  color: var(--text-sub);
+  opacity: 0.7;
+}
