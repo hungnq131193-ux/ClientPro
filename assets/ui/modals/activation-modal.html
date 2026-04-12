@@ -1,0 +1,16 @@
+<div id="activation-modal" class="fixed inset-0 z-[305] bg-black/90 hidden flex items-center justify-center p-6 backdrop-blur-md">
+        <div class="glass-panel w-full max-w-sm p-8 rounded-2xl shadow-2xl relative border border-white/10 modal-animate">
+            <h2 id="activation-title" class="text-xl font-bold mb-6 text-center tracking-tight" style="color: var(--text-main)">Kích hoạt Thiết bị</h2>
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-xs font-bold uppercase mb-2 tracking-wider opacity-70" style="color: var(--text-sub)">Mã kích hoạt (Key)</label>
+                    <input type="text" id="activation-key" class="w-full border rounded-xl p-4 outline-none font-bold" style="border-color: var(--border-panel);" placeholder="Nhập Mã Key...">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase mb-2 tracking-wider opacity-70" style="color: var(--text-sub)">Mã nhân viên</label>
+                    <input type="text" id="activation-employee" class="w-full border rounded-xl p-4 outline-none font-bold" style="border-color: var(--border-panel);" placeholder="Nhập mã nhân viên...">
+                </div>
+                <button onclick="activateApp()" class="w-full text-white font-bold py-4 rounded-xl mt-2 shadow-lg active:scale-95 transition-transform uppercase tracking-wide" style="background: var(--accent-gradient)">Kích hoạt</button>
+            </div>
+        </div>
+    </div>

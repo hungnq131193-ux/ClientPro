@@ -1,0 +1,36 @@
+<div id="asset-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl modal-animate overflow-y-auto max-h-[90vh] custom-scrollbar">
+            <h3 class="font-bold mb-4 flex justify-between items-center text-lg" style="color: var(--text-main)"><span id="modal-title-asset">Thêm TSBĐ</span><input type="hidden" id="edit-asset-index"></h3>
+            <div class="space-y-3">
+                <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Mô tả chính</label><input id="asset-name" placeholder="VD:Số bìa, số đăng ký..." class="w-full border p-3.5 rounded-xl outline-none" style="border-color: var(--border-panel);"></div>
+                <input type="hidden" id="asset-ocr-data">
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Định giá (Trđ)</label><input id="asset-val" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vay Max (Trđ)</label><input id="asset-loan" type="tel" placeholder="0" class="w-full p-3 rounded-xl border outline-none font-medium" style="border-color: var(--border-panel);"></div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Diện tích</label><input id="asset-area" type="number" placeholder="m²" class="w-full p-3 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Mặt tiền</label><input id="asset-width" type="number" placeholder="m" class="w-full p-3 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
+                    <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Xây dựng</label><input id="asset-year" type="number" placeholder="Năm" class="w-full p-3 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
+                </div>
+                <div><label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vị trí + Ghi chú thêm</label><input id="asset-onland" placeholder="VD: Địa chỉ, công trình xây dựng,..." class="w-full p-3.5 rounded-xl border outline-none" style="border-color: var(--border-panel);"></div>
+                                <div>
+                    <label class="text-[10px] font-bold uppercase opacity-60 ml-1 mb-1 block">Vị trí / Tọa độ (Map)</label>
+                    <div class="flex gap-2 items-stretch">
+                        <input id="asset-link" placeholder="Nhấn nút bên phải để lấy tọa độ" class="flex-1 min-w-0 h-[52px] p-3.5 rounded-xl text-sm border outline-none bg-black/20" style="border-color: var(--border-panel);">
+                        <button type="button" onclick="openGuideModal()" class="w-12 h-[52px] shrink-0 flex items-center justify-center rounded-xl border bg-black/20 text-white/80 hover:bg-white/10 active:scale-95 transition" style="border-color: var(--border-panel);" aria-label="Hướng dẫn lấy tọa độ">
+                            <i data-lucide="help-circle" class="w-5 h-5"></i>
+                        </button>
+                        <button type="button" onclick="getCurrentGPS()" class="w-12 h-[52px] shrink-0 flex items-center justify-center rounded-xl border bg-black/20 text-white/80 hover:bg-white/10 active:scale-95 transition" style="border-color: var(--border-panel);" aria-label="Lấy tọa độ GPS">
+                            <i data-lucide="map-pin" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-8">
+                <button onclick="closeAssetModal()" class="flex-1 py-3.5 rounded-xl font-medium transition-colors hover:bg-white/5" style="background: rgba(255,255,255,0.05); color: var(--text-sub)">Hủy</button>
+                <button onclick="saveAsset()" id="btn-save-asset" class="flex-1 py-3.5 text-white font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform" style="background: var(--accent-gradient);">Lưu</button>
+            </div>
+        </div>
+    </div>
