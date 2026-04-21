@@ -473,20 +473,14 @@
   function setTabUI(tab) {
     const localBtn = document.getElementById('bkTabLocal');
     const inboxBtn = document.getElementById('bkTabInbox');
-    const driveBtn = document.getElementById('bkTabDrive');
     const localPane = document.getElementById('local-backup-pane');
     const inboxPane = document.getElementById('inbox-backup-pane');
-    const drivePane = document.getElementById('drive-backup-pane');
 
-    const active = 'rgba(59,130,246,0.18)';
-    const inactive = 'rgba(255,255,255,0.04)';
-    if (localBtn) localBtn.style.background = (tab === 'local') ? active : inactive;
-    if (inboxBtn) inboxBtn.style.background = (tab === 'inbox') ? active : inactive;
-    if (driveBtn) driveBtn.style.background = (tab === 'drive') ? active : inactive;
+    if (localBtn) localBtn.style.background = (tab === 'local') ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)';
+    if (inboxBtn) inboxBtn.style.background = (tab === 'inbox') ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)';
 
     if (localPane) localPane.classList.toggle('hidden', tab !== 'local');
     if (inboxPane) inboxPane.classList.toggle('hidden', tab !== 'inbox');
-    if (drivePane) drivePane.classList.toggle('hidden', tab !== 'drive');
   }
 
   async function renderInboxUI(items) {
@@ -699,15 +693,13 @@
     },
 
     showTab(tab) {
-      const t = tab || 'local';
+      const t = (tab === 'inbox') ? 'inbox' : 'local';
       this._currentTab = t;
       setTabUI(t);
       if (t === 'local') {
         if (typeof renderBackupList === 'function') renderBackupList();
-      } else if (t === 'inbox') {
+      } else {
         this.renderInbox();
-      } else if (t === 'drive') {
-        if (typeof showDriveBackupTab === 'function') showDriveBackupTab();
       }
     },
 

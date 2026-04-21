@@ -91,22 +91,6 @@ async function _idbDeleteBackup(id) {
   });
 }
 
-// Giữ chỉ MAX_LOCAL_BACKUPS bản gần nhất, xóa phần còn lại
-const MAX_LOCAL_BACKUPS = 3;
-async function _pruneOldBackups() {
-  try {
-    const all = await _idbGetAllBackups();
-    if (all.length <= MAX_LOCAL_BACKUPS) return;
-    all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    const toDelete = all.slice(MAX_LOCAL_BACKUPS);
-    for (const b of toDelete) {
-      await _idbDeleteBackup(b.id);
-    }
-  } catch (e) {
-    console.warn('[Prune] Error:', e);
-  }
-}
-
 async function openBackupManager() {
   _closeMenuIfOpen();
   const modal = getEl("backup-manager-modal");
@@ -386,9 +370,6 @@ async function backupData() {
     // Lưu backup vào IndexedDB
     await _idbPutBackup(rec);
 
-    // Giữ chỉ 3 bản gần nhất
-    await _pruneOldBackups();
-
     // Lưu hash để so sánh lần sau
     if (hashNew) localStorage.setItem(LAST_BACKUP_HASH_KEY, hashNew);
 
@@ -399,13 +380,6 @@ async function backupData() {
       const modal = getEl("backup-manager-modal");
       if (modal && !modal.classList.contains("hidden")) {
         await renderBackupList();
-      }
-    } catch (e) { }
-
-    // Trigger auto backup lên Drive (nếu cấu hình)
-    try {
-      if (window.DriveBackup && typeof window.DriveBackup.checkDaily === 'function') {
-        window.DriveBackup.checkDaily();
       }
     } catch (e) { }
   } catch (err) {

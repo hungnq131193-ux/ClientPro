@@ -577,8 +577,8 @@ input::placeholder {
 .theme-btn-sm {
   width: 100%;
   aspect-ratio: 1;
-  max-height: 42px;
-  border-radius: 8px;
+  max-height: 34px;
+  border-radius: 6px;
   border: 2px solid transparent;
   cursor: pointer;
   position: relative;
@@ -588,7 +588,7 @@ input::placeholder {
 }
 
 .theme-btn-sm:active {
-  transform: scale(0.92);
+  transform: scale(0.95);
 }
 
 .theme-btn-sm.active {
@@ -600,35 +600,34 @@ input::placeholder {
 .settings-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 12px;
-  font-size: 13px;
+  gap: 6px;
+  padding: 10px 8px;
+  font-size: 11px;
   font-weight: 600;
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: background 0.15s, transform 0.1s;
+  transition: background 0.15s;
 }
 
 .settings-btn:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.97);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* Full-width settings button */
 .settings-btn-full {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 14px 16px;
-  font-size: 13px;
-  font-weight: 600;
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 500;
   transition: background 0.15s;
 }
 
 .settings-btn-full:active {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .select-ring {
@@ -1140,7 +1139,73 @@ input::placeholder {
   gap: 1rem;
 }
 
+/* Calendar day with lunar date */
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  color: var(--text-main);
+  gap: 1px;
+}
 
+.calendar-day .solar-day {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.calendar-day .lunar-day {
+  font-size: 8px;
+  opacity: 0.5;
+  line-height: 1;
+}
+
+.calendar-day:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.calendar-day.empty {
+  cursor: default;
+  background: transparent;
+}
+
+.calendar-day.today {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid var(--accent);
+}
+
+.calendar-day.selected {
+  background: var(--accent);
+  color: white;
+}
+
+.calendar-day.selected .lunar-day {
+  opacity: 0.7;
+}
+
+.calendar-day.has-reminder::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.calendar-day.selected.has-reminder::after {
+  background: white;
+}
+
+.grid-cols-7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
 
 /* ============================================
    FOLDER CARDS (Home Screen)

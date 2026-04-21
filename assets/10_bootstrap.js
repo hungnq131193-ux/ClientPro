@@ -56,6 +56,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   setTheme(savedTheme);
+
+  setTheme(savedTheme);
   // 🌤 Khởi động thời tiết
   initWeather();
 

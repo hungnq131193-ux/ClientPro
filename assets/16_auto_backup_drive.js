@@ -19,7 +19,7 @@
     const AUTO_BACKUP_ENABLED_KEY = 'CLIENTPRO_AUTO_BACKUP_ENABLED';
     const DRIVE_BACKUPS_CACHE_KEY = 'CLIENTPRO_DRIVE_BACKUPS_CACHE';
     const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes cache
-    const AUTO_BACKUP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes (effectively every app open)
+    const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     // ============================================================
     // HELPERS
@@ -487,6 +487,7 @@
     // TAB SWITCHING
     // ============================================================
     function showDriveBackupTab() {
+        // Hide other panes
         const localPane = document.getElementById('local-backup-pane');
         const inboxPane = document.getElementById('inbox-backup-pane');
         const drivePane = document.getElementById('drive-backup-pane');
@@ -495,16 +496,16 @@
         if (inboxPane) inboxPane.classList.add('hidden');
         if (drivePane) drivePane.classList.remove('hidden');
 
+        // Update tab buttons
         const tabLocal = document.getElementById('bkTabLocal');
         const tabInbox = document.getElementById('bkTabInbox');
         const tabDrive = document.getElementById('bkTabDrive');
 
-        const inactive = 'rgba(255,255,255,0.04)';
-        const active = 'rgba(59,130,246,0.18)';
-        if (tabLocal) tabLocal.style.background = inactive;
-        if (tabInbox) tabInbox.style.background = inactive;
-        if (tabDrive) tabDrive.style.background = active;
+        if (tabLocal) tabLocal.style.background = 'rgba(255,255,255,0.04)';
+        if (tabInbox) tabInbox.style.background = 'rgba(255,255,255,0.04)';
+        if (tabDrive) tabDrive.style.background = 'rgba(59,130,246,0.2)';
 
+        // Load drive backups
         renderDriveBackupsList('drive-backup-list');
     }
 
