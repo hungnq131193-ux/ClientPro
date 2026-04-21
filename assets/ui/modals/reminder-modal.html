@@ -1,0 +1,120 @@
+<!-- Reminder Modal -->
+<div id="reminder-modal" class="fixed inset-0 z-[100] hidden flex items-end justify-center">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeReminderModal()"></div>
+    <div class="relative w-full max-w-lg glass-panel rounded-t-3xl p-6 pb-10 space-y-4 animate-slide-up"
+        style="max-height: 85vh; overflow-y: auto;">
+
+        <div class="flex justify-between items-center mb-2">
+            <h3 class="text-lg font-bold" style="color: var(--text-main)">
+                <i data-lucide="bell" class="w-5 h-5 inline mr-2"></i>
+                <span id="reminder-modal-title">Thêm nhắc nhở</span>
+            </h3>
+            <button onclick="closeReminderModal()" class="p-2 rounded-full hover:bg-white/10">
+                <i data-lucide="x" class="w-5 h-5" style="color: var(--text-sub)"></i>
+            </button>
+        </div>
+
+        <input type="hidden" id="rem-edit-id" value="">
+        <input type="hidden" id="rem-customer" value="">
+
+        <!-- Tiêu đề -->
+        <div>
+            <label class="text-xs font-bold uppercase opacity-60 mb-1 block" style="color: var(--text-sub)">
+                Tiêu đề công việc *
+            </label>
+            <input type="text" id="rem-title" placeholder="VD: Gọi điện KH Nguyễn Văn A"
+                class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm outline-none"
+                style="color: var(--text-main)">
+        </div>
+
+        <!-- Ngày giờ -->
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label class="text-xs font-bold uppercase opacity-60 mb-1 block" style="color: var(--text-sub)">
+                    Ngày *
+                </label>
+                <input type="date" id="rem-date"
+                    class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm outline-none"
+                    style="color: var(--text-main)">
+            </div>
+            <div>
+                <label class="text-xs font-bold uppercase opacity-60 mb-1 block" style="color: var(--text-sub)">
+                    Giờ *
+                </label>
+                <input type="time" id="rem-time"
+                    class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm outline-none"
+                    style="color: var(--text-main)">
+            </div>
+        </div>
+
+        <!-- Customer link removed as requested -->
+
+
+        <!-- Ghi chú -->
+        <div>
+            <label class="text-xs font-bold uppercase opacity-60 mb-1 block" style="color: var(--text-sub)">
+                Ghi chú
+            </label>
+            <textarea id="rem-note" rows="2" placeholder="Nội dung chi tiết..."
+                class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm outline-none resize-none"
+                style="color: var(--text-main)"></textarea>
+        </div>
+
+        <!-- Nhắc trước -->
+        <div>
+            <label class="text-xs font-bold uppercase opacity-60 mb-1 block" style="color: var(--text-sub)">
+                <i data-lucide="bell-ring" class="w-3 h-3 inline mr-1"></i> Nhắc trước
+            </label>
+            <select id="rem-notify"
+                class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm outline-none"
+                style="color: var(--text-main)">
+                <option value="0">Không nhắc</option>
+                <option value="5">5 phút trước</option>
+                <option value="15" selected>15 phút trước</option>
+                <option value="30">30 phút trước</option>
+                <option value="60">1 giờ trước</option>
+                <option value="1440">1 ngày trước</option>
+            </select>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-3 pt-2">
+            <button onclick="closeReminderModal()"
+                class="flex-1 py-3 rounded-xl font-bold border border-white/20 text-sm" style="color: var(--text-sub)">
+                Hủy
+            </button>
+            <button onclick="saveReminder()"
+                class="flex-1 py-3 rounded-xl font-bold text-white text-sm shadow-lg active:scale-[0.98] transition-transform"
+                style="background: var(--accent-gradient)">
+                <i data-lucide="save" class="w-4 h-4 inline mr-1"></i> Lưu
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .customer-option {
+        padding: 10px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-main);
+        transition: background 0.15s;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .customer-option:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .customer-option:last-child {
+        border-bottom: none;
+    }
+
+    .customer-option.selected {
+        background: var(--accent);
+        color: white;
+    }
+</style>
