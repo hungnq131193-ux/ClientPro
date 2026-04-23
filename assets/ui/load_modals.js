@@ -24,8 +24,7 @@
     'assets/ui/modals/ref-price-modal.html',
     'assets/ui/modals/donate-modal.html',
     'assets/ui/modals/camera-modal.html',
-    'assets/ui/modals/backup-manager-modal.html',
-    'assets/ui/modals/reminder-modal.html'
+    'assets/ui/modals/backup-manager-modal.html'
   ];
 
   async function loadAllModalsSequentially() {
