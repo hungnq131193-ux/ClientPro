@@ -258,54 +258,86 @@ function _ensureSummaryDecrypted(c) {
     } else {
         __custSummaryCache.delete(c.id);
     }
-        return c;
+    return c;
 }
 
 async function loadCustomers(query = '') {
     if (!db) return;
     const q = (query || '').trim();
+    const loadToken = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    window.__customerListLoadToken = loadToken;
 
-    // Optional: hiển thị placeholder nhẹ để tránh cảm giác "đơ"
     const listEl = getEl('customer-list');
-    if (listEl && !listEl.dataset.loading) {
-        listEl.dataset.loading = '1';
-    }
+    if (!listEl) return;
+    listEl.dataset.loading = '1';
+    listEl.dataset.token = loadToken;
+    listEl.innerHTML = `<div class="text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Đang tải danh sách khách hàng...</div>`;
 
-    const list = await new Promise((resolve) => {
+    let loaded = 0;
+    let rendered = 0;
+    const batch = [];
+    const BATCH_SIZE = q ? 30 : 18;
+
+    const flushBatch = () => {
+        if (!batch.length || window.__customerListLoadToken !== loadToken) return;
+        renderList(batch.splice(0, batch.length), { append: rendered > 0, done: false });
+        rendered += BATCH_SIZE;
+    };
+
+    await new Promise((resolve) => {
         const tx = db.transaction(['customers'], 'readonly');
-        const req = tx.objectStore('customers').getAll();
-        req.onsuccess = (e) => resolve(e.target.result || []);
-        req.onerror = () => resolve([]);
-    });
+        const req = tx.objectStore('customers').openCursor(null, 'prev');
+        req.onsuccess = async (e) => {
+            if (window.__customerListLoadToken !== loadToken) return resolve();
+            const cursor = e.target.result;
+            if (!cursor) return resolve();
 
-    let out = (list || []).filter(c => c && (c.status || 'pending') === activeListTab);
-    if (q) {
-        const qq = q.toLowerCase();
-        const batch = 40;
-        for (let i = 0; i < out.length; i++) {
-            _ensureSummaryDecrypted(out[i]);
-            if ((i + 1) % batch === 0) {
+            const c = cursor.value;
+            if (!c || (c.status || 'pending') !== activeListTab) {
+                cursor.continue();
+                return;
+            }
+
+            if (q) {
+                const qq = q.toLowerCase();
+                _ensureSummaryDecrypted(c);
+                const nameMatch = (c.name || '').toLowerCase().includes(qq);
+                const phoneMatch = (c.phone || '').includes(qq);
+                if (!nameMatch && !phoneMatch) {
+                    cursor.continue();
+                    return;
+                }
+            }
+
+            batch.push(c);
+            loaded++;
+            if (batch.length >= BATCH_SIZE) {
+                flushBatch();
                 // eslint-disable-next-line no-await-in-loop
                 await new Promise((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(r) : setTimeout(r, 0)));
             }
-        }
-        out = out.filter(c => {
-            const nameMatch = (c.name || '').toLowerCase().includes(qq);
-            const phoneMatch = (c.phone || '').includes(qq);
-            return nameMatch || phoneMatch;
-        });
+            cursor.continue();
+        };
+        req.onerror = () => resolve();
+    });
+
+    flushBatch();
+    if (window.__customerListLoadToken !== loadToken) return;
+    if (loaded === 0) {
+        renderList([], { append: false, done: true });
+    } else {
+        renderList([], { append: true, done: true });
     }
-    out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    renderList(out);
 }
 
-function renderList(list) {
+function renderList(list, opts = {}) {
+    const append = !!opts.append;
+    const done = !!opts.done;
     const listEl = getEl('customer-list');
     if (!listEl) return;
-    listEl.innerHTML = '';
-    delete listEl.dataset.loading;
+    if (!append) listEl.innerHTML = '';
 
-    if (!list || list.length === 0) {
+    if ((!list || list.length === 0) && !append) {
         listEl.innerHTML = `<div class="text-center py-32 opacity-40 flex flex-col items-center"><i data-lucide="inbox" class="w-16 h-16 mb-4 stroke-1"></i><p class="text-xs font-bold uppercase tracking-wider">Danh sách trống</p></div>`;
         try { lucide.createIcons(); } catch (e) { }
         return;
@@ -313,27 +345,21 @@ function renderList(list) {
 
     const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 
-    let i = 0;
-    const CHUNK = 18;
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        const isApproved = activeListTab === 'approved';
+        const el = document.createElement('div');
+        _ensureSummaryDecrypted(c);
 
-    const renderChunk = () => {
-        const frag = document.createDocumentFragment();
-        const end = Math.min(i + CHUNK, list.length);
+        // Lite glass panel cho list để giảm GPU cost (blur/shadow)
+        el.className = `glass-panel-lite cust-card ${isApproved ? 'cust-approved' : 'cust-pending'} p-4 rounded-2xl mb-3 flex items-center gap-4 transition-all duration-200 hover:bg-white/5 active:scale-[0.98] ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
 
-        for (; i < end; i++) {
-            const c = list[i];
-            const isApproved = activeListTab === 'approved';
-            const el = document.createElement('div');
-            _ensureSummaryDecrypted(c);
-
-            // Lite glass panel cho list để giảm GPU cost (blur/shadow)
-            el.className = `glass-panel-lite cust-card ${isApproved ? 'cust-approved' : 'cust-pending'} p-4 rounded-2xl mb-3 flex items-center gap-4 transition-all duration-200 hover:bg-white/5 active:scale-[0.98] ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
-
-            el.onclick = (e) => {
-                if (e.target && e.target.closest && e.target.closest('.action-btn')) return;
-                if (isCustSelectionMode) toggleCustomerSelection(c.id, el);
-                else openFolder(c.id);
-            };
+        el.onclick = (e) => {
+            if (e.target && e.target.closest && e.target.closest('.action-btn')) return;
+            if (isCustSelectionMode) toggleCustomerSelection(c.id, el);
+            else openFolder(c.id);
+        };
 
             const limitHtml = isApproved
                 ? `<div class="flex items-center gap-1.5 mt-1.5">
@@ -379,19 +405,12 @@ function renderList(list) {
                             <a href="tel:${c.phone}" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-green-400 rounded-xl hover:bg-green-500/20"><i data-lucide="phone" class="w-4 h-4"></i></a>
                         </div>`;
 
-            frag.appendChild(el);
-        }
+        frag.appendChild(el);
+    }
 
-        listEl.appendChild(frag);
-
-        if (i < list.length) {
-            requestAnimationFrame(renderChunk);
-        } else {
-            try { lucide.createIcons(); } catch (e) { }
-        }
-    };
-
-    requestAnimationFrame(renderChunk);
+    listEl.appendChild(frag);
+    if (done) delete listEl.dataset.loading;
+    try { lucide.createIcons(); } catch (e) { }
 }
 
 function openModal() {
@@ -469,7 +488,8 @@ async function checkDuplicateCustomer(cccd, phone, excludeId = null) {
                 let custCccd = '';
                 let custPhone = '';
                 let custName = '';
-                       try {
+
+                try {
                     custCccd = (typeof decryptText === 'function' ? decryptText(c.cccd) : c.cccd) || '';
                     custPhone = (typeof decryptText === 'function' ? decryptText(c.phone) : c.phone) || '';
                     custName = (typeof decryptText === 'function' ? decryptText(c.name) : c.name) || '';
@@ -690,8 +710,9 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
             if (!editId && savedId) {
                 try { openFolder(savedId); } catch (e) { }
             }
-        };         
-            if (editId) {
+        };
+
+        if (editId) {
             // Update existing record: giữ lại assets/status/creditLimit/driveLink/createdAt...
             const req = store.get(editId);
             req.onsuccess = (e) => {
