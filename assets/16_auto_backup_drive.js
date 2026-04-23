@@ -1,7 +1,7 @@
 /**
  * 16_auto_backup_drive.js
  * Auto Backup to Google Drive via Admin GAS
- * 
+ *
  * Features:
  * - Auto backup daily when app opens (if > 24h since last backup)
  * - Upload encrypted backup to Admin GAS Drive folder
@@ -334,6 +334,27 @@
         }
     }
 
+    async function sendDriveBackupToUser(fileId, fallbackName) {
+        if (!window.CloudTransferUI || typeof window.CloudTransferUI.sendEncryptedRecord !== 'function') {
+            throw new Error('Chưa sẵn sàng chức năng gửi user');
+        }
+        const result = await downloadDriveBackup(fileId);
+        const encryptedContent = result.encrypted || result.content;
+        if (!encryptedContent) throw new Error('Backup Drive rỗng');
+
+        const ts = Date.now();
+        const record = {
+            id: `drive_${ts}_${Math.random().toString(36).slice(2, 8)}`,
+            filename: fallbackName || result.filename || `CLIENTPRO_DRIVE_${ts}.cpb`,
+            createdAt: ts,
+            size: new Blob([encryptedContent]).size,
+            hash: String(result.hash || ''),
+            encrypted: encryptedContent,
+            meta: { type: 'drive_backup', sourceFileId: fileId }
+        };
+        await CloudTransferUI.sendEncryptedRecord(record);
+    }
+
     // ============================================================
     // DELETE DRIVE BACKUP
     // ============================================================
@@ -393,12 +414,17 @@
               </div>
             </div>
             <div class="flex gap-2 flex-shrink-0">
-              <button class="px-3 py-2 rounded-xl text-xs font-bold" 
+              <button class="px-3 py-2 rounded-xl text-xs font-bold"
                       style="background: rgba(16,185,129,0.15); color: #34d399;"
                       onclick="DriveBackup.restore('${b.id}')">
                 Restore
               </button>
-              <button class="px-3 py-2 rounded-xl text-xs font-bold" 
+              <button class="px-3 py-2 rounded-xl text-xs font-bold"
+                      style="background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);"
+                      onclick="DriveBackup.send('${b.id}', '${escapeHTML(b.filename || 'Backup')}')">
+                Gửi
+              </button>
+              <button class="px-3 py-2 rounded-xl text-xs font-bold"
                       style="background: rgba(239,68,68,0.15); color: #f87171;"
                       onclick="DriveBackup.delete('${b.id}')">
                 Xóa
@@ -453,6 +479,15 @@
         restore: async (fileId) => {
             if (!confirm('Khôi phục dữ liệu từ backup này trên Drive?')) return;
             await restoreFromDriveBackup(fileId);
+        },
+        send: async (fileId, name) => {
+            try {
+                await sendDriveBackupToUser(fileId, name);
+                if (typeof showToast === 'function') showToast('Đã gửi backup Drive');
+            } catch (err) {
+                console.error('[DriveBackup] send error:', err);
+                alert(err && err.message ? err.message : 'Không thể gửi backup Drive');
+            }
         },
         delete: async (fileId) => {
             if (!confirm('Xóa backup này trên Drive?')) return;
