@@ -207,9 +207,6 @@
     if (isVisibleSlide('screen-map')) {
       return callIfFn('toggleMap') || (get('screen-map').classList.add('translate-x-full'), true);
     }
-    if (isVisibleSlide('screen-calendar')) {
-      return callIfFn('closeCalendar') || (get('screen-calendar').classList.add('translate-x-full'), true);
-    }
     // screen-folder is nested inside screen-customer-list, so close it first
     if (isVisibleSlide('screen-folder')) {
       return callIfFn('closeFolder') || (get('screen-folder').classList.add('translate-x-full'), true);
@@ -218,10 +215,6 @@
       return callIfFn('closeCustomerList') || (get('screen-customer-list').classList.add('translate-x-full'), true);
     }
 
-    // Reminder modal
-    if (isVisibleModal('reminder-modal')) {
-      return callIfFn('closeReminderModal') || (get('reminder-modal').classList.add('hidden'), true);
-    }
 
     // Fallback: close any top-most overlay/panel even if IDs differ
     return genericCloseTopOverlayOrPanel();
