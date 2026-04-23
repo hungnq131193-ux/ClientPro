@@ -167,10 +167,10 @@
                 <i data-lucide="shield" class="w-3.5 h-3.5"></i> Bảo mật
             </button>
             <button onclick="backupData()" class="settings-btn text-blue-400">
-                <i data-lucide="database" class="w-3.5 h-3.5"></i> Backup
+                <i data-lucide="database" class="w-3.5 h-3.5"></i> Tạo backup
             </button>
             <button onclick="openBackupManager()" class="settings-btn text-cyan-400">
-                <i data-lucide="archive" class="w-3.5 h-3.5"></i> Quản lý
+                <i data-lucide="archive" class="w-3.5 h-3.5"></i> Kho backup
             </button>
             <button onclick="importFromExcel()" class="settings-btn text-emerald-400">
                 <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Nhập Excel
@@ -227,12 +227,6 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button onclick="openCalendar()"
-                        class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
-                        style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);"
-                        title="Lịch nhắc nhở">
-                        <i data-lucide="calendar" class="w-6 h-6"></i>
-                    </button>
                     <button onclick="toggleMenu()"
                         class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
                         style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
@@ -339,66 +333,6 @@
         <button onclick="locateMe()"
             class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i
                 data-lucide="crosshair" class="w-6 h-6"></i></button>
-    </div>
-
-    <!-- CALENDAR SCREEN -->
-    <div id="screen-calendar"
-        class="app-container z-20 transform translate-x-full transition-transform duration-300 hidden"
-        style="background: var(--bg-base); position: relative;">
-
-        <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
-            <div class="flex items-center justify-between mb-4">
-                <button onclick="closeCalendar()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
-                    style="color: var(--text-main)">
-                    <i data-lucide="arrow-left" class="w-6 h-6"></i>
-                </button>
-                <h2 class="font-bold text-lg" style="color: var(--text-main)">
-                    <i data-lucide="calendar" class="w-5 h-5 inline mr-2"></i> Lịch Nhắc Nhở
-                </h2>
-                <button onclick="goToToday()" class="px-3 py-1.5 rounded-lg text-xs font-bold"
-                    style="background: var(--accent); color: white;">
-                    Hôm nay
-                </button>
-            </div>
-
-            <div class="flex items-center justify-between px-2">
-                <button onclick="prevMonth()" class="p-2 rounded-full hover:bg-white/10 transition"
-                    style="color: var(--text-main)">
-                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
-                </button>
-                <span id="calendar-month-label" class="font-bold text-base" style="color: var(--text-main)">
-                    Tháng 1, 2026
-                </span>
-                <button onclick="nextMonth()" class="p-2 rounded-full hover:bg-white/10 transition"
-                    style="color: var(--text-main)">
-                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
-                </button>
-            </div>
-        </header>
-
-        <div class="px-4 py-3">
-            <div class="grid grid-cols-7 gap-1 mb-2 text-center">
-                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T2</span>
-                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T3</span>
-                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T4</span>
-                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T5</span>
-                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T6</span>
-                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">T7</span>
-                <span class="text-xs font-bold opacity-50" style="color: var(--text-sub)">CN</span>
-            </div>
-            <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
-        </div>
-
-        <div class="flex-1 scroll-area px-4 pb-28">
-            <div id="day-reminders"></div>
-        </div>
-
-        <!-- FAB for adding reminder - fixed position so it's always visible -->
-        <button id="fab-add-reminder" onclick="openReminderModal()"
-            class="fixed right-6 z-[500] w-14 h-14 rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-transform"
-            style="background: var(--accent-gradient); display: none; bottom: calc(24px + var(--sab, 0px));">
-            <i data-lucide="plus" class="w-7 h-7 text-white"></i>
-        </button>
     </div>
 
     <div id="screen-folder" class="app-container z-20 transform translate-x-full transition-transform duration-300"
@@ -650,8 +584,6 @@
     <script src="./assets/16_auto_backup_drive.js" defer></script>
     <!-- Onboarding tour for new users -->
     <script src="./assets/17_onboarding_tour.js" defer></script>
-    <!-- Calendar & Reminders -->
-    <script src="./assets/19_calendar.js" defer></script>
     <!-- Excel Import (SheetJS) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" defer></script>
     <script src="./assets/20_excel_import.js" defer></script>
