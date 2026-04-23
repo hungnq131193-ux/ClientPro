@@ -235,6 +235,32 @@ function _custSig(c) {
     return `${c && c.id ? c.id : ''}|${c && c.name ? c.name : ''}|${c && c.phone ? c.phone : ''}|${c && c.cccd ? c.cccd : ''}|${c && c.status ? c.status : ''}|${c && c.creditLimit ? c.creditLimit : ''}`;
 }
 
+function _ensureSummaryDecrypted(c) {
+    if (!c) return c;
+    if (!c.assets) c.assets = [];
+    if (!c.status) c.status = 'pending';
+
+    const sig = _custSig(c);
+    const cached = __custSummaryCache.get(c.id);
+    if (cached && cached.sig === sig && cached.ok === true) {
+        c.name = cached.name;
+        c.phone = cached.phone;
+        c.cccd = cached.cccd;
+        return c;
+    }
+
+    if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(c);
+    else decryptCustomerObject(c);
+
+    const ok = !_looksEncrypted(c.name) && !_looksEncrypted(c.phone) && !_looksEncrypted(c.cccd);
+    if (ok) {
+        __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd, ok: true });
+    } else {
+        __custSummaryCache.delete(c.id);
+    }
+        return c;
+}
+
 async function loadCustomers(query = '') {
     if (!db) return;
     const q = (query || '').trim();
@@ -252,47 +278,17 @@ async function loadCustomers(query = '') {
         req.onerror = () => resolve([]);
     });
 
-    let out = list || [];
-    // Tối ưu: chỉ giải mã trường cần thiết cho LIST (assets sẽ giải mã khi mở folder)
-    const batch = 50;
-    for (let i = 0; i < out.length; i++) {
-        const c = out[i];
-        if (!c) continue;
-        if (!c.assets) c.assets = [];
-        if (!c.status) c.status = 'pending';
-
-        const sig = _custSig(c);
-        const cached = __custSummaryCache.get(c.id);
-
-        // Chỉ dùng cache khi chắc chắn đã giải mã (tránh cache ciphertext lúc chưa unlock).
-        if (cached && cached.sig === sig && cached.ok === true) {
-            c.name = cached.name;
-            c.phone = cached.phone;
-            c.cccd = cached.cccd;
-        } else {
-            if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(c);
-            else decryptCustomerObject(c);
-
-            const ok = !_looksEncrypted(c.name) && !_looksEncrypted(c.phone) && !_looksEncrypted(c.cccd);
-            if (ok) {
-                __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd, ok: true });
-            } else {
-                // Nếu vẫn là ciphertext (chưa unlock), không cache để lần sau unlock sẽ decrypt lại.
-                __custSummaryCache.delete(c.id);
-            }
-        }
-
-        // yield theo batch để tránh block main-thread
-        if ((i + 1) % batch === 0) {
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(r) : setTimeout(r, 0)));
-        }
-    }
-
-    // Lọc theo tab trạng thái
-    out = out.filter(c => c && c.status === activeListTab);
+    let out = (list || []).filter(c => c && (c.status || 'pending') === activeListTab);
     if (q) {
         const qq = q.toLowerCase();
+        const batch = 40;
+        for (let i = 0; i < out.length; i++) {
+            _ensureSummaryDecrypted(out[i]);
+            if ((i + 1) % batch === 0) {
+                // eslint-disable-next-line no-await-in-loop
+                await new Promise((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(r) : setTimeout(r, 0)));
+            }
+        }
         out = out.filter(c => {
             const nameMatch = (c.name || '').toLowerCase().includes(qq);
             const phoneMatch = (c.phone || '').includes(qq);
@@ -328,6 +324,7 @@ function renderList(list) {
             const c = list[i];
             const isApproved = activeListTab === 'approved';
             const el = document.createElement('div');
+            _ensureSummaryDecrypted(c);
 
             // Lite glass panel cho list để giảm GPU cost (blur/shadow)
             el.className = `glass-panel-lite cust-card ${isApproved ? 'cust-approved' : 'cust-pending'} p-4 rounded-2xl mb-3 flex items-center gap-4 transition-all duration-200 hover:bg-white/5 active:scale-[0.98] ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
@@ -472,8 +469,7 @@ async function checkDuplicateCustomer(cccd, phone, excludeId = null) {
                 let custCccd = '';
                 let custPhone = '';
                 let custName = '';
-
-                try {
+                       try {
                     custCccd = (typeof decryptText === 'function' ? decryptText(c.cccd) : c.cccd) || '';
                     custPhone = (typeof decryptText === 'function' ? decryptText(c.phone) : c.phone) || '';
                     custName = (typeof decryptText === 'function' ? decryptText(c.name) : c.name) || '';
@@ -694,9 +690,8 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
             if (!editId && savedId) {
                 try { openFolder(savedId); } catch (e) { }
             }
-        };
-
-        if (editId) {
+        };         
+            if (editId) {
             // Update existing record: giữ lại assets/status/creditLimit/driveLink/createdAt...
             const req = store.get(editId);
             req.onsuccess = (e) => {
@@ -1006,4 +1001,3 @@ async function saveCustomerNotes() {
         showToast('Đã lưu ghi chú');
     };
 }
-
