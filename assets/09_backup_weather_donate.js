@@ -174,6 +174,24 @@ async function exportBackupFromApp(id) {
   showToast("Đã xuất file .cpb");
 }
 
+async function createBackupFileNow() {
+  try {
+    await backupData();
+    const all = await _idbGetAllBackups();
+    all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const latest = all[0];
+    if (!latest) {
+      alert("Chưa có dữ liệu backup để xuất file.");
+      return;
+    }
+    await exportBackupFromApp(latest.id);
+    await renderBackupList();
+  } catch (e) {
+    console.error(e);
+    alert("Không thể tạo file backup lúc này.");
+  }
+}
+
 async function restoreBackupFromApp(id) {
   // Phương án 1: mỗi lần Restore sẽ verify lại và xin secret từ server
   if (typeof ensureBackupSecret === "function") {
