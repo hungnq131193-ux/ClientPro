@@ -11,11 +11,14 @@
   const AUTH_GATE_LAST_OK_TS = "app_auth_gate_last_ok_ts";
   const AUTH_GATE_LAST_MSG = "app_auth_gate_last_msg";
   const AUTH_GATE_COOLDOWN_UNTIL = "app_auth_gate_cooldown_until";
+  const AUTH_GATE_LOCK_STRIKES = "app_auth_gate_lock_strikes";
 
   // TTL 24h: giảm tải GAS/Sheet khi nhiều người mở app.
   // Lưu ý: Backup/Restore vẫn kiểm tra realtime theo ensureBackupSecret() như logic hiện có.
   const AUTH_TTL_MS = 24 * 60 * 60 * 1000;
   const AUTH_COOLDOWN_MS = 5 * 60 * 1000;
+  const AUTH_LOCK_STRIKE_WINDOW_MS = 6 * 60 * 60 * 1000;
+  const AUTH_LOCK_STRIKES_REQUIRED = 2;
 
   // Single-flight để tránh gọi GAS trùng trong cùng một phiên mở app.
   let _inflight = null;
@@ -254,17 +257,65 @@
     return { ok: true };
   }
 
+  function _registerLockStrike() {
+    try {
+      const now = Date.now();
+      const raw = localStorage.getItem(AUTH_GATE_LOCK_STRIKES) || "";
+      let data = null;
+      try {
+        data = JSON.parse(raw);
+      } catch (e) {
+        data = null;
+      }
+      const firstTs = data && Number(data.firstTs || 0) ? Number(data.firstTs) : now;
+      const count = data && Number(data.count || 0) ? Number(data.count) : 0;
+      const inWindow = now - firstTs <= AUTH_LOCK_STRIKE_WINDOW_MS;
+      const next = {
+        firstTs: inWindow ? firstTs : now,
+        count: inWindow ? count + 1 : 1,
+      };
+      localStorage.setItem(AUTH_GATE_LOCK_STRIKES, JSON.stringify(next));
+      return next.count >= AUTH_LOCK_STRIKES_REQUIRED;
+    } catch (e) {
+      return false; // fail-open để tránh khóa oan khi localStorage bị lỗi tạm
+    }
+  }
+
+  function _resetLockStrikes() {
+    try {
+      localStorage.removeItem(AUTH_GATE_LOCK_STRIKES);
+    } catch (e) {}
+  }
+
   async function preflight() {
     try {
       if (_inflight) return await _inflight;
       _inflight = (async () => {
         const r = await _checkByIssueKdata();
-        if (!r || r.ok) return true;
+        if (!r || r.ok) {
+          _resetLockStrikes();
+          return true;
+        }
 
-        // Thu hồi kích hoạt ở client để lần sau bắt buộc activate lại
-        try {
-          if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
-        } catch (e) {}
+        // Chỉ chặn cứng + thu hồi khi server báo LOCKED liên tiếp nhiều lần.
+        if (r.reason === "locked") {
+          const shouldBlock = _registerLockStrike();
+          if (!shouldBlock) {
+            try {
+              localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL, String(Date.now() + AUTH_COOLDOWN_MS));
+            } catch (e) {}
+            return true;
+          }
+        } else {
+          _resetLockStrikes();
+        }
+
+        // Chỉ thu hồi local activation khi đã xác nhận LOCKED rõ ràng.
+        if (r.reason === "locked") {
+          try {
+            if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
+          } catch (e) {}
+        }
 
         _block(r.message || "Thiết bị của bạn không còn quyền sử dụng.");
         return false;
