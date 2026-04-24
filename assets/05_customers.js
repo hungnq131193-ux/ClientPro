@@ -161,15 +161,20 @@ function openCustomerList(type) {
         titleEl.textContent = type === 'approved' ? 'Khách hàng đã vay' : 'KH đang thẩm định';
     }
 
-    // Show screen with slide animation
+    // Show screen with slide animation first (ưu tiên mượt animation)
     screen.classList.remove('hidden');
     setTimeout(() => {
         screen.classList.remove('translate-x-full');
         if (dashboard) dashboard.style.transform = 'translateX(-30%)';
     }, 10);
 
-    // Load customers for this type
-    loadCustomers('');
+    // Defer load list sang frame sau để tránh block transition
+    const kickLoad = () => loadCustomers('');
+    if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => requestAnimationFrame(kickLoad));
+    } else {
+        setTimeout(kickLoad, 16);
+    }
     try { lucide.createIcons(); } catch (e) { }
 }
 
@@ -344,6 +349,12 @@ function renderList(list, opts = {}) {
     }
 
     const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+    const iconBadgeCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-emerald-400 shrink-0"><path d="m12 15 2 2 4-4"></path><path d="M9 12a3 3 0 0 1 3-3"></path><path d="M20 12a8 8 0 1 1-8-8"></path></svg>`;
+    const iconSmartphone = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3 opacity-70"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><path d="M12 18h.01"></path></svg>`;
+    const iconClock = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+    const iconCheckCircle = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="10"></circle></svg>`;
+    const iconMessage = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
+    const iconPhone = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.9 12.9 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.1 9.9a16 16 0 0 0 6 6l1.26-1.26a2 2 0 0 1 2.11-.45 12.9 12.9 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`;
 
     const frag = document.createDocumentFragment();
     for (let i = 0; i < list.length; i++) {
@@ -364,12 +375,12 @@ function renderList(list, opts = {}) {
             const limitHtml = isApproved
                 ? `<div class="flex items-center gap-1.5 mt-1.5">
                     <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
-                        <i data-lucide="check-circle" class="w-3 h-3"></i> HM: ${c.creditLimit || '0'}
+                        ${iconCheckCircle} HM: ${c.creditLimit || '0'}
                     </span>
                    </div>`
                 : `<div class="flex items-center gap-1.5 mt-1.5">
                     <span class="text-[10px] font-medium text-indigo-300 bg-indigo-500/15 px-2 py-0.5 rounded-full border border-indigo-500/30 flex items-center gap-1">
-                        <i data-lucide="clock" class="w-3 h-3"></i> Đang thẩm định
+                        ${iconClock} Đang thẩm định
                     </span>
                    </div>`;
             const checkIcon = isCustSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
@@ -395,14 +406,14 @@ function renderList(list, opts = {}) {
                         <div class="flex-1 min-w-0">
                             <h3 class="font-bold text-white truncate text-base mb-0.5 leading-tight flex items-center gap-1.5">
                                 ${safeName}
-                                ${isApproved ? '<i data-lucide="badge-check" class="w-4 h-4 text-emerald-400 shrink-0"></i>' : ''}
+                                ${isApproved ? iconBadgeCheck : ''}
                             </h3>
-                            <p class="text-xs text-slate-400 font-mono flex items-center gap-1.5"><i data-lucide="smartphone" class="w-3 h-3 opacity-70"></i> ${safePhone}</p>
+                            <p class="text-xs text-slate-400 font-mono flex items-center gap-1.5">${iconSmartphone} ${safePhone}</p>
                             ${limitHtml}
                         </div>
                         <div class="flex gap-2">
-                            <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-blue-400 rounded-xl hover:bg-blue-500/20"><i data-lucide="message-circle" class="w-4 h-4"></i></a>
-                            <a href="tel:${c.phone}" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-green-400 rounded-xl hover:bg-green-500/20"><i data-lucide="phone" class="w-4 h-4"></i></a>
+                            <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-blue-400 rounded-xl hover:bg-blue-500/20">${iconMessage}</a>
+                            <a href="tel:${c.phone}" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-green-400 rounded-xl hover:bg-green-500/20">${iconPhone}</a>
                         </div>`;
 
         frag.appendChild(el);
@@ -410,7 +421,10 @@ function renderList(list, opts = {}) {
 
     listEl.appendChild(frag);
     if (done) delete listEl.dataset.loading;
-    try { lucide.createIcons(); } catch (e) { }
+    // Tránh scan lại toàn bộ DOM mỗi batch (lucide.createIcons rất tốn khi list lớn)
+    if (done) {
+        try { lucide.createIcons(); } catch (e) { }
+    }
 }
 
 function openModal() {
