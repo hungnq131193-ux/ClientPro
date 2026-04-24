@@ -237,7 +237,13 @@
         return { ok: true };
       }
       if (st === "locked") return { ok: false, reason: "locked", message: msg || "Tài khoản đã bị khóa." };
-      if (st === "error") return { ok: false, reason: "error", message: msg || "Không đủ quyền sử dụng." };
+      if (st === "error") {
+        // Soft-fail for periodic check mode: do not block app on generic errors.
+        try {
+          localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL, String(Date.now() + AUTH_COOLDOWN_MS));
+        } catch (e) {}
+        return { ok: true, skipped: true, softError: true, message: msg || "" };
+      }
 
       // Unknown status -> không chặn, chỉ coi như không xác định
       return { ok: true, unknown: true };
@@ -308,6 +314,8 @@
           }
         } else {
           _resetLockStrikes();
+          // Non-locked errors are soft-fail in this client policy.
+          return true;
         }
 
         // Chỉ thu hồi local activation khi đã xác nhận LOCKED rõ ràng.
@@ -315,10 +323,10 @@
           try {
             if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
           } catch (e) {}
+          _block(r.message || "Thiết bị của bạn không còn quyền sử dụng.");
+          return false;
         }
-
-        _block(r.message || "Thiết bị của bạn không còn quyền sử dụng.");
-        return false;
+        return true;
       })();
       const ok = await _inflight;
       _inflight = null;
