@@ -219,51 +219,8 @@ async function updateFolderCounts() {
 
         if (approvedEl) approvedEl.textContent = approvedCount;
         if (pendingEl) pendingEl.textContent = pendingCount;
-        renderHomeCustomerColumns(list);
         try { lucide.createIcons(); } catch (e) { }
     } catch (e) { }
-}
-
-function renderHomeCustomerColumns(list) {
-    const approvedHost = getEl('home-list-approved');
-    const pendingHost = getEl('home-list-pending');
-    if (!approvedHost || !pendingHost) return;
-
-    const approved = [];
-    const pending = [];
-    for (let i = 0; i < list.length; i++) {
-        const c = list[i];
-        if (!c) continue;
-        _ensureSummaryDecrypted(c);
-        if ((c.status || 'pending') === 'approved') approved.push(c);
-        else pending.push(c);
-    }
-
-    const renderCol = (host, items, type) => {
-        host.innerHTML = '';
-        if (!items.length) {
-            host.innerHTML = `<div class="home-cust-empty">Chưa có hồ sơ</div>`;
-            return;
-        }
-        const frag = document.createDocumentFragment();
-        for (let i = 0; i < items.length; i++) {
-            const c = items[i];
-            const name = escapeHTML((c.name && !_looksEncrypted(c.name)) ? c.name : 'Đang tải...');
-            const phone = escapeHTML((c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--');
-            const card = document.createElement('div');
-            card.className = `home-cust-item ${type}`;
-            card.onclick = () => openFolder(c.id);
-            card.innerHTML = `
-                <div class="home-cust-name">${name}</div>
-                <div class="home-cust-phone">${phone}</div>
-            `;
-            frag.appendChild(card);
-        }
-        host.appendChild(frag);
-    };
-
-    renderCol(approvedHost, approved, 'approved');
-    renderCol(pendingHost, pending, 'pending');
 }
 
 // =======================
@@ -357,7 +314,7 @@ async function loadCustomers(query = '') {
                     return;
                 }
             }
-            batch.push(c);
+                      batch.push(c);
             loaded++;
             if (batch.length >= BATCH_SIZE) {
                 flushBatch();
@@ -716,8 +673,8 @@ async function saveCustomer() {
                 () => _doSaveCustomer(name, phoneNorm, cccd, editId),
                 // onViewCustomer: close modal and open existing customer
                 (existingId) => {
-                    closeModal();
-                    openFolder(existingId);
+                    closeModal();  
+                            openFolder(existingId);
                 }
             );
             return; // Don't proceed, wait for user decision
@@ -1078,4 +1035,4 @@ async function saveCustomerNotes() {
         store.put(c);
         showToast('Đã lưu ghi chú');
     };
-}
+}        
