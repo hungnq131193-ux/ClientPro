@@ -759,6 +759,7 @@ input::placeholder {
 .marker-approved {
   background: #10b981;
 }
+}
 
 .marker-approved::after {
   background: #10b981;
@@ -1273,4 +1274,120 @@ input::placeholder {
   font-size: 13px;
   color: var(--text-sub);
   opacity: 0.7;
+}
+
+/* ============================================
+   HOME 2-COLUMN CUSTOMER LIST
+   ============================================ */
+.home-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 100%;
+}
+
+.home-column {
+  border: 1px solid var(--border-panel);
+  background: var(--bg-panel);
+  border-radius: 16px;
+  padding: 10px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.home-column.approved {
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.home-column.pending {
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+.home-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 2px 4px;
+}
+
+.home-column-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-main);
+}
+
+.home-column-title {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.home-column-count {
+  font-size: 11px;
+  color: var(--text-sub);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.home-customer-list {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.home-cust-item {
+  border: 1px solid var(--border-panel);
+  border-radius: 12px;
+  padding: 8px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.home-cust-item:active {
+  transform: scale(0.98);
+}
+
+.home-cust-item.approved {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.home-cust-item.pending {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.home-cust-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-cust-phone {
+  font-size: 11px;
+  color: var(--text-sub);
+  opacity: 0.9;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-cust-empty {
+  font-size: 11px;
+  color: var(--text-sub);
+  opacity: 0.7;
+  text-align: center;
+  padding: 16px 8px;
 }
