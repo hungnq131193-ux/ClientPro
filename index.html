@@ -244,7 +244,7 @@
         <!-- Dashboard 2-column customer lists -->
         <div class="scroll-area flex-1 p-4" id="folder-view">
             <div class="home-columns">
-                <section class="home-column approved">
+                <section class="home-column approved" onclick="openCustomerList('approved')">
                     <div class="home-column-header">
                         <div class="home-column-title-wrap">
                             <i data-lucide="folder-check" class="w-4 h-4"></i>
@@ -252,10 +252,10 @@
                         </div>
                         <span class="home-column-count"><span id="count-approved">0</span></span>
                     </div>
-                    <div id="home-list-approved" class="home-customer-list"></div>
+                    <div class="home-column-subtitle">Nhấn để mở danh sách toàn màn hình</div>
                 </section>
 
-                <section class="home-column pending">
+                <section class="home-column pending" onclick="openCustomerList('pending')">
                     <div class="home-column-header">
                         <div class="home-column-title-wrap">
                             <i data-lucide="folder-clock" class="w-4 h-4"></i>
@@ -263,7 +263,7 @@
                         </div>
                         <span class="home-column-count"><span id="count-pending">0</span></span>
                     </div>
-                    <div id="home-list-pending" class="home-customer-list"></div>
+                    <div class="home-column-subtitle">Nhấn để mở danh sách toàn màn hình</div>
                 </section>
             </div>
         </div>
