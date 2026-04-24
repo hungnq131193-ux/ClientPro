@@ -1275,101 +1275,116 @@ input::placeholder {
 }
 
 /* ============================================
-   HOME 2-COLUMN CUSTOMER LIST
+   HOME CUSTOMER HUB (single flow, no 2-column folders)
    ============================================ */
-.home-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  min-height: 100%;
-}
-
-.home-column {
+.customer-hub-card {
   border: 1px solid var(--border-panel);
-  background: var(--bg-panel);
-  border-radius: 16px;
-  padding: 10px;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.2), transparent 45%),
+    radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.16), transparent 50%),
+    var(--bg-panel);
+  border-radius: 24px;
+  padding: 18px;
+  min-height: calc(100% - 6px);
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  gap: 16px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
-.home-column.approved {
-  border-color: rgba(16, 185, 129, 0.25);
-}
-
-.home-column.pending {
-  border-color: rgba(99, 102, 241, 0.25);
-}
-
-.home-column-header {
+.customer-hub-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 8px;
-  padding: 2px 4px;
+  gap: 12px;
 }
 
-.home-column-title-wrap {
+.customer-hub-kicker {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  opacity: 0.85;
+}
+
+.customer-hub-title {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.customer-hub-open-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-main);
-}
-
-.home-column-title {
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.home-column-count {
-  font-size: 11px;
-  color: var(--text-sub);
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.home-customer-list {
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  min-height: 0;
-  padding-right: 2px;
-}
-
-.home-cust-item {
-  border: 1px solid var(--border-panel);
+  padding: 8px 12px;
   border-radius: 12px;
-  padding: 8px;
-  cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease;
-}
-
-.home-cust-item:active {
-  transform: scale(0.98);
-}
-
-.home-cust-item.approved {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.2);
-}
-
-.home-cust-item.pending {
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.2);
-}
-
-.home-cust-name {
   font-size: 12px;
   font-weight: 700;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--accent-gradient);
+  box-shadow: 0 10px 30px -14px rgba(99, 102, 241, 0.7);
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.customer-hub-open-btn:active {
+  transform: scale(0.97);
+}
+
+.customer-hub-stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.hub-stat {
+  border-radius: 16px;
+  border: 1px solid var(--border-panel);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.hub-stat:active {
+  transform: scale(0.985);
+}
+
+.hub-stat.approved {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.hub-stat.pending {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.hub-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  opacity: 0.94;
+}
+
+.hub-stat strong {
+  font-size: 20px;
+  color: #fff;
+  letter-spacing: 0.01em;
+}
+
+.customer-hub-note {
+  margin-top: auto;
+  font-size: 12px;
+  color: var(--text-sub);
+  opacity: 0.75;
 }
 
 .home-cust-phone {
