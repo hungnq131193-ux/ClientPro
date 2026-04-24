@@ -357,3 +357,363 @@ async function loadCustomers(query = '') {
                     return;
                 }
             }
+            batch.push(c);
+            loaded++;
+            if (batch.length >= BATCH_SIZE) {
+                flushBatch();
+                // eslint-disable-next-line no-await-in-loop
+                await new Promise((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(r) : setTimeout(r, 0)));
+            }
+            cursor.continue();
+        };
+        req.onerror = () => resolve();
+    });
+
+    flushBatch();
+    if (window.__customerListLoadToken !== loadToken) return;
+    if (loaded === 0) {
+        renderList([], { append: false, done: true });
+    } else {
+        renderList([], { append: true, done: true });
+    }
+}
+
+function renderList(list, opts = {}) {
+    const append = !!opts.append;
+    const done = !!opts.done;
+    const listEl = getEl('customer-list');
+    if (!listEl) return;
+    if (!append) listEl.innerHTML = '';
+
+    if ((!list || list.length === 0) && !append) {
+        listEl.innerHTML = `<div class="text-center py-32 opacity-40 flex flex-col items-center"><i data-lucide="inbox" class="w-16 h-16 mb-4 stroke-1"></i><p class="text-xs font-bold uppercase tracking-wider">Danh sách trống</p></div>`;
+        try { lucide.createIcons(); } catch (e) { }
+        return;
+    }
+
+    const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+    const iconBadgeCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-emerald-400 shrink-0"><path d="m12 15 2 2 4-4"></path><path d="M9 12a3 3 0 0 1 3-3"></path><path d="M20 12a8 8 0 1 1-8-8"></path></svg>`;
+    const iconSmartphone = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3 opacity-70"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><path d="M12 18h.01"></path></svg>`;
+    const iconClock = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+    const iconCheckCircle = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="10"></circle></svg>`;
+    const iconMessage = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
+    const iconPhone = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.9 12.9 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.1 9.9a16 16 0 0 0 6 6l1.26-1.26a2 2 0 0 1 2.11-.45 12.9 12.9 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`;
+
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        const isApproved = activeListTab === 'approved';
+        const el = document.createElement('div');
+        _ensureSummaryDecrypted(c);
+
+        // Lite glass panel cho list để giảm GPU cost (blur/shadow)
+        el.className = `glass-panel-lite cust-card ${isApproved ? 'cust-approved' : 'cust-pending'} p-4 rounded-2xl mb-3 flex items-center gap-4 transition-all duration-200 hover:bg-white/5 active:scale-[0.98] ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
+
+        el.onclick = (e) => {
+            if (e.target && e.target.closest && e.target.closest('.action-btn')) return;
+            if (isCustSelectionMode) toggleCustomerSelection(c.id, el);
+            else openFolder(c.id);
+        };
+
+            const limitHtml = isApproved
+                ? `<div class="flex items-center gap-1.5 mt-1.5">
+                    <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                        ${iconCheckCircle} HM: ${c.creditLimit || '0'}
+                    </span>
+                   </div>`
+                : `<div class="flex items-center gap-1.5 mt-1.5">
+                    <span class="text-[10px] font-medium text-indigo-300 bg-indigo-500/15 px-2 py-0.5 rounded-full border border-indigo-500/30 flex items-center gap-1">
+                        ${iconClock} Đang thẩm định
+                    </span>
+                   </div>`;
+            const checkIcon = isCustSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
+
+            // Escape dynamic values to prevent XSS
+            // Fallback if data still looks encrypted
+            const displayName = (c.name && !_looksEncrypted(c.name)) ? c.name : 'Đang tải...';
+            const displayPhone = (c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--';
+            const safeName = escapeHTML(displayName);
+            const safePhone = escapeHTML(displayPhone);
+            const safeInitial = escapeHTML(displayName.charAt(0).toUpperCase());
+
+            // Avatar styling - glow for approved
+            const avatarClass = isApproved
+                ? 'w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-emerald-400 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/20'
+                : 'w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/10 text-indigo-400 ring-1 ring-indigo-500/30';
+
+            el.innerHTML = `
+                        ${checkIcon}
+                        <div class="${avatarClass}">
+                            ${safeInitial}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-bold text-white truncate text-base mb-0.5 leading-tight flex items-center gap-1.5">
+                                ${safeName}
+                                ${isApproved ? iconBadgeCheck : ''}
+                            </h3>
+                            <p class="text-xs text-slate-400 font-mono flex items-center gap-1.5">${iconSmartphone} ${safePhone}</p>
+                            ${limitHtml}
+                        </div>
+                        <div class="flex gap-2">
+                            <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-blue-400 rounded-xl hover:bg-blue-500/20">${iconMessage}</a>
+                            <a href="tel:${c.phone}" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-green-400 rounded-xl hover:bg-green-500/20">${iconPhone}</a>
+                        </div>`;
+
+        frag.appendChild(el);
+    }
+
+    listEl.appendChild(frag);
+    if (done) delete listEl.dataset.loading;
+    // Tránh scan lại toàn bộ DOM mỗi batch (lucide.createIcons rất tốn khi list lớn)
+    if (done) {
+        try { lucide.createIcons(); } catch (e) { }
+    }
+}
+
+function openModal() {
+    getEl('add-modal').classList.remove('hidden');
+    // Reset tất cả trường nhập thông tin khách hàng khi tạo mới
+    getEl('new-name').value = '';
+    getEl('new-phone').value = '';
+    if (getEl('new-cccd')) getEl('new-cccd').value = '';
+    getEl('edit-cust-id').value = '';
+    getEl('modal-title-cust').textContent = "Khởi tạo hồ sơ";
+    getEl('btn-save-cust').textContent = "Tạo mới";
+    getEl('new-name').focus();
+}
+
+// Open modal to edit current customer (from folder view pencil button)
+function openEditCustomerModal() {
+    if (!currentCustomerData) {
+        alert('Không có dữ liệu khách hàng để sửa.');
+        return;
+    }
+
+    getEl('add-modal').classList.remove('hidden');
+
+    // Fill form with current customer data (check for encrypted values)
+    const safeName = (currentCustomerData.name && !_looksEncrypted(currentCustomerData.name)) ? currentCustomerData.name : '';
+    const safePhone = (currentCustomerData.phone && !_looksEncrypted(currentCustomerData.phone)) ? currentCustomerData.phone : '';
+    const safeCccd = (currentCustomerData.cccd && !_looksEncrypted(currentCustomerData.cccd)) ? currentCustomerData.cccd : '';
+    getEl('new-name').value = safeName;
+    getEl('new-phone').value = safePhone;
+    if (getEl('new-cccd')) getEl('new-cccd').value = safeCccd;
+    getEl('edit-cust-id').value = currentCustomerData.id || '';
+
+    // Update modal title and button
+    getEl('modal-title-cust').textContent = "Chỉnh sửa hồ sơ";
+    getEl('btn-save-cust').textContent = "Cập nhật";
+
+    getEl('new-name').focus();
+}
+
+// Close customer create/edit modal (used by the X button and edge-swipe back).
+// Kept intentionally lightweight to avoid side-effects on other flows.
+function closeModal() {
+    const m = getEl('add-modal');
+    if (!m) return;
+    m.classList.add('hidden');
+    try { document.activeElement && document.activeElement.blur && document.activeElement.blur(); } catch (e) { }
+}
+
+// =======================
+// DUPLICATE DETECTION
+// Check if CCCD or Phone already exists in another customer
+// =======================
+async function checkDuplicateCustomer(cccd, phone, excludeId = null) {
+    if (!db) return { duplicate: false };
+
+    const cccdNorm = (cccd || '').replace(/\s+/g, '').trim();
+    const phoneNorm = (phone || '').replace(/\s+/g, '').trim();
+
+    // Skip check if both are empty
+    if (!cccdNorm && !phoneNorm) return { duplicate: false };
+
+    return new Promise((resolve) => {
+        const tx = db.transaction(['customers'], 'readonly');
+        const store = tx.objectStore('customers');
+        const req = store.getAll();
+
+        req.onsuccess = (e) => {
+            const customers = e.target.result || [];
+
+            for (const c of customers) {
+                // Skip the customer being edited
+                if (excludeId && c.id === excludeId) continue;
+
+                // Decrypt fields for comparison
+                let custCccd = '';
+                let custPhone = '';
+                let custName = '';
+
+                try {
+                    custCccd = (typeof decryptText === 'function' ? decryptText(c.cccd) : c.cccd) || '';
+                    custPhone = (typeof decryptText === 'function' ? decryptText(c.phone) : c.phone) || '';
+                    custName = (typeof decryptText === 'function' ? decryptText(c.name) : c.name) || '';
+                } catch (err) {
+                    // If decryption fails, use raw (might be plaintext or unreadable)
+                    custCccd = c.cccd || '';
+                    custPhone = c.phone || '';
+                    custName = c.name || '';
+                }
+
+                // Normalize for comparison
+                custCccd = custCccd.replace(/\s+/g, '').trim();
+                custPhone = custPhone.replace(/\s+/g, '').trim();
+
+                // Check CCCD match (only if input has value)
+                if (cccdNorm && custCccd && cccdNorm === custCccd) {
+                    resolve({
+                        duplicate: true,
+                        field: 'cccd',
+                        existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
+                    });
+                    return;
+                }
+
+                // Check Phone match (only if input has value)
+                if (phoneNorm && custPhone && phoneNorm === custPhone) {
+                    resolve({
+                        duplicate: true,
+                        field: 'phone',
+                        existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
+                    });
+                    return;
+                }
+            }
+
+            resolve({ duplicate: false });
+        };
+
+        req.onerror = () => resolve({ duplicate: false });
+    });
+}
+
+// Show duplicate warning UI
+function showDuplicateWarning(result, onIgnore, onViewCustomer) {
+    const fieldLabel = result.field === 'cccd' ? 'CCCD' : 'SĐT';
+    const existing = result.existingCustomer;
+
+    // Create warning overlay
+    let overlay = getEl('dup-warning-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'dup-warning-overlay';
+        overlay.className = 'fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm';
+        document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+                <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl modal-animate">
+                    <div class="flex items-center gap-3 mb-4 text-amber-400">
+                        <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+                        <h3 class="font-bold text-lg">Phát hiện trùng lặp!</h3>
+                    </div>
+                    <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-5">
+                        <p class="text-sm text-amber-200 mb-3">
+                            <strong>${fieldLabel}</strong> này đã tồn tại trong hệ thống:
+                        </p>
+                        <div class="bg-black/20 rounded-lg p-3">
+                            <p class="font-bold text-white text-base">${escapeHTML(existing.name || 'Không tên')}</p>
+                            <p class="text-xs text-slate-400 mt-1">
+                                <span class="inline-flex items-center gap-1"><i data-lucide="smartphone" class="w-3 h-3"></i> ${escapeHTML(existing.phone || 'N/A')}</span>
+                            </p>
+                            <p class="text-xs text-slate-400 mt-0.5">
+                                <span class="inline-flex items-center gap-1"><i data-lucide="id-card" class="w-3 h-3"></i> ${escapeHTML(existing.cccd || 'N/A')}</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="dup-btn-view" class="flex-1 py-3 rounded-xl font-bold text-sm bg-white/10 border border-white/20 text-white active:scale-[0.98] transition-transform">
+                            <i data-lucide="folder-open" class="w-4 h-4 inline mr-1"></i> Xem KH
+                        </button>
+                        <button id="dup-btn-ignore" class="flex-1 py-3 rounded-xl font-bold text-sm text-white active:scale-[0.98] transition-transform" style="background: var(--accent-gradient);">
+                            Bỏ qua & Lưu
+                        </button>
+                    </div>
+                    <button id="dup-btn-cancel" class="w-full mt-3 py-2.5 text-sm text-slate-400 hover:text-white transition-colors">
+                        Hủy
+                    </button>
+                </div>
+            `;
+
+    overlay.classList.remove('hidden');
+    try { lucide.createIcons({ icons: { 'alert-triangle': lucide.icons['alert-triangle'], 'smartphone': lucide.icons['smartphone'], 'id-card': lucide.icons['id-card'], 'folder-open': lucide.icons['folder-open'] }, attrs: {} }); } catch (e) { try { lucide.createIcons(); } catch (e2) { } }
+
+    // Event handlers
+    getEl('dup-btn-view').onclick = () => {
+        overlay.classList.add('hidden');
+        onViewCustomer && onViewCustomer(existing.id);
+    };
+
+    getEl('dup-btn-ignore').onclick = () => {
+        overlay.classList.add('hidden');
+        onIgnore && onIgnore();
+    };
+
+    getEl('dup-btn-cancel').onclick = () => {
+        overlay.classList.add('hidden');
+    };
+}
+
+// Create / Update customer (called from add-modal.html: onclick="saveCustomer()")
+// IMPORTANT: Must keep existing data schema and encryption behavior.
+async function saveCustomer() {
+    try {
+        // Safety check: ensure db is ready
+        if (!db) {
+            alert('Cơ sở dữ liệu chưa sẵn sàng. Vui lòng đợi giây lát và thử lại.');
+            return;
+        }
+
+        // Security gate: nếu chưa có masterKey thì không cho tạo/sửa để tránh lưu plaintext.
+        if (typeof masterKey === 'undefined' || !masterKey) {
+            alert('BẢO MẬT: Chưa mở khóa dữ liệu. Vui lòng đăng nhập/mở khóa trước khi tạo hồ sơ.');
+            return;
+        }
+
+        const nameEl = getEl('new-name');
+        const phoneEl = getEl('new-phone');
+        const cccdEl = getEl('new-cccd');
+        const idEl = getEl('edit-cust-id');
+
+        // Check if modal elements exist
+        if (!nameEl) {
+            console.error('saveCustomer: Modal elements not found');
+            alert('Lỗi: Không tìm thấy form nhập liệu. Vui lòng tải lại trang.');
+            return;
+        }
+
+        const name = (nameEl && nameEl.value ? String(nameEl.value) : '').trim();
+        const phone = (phoneEl && phoneEl.value ? String(phoneEl.value) : '').trim();
+        const cccd = (cccdEl && cccdEl.value ? String(cccdEl.value) : '').trim();
+        const editId = (idEl && idEl.value ? String(idEl.value) : '').trim();
+
+        if (!name) {
+            alert('Vui lòng nhập Tên khách hàng.');
+            try { nameEl && nameEl.focus && nameEl.focus(); } catch (e) { }
+            return;
+        }
+
+        // Phone có thể để trống (tùy user), nhưng nếu có thì chuẩn hóa số.
+        const phoneNorm = phone.replace(/\s+/g, '');
+
+        // =======================
+        // DUPLICATE CHECK
+        // =======================
+        let dupResult = { duplicate: false };
+        try {
+            dupResult = await checkDuplicateCustomer(cccd, phoneNorm, editId || null);
+        } catch (dupErr) {
+            console.warn('Duplicate check failed, proceeding anyway:', dupErr);
+        }
+
+        if (dupResult && dupResult.duplicate) {
+            // Show warning and let user decide
+            showDuplicateWarning(
+                dupResult,
+                // onIgnore: proceed with save anyway
+                () => _doSaveCustomer(name, phoneNorm, cccd, editId),
+                // onViewCustomer: close modal and open existing customer
+                (existingId) => {
+                    closeModal();
