@@ -364,7 +364,7 @@ function renderList(list, opts = {}) {
         _ensureSummaryDecrypted(c);
 
         // Lite glass panel cho list để giảm GPU cost (blur/shadow)
-        el.className = `glass-panel-lite cust-card ${isApproved ? 'cust-approved' : 'cust-pending'} p-4 rounded-2xl mb-3 flex items-center gap-4 transition-all duration-200 hover:bg-white/5 active:scale-[0.98] ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
+        el.className = `glass-panel-lite cust-card ${isApproved ? 'cust-approved' : 'cust-pending'} p-4 rounded-2xl mb-3 flex items-center gap-4 transition-all duration-300 hover:bg-white/10 hover:-translate-y-[1px] active:scale-[0.985] ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
 
         el.onclick = (e) => {
             if (e.target && e.target.closest && e.target.closest('.action-btn')) return;
@@ -372,6 +372,7 @@ function renderList(list, opts = {}) {
             else openFolder(c.id);
         };
 
+            const statusTone = isApproved ? 'Đã duyệt vay' : 'Đang thẩm định';
             const limitHtml = isApproved
                 ? `<div class="flex items-center gap-1.5 mt-1.5">
                     <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
@@ -404,13 +405,14 @@ function renderList(list, opts = {}) {
                             ${safeInitial}
                         </div>
                         <div class="flex-1 min-w-0">
+                            <div class="text-[10px] uppercase tracking-[0.12em] text-slate-500 mb-1">${statusTone}</div>
                             <h3 class="font-bold text-white truncate text-base mb-0.5 leading-tight flex items-center gap-1.5">
                                 ${safeName}
                                 ${isApproved ? iconBadgeCheck : ''}
                             </h3>
                             <p class="text-xs text-slate-400 font-mono flex items-center gap-1.5">${iconSmartphone} ${safePhone}</p>
                             ${limitHtml}
-                        </div>
+                            </div>
                         <div class="flex gap-2">
                             <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-blue-400 rounded-xl hover:bg-blue-500/20">${iconMessage}</a>
                             <a href="tel:${c.phone}" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-green-400 rounded-xl hover:bg-green-500/20">${iconPhone}</a>
@@ -516,7 +518,7 @@ async function checkDuplicateCustomer(cccd, phone, excludeId = null) {
 
                 // Normalize for comparison
                 custCccd = custCccd.replace(/\s+/g, '').trim();
-                custPhone = custPhone.replace(/\s+/g, '').trim();
+                                custPhone = custPhone.replace(/\s+/g, '').trim();
 
                 // Check CCCD match (only if input has value)
                 if (cccdNorm && custCccd && cccdNorm === custCccd) {
