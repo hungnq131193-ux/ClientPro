@@ -114,12 +114,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     getEl("loader").classList.add("hidden");
     checkSecurity();
 
-    // AuthGate: kiểm tra quyền sau khi UI đã render local (tránh cảm giác chậm khi mở app)
-    try {
-      if (window.AuthGate && typeof window.AuthGate.preflight === 'function') {
-        setTimeout(() => { try { window.AuthGate.preflight(); } catch (e) { } }, 12000);
-      }
-    } catch (e) { }
+    // NOTE: Disable periodic auth re-check on app open.
+    // Activation + backup/restore authorization are handled in dedicated flows.
 
 
     // Cloud transfer inbox polling (notify when other users send backups)
