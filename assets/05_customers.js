@@ -717,3 +717,365 @@ async function saveCustomer() {
                 // onViewCustomer: close modal and open existing customer
                 (existingId) => {
                     closeModal();
+                    openFolder(existingId);
+                }
+            );
+            return; // Don't proceed, wait for user decision
+        }
+
+        // No duplicate, proceed with save
+        _doSaveCustomer(name, phoneNorm, cccd, editId);
+
+    } catch (err) {
+        console.error('saveCustomer error:', err);
+        alert('Có lỗi xảy ra khi lưu hồ sơ: ' + (err && err.message ? err.message : 'Unknown error'));
+    }
+}
+
+// Internal save function (called after duplicate check passes or user ignores warning)
+function _doSaveCustomer(name, phoneNorm, cccd, editId) {
+    try {
+        // Safety check: ensure db is ready before attempting transaction
+        if (!db) {
+            alert('Cơ sở dữ liệu chưa sẵn sàng. Vui lòng thử lại sau giây lát.');
+            return;
+        }
+
+        console.log('_doSaveCustomer: Starting save...', { name, phoneNorm, cccd: cccd ? '***' : '', editId });
+
+        const makeId = () => `cust_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+        const tx = db.transaction(['customers'], 'readwrite');
+        const store = tx.objectStore('customers');
+
+        tx.onerror = (e) => {
+            console.error('_doSaveCustomer: Transaction error', e);
+            alert('Lỗi lưu hồ sơ. Vui lòng thử lại.');
+        };
+
+        tx.oncomplete = () => {
+            console.log('_doSaveCustomer: Transaction completed successfully');
+        };
+
+        const finalize = (savedId) => {
+            console.log('_doSaveCustomer: Finalizing...', savedId);
+            closeModal();
+            try { showToast(editId ? 'Đã cập nhật hồ sơ' : 'Đã tạo hồ sơ'); } catch (e) { }
+            // Refresh list (giữ nguyên search hiện tại nếu có)
+            try { loadCustomers(getEl('search-input') ? getEl('search-input').value : ''); } catch (e) { try { loadCustomers(); } catch (e2) { } }
+            // UX: tạo mới xong vào luôn folder để thao tác tiếp
+            if (!editId && savedId) {
+                try { openFolder(savedId); } catch (e) { }
+            }
+        };
+
+        if (editId) {
+            // Update existing record: giữ lại assets/status/creditLimit/driveLink/createdAt...
+            const req = store.get(editId);
+            req.onsuccess = (e) => {
+                const old = e.target.result;
+                if (!old) {
+                    alert('Không tìm thấy hồ sơ để cập nhật.');
+                    return;
+                }
+
+                old.name = encryptText(name);
+                old.phone = encryptText(phoneNorm);
+                old.cccd = encryptText(cccd);
+                // Defensive defaults
+                if (!old.status) old.status = 'pending';
+                if (!old.assets) old.assets = [];
+                if (old.creditLimit === undefined) old.creditLimit = '';
+                if (old.driveLink === undefined) old.driveLink = null;
+
+                const putReq = store.put(old);
+                putReq.onsuccess = () => finalize(editId);
+                putReq.onerror = (err) => {
+                    console.error('_doSaveCustomer: put error (update)', err);
+                    alert('Lỗi cập nhật hồ sơ.');
+                };
+            };
+            req.onerror = () => alert('Lỗi đọc hồ sơ để cập nhật.');
+        } else {
+            // Create new record
+            const newId = makeId();
+            console.log('_doSaveCustomer: Creating new customer with ID:', newId);
+
+            const rec = {
+                id: newId,
+                name: encryptText(name),
+                phone: encryptText(phoneNorm),
+                cccd: encryptText(cccd),
+                createdAt: Date.now(),
+                status: 'pending',
+                creditLimit: '',
+                assets: [],
+                driveLink: null,
+            };
+
+            const putReq = store.put(rec);
+            putReq.onsuccess = () => {
+                console.log('_doSaveCustomer: Customer saved successfully');
+                finalize(newId);
+            };
+            putReq.onerror = (err) => {
+                console.error('_doSaveCustomer: put error (create)', err);
+                alert('Lỗi tạo hồ sơ mới. Vui lòng thử lại.');
+            };
+        }
+    } catch (err) {
+        console.error('_doSaveCustomer exception:', err);
+        alert('Có lỗi xảy ra khi lưu hồ sơ: ' + (err && err.message ? err.message : 'Unknown'));
+    }
+}
+
+function deleteCurrentCustomer() {
+    if (!confirm("XÁC NHẬN: Xóa toàn bộ hồ sơ khách hàng này?")) return;
+    try {
+        const tx = db.transaction(['images', 'customers'], 'readwrite'); const imgStore = tx.objectStore('images'); const custStore = tx.objectStore('customers');
+        if (imgStore.indexNames.contains('customerId')) { imgStore.index('customerId').getAllKeys(currentCustomerId).onsuccess = (e) => { e.target.result.forEach(key => imgStore.delete(key)); }; }
+        custStore.delete(currentCustomerId); tx.oncomplete = () => { closeFolder(); showToast("Đã xóa hồ sơ"); loadCustomers(); };
+    } catch (err) { window.location.reload(); }
+}
+
+function deleteAsset(idx) {
+    if (!confirm("Xóa tài sản này?")) return; currentCustomerData.assets.splice(idx, 1);
+    db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { showToast("Đã xóa TSBĐ"); renderAssets(); };
+}
+
+function toggleCustomerStatus() { if (currentCustomerData.status === 'pending') { getEl('approve-modal').classList.remove('hidden'); getEl('approve-limit').value = ''; } else { if (confirm("Thu hồi trạng thái?")) { currentCustomerData.status = 'pending'; updateCustomerAndReload(); } } }
+function closeApproveModal() { getEl('approve-modal').classList.add('hidden'); }
+function confirmApproval() { const l = getEl('approve-limit').value; if (!l) return alert("Nhập hạn mức!"); currentCustomerData.status = 'approved'; currentCustomerData.creditLimit = l; closeApproveModal(); db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { showToast("Đã duyệt"); renderFolderHeader(currentCustomerData); loadCustomers(getEl('search-input').value); }; }
+function updateCustomerAndReload() { db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { openFolder(currentCustomerData.id); loadCustomers(); }; }
+
+function renderFolderHeader(data) {
+    getEl('folder-customer-name').textContent = data.name; getEl('folder-avatar').textContent = data.name.charAt(0).toUpperCase(); getEl('btn-detail-call').href = `tel:${data.phone}`; getEl('btn-detail-zalo').href = getZaloLink(data.phone);
+    const badge = getEl('detail-status-badge');
+    if (data.status === 'approved') { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10"; badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span>${data.creditLimit}</span>`; }
+    else { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20"; badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`; } lucide.createIcons();
+}
+
+function openFolder(id) {
+    currentCustomerId = id;
+    const folderScreen = getEl('screen-folder');
+
+    // Check if db is ready
+    if (!db) {
+        console.error('openFolder: db not ready');
+        return;
+    }
+
+    try {
+        // Fetch data FIRST, then show folder with data ready
+        const tx = db.transaction(['customers'], 'readonly');
+        const req = tx.objectStore('customers').get(id);
+
+        req.onsuccess = (e) => {
+            currentCustomerData = e.target.result;
+            if (!currentCustomerData) {
+                console.error('openFolder: customer not found:', id);
+                return;
+            }
+
+            // Decrypt summary fields
+            try {
+                if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(currentCustomerData);
+                else {
+                    currentCustomerData.name = decryptText(currentCustomerData.name);
+                    currentCustomerData.phone = decryptText(currentCustomerData.phone);
+                    currentCustomerData.cccd = decryptText(currentCustomerData.cccd);
+                }
+                currentCustomerData.driveLink = decryptText(currentCustomerData.driveLink);
+
+                // Verify decryption succeeded - if still looks encrypted, try full decrypt
+                if (_looksEncrypted(currentCustomerData.name) || _looksEncrypted(currentCustomerData.phone)) {
+                    console.warn('openFolder: data still encrypted, attempting full decrypt');
+                    if (typeof decryptCustomerObject === 'function') {
+                        decryptCustomerObject(currentCustomerData);
+                    }
+                }
+            } catch (err) { console.error('openFolder decrypt error:', err); }
+
+            // Fix old data if missing fields
+            if (!currentCustomerData.status) currentCustomerData.status = 'pending';
+            if (!currentCustomerData.assets) currentCustomerData.assets = [];
+
+            // Clear previous content
+            const imgArea = getEl('content-images');
+            const assetArea = getEl('content-assets');
+            if (imgArea) { imgArea.innerHTML = ''; imgArea.scrollTop = 0; }
+            if (assetArea) { assetArea.innerHTML = ''; assetArea.scrollTop = 0; }
+
+            // Render header with ACTUAL data (not placeholder)
+            renderFolderHeader(currentCustomerData);
+
+            // Render Drive status
+            if (typeof renderDriveStatus === "function") {
+                renderDriveStatus(currentCustomerData.driveLink || null);
+            }
+
+            // Reset selection mode
+            isSelectionMode = false;
+            if (typeof selectedImages !== 'undefined') selectedImages.clear();
+            if (typeof updateSelectionUI === 'function') updateSelectionUI();
+
+            // Switch to info tab and load info data BEFORE showing folder
+            switchTab('info');
+            loadCustomerInfo();
+
+            // NOW show folder slide-in (data is already populated)
+            if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
+            else folderScreen.classList.remove('translate-x-full');
+
+            // Decrypt assets in background for other tabs
+            const runDecryptAssets = async () => {
+                try {
+                    if (typeof window.decryptCustomerAssetsAsync === 'function') {
+                        await window.decryptCustomerAssetsAsync(currentCustomerData, { batchSize: 6 });
+                    } else if (typeof window.decryptCustomerObjectAsync === 'function') {
+                        await window.decryptCustomerObjectAsync(currentCustomerData, { batchSize: 6 });
+                    }
+                } catch (err) { }
+            };
+
+            if (typeof afterTransition === 'function') afterTransition(folderScreen, runDecryptAssets);
+            else setTimeout(runDecryptAssets, 360);
+        };
+
+        req.onerror = (e) => {
+            console.error('openFolder DB error:', e);
+        };
+    } catch (err) {
+        console.error('openFolder exception:', err);
+    }
+}
+function closeFolder() {
+    const folderScreen = getEl('screen-folder');
+    const customerListScreen = getEl('screen-customer-list');
+
+    folderScreen.classList.add('translate-x-full');
+
+    // Reset customer ID after animation
+    if (typeof afterTransition === 'function') {
+        afterTransition(folderScreen, () => {
+            currentCustomerId = null;
+            currentCustomerData = null; // Clear stale data
+            // Reload customer list if still visible
+            if (customerListScreen && !customerListScreen.classList.contains('hidden') && !customerListScreen.classList.contains('translate-x-full')) {
+                const q = (getEl('search-input') && getEl('search-input').value) || '';
+                loadCustomers(q);
+            }
+        });
+    } else {
+        setTimeout(() => {
+            currentCustomerId = null;
+            currentCustomerData = null; // Clear stale data
+            if (customerListScreen && !customerListScreen.classList.contains('hidden') && !customerListScreen.classList.contains('translate-x-full')) {
+                const q = (getEl('search-input') && getEl('search-input').value) || '';
+                loadCustomers(q);
+            }
+        }, 360);
+    }
+}
+function switchTab(tabName) {
+    const tabInfo = getEl('tab-btn-info');
+    const tabImages = getEl('tab-btn-images');
+    const tabAssets = getEl('tab-btn-assets');
+
+    const activeClass = "glass-tab-active flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all";
+    const inactiveClass = "glass-tab-inactive flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all hover:bg-white/5";
+
+    // Reset all tabs
+    if (tabInfo) tabInfo.className = inactiveClass;
+    if (tabImages) tabImages.className = inactiveClass;
+    if (tabAssets) tabAssets.className = inactiveClass;
+
+    // Hide all content
+    const contentInfo = getEl('content-info');
+    const contentImages = getEl('content-images');
+    const contentAssets = getEl('content-assets');
+    const actionsImages = getEl('actions-images');
+    const actionsAssets = getEl('actions-assets');
+
+    if (contentInfo) contentInfo.classList.add('hidden');
+    if (contentImages) contentImages.classList.add('hidden');
+    if (contentAssets) contentAssets.classList.add('hidden');
+    if (actionsImages) actionsImages.classList.add('hidden');
+    if (actionsAssets) actionsAssets.classList.add('hidden');
+
+    // Show selected tab
+    if (tabName === 'info') {
+        if (tabInfo) tabInfo.className = activeClass;
+        if (contentInfo) contentInfo.classList.remove('hidden');
+        loadCustomerInfo();
+    } else if (tabName === 'images') {
+        if (tabImages) tabImages.className = activeClass;
+        if (contentImages) contentImages.classList.remove('hidden');
+        if (actionsImages) actionsImages.classList.remove('hidden');
+        loadProfileImages();
+    } else if (tabName === 'assets') {
+        if (tabAssets) tabAssets.className = activeClass;
+        if (contentAssets) contentAssets.classList.remove('hidden');
+        if (actionsAssets) actionsAssets.classList.remove('hidden');
+        renderAssets();
+    }
+
+
+    isSelectionMode = false;
+    if (typeof selectedImages !== 'undefined' && selectedImages.clear) selectedImages.clear();
+    if (typeof updateSelectionUI === 'function') updateSelectionUI();
+}
+
+// Load customer info into Info tab
+// Uses currentCustomerData which is already decrypted in openFolder
+function loadCustomerInfo() {
+    // Use currentCustomerData directly - already loaded and decrypted in openFolder
+    if (!currentCustomerData) return;
+
+    const c = currentCustomerData;
+
+    // phone, cccd, name are already decrypted by decryptCustomerSummary in openFolder
+    // Only notes needs to be decrypted here
+    // Check if field still looks encrypted - show '--' instead
+    const phone = (c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--';
+    const cccd = (c.cccd && !_looksEncrypted(c.cccd)) ? c.cccd : '--';
+    const rawNotes = decryptText(c.notes);
+    const notes = (rawNotes && !_looksEncrypted(rawNotes)) ? rawNotes : '';
+    const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
+
+    const phoneEl = getEl('info-phone');
+    const cccdEl = getEl('info-cccd');
+    const createdEl = getEl('info-created');
+    const notesEl = getEl('info-notes');
+
+    if (phoneEl) phoneEl.textContent = phone;
+    if (cccdEl) cccdEl.textContent = cccd;
+    if (createdEl) createdEl.textContent = `Tạo: ${createdAt}`;
+    if (notesEl) notesEl.value = notes;
+
+    try { lucide.createIcons(); } catch (e) { }
+}
+
+// Save customer notes
+async function saveCustomerNotes() {
+    if (!currentCustomerId) return;
+
+    const notesEl = getEl('info-notes');
+    const notesText = notesEl ? notesEl.value.trim() : '';
+
+    const tx = db.transaction(['customers'], 'readwrite');
+    const store = tx.objectStore('customers');
+    const req = store.get(currentCustomerId);
+
+    req.onsuccess = (e) => {
+        const c = e.target.result;
+        if (!c) return;
+
+        // Encrypt notes before saving
+        c.notes = encryptText(notesText);
+        c.updatedAt = Date.now();
+
+        store.put(c);
+        showToast('Đã lưu ghi chú');
+    };
+}
