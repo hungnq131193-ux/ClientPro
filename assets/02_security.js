@@ -352,8 +352,7 @@ async function checkSecurity() {
  * BẢO MẬT BACKUP V2:
  * - Không nhận "secret" cố định từ server nữa.
  * - Mỗi lần Backup/Restore sẽ:
- *   (1) check_status: phát hiện LOCKED và thu hồi quyền ngay
- *   (2) issue_kdata (POST): nhận GLOBAL KDATA (base64url) để derive AES-GCM key
+ *   (1) issue_kdata (POST/GET fallback): nhận GLOBAL KDATA (base64url) để derive AES-GCM key
  * Nếu không nhận được kdata_b64u => coi như không đủ quyền backup/restore.
  */
 async function ensureBackupSecret() {
@@ -361,7 +360,6 @@ async function ensureBackupSecret() {
   if (!employeeId) return { ok: false, message: "Chưa có mã nhân viên." };
 
   const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
-  const deviceInfo = (typeof navigator !== "undefined" && navigator.userAgent) ? navigator.userAgent : "Unknown";
   const cached = _readCachedKdata(employeeId, deviceId);
   if (cached && cached.kdata_b64u) APP_BACKUP_KDATA_B64U = cached.kdata_b64u;
 
@@ -374,41 +372,8 @@ async function ensureBackupSecret() {
   }
 
   try {
-    // 1) check_status (GET) - chỉ để phát hiện locked
-    const q = `?action=check_status&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}&deviceInfo=${encodeURIComponent(deviceInfo)}`;
-    let stTxt = "";
-    let st = null;
-    try {
-      const stRes = await fetch(ADMIN_SERVER_URL + q);
-      stTxt = await stRes.text();
-      try { st = JSON.parse(stTxt); } catch (e) { st = stTxt; }
-    } catch (e) {
-      _diagBackupAuth("check-status-neterr", { employeeId, deviceId, err: String(e && e.message ? e.message : e) });
-      if (APP_BACKUP_KDATA_B64U) {
-        return { ok: true, source: "cache", message: "Mạng không ổn định, tạm dùng khóa KDATA đã lưu." };
-      }
-      return { ok: false, message: "Không thể kết nối server để xác thực quyền backup." };
-    }
-
-    const statusStr =
-      st && typeof st === "object" && st.status
-        ? String(st.status).toLowerCase()
-        : typeof st === "string" && st.toLowerCase().includes("locked")
-          ? "locked"
-          : "";
-
-    if (statusStr === "locked") {
-      try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) { }
-      const modal = getEl("activation-modal");
-      if (modal) modal.classList.remove("hidden");
-      const titleEl = document.getElementById("activation-title");
-      const msg = (st && typeof st === "object" && st.message) ? st.message : "Tài khoản đã bị thu hồi!";
-      if (titleEl) titleEl.textContent = msg;
-      _diagBackupAuth("status-locked", { employeeId, deviceId, msg });
-      return { ok: false, message: msg };
-    }
-
-    // 2) issue_kdata: Ưu tiên POST (nếu GAS cho phép), fallback sang GET
+    // issue_kdata: Ưu tiên POST (nếu GAS cho phép), fallback sang GET.
+    // Không check_status định kỳ ở client để tránh chặn app khi mạng/GAS dao động.
     // Lưu ý: nhiều WebApp GAS có thể gặp redirect/CORS với POST JSON trên một số trình duyệt/PWA.
     let kdTxt = "";
     let kd = null;
@@ -651,6 +616,8 @@ async function activateApp() {
         // Trường hợp máy mới: Lưu trạng thái kích hoạt và yêu cầu tạo PIN mới
         localStorage.setItem(ACTIVATED_KEY, "true");
         localStorage.setItem(EMPLOYEE_KEY, employeeId);
+        // Prefetch KDATA sớm để user mới dùng backup/restore được ngay.
+        try { await ensureBackupSecret(); } catch (e) { }
         const modal = getEl("activation-modal");
         if (modal) modal.classList.add("hidden");
         // Hiển thị thiết lập PIN
@@ -674,6 +641,7 @@ async function activateApp() {
           masterKey = decrypted;
           localStorage.setItem(ACTIVATED_KEY, "true");
           localStorage.setItem(EMPLOYEE_KEY, employeeId);
+          try { await ensureBackupSecret(); } catch (e) { }
           const modal = getEl("activation-modal");
           if (modal) modal.classList.add("hidden");
           // Nếu đã có PIN, yêu cầu nhập PIN cũ để vào
@@ -702,6 +670,7 @@ async function activateApp() {
             masterKey = null;
             localStorage.setItem(ACTIVATED_KEY, "true");
             localStorage.setItem(EMPLOYEE_KEY, employeeId);
+            try { await ensureBackupSecret(); } catch (e) { }
             const modal = getEl("activation-modal");
             if (modal) modal.classList.add("hidden");
             // Cho phép tạo PIN mới
