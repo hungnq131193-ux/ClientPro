@@ -7,6 +7,50 @@ let masterKey = null;
 let APP_BACKUP_SECRET = "";
 // New: Global KDATA from GAS (base64url, no padding). This is the material for AES-GCM key.
 let APP_BACKUP_KDATA_B64U = "";
+const BACKUP_KDATA_CACHE_KEY = "app_backup_kdata_cache_v1";
+const BACKUP_KDATA_CACHE_TTL_MS = 30 * 60 * 1000; // 30 phút
+
+function _diagBackupAuth(stage, details) {
+  try {
+    console.log("[backup-auth]", stage, details || {});
+  } catch (e) {}
+}
+
+function _backupAuthIdentity(employeeId, deviceId) {
+  const scopeUrl = (typeof ADMIN_SERVER_URL !== "undefined" && ADMIN_SERVER_URL) ? String(ADMIN_SERVER_URL) : "";
+  return `${employeeId || ""}::${deviceId || ""}::${scopeUrl}`;
+}
+
+function _readCachedKdata(employeeId, deviceId) {
+  try {
+    const raw = localStorage.getItem(BACKUP_KDATA_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const ts = Number(parsed.ts || 0);
+    const kdata = parsed.kdata_b64u ? String(parsed.kdata_b64u) : "";
+    const identity = parsed.identity ? String(parsed.identity) : "";
+    if (!ts || !kdata || !identity) return null;
+    if (Date.now() - ts > BACKUP_KDATA_CACHE_TTL_MS) return null;
+    if (identity !== _backupAuthIdentity(employeeId, deviceId)) return null;
+    return { ts, kdata_b64u: kdata };
+  } catch (e) {
+    return null;
+  }
+}
+
+function _writeCachedKdata(employeeId, deviceId, kdata_b64u) {
+  try {
+    localStorage.setItem(
+      BACKUP_KDATA_CACHE_KEY,
+      JSON.stringify({
+        ts: Date.now(),
+        kdata_b64u: String(kdata_b64u || ""),
+        identity: _backupAuthIdentity(employeeId, deviceId),
+      })
+    );
+  } catch (e) {}
+}
 
 /** * Compute a SHA-256 hash of the provided PIN string and return it as a hex string. * Uses the Web Crypto API for consistent hashing. * @param {string} pin * @returns {Promise<string>} */
 async function hashString(str) {
@@ -316,20 +360,35 @@ async function ensureBackupSecret() {
   const employeeId = localStorage.getItem(EMPLOYEE_KEY) || "";
   if (!employeeId) return { ok: false, message: "Chưa có mã nhân viên." };
 
-  if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    return { ok: false, message: "Thiết bị đang Offline." };
-  }
-
   const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
   const deviceInfo = (typeof navigator !== "undefined" && navigator.userAgent) ? navigator.userAgent : "Unknown";
+  const cached = _readCachedKdata(employeeId, deviceId);
+  if (cached && cached.kdata_b64u) APP_BACKUP_KDATA_B64U = cached.kdata_b64u;
+
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    if (APP_BACKUP_KDATA_B64U) {
+      _diagBackupAuth("offline-cache-hit", { employeeId, hasKdata: true });
+      return { ok: true, source: "cache", message: "Đang offline, dùng khóa KDATA đã lưu tạm." };
+    }
+    return { ok: false, message: "Thiết bị đang Offline và chưa có khóa KDATA tạm." };
+  }
 
   try {
     // 1) check_status (GET) - chỉ để phát hiện locked
     const q = `?action=check_status&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}&deviceInfo=${encodeURIComponent(deviceInfo)}`;
-    const stRes = await fetch(ADMIN_SERVER_URL + q);
-    const stTxt = await stRes.text();
-    let st;
-    try { st = JSON.parse(stTxt); } catch (e) { st = stTxt; }
+    let stTxt = "";
+    let st = null;
+    try {
+      const stRes = await fetch(ADMIN_SERVER_URL + q);
+      stTxt = await stRes.text();
+      try { st = JSON.parse(stTxt); } catch (e) { st = stTxt; }
+    } catch (e) {
+      _diagBackupAuth("check-status-neterr", { employeeId, deviceId, err: String(e && e.message ? e.message : e) });
+      if (APP_BACKUP_KDATA_B64U) {
+        return { ok: true, source: "cache", message: "Mạng không ổn định, tạm dùng khóa KDATA đã lưu." };
+      }
+      return { ok: false, message: "Không thể kết nối server để xác thực quyền backup." };
+    }
 
     const statusStr =
       st && typeof st === "object" && st.status
@@ -345,6 +404,7 @@ async function ensureBackupSecret() {
       const titleEl = document.getElementById("activation-title");
       const msg = (st && typeof st === "object" && st.message) ? st.message : "Tài khoản đã bị thu hồi!";
       if (titleEl) titleEl.textContent = msg;
+      _diagBackupAuth("status-locked", { employeeId, deviceId, msg });
       return { ok: false, message: msg };
     }
 
@@ -364,6 +424,7 @@ async function ensureBackupSecret() {
       try { kd = JSON.parse(kdTxt); } catch (e) { kd = null; }
       if (kd && kd.status === "success" && kd.kdata_b64u) {
         APP_BACKUP_KDATA_B64U = String(kd.kdata_b64u);
+        _writeCachedKdata(employeeId, deviceId, APP_BACKUP_KDATA_B64U);
         return { ok: true };
       }
     } catch (e) {
@@ -378,18 +439,49 @@ async function ensureBackupSecret() {
       try { kd = JSON.parse(kdTxt); } catch (e) { kd = null; }
       if (kd && kd.status === "success" && kd.kdata_b64u) {
         APP_BACKUP_KDATA_B64U = String(kd.kdata_b64u);
+        _writeCachedKdata(employeeId, deviceId, APP_BACKUP_KDATA_B64U);
         return { ok: true };
       }
     } catch (e) {
       // ignore
     }
 
-    try {
-      console.log("[ensureBackupSecret] issue_kdata failed:", kdTxt && kdTxt.length > 300 ? kdTxt.slice(0, 300) + "..." : kdTxt);
-    } catch (e) { }
+    const kdStatus = (kd && typeof kd === "object" && kd.status) ? String(kd.status).toLowerCase() : "";
+    const kdMsg = (kd && typeof kd === "object" && kd.message) ? String(kd.message) : "";
+    _diagBackupAuth("issue-kdata-failed", {
+      employeeId,
+      deviceId,
+      status: kdStatus,
+      msg: kdMsg,
+      sample: kdTxt && kdTxt.length > 300 ? kdTxt.slice(0, 300) + "..." : kdTxt,
+    });
 
+    // Trường hợp server trả về denial rõ ràng thì KHÔNG dùng cache để vượt quyền.
+    if (kdStatus === "locked") {
+      try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
+      return { ok: false, message: kdMsg || "Tài khoản đã bị thu hồi." };
+    }
+    if (kdStatus === "error" || kdMsg) {
+      if (/device|thiết bị|không khớp/i.test(kdMsg)) {
+        return { ok: false, message: "Thiết bị chưa được cấp quyền backup (Device ID không khớp)." };
+      }
+      if (/kích hoạt|activate|inactive|chưa/i.test(kdMsg)) {
+        return { ok: false, message: "Tài khoản chưa được kích hoạt quyền backup." };
+      }
+      if (kdStatus === "error") return { ok: false, message: kdMsg || "Không đủ quyền lấy khóa KDATA." };
+      if (kdMsg) return { ok: false, message: kdMsg };
+    }
+
+    // Chỉ fallback cache khi lỗi mơ hồ (network/CORS/parse/HTML lỗi), không phải denial rõ ràng.
+    if (APP_BACKUP_KDATA_B64U) {
+      return { ok: true, source: "cache", message: "Không lấy được KDATA mới, đang dùng khóa tạm đã lưu." };
+    }
     return { ok: false, message: "Không lấy được khóa KDATA từ server." };
   } catch (e) {
+    _diagBackupAuth("ensure-exception", { employeeId, deviceId, err: String(e && e.message ? e.message : e) });
+    if (APP_BACKUP_KDATA_B64U) {
+      return { ok: true, source: "cache", message: "Lỗi kết nối tạm thời, đang dùng khóa KDATA đã lưu." };
+    }
     return { ok: false, message: "Không thể kết nối server để lấy khóa KDATA." };
   }
 }
