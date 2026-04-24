@@ -241,31 +241,32 @@
             </div>
         </header>
 
-        <!-- Dashboard 2-column customer lists -->
         <div class="scroll-area flex-1 p-4" id="folder-view">
-            <div class="home-columns">
-                <section class="home-column approved" onclick="openCustomerList('approved')">
-                    <div class="home-column-header">
-                        <div class="home-column-title-wrap">
-                            <i data-lucide="folder-check" class="w-4 h-4"></i>
-                            <span class="home-column-title">Khách hàng đã vay</span>
-                        </div>
-                        <span class="home-column-count"><span id="count-approved">0</span></span>
+            <section class="customer-hub-card">
+                <div class="customer-hub-head">
+                    <div>
+                        <p class="customer-hub-kicker">Customer Hub</p>
+                        <h2 class="customer-hub-title">Danh sách khách hàng</h2>
                     </div>
-                    <div class="home-column-subtitle">Nhấn để mở danh sách toàn màn hình</div>
-                </section>
+                    <button onclick="openCustomerList(activeListTab || 'pending')" class="customer-hub-open-btn">
+                        <i data-lucide="layout-list" class="w-4 h-4"></i>
+                        <span>Mở danh sách</span>
+                    </button>
+                </div>
 
-                <section class="home-column pending" onclick="openCustomerList('pending')">
-                    <div class="home-column-header">
-                        <div class="home-column-title-wrap">
-                            <i data-lucide="folder-clock" class="w-4 h-4"></i>
-                            <span class="home-column-title">KH đang thẩm định</span>
-                        </div>
-                        <span class="home-column-count"><span id="count-pending">0</span></span>
-                    </div>
-                    <div class="home-column-subtitle">Nhấn để mở danh sách toàn màn hình</div>
-                </section>
-            </div>
+                <div class="customer-hub-stats">
+                    <button class="hub-stat approved" onclick="openCustomerList('approved')">
+                        <span class="hub-stat-label"><i data-lucide="badge-check" class="w-3.5 h-3.5"></i>Đã vay</span>
+                        <strong id="count-approved">0</strong>
+                    </button>
+                    <button class="hub-stat pending" onclick="openCustomerList('pending')">
+                        <span class="hub-stat-label"><i data-lucide="hourglass" class="w-3.5 h-3.5"></i>Thẩm định</span>
+                        <strong id="count-pending">0</strong>
+                    </button>
+                </div>
+
+                <p class="customer-hub-note">Giao diện mới dạng một luồng duy nhất, dễ nhìn và thao tác nhanh.</p>
+            </section>
         </div>
 
         <div class="absolute bottom-8 right-6 flex items-center gap-4 z-[100]">
