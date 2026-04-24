@@ -241,30 +241,30 @@
             </div>
         </header>
 
-        <!-- Folder Cards View -->
-        <div class="scroll-area flex-1 p-4 space-y-4" id="folder-view">
-            <!-- Approved Customers Folder -->
-            <div class="folder-card" onclick="openCustomerList('approved')">
-                <div class="folder-icon approved">
-                    <i data-lucide="folder-check" class="w-8 h-8"></i>
-                </div>
-                <div class="folder-info">
-                    <span class="folder-title">Khách hàng đã vay</span>
-                    <span class="folder-count"><span id="count-approved">0</span> hồ sơ</span>
-                </div>
-                <i data-lucide="chevron-right" class="w-5 h-5 opacity-40" style="color: var(--text-sub)"></i>
-            </div>
+        <!-- Dashboard 2-column customer lists -->
+        <div class="scroll-area flex-1 p-4" id="folder-view">
+            <div class="home-columns">
+                <section class="home-column approved">
+                    <div class="home-column-header">
+                        <div class="home-column-title-wrap">
+                            <i data-lucide="folder-check" class="w-4 h-4"></i>
+                            <span class="home-column-title">Khách hàng đã vay</span>
+                        </div>
+                        <span class="home-column-count"><span id="count-approved">0</span></span>
+                    </div>
+                    <div id="home-list-approved" class="home-customer-list"></div>
+                </section>
 
-            <!-- Pending Customers Folder -->
-            <div class="folder-card" onclick="openCustomerList('pending')">
-                <div class="folder-icon pending">
-                    <i data-lucide="folder-clock" class="w-8 h-8"></i>
-                </div>
-                <div class="folder-info">
-                    <span class="folder-title">KH đang thẩm định</span>
-                    <span class="folder-count"><span id="count-pending">0</span> hồ sơ</span>
-                </div>
-                <i data-lucide="chevron-right" class="w-5 h-5 opacity-40" style="color: var(--text-sub)"></i>
+                <section class="home-column pending">
+                    <div class="home-column-header">
+                        <div class="home-column-title-wrap">
+                            <i data-lucide="folder-clock" class="w-4 h-4"></i>
+                            <span class="home-column-title">KH đang thẩm định</span>
+                        </div>
+                        <span class="home-column-count"><span id="count-pending">0</span></span>
+                    </div>
+                    <div id="home-list-pending" class="home-customer-list"></div>
+                </section>
             </div>
         </div>
 
