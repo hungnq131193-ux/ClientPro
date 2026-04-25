@@ -1315,25 +1315,6 @@ input::placeholder {
   color: var(--text-main);
 }
 
-.customer-hub-open-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: var(--accent-gradient);
-  box-shadow: 0 10px 30px -14px rgba(99, 102, 241, 0.7);
-  transition: transform 0.2s ease, filter 0.2s ease;
-}
-
-.customer-hub-open-btn:active {
-  transform: scale(0.97);
-}
-
 .customer-hub-stats {
   display: grid;
   grid-template-columns: 1fr;
