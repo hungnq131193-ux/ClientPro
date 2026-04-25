@@ -168,13 +168,8 @@ function openCustomerList(type) {
         if (dashboard) dashboard.style.transform = 'translateX(-30%)';
     }, 10);
 
-    // Defer load list sang frame sau để tránh block transition
-    const kickLoad = () => loadCustomers('');
-    if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(() => requestAnimationFrame(kickLoad));
-    } else {
-        setTimeout(kickLoad, 16);
-    }
+    // Load ngay danh sách (không lazy/defer) để tránh cảm giác trễ khi bấm mở màn hình.
+    loadCustomers('');
     try { lucide.createIcons(); } catch (e) { }
 }
 
@@ -279,59 +274,36 @@ async function loadCustomers(query = '') {
     listEl.dataset.token = loadToken;
     listEl.innerHTML = `<div class="text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Đang tải danh sách khách hàng...</div>`;
 
-    let loaded = 0;
-    let rendered = 0;
-    const batch = [];
-    const BATCH_SIZE = q ? 30 : 18;
-
-    const flushBatch = () => {
-        if (!batch.length || window.__customerListLoadToken !== loadToken) return;
-        renderList(batch.splice(0, batch.length), { append: rendered > 0, done: false });
-        rendered += BATCH_SIZE;
-    };
-
-    await new Promise((resolve) => {
+    const all = await new Promise((resolve) => {
         const tx = db.transaction(['customers'], 'readonly');
-        const req = tx.objectStore('customers').openCursor(null, 'prev');
-        req.onsuccess = async (e) => {
-            if (window.__customerListLoadToken !== loadToken) return resolve();
-            const cursor = e.target.result;
-            if (!cursor) return resolve();
-
-            const c = cursor.value;
-            if (!c || (c.status || 'pending') !== activeListTab) {
-                cursor.continue();
-                return;
-            }
-
-            if (q) {
-                const qq = q.toLowerCase();
-                _ensureSummaryDecrypted(c);
-                const nameMatch = (c.name || '').toLowerCase().includes(qq);
-                const phoneMatch = (c.phone || '').includes(qq);
-                if (!nameMatch && !phoneMatch) {
-                    cursor.continue();
-                    return;
-                }
-            }
-                      batch.push(c);
-            loaded++;
-            if (batch.length >= BATCH_SIZE) {
-                flushBatch();
-                // eslint-disable-next-line no-await-in-loop
-                await new Promise((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(r) : setTimeout(r, 0)));
-            }
-            cursor.continue();
-        };
-        req.onerror = () => resolve();
+        const req = tx.objectStore('customers').getAll();
+        req.onsuccess = (e) => resolve(e.target.result || []);
+        req.onerror = () => resolve([]);
     });
 
-    flushBatch();
     if (window.__customerListLoadToken !== loadToken) return;
-    if (loaded === 0) {
+
+    const list = [];
+    for (let i = all.length - 1; i >= 0; i--) {
+        const c = all[i];
+        if (!c || (c.status || 'pending') !== activeListTab) continue;
+
+        if (q) {
+            const qq = q.toLowerCase();
+            _ensureSummaryDecrypted(c);
+            const nameMatch = (c.name || '').toLowerCase().includes(qq);
+            const phoneMatch = (c.phone || '').includes(qq);
+            if (!nameMatch && !phoneMatch) continue;
+        }
+
+        list.push(c);
+    }
+
+    if (window.__customerListLoadToken !== loadToken) return;
+    if (list.length === 0) {
         renderList([], { append: false, done: true });
     } else {
-        renderList([], { append: true, done: true });
+        renderList(list, { append: false, done: true });
     }
 }
 
@@ -412,7 +384,7 @@ function renderList(list, opts = {}) {
                             </h3>
                             <p class="text-xs text-slate-400 font-mono flex items-center gap-1.5">${iconSmartphone} ${safePhone}</p>
                             ${limitHtml}
-                            </div>
+                        </div>
                         <div class="flex gap-2">
                             <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-blue-400 rounded-xl hover:bg-blue-500/20">${iconMessage}</a>
                             <a href="tel:${c.phone}" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-green-400 rounded-xl hover:bg-green-500/20">${iconPhone}</a>
