@@ -299,23 +299,23 @@
                 </button>
             </div>
 
-            <div class="flex gap-2">
-                <div class="relative flex-1">
-                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 opacity-50"
+            <div class="customer-list-toolbar">
+                <div class="relative flex-1 customer-search-wrap">
+                    <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 opacity-50"
                         style="color: var(--text-main)"></i>
                     <input type="text" id="search-input" placeholder="Tìm kiếm hồ sơ..."
-                        class="w-full border rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none transition-colors"
+                        class="w-full border rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-colors"
                         style="border-color: var(--border-panel); color: var(--text-main); background: transparent;">
                 </div>
                 <button onclick="toggleCustSelectionMode()" id="btn-cust-select"
-                    class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20"
+                    class="border px-3 rounded-xl active:bg-white/10 transition-colors bg-black/20 customer-select-toggle"
                     style="border-color: var(--border-panel); color: var(--text-sub);">
                     <i data-lucide="list-checks" class="w-5 h-5"></i>
                 </button>
             </div>
         </header>
 
-        <div class="scroll-area flex-1 p-4 space-y-3" id="customer-list"></div>
+        <div class="scroll-area flex-1 p-4" id="customer-list"></div>
     </div>
 
     <div id="screen-map"
