@@ -315,7 +315,11 @@ function renderList(list, opts = {}) {
     if (!append) listEl.innerHTML = '';
 
     if ((!list || list.length === 0) && !append) {
-        listEl.innerHTML = `<div class="text-center py-32 opacity-40 flex flex-col items-center"><i data-lucide="inbox" class="w-16 h-16 mb-4 stroke-1"></i><p class="text-xs font-bold uppercase tracking-wider">Danh sách trống</p></div>`;
+        listEl.innerHTML = `<div class="customer-empty-state text-center py-28 px-6 opacity-85 flex flex-col items-center">
+            <div class="customer-empty-icon mb-4"><i data-lucide="inbox" class="w-12 h-12 stroke-1"></i></div>
+            <p class="text-sm font-bold tracking-wide">Chưa có hồ sơ phù hợp</p>
+            <p class="text-xs mt-2 opacity-70">Hãy thêm khách hàng mới hoặc thử từ khóa khác.</p>
+        </div>`;
         try { lucide.createIcons(); } catch (e) { }
         return;
     }
@@ -329,6 +333,30 @@ function renderList(list, opts = {}) {
     const iconPhone = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.9 12.9 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.1 9.9a16 16 0 0 0 6 6l1.26-1.26a2 2 0 0 1 2.11-.45 12.9 12.9 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`;
 
     const frag = document.createDocumentFragment();
+    if (!append) {
+        const total = list.length;
+        const approved = list.filter((c) => (c.status || 'pending') === 'approved').length;
+        const pending = total - approved;
+        const summary = document.createElement('div');
+        summary.className = 'customer-list-overview';
+        summary.innerHTML = `
+            <div class="customer-list-overview__grid">
+                <div class="customer-kpi">
+                    <p>Tổng hồ sơ</p>
+                    <strong>${total}</strong>
+                </div>
+                <div class="customer-kpi approved">
+                    <p>Đã vay</p>
+                    <strong>${approved}</strong>
+                </div>
+                <div class="customer-kpi pending">
+                    <p>Thẩm định</p>
+                    <strong>${pending}</strong>
+                </div>
+            </div>
+        `;
+        frag.appendChild(summary);
+    }
     for (let i = 0; i < list.length; i++) {
         const c = list[i];
         const isApproved = activeListTab === 'approved';
@@ -336,7 +364,7 @@ function renderList(list, opts = {}) {
         _ensureSummaryDecrypted(c);
 
         // Lite glass panel cho list để giảm GPU cost (blur/shadow)
-        el.className = `glass-panel-lite cust-card ${isApproved ? 'cust-approved' : 'cust-pending'} p-4 rounded-2xl mb-3 flex items-center gap-4 transition-all duration-300 hover:bg-white/10 hover:-translate-y-[1px] active:scale-[0.985] ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
+        el.className = `glass-panel-lite cust-card ${isApproved ? 'cust-approved' : 'cust-pending'} ${isCustSelectionMode && selectedCustomers.has(c.id) ? 'selected' : ''}`;
 
         el.onclick = (e) => {
             if (e.target && e.target.closest && e.target.closest('.action-btn')) return;
@@ -346,13 +374,13 @@ function renderList(list, opts = {}) {
 
             const statusTone = isApproved ? 'Đã duyệt vay' : 'Đang thẩm định';
             const limitHtml = isApproved
-                ? `<div class="flex items-center gap-1.5 mt-1.5">
-                    <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                ? `<div class="flex items-center gap-1.5 mt-2">
+                    <span class="customer-chip approved">
                         ${iconCheckCircle} HM: ${c.creditLimit || '0'}
                     </span>
                    </div>`
-                : `<div class="flex items-center gap-1.5 mt-1.5">
-                    <span class="text-[10px] font-medium text-indigo-300 bg-indigo-500/15 px-2 py-0.5 rounded-full border border-indigo-500/30 flex items-center gap-1">
+                : `<div class="flex items-center gap-1.5 mt-2">
+                    <span class="customer-chip pending">
                         ${iconClock} Đang thẩm định
                     </span>
                    </div>`;
@@ -367,27 +395,25 @@ function renderList(list, opts = {}) {
             const safeInitial = escapeHTML(displayName.charAt(0).toUpperCase());
 
             // Avatar styling - glow for approved
-            const avatarClass = isApproved
-                ? 'w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-emerald-400 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/20'
-                : 'w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/10 text-indigo-400 ring-1 ring-indigo-500/30';
+            const avatarClass = isApproved ? 'customer-avatar approved' : 'customer-avatar pending';
 
             el.innerHTML = `
                         ${checkIcon}
                         <div class="${avatarClass}">
                             ${safeInitial}
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-[10px] uppercase tracking-[0.12em] text-slate-500 mb-1">${statusTone}</div>
-                            <h3 class="font-bold text-white truncate text-base mb-0.5 leading-tight flex items-center gap-1.5">
+                        <div class="customer-card-main">
+                            <div class="customer-status-line">${statusTone}</div>
+                            <h3 class="customer-name-line">
                                 ${safeName}
                                 ${isApproved ? iconBadgeCheck : ''}
                             </h3>
-                            <p class="text-xs text-slate-400 font-mono flex items-center gap-1.5">${iconSmartphone} ${safePhone}</p>
+                            <p class="customer-phone-line">${iconSmartphone} ${safePhone}</p>
                             ${limitHtml}
                         </div>
-                        <div class="flex gap-2">
-                            <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-blue-400 rounded-xl hover:bg-blue-500/20">${iconMessage}</a>
-                            <a href="tel:${c.phone}" class="action-btn glass-btn w-9 h-9 flex items-center justify-center text-green-400 rounded-xl hover:bg-green-500/20">${iconPhone}</a>
+                        <div class="customer-actions">
+                            <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn customer-action-btn zalo">${iconMessage}</a>
+                            <a href="tel:${c.phone}" class="action-btn customer-action-btn call">${iconPhone}</a>
                         </div>`;
 
         frag.appendChild(el);
