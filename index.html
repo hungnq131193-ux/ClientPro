@@ -169,9 +169,6 @@
             <button onclick="openBackupManager()" class="settings-btn text-cyan-400">
                 <i data-lucide="archive" class="w-3.5 h-3.5"></i> Kho backup
             </button>
-            <button onclick="importFromExcel()" class="settings-btn text-emerald-400">
-                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Nhập Excel
-            </button>
             <button onclick="openDonateModal()" class="settings-btn text-pink-400">
                 <i data-lucide="heart" class="w-3.5 h-3.5"></i> Donate
             </button>
@@ -245,23 +242,23 @@
             <section class="customer-hub-card">
                 <div class="customer-hub-head">
                     <div>
-                        <p class="customer-hub-kicker">Customer Hub</p>
-                        <h2 class="customer-hub-title">Danh sách khách hàng</h2>
+                        <p class="customer-hub-kicker">Quản lý hồ sơ</p>
+                        <h2 class="customer-hub-title">Không gian khách hàng</h2>
                     </div>
                 </div>
 
-                <div class="customer-hub-stats">
+                <div class="customer-hub-stats two-folders">
                     <button class="hub-stat approved" onclick="openCustomerList('approved')">
-                        <span class="hub-stat-label"><i data-lucide="badge-check" class="w-3.5 h-3.5"></i>Đã vay</span>
+                        <span class="hub-stat-label"><i data-lucide="badge-check" class="w-3.5 h-3.5"></i>Kho đã duyệt</span>
                         <strong id="count-approved">0</strong>
                     </button>
                     <button class="hub-stat pending" onclick="openCustomerList('pending')">
-                        <span class="hub-stat-label"><i data-lucide="hourglass" class="w-3.5 h-3.5"></i>Thẩm định</span>
+                        <span class="hub-stat-label"><i data-lucide="hourglass" class="w-3.5 h-3.5"></i>Kho thẩm định</span>
                         <strong id="count-pending">0</strong>
                     </button>
                 </div>
 
-                <p class="customer-hub-note"></p>
+                <p class="customer-hub-note">Chọn 1 kho hồ sơ để xem chi tiết và thao tác nhanh.</p>
             </section>
         </div>
 
@@ -578,10 +575,7 @@
     <script src="./assets/16_auto_backup_drive.js" defer></script>
     <!-- Onboarding tour for new users -->
     <script src="./assets/17_onboarding_tour.js" defer></script>
-    <!-- Excel Import (SheetJS) -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" defer></script>
-    <script src="./assets/20_excel_import.js" defer></script>
-    <script src="./assets/10_bootstrap.js" defer></script>
+        <script src="./assets/10_bootstrap.js" defer></script>
     <script src="./assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
     <script src="./assets/pwa.js" defer></script>
 
