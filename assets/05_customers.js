@@ -300,29 +300,32 @@ async function loadCustomers(query = '') {
     }
 
     if (window.__customerListLoadToken !== loadToken) return;
+
+    const summaryCounts = all.reduce((acc, c) => {
+        if (!c) return acc;
+        if ((c.status || 'pending') === 'approved') acc.approved += 1;
+        else acc.pending += 1;
+        return acc;
+    }, { approved: 0, pending: 0 });
+
     if (list.length === 0) {
-        renderList([], { append: false, done: true });
+        renderList([], { append: false, done: true, summaryCounts });
     } else {
-        renderList(list, { append: false, done: true });
+        renderList(list, { append: false, done: true, summaryCounts });
     }
 }
 
 function renderList(list, opts = {}) {
     const append = !!opts.append;
     const done = !!opts.done;
+    const summaryCounts = opts.summaryCounts || null;
     const listEl = getEl('customer-list');
     if (!listEl) return;
     if (!append) listEl.innerHTML = '';
 
-    if ((!list || list.length === 0) && !append) {
-        listEl.innerHTML = `<div class="customer-empty-state text-center py-28 px-6 opacity-85 flex flex-col items-center">
-            <div class="customer-empty-icon mb-4"><i data-lucide="inbox" class="w-12 h-12 stroke-1"></i></div>
-            <p class="text-sm font-bold tracking-wide">Chưa có hồ sơ phù hợp</p>
-            <p class="text-xs mt-2 opacity-70">Hãy thêm khách hàng mới hoặc thử từ khóa khác.</p>
-        </div>`;
-        try { lucide.createIcons(); } catch (e) { }
-        return;
-    }
+    const approved = summaryCounts ? summaryCounts.approved : list.filter((c) => (c.status || 'pending') === 'approved').length;
+    const pending = summaryCounts ? summaryCounts.pending : (list.length - approved);
+    const total = approved + pending;
 
     const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
     const iconBadgeCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-emerald-400 shrink-0"><path d="m12 15 2 2 4-4"></path><path d="M9 12a3 3 0 0 1 3-3"></path><path d="M20 12a8 8 0 1 1-8-8"></path></svg>`;
@@ -334,9 +337,6 @@ function renderList(list, opts = {}) {
 
     const frag = document.createDocumentFragment();
     if (!append) {
-        const total = list.length;
-        const approved = list.filter((c) => (c.status || 'pending') === 'approved').length;
-        const pending = total - approved;
         const summary = document.createElement('div');
         summary.className = 'customer-list-overview';
         summary.innerHTML = `
@@ -356,6 +356,20 @@ function renderList(list, opts = {}) {
             </div>
         `;
         frag.appendChild(summary);
+    }
+
+    if ((!list || list.length === 0) && !append) {
+        const empty = document.createElement('div');
+        empty.className = 'customer-empty-state text-center py-28 px-6 opacity-85 flex flex-col items-center';
+        empty.innerHTML = `
+            <div class="customer-empty-icon mb-4"><i data-lucide="inbox" class="w-12 h-12 stroke-1"></i></div>
+            <p class="text-sm font-bold tracking-wide">Chưa có hồ sơ phù hợp</p>
+            <p class="text-xs mt-2 opacity-70">Hãy thêm khách hàng mới hoặc thử từ khóa khác.</p>
+        `;
+        frag.appendChild(empty);
+        listEl.appendChild(frag);
+        try { lucide.createIcons(); } catch (e) { }
+        return;
     }
     for (let i = 0; i < list.length; i++) {
         const c = list[i];
