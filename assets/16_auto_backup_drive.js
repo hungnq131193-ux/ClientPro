@@ -20,6 +20,7 @@
     const DRIVE_BACKUPS_CACHE_KEY = 'CLIENTPRO_DRIVE_BACKUPS_CACHE';
     const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes cache
     const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+    const MAX_DRIVE_BACKUPS = 3;
 
     // ============================================================
     // HELPERS
@@ -215,7 +216,33 @@
             if (container) renderBackupsHTML_(backups, container);
         }
 
+        // Keep retention policy in sync with Drive: only keep latest 3 backups.
+        await enforceDriveBackupRetention_();
+
         return result;
+    }
+
+    async function enforceDriveBackupRetention_() {
+        const backups = await listMyDriveBackups({ allowCached: false });
+        if (!Array.isArray(backups) || backups.length <= MAX_DRIVE_BACKUPS) return;
+
+        const sorted = [...backups].sort((a, b) => {
+            const bTs = Date.parse((b && b.createdAt) || '') || 0;
+            const aTs = Date.parse((a && a.createdAt) || '') || 0;
+            return bTs - aTs;
+        });
+
+        const toDelete = sorted.slice(MAX_DRIVE_BACKUPS);
+        for (const item of toDelete) {
+            if (item && item.id) {
+                await deleteDriveBackup(item.id);
+            }
+        }
+
+        const kept = sorted.slice(0, MAX_DRIVE_BACKUPS);
+        writeBackupsCache_(kept);
+        const container = document.getElementById('drive-backup-list');
+        if (container) renderBackupsHTML_(kept, container);
     }
 
     // ============================================================
