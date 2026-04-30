@@ -426,8 +426,8 @@ function renderList(list, opts = {}) {
                             ${limitHtml}
                         </div>
                         <div class="customer-actions">
-                            <a href="${getZaloLink(c.phone)}" target="_blank" class="action-btn customer-action-btn zalo">${iconMessage}</a>
-                            <a href="tel:${c.phone}" class="action-btn customer-action-btn call">${iconPhone}</a>
+                            <a href="${getZaloLink(c.phone)}" onclick="openZaloChat('${c.phone}'); return false;" class="action-btn customer-action-btn zalo">${iconMessage}</a>
+                            <a href="${getTelLink(c.phone)}" class="action-btn customer-action-btn call">${iconPhone}</a>
                         </div>`;
 
         frag.appendChild(el);
@@ -820,7 +820,7 @@ function confirmApproval() { const l = getEl('approve-limit').value; if (!l) ret
 function updateCustomerAndReload() { db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { openFolder(currentCustomerData.id); loadCustomers(); }; }
 
 function renderFolderHeader(data) {
-    getEl('folder-customer-name').textContent = data.name; getEl('folder-avatar').textContent = data.name.charAt(0).toUpperCase(); getEl('btn-detail-call').href = `tel:${data.phone}`; getEl('btn-detail-zalo').href = getZaloLink(data.phone);
+    getEl('folder-customer-name').textContent = data.name; getEl('folder-avatar').textContent = data.name.charAt(0).toUpperCase(); getEl('btn-detail-call').href = getTelLink(data.phone); getEl('btn-detail-zalo').href = getZaloLink(data.phone); getEl('btn-detail-zalo').onclick = () => { openZaloChat(data.phone); return false; };
     const badge = getEl('detail-status-badge');
     if (data.status === 'approved') { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10"; badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span>${data.creditLimit}</span>`; }
     else { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20"; badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`; } lucide.createIcons();
