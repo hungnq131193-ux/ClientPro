@@ -23,7 +23,31 @@ let activeListTab = 'pending'; let isSelectionMode = false; let selectedImages =
 let isCustSelectionMode = false; let selectedCustomers = new Set();
 let captureMode = 'profile'; let stream = null; let currentImageId = null; let currentImageBase64 = null;
 
-function getZaloLink(phone) { let p = phone.replace(/[\s\.]/g, ''); if (p.startsWith('0')) p = '84' + p.substring(1); return `https://zalo.me/${p}`; }
+function normalizePhoneForLink(phone) {
+    let p = String(phone || '').replace(/[^0-9+]/g, '');
+    if (p.startsWith('+')) p = p.substring(1);
+    if (p.startsWith('0')) p = '84' + p.substring(1);
+    return p;
+}
+function getZaloLink(phone) {
+    const p = normalizePhoneForLink(phone);
+    return p ? `https://zalo.me/${p}` : '#';
+}
+function getZaloDeepLink(phone) {
+    const p = normalizePhoneForLink(phone);
+    return p ? `zalo://conversation?phone=${p}` : '#';
+}
+function getTelLink(phone) {
+    const p = normalizePhoneForLink(phone);
+    return p ? `tel:+${p}` : '#';
+}
+function openZaloChat(phone) {
+    const fallback = getZaloLink(phone);
+    const deep = getZaloDeepLink(phone);
+    if (!phone) return;
+    window.location.href = deep;
+    setTimeout(() => { window.open(fallback, '_blank'); }, 450);
+}
 function showToast(msg) { const t = getEl('toast'); getEl('toast-msg').textContent = msg; t.classList.add('toast-show'); setTimeout(() => t.classList.remove('toast-show'), 2000); }
 function formatLink(link) { if (!link) return ''; if (link.startsWith('http')) return link; return 'https://' + link; }
 
