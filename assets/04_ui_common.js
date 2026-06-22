@@ -37,6 +37,9 @@ function getZaloDeepLink(phone) {
     const p = normalizePhoneForLink(phone);
     return p ? `zalo://conversation?phone=${p}` : '#';
 }
+function isMobileDevice() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+}
 function getTelLink(phone) {
     const p = normalizePhoneForLink(phone);
     return p ? `tel:+${p}` : '#';
@@ -45,8 +48,20 @@ function openZaloChat(phone) {
     const fallback = getZaloLink(phone);
     const deep = getZaloDeepLink(phone);
     if (!phone) return;
-    window.location.href = deep;
-    setTimeout(() => { window.open(fallback, '_blank'); }, 450);
+
+    // Ưu tiên mở app Zalo trên điện thoại. Chỉ fallback sang zalo.me nếu app
+    // không được hệ điều hành bắt link, tránh bật Zalo Web quá sớm gây lỗi.
+    if (isMobileDevice()) {
+        const startedAt = Date.now();
+        window.location.href = deep;
+        setTimeout(() => {
+            const stillHere = !document.hidden && Date.now() - startedAt < 2600;
+            if (stillHere) window.location.href = fallback;
+        }, 1800);
+        return;
+    }
+
+    window.open(fallback, '_blank', 'noopener');
 }
 function showToast(msg) { const t = getEl('toast'); getEl('toast-msg').textContent = msg; t.classList.add('toast-show'); setTimeout(() => t.classList.remove('toast-show'), 2000); }
 function formatLink(link) { if (!link) return ''; if (link.startsWith('http')) return link; return 'https://' + link; }

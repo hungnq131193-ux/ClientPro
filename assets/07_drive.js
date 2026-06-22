@@ -89,7 +89,7 @@ async function uploadToGoogleDrive() {
             return;
         }
 
-        getEl('loader-text').textContent = "Đang tải lên Cloud...";
+        getEl('loader-text').textContent = "Đang sao lưu ảnh lên Drive...";
 
         // Chuẩn bị gói dữ liệu
         const payload = {
@@ -122,7 +122,7 @@ async function uploadToGoogleDrive() {
                 renderDriveStatus(result.url); // Hiển thị nút mở Drive
                 
                 // Hỏi xóa ảnh gốc
-                if(confirm("✅ UPLOAD THÀNH CÔNG!\n\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                if(confirm("✅ Đã sao lưu ảnh thành công!\n\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
                     const txDel = db.transaction(['images'], 'readwrite');
                     imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
                     txDel.oncomplete = () => {
@@ -160,7 +160,7 @@ function renderDriveStatus(url) {
         <i data-lucide="external-link" class="w-5 h-5"></i> Mở Folder Ảnh
       </a>
       <p class="text-[10px] text-center text-emerald-400/70 italic mb-2">
-        Đã đồng bộ lên Cloud
+        Đã sao lưu ảnh thành công
       </p>
     `;
         
@@ -503,7 +503,7 @@ async function uploadToGoogleDrive() {
             return;
         }
 
-        getEl('loader-text').textContent = "Đang Upload lên Drive...";
+        getEl('loader-text').textContent = "Đang sao lưu ảnh lên Drive...";
 
         // Đóng gói mảng ảnh
         const payload = {
@@ -631,7 +631,7 @@ async function uploadToGoogleDrive() {
             return;
         }
 
-        getEl('loader-text').textContent = "Đang đẩy lên Google Drive...";
+        getEl('loader-text').textContent = "Đang sao lưu ảnh lên Google Drive...";
 
         // 2. Chuẩn bị gói dữ liệu
         const payload = {
@@ -660,7 +660,7 @@ async function uploadToGoogleDrive() {
                 getEl('loader').classList.add('hidden');
                 renderDriveStatus(result.url);
                 
-                if(confirm("✅ Đã Upload xong!\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                if(confirm("✅ Đã sao lưu ảnh thành công!\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
                     const txDel = db.transaction(['images'], 'readwrite');
                     imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
                     txDel.oncomplete = () => {
