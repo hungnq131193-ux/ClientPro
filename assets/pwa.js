@@ -14,7 +14,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v5.0.1.2-maplibre-20260622-1';
+  var SW_BUILD = 'v5.0.1.3-maplibre-20260622-1';
 
   function sendSkipWaiting(sw) {
     try {
