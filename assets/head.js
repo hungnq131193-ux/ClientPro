@@ -54,18 +54,9 @@ const LazyLoader = (() => {
   }
 
   return {
-    // Load Map module (Leaflet + 03_map.js)
+    // Load Map module. MapLibre GL JS is lazy-loaded inside 03_map.js only when the map screen opens.
     async loadMap() {
       if (loaded.has('map')) return;
-      // Load Leaflet CSS
-      if (!document.querySelector('link[href*="leaflet"]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
-      // Load Leaflet JS then map module
-      await loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');
       await loadScript('./assets/03_map.js');
       loaded.add('map');
     },
