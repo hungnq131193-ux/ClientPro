@@ -1490,7 +1490,7 @@ input::placeholder {
     radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.16), transparent 50%),
     var(--bg-panel);
   border-radius: 24px;
-  padding: 18px;
+  padding: 20px;
   min-height: calc(100% - 6px);
   display: flex;
   flex-direction: column;
@@ -1524,13 +1524,14 @@ input::placeholder {
 .customer-hub-stats {
   display: grid;
   grid-template-columns: repeat(2,minmax(0,1fr));
-  gap: 10px;
+  gap: 14px;
 }
 
 .hub-stat {
-  border-radius: 20px;
+  border-radius: 22px;
   border: 1px solid var(--border-panel);
-  padding: 12px 14px;
+  padding: 20px 18px;
+  min-height: 118px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1556,13 +1557,14 @@ input::placeholder {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 800;
   color: var(--text-main);
   opacity: 0.94;
 }
 
 .hub-stat strong {
-  font-size: 20px;
+  font-size: 28px;
   color: #fff;
   letter-spacing: 0.01em;
 }
