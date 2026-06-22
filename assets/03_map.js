@@ -242,7 +242,7 @@ function initMap() {
         attributionControl: false
     });
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-left');
     map.addControl(createMapStyleControl(), 'top-right');
     observeMapResize();
 
@@ -362,7 +362,7 @@ async function renderMapMarkers() {
                             <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20">Chỉ đường</a>
                         </div>
                     `;
-                    marker.setPopup(new maplibregl.Popup({ offset: 18, closeButton: true }).setHTML(popupContent));
+                    marker.setPopup(new maplibregl.Popup({ offset: 18, closeButton: true, className: 'clientpro-map-popup', maxWidth: '300px' }).setHTML(popupContent));
                     markers.push(marker);
                     bounds.push([loc.lng, loc.lat]);
                 }
