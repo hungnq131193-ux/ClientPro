@@ -14,7 +14,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v5.0.1.1';
+  var SW_BUILD = 'v5.0.1.2-maplibre-20260622-1';
 
   function sendSkipWaiting(sw) {
     try {
@@ -24,10 +24,10 @@
 
   // Prevent infinite reload loops: only reload once per tab/session
   function markReloaded() {
-    try { sessionStorage.setItem("clientpro_sw_reloaded", "1"); } catch (e) { }
+    try { sessionStorage.setItem("clientpro_sw_reloaded_" + SW_BUILD, "1"); } catch (e) { }
   }
   function hasReloaded() {
-    try { return sessionStorage.getItem("clientpro_sw_reloaded") === "1"; } catch (e) { return false; }
+    try { return sessionStorage.getItem("clientpro_sw_reloaded_" + SW_BUILD) === "1"; } catch (e) { return false; }
   }
 
   window.addEventListener("load", async () => {
