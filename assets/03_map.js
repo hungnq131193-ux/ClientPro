@@ -1,11 +1,22 @@
 // --- MAP SYSTEM VARIABLES ---
-let map = null; let markers = [];
-const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const TILE_SAT = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+let map = null; let markers = []; let mapResizeObserver = null;
+const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const MAP_STYLE_SAT = {
+    version: 8,
+    sources: {
+        esri: {
+            type: 'raster',
+            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+            tileSize: 256,
+            attribution: ''
+        }
+    },
+    layers: [{ id: 'esri', type: 'raster', source: 'esri' }]
+};
 
-// --- LAZY-LOAD LEAFLET (only when opening Map screen) ---
-// index.html must NOT load Leaflet in <head>. Map screen will load it on demand.
-let __leafletLoadPromise = null;
+// --- LAZY-LOAD MAPLIBRE GL JS (only when opening Map screen) ---
+// index.html must NOT load MapLibre in <head>. Map screen will load it on demand.
+let __mapLibreLoadPromise = null;
 function __injectOnce(tagName, attrs, id) {
     if (id && document.getElementById(id)) return document.getElementById(id);
     const el = document.createElement(tagName);
@@ -21,7 +32,7 @@ function __injectOnce(tagName, attrs, id) {
 function __loadScript(src, id, timeoutMs) {
     return new Promise((resolve, reject) => {
         // Already loaded?
-        if (window.L && window.L.map) return resolve(true);
+        if (window.maplibregl && window.maplibregl.Map) return resolve(true);
         const existing = id ? document.getElementById(id) : null;
         if (existing && existing.getAttribute('data-loaded') === '1') return resolve(true);
 
@@ -30,7 +41,7 @@ function __loadScript(src, id, timeoutMs) {
         const to = setTimeout(() => {
             if (done) return;
             done = true;
-            reject(new Error('Leaflet script timeout'));
+            reject(new Error('MapLibre script timeout'));
         }, timeoutMs || 15000);
 
         s.onload = () => {
@@ -44,7 +55,7 @@ function __loadScript(src, id, timeoutMs) {
             if (done) return;
             done = true;
             clearTimeout(to);
-            reject(new Error('Leaflet script load failed'));
+            reject(new Error('MapLibre script load failed'));
         };
     });
 }
@@ -59,50 +70,34 @@ function __loadCss(href, id) {
     });
 }
 
-async function ensureLeafletLoaded() {
-    if (window.L && window.L.map) return true;
-    if (__leafletLoadPromise) return __leafletLoadPromise;
+async function ensureMapLibreLoaded() {
+    if (window.maplibregl && window.maplibregl.Map) return true;
+    if (__mapLibreLoadPromise) return __mapLibreLoadPromise;
 
-    __leafletLoadPromise = (async () => {
-        // Minimal fallback CSS to avoid "black screen" when Leaflet CSS fails to load.
-        __injectOnce('style', {
-            text: `
-                    .leaflet-container{position:relative;outline:0;}
-                    .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-map-pane svg,.leaflet-map-pane canvas{position:absolute;left:0;top:0;}
-                    .leaflet-tile-container{width:100%;height:100%;}
-                    .leaflet-tile{will-change:transform;}
-                    .leaflet-control{position:relative;z-index:800;}
-                    .leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none;}
-                    .leaflet-top{top:0}.leaflet-right{right:0}.leaflet-left{left:0}.leaflet-bottom{bottom:0}
-                    .leaflet-control{pointer-events:auto;}
-                ` }, 'leaflet-base-css');
+    __mapLibreLoadPromise = (async () => {
+        const css1 = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+        const js1 = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+        const css2 = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+        const js2 = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
 
-        // Try primary CDN (unpkg), then fallback (jsdelivr)
-        const css1 = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        const js1 = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        const css2 = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-        const js2 = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
-
-        // Load CSS (best-effort)
-        await __loadCss(css1, 'leaflet-css');
+        await __loadCss(css1, 'maplibre-css');
 
         try {
-            await __loadScript(js1, 'leaflet-js', 15000);
+            await __loadScript(js1, 'maplibre-js', 15000);
         } catch (e1) {
-            // fallback css + js
-            await __loadCss(css2, 'leaflet-css-fallback');
-            await __loadScript(js2, 'leaflet-js-fallback', 15000);
+            await __loadCss(css2, 'maplibre-css-fallback');
+            await __loadScript(js2, 'maplibre-js-fallback', 15000);
         }
 
-        if (!(window.L && window.L.map)) {
-            throw new Error('Leaflet not available after load');
+        if (!(window.maplibregl && window.maplibregl.Map)) {
+            throw new Error('MapLibre GL JS not available after load');
         }
         return true;
     })();
 
-    return __leafletLoadPromise.catch(err => {
-        __leafletLoadPromise = null;
-        console.error('[Map] Leaflet load failed:', err);
+    return __mapLibreLoadPromise.catch(err => {
+        __mapLibreLoadPromise = null;
+        console.error('[Map] MapLibre load failed:', err);
         showToast('Không tải được bản đồ. Vui lòng kiểm tra mạng.');
         return false;
     });
@@ -188,7 +183,7 @@ async function toggleMap() {
         if (typeof nextFrame === 'function') nextFrame(() => mapScreen.classList.remove('translate-x-full'));
         else mapScreen.classList.remove('translate-x-full');
 
-        // Lightweight loading overlay while Leaflet/markers are prepared
+        // Lightweight loading overlay while MapLibre/markers are prepared
         try {
             const mc = getEl('map-container');
             if (mc && !getEl('map-loading')) {
@@ -211,7 +206,7 @@ async function toggleMap() {
             }
         } catch (e) { }
 
-        const ok = await ensureLeafletLoaded();
+        const ok = await ensureMapLibreLoaded();
         if (!ok) {
             try { const ov = getEl('map-loading'); if (ov) ov.remove(); } catch (e) { }
             return;
@@ -222,8 +217,8 @@ async function toggleMap() {
             try {
                 if (!map) initMap(); else renderMapMarkers();
                 // Fix black/blank map when container was hidden during init
-                setTimeout(() => { if (map) map.invalidateSize(true); }, 80);
-                setTimeout(() => { if (map) map.invalidateSize(true); }, 380);
+                setTimeout(() => { if (map) map.resize(); }, 80);
+                setTimeout(() => { if (map) map.resize(); }, 380);
             } catch (e) {
                 console.error('[Map] init/render error:', e);
                 showToast('Lỗi khởi tạo bản đồ.');
@@ -239,22 +234,69 @@ async function toggleMap() {
 }
 
 function initMap() {
-    map = L.map('map-container', { zoomControl: false }).setView([21.0285, 105.8542], 12); // Default Hanoi
+    map = new maplibregl.Map({
+        container: 'map-container',
+        style: MAP_STYLE_DARK,
+        center: [105.8542, 21.0285], // Default Hanoi
+        zoom: 12,
+        attributionControl: false
+    });
 
-    const darkLayer = L.tileLayer(TILE_DARK, { attribution: '', maxZoom: 19 });
-    const satLayer = L.tileLayer(TILE_SAT, { attribution: '', maxZoom: 19 });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+    map.addControl(createMapStyleControl(), 'top-right');
+    observeMapResize();
 
-    darkLayer.addTo(map);
-    L.control.layers({ "Bản đồ tối": darkLayer, "Vệ tinh": satLayer }, null, { position: 'topright' }).addTo(map);
+    map.once('load', renderMapMarkers);
+}
 
-    renderMapMarkers();
+function observeMapResize() {
+    const container = getEl('map-container');
+    if (!container || typeof ResizeObserver === 'undefined') return;
+    if (mapResizeObserver) mapResizeObserver.disconnect();
+    mapResizeObserver = new ResizeObserver(() => { if (map) map.resize(); });
+    mapResizeObserver.observe(container);
+}
+
+function destroyMap() {
+    if (mapResizeObserver) {
+        mapResizeObserver.disconnect();
+        mapResizeObserver = null;
+    }
+    markers.forEach(m => m.remove());
+    markers = [];
+    if (map) {
+        map.remove();
+        map = null;
+    }
+}
+
+function createMapStyleControl() {
+    return {
+        onAdd(mapInstance) {
+            const container = document.createElement('div');
+            container.className = 'maplibregl-ctrl map-style-control';
+            container.innerHTML = `
+                <button type="button" data-style="dark" class="active">Bản đồ tối</button>
+                <button type="button" data-style="sat">Vệ tinh</button>
+            `;
+            container.addEventListener('click', (event) => {
+                const btn = event.target.closest('button[data-style]');
+                if (!btn) return;
+                container.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+                mapInstance.setStyle(btn.dataset.style === 'sat' ? MAP_STYLE_SAT : MAP_STYLE_DARK);
+                mapInstance.once('styledata', () => setTimeout(() => mapInstance.resize(), 50));
+            });
+            return container;
+        },
+        onRemove() { }
+    };
 }
 
 // --- ĐÃ SỬA: GIẢI MÃ LINK VÀ THÔNG TIN TRƯỚC KHI VẼ MAP ---
 async function renderMapMarkers() {
     if (!db || !map) return;
     // Xóa marker cũ
-    markers.forEach(m => map.removeLayer(m));
+    markers.forEach(m => m.remove());
     markers = [];
 
     const tx = db.transaction(['customers', 'images'], 'readonly');
@@ -296,14 +338,13 @@ async function renderMapMarkers() {
                     // Hiển thị giá trị định giá đã giải mã
                     const valStr = assetVal ? `<div class="text-xs text-slate-300">Định giá: <b class="text-white">${assetVal}</b></div>` : '';
 
-                    const icon = L.divIcon({
-                        className: 'custom-div-icon',
-                        html: `<div class="marker-glow ${markerClass}"></div>`,
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10]
-                    });
+                    const markerEl = document.createElement('div');
+                    markerEl.className = 'custom-div-icon';
+                    markerEl.innerHTML = `<div class="marker-glow ${markerClass}"></div>`;
 
-                    const marker = L.marker([loc.lat, loc.lng], { icon: icon }).addTo(map);
+                    const marker = new maplibregl.Marker({ element: markerEl, anchor: 'center' })
+                        .setLngLat([loc.lng, loc.lat])
+                        .addTo(map);
 
                     // Popup với thông tin đã giải mã
                     const popupContent = `
@@ -321,14 +362,17 @@ async function renderMapMarkers() {
                             <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20">Chỉ đường</a>
                         </div>
                     `;
-                    marker.bindPopup(popupContent);
+                    marker.setPopup(new maplibregl.Popup({ offset: 18, closeButton: true }).setHTML(popupContent));
                     markers.push(marker);
-                    bounds.push([loc.lat, loc.lng]);
+                    bounds.push([loc.lng, loc.lat]);
                 }
             });
         });
 
-        if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
+        if (bounds.length > 0) {
+            const boundsObj = bounds.reduce((b, coord) => b.extend(coord), new maplibregl.LngLatBounds(bounds[0], bounds[0]));
+            map.fitBounds(boundsObj, { padding: 50, maxZoom: 16 });
+        }
     };
 }
 
@@ -341,12 +385,17 @@ function locateMe() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
             const lat = pos.coords.latitude; const lng = pos.coords.longitude;
-            map.setView([lat, lng], 15);
-            L.marker([lat, lng], {
-                icon: L.divIcon({ html: '<div style="width:16px;height:16px;background:#3b82f6;border-radius:50%;border:2px solid white;box-shadow:0 0 10px #3b82f6;"></div>', className: 'me-marker' })
-            }).addTo(map);
+            map.flyTo({ center: [lng, lat], zoom: 15 });
+            const meEl = document.createElement('div');
+            meEl.className = 'me-marker';
+            meEl.innerHTML = '<div style="width:16px;height:16px;background:#3b82f6;border-radius:50%;border:2px solid white;box-shadow:0 0 10px #3b82f6;"></div>';
+            new maplibregl.Marker({ element: meEl, anchor: 'center' })
+                .setLngLat([lng, lat])
+                .addTo(map);
         }, () => showToast("Không lấy được vị trí"));
     }
 }
 
 
+
+window.addEventListener('beforeunload', destroyMap);
