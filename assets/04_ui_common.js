@@ -49,15 +49,10 @@ function openZaloChat(phone) {
     const deep = getZaloDeepLink(phone);
     if (!phone) return;
 
-    // Ưu tiên mở app Zalo trên điện thoại. Chỉ fallback sang zalo.me nếu app
-    // không được hệ điều hành bắt link, tránh bật Zalo Web quá sớm gây lỗi.
+    // Trên điện thoại phải đi thẳng vào app Zalo. Không tự fallback sang
+    // zalo.me vì trình duyệt có thể ưu tiên mở Zalo Web thay vì app.
     if (isMobileDevice()) {
-        const startedAt = Date.now();
         window.location.href = deep;
-        setTimeout(() => {
-            const stillHere = !document.hidden && Date.now() - startedAt < 2600;
-            if (stillHere) window.location.href = fallback;
-        }, 1800);
         return;
     }
 
