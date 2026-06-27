@@ -81,7 +81,23 @@
         const dev = getDeviceIdSafe();
         if (!emp || !dev) return;
 
-        if (!APP_BACKUP_KDATA_B64U) return;
+        if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
+            console.warn('[AutoBackup] Skip: app is not unlocked.');
+            return;
+        }
+        if (typeof masterKey === 'undefined' || !masterKey) {
+            console.warn('[AutoBackup] Skip: missing masterKey.');
+            return;
+        }
+        if (typeof ensureBackupSecret !== 'function') {
+            console.warn('[AutoBackup] Skip: missing ensureBackupSecret.');
+            return;
+        }
+        const sec = await ensureBackupSecret();
+        if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
+            console.warn('[AutoBackup] Skip: backup secret is unavailable.', sec && sec.message ? sec.message : '');
+            return;
+        }
 
         // Check last backup time
         const lastBackup = getLastAutoBackupTime();
@@ -95,6 +111,24 @@
 
     async function performAutoBackup() {
         try {
+            if ((typeof isAppUnlocked === 'function' && !isAppUnlocked()) || typeof masterKey === 'undefined' || !masterKey) {
+                console.warn('[AutoBackup] Stopped: unlock data before auto backup.');
+                try { showToast('Vui lòng mở khóa dữ liệu trước khi sao lưu.'); } catch (e) { }
+                return;
+            }
+            if (typeof ensureBackupSecret !== 'function') {
+                console.warn('[AutoBackup] Stopped: missing ensureBackupSecret.');
+                return;
+            }
+            const sec = await ensureBackupSecret();
+            if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
+                console.warn('[AutoBackup] Stopped: backup secret unavailable.', sec && sec.message ? sec.message : '');
+                return;
+            }
+            if (typeof decryptText !== 'function') {
+                console.warn('[AutoBackup] Stopped: decryptText unavailable.');
+                return;
+            }
             // Wait for DB to be ready
             if (typeof db === 'undefined' || !db) {
                 console.warn('[AutoBackup] DB not ready');

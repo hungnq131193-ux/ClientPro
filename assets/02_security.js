@@ -266,6 +266,41 @@ function escapeHTML(str) {
     .replace(/'/g, "&#039;");
 }
 
+function isAppUnlocked() {
+  return typeof masterKey !== "undefined" && !!masterKey;
+}
+
+function requireUnlockedForBackup() {
+  if (!isAppUnlocked()) {
+    const msg = "Vui lòng mở khóa dữ liệu trước khi sao lưu.";
+    try { showToast(msg); } catch (e) { }
+    try { console.warn("[Backup] Blocked: masterKey is not available; app is not unlocked."); } catch (e) { }
+    alert(msg);
+    return false;
+  }
+  return true;
+}
+
+function isSafeImageUrl(url) {
+  if (!url) return false;
+  const s = String(url).trim();
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(s)) return true;
+  try {
+    const u = new URL(s, window.location.href);
+    if (u.protocol !== "https:") return false;
+    const h = u.hostname.toLowerCase();
+    return h === "drive.google.com" || h === "lh3.googleusercontent.com" || h.endsWith(".googleusercontent.com");
+  } catch (e) { return false; }
+}
+
+function isSafeDriveUrl(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(String(url).trim(), window.location.href);
+    return u.protocol === "https:" && u.hostname.toLowerCase() === "drive.google.com";
+  } catch (e) { return false; }
+}
+
 function setTheme(themeName) {
   document.body.className = themeName;
   localStorage.setItem(THEME_KEY, themeName);

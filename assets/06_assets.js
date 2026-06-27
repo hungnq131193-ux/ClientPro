@@ -241,62 +241,7 @@ function renderAssets() {
     } catch (e) { }
   }
 }
-function openAssetGallery(id, name, idx) {
-  // Logic tạo ID nếu chưa có (cho data cũ)
-  if (!id || id === "undefined") {
-    id = "asset_" + Date.now();
-    if (currentCustomerData.assets[idx]) {
-      currentCustomerData.assets[idx].id = id;
-      db.transaction(["customers"], "readwrite")
-        .objectStore("customers")
-        .put(currentCustomerData);
-    }
-  }
-
-  currentAssetId = id;
-
-  // Hiển thị màn hình Gallery
-  getEl("screen-asset-gallery").classList.remove("translate-x-full");
-
-  // Lấy thông tin tài sản đang chọn từ bộ nhớ (để đảm bảo chính xác nhất)
-  const asset = currentCustomerData.assets[idx];
-
-  if (asset) {
-    // --- SỬA LỖI Ở ĐÂY: Giải mã dữ liệu trước khi hiển thị ---
-    // 1. Tên tài sản (Giải mã từ object asset thay vì dùng tham số name có thể bị lỗi)
-    getEl("gallery-asset-name").textContent =
-      decryptText(asset.name) || asset.name || "";
-
-    // 2. Định giá & Vay Max (Giải mã)
-    getEl("gallery-asset-val").textContent =
-      decryptText(asset.valuation) || "--";
-    getEl("gallery-asset-loan").textContent =
-      decryptText(asset.loanValue) || "--";
-
-    // Kiểm tra link Drive của tài sản
-    if (typeof renderAssetDriveStatus === "function") {
-      renderAssetDriveStatus(asset.driveLink);
-    }
-  } else {
-    // Fallback nếu không tìm thấy tài sản
-    getEl("gallery-asset-name").textContent = name; // Dùng tạm tên truyền vào
-    getEl("gallery-asset-val").textContent = "--";
-    getEl("gallery-asset-loan").textContent = "--";
-    if (typeof renderAssetDriveStatus === "function")
-      renderAssetDriveStatus(null);
-  }
-
-  // Gọi hàm load ảnh
-  loadAssetImages(id);
-}
-
-function closeAssetGallery() {
-  getEl("screen-asset-gallery").classList.add("translate-x-full");
-  currentAssetId = null;
-  isSelectionMode = false;
-  selectedImages.clear();
-  updateSelectionUI();
-}
+// Legacy asset gallery functions removed; canonical implementations live in assets/08_images_camera.js.
 
 function openAssetModal() {
   getEl("asset-modal").classList.remove("hidden");

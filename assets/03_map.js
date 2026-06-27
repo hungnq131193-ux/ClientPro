@@ -170,7 +170,7 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function parseMoneyToNumber(str) { if (!str) return 0; return parseInt(str.toString().replace(/\D/g, '')) || 0; }
+// parseMoneyToNumber canonical implementation is loaded from assets/10_bootstrap.js.
 
 // --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
 
@@ -327,7 +327,8 @@ async function renderMapMarkers() {
 
                     // Tìm ảnh đại diện
                     const img = allImages.find(i => i.assetId === asset.id) || allImages.find(i => i.customerId === cust.id);
-                    const thumb = img ? img.data : 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzU1NSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
+                    const fallbackThumb = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzU1NSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
+                    const thumb = (img && typeof isSafeImageUrl === 'function' && isSafeImageUrl(img.data)) ? img.data : fallbackThumb;
 
                     // Style marker theo trạng thái
                     const isApproved = cust.status === 'approved';
@@ -348,7 +349,7 @@ async function renderMapMarkers() {
                     // Popup với thông tin đã giải mã
                     const popupContent = `
                         <div class="map-popup-card" onclick="openMapFolder('${cust.id}')">
-                            <img src="${thumb}" class="map-popup-img">
+                            <img src="${escapeHTML(thumb)}" class="map-popup-img" alt="">
                             <div class="flex justify-between items-start">
                                 <div>
                                     ${statusTag}

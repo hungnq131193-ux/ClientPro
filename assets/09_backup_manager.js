@@ -157,6 +157,7 @@ async function deleteBackupFromApp(id) {
 }
 
 async function exportBackupFromApp(id) {
+  if (typeof requireUnlockedForBackup === "function" && !requireUnlockedForBackup()) return;
   const all = await _idbGetAllBackups();
   const rec = all.find((x) => x.id === id);
   if (!rec) return;
@@ -170,6 +171,7 @@ async function exportBackupFromApp(id) {
 
 async function createBackupFileNow() {
   try {
+    if (typeof requireUnlockedForBackup === "function" && !requireUnlockedForBackup()) return;
     await backupData();
     const all = await _idbGetAllBackups();
     all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -280,6 +282,11 @@ async function _restoreFromEncryptedContent(encryptedContent) {
 // HÀM BACKUP MỚI (CHỈ LƯU THÔNG TIN - LOẠI BỎ ẢNH & LINK)
 // ============================================================
 async function backupData() {
+  if (typeof requireUnlockedForBackup === "function" && !requireUnlockedForBackup()) return;
+  if (typeof decryptText !== "function" || typeof masterKey === "undefined" || !masterKey) {
+    alert("Vui lòng mở khóa dữ liệu trước khi sao lưu.");
+    return;
+  }
   // Phương án 1: mỗi lần bấm Backup sẽ verify lại và xin secret từ server
   if (typeof ensureBackupSecret === "function") {
     const sec = await ensureBackupSecret();
