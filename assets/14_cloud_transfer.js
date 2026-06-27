@@ -656,6 +656,11 @@
 
   async function acceptAndRestoreById(transferId) {
     if (!transferId) throw new Error('Thiếu mã bản ghi');
+    if (typeof requireUnlockedForRestore === 'function' && !requireUnlockedForRestore()) return;
+    if ((typeof isAppUnlocked === 'function' && !isAppUnlocked()) || typeof masterKey === 'undefined' || !masterKey) {
+      alert('Vui lòng mở khóa dữ liệu trước khi khôi phục.');
+      return;
+    }
 
     // Confirm and show loader
     if (!confirm('Nhận và Restore bản ghi này?')) return;

@@ -347,8 +347,9 @@ async function renderMapMarkers() {
                         .addTo(map);
 
                     // Popup với thông tin đã giải mã
+                    const safeCustId = escapeHTML(cust.id);
                     const popupContent = `
-                        <div class="map-popup-card" onclick="openMapFolder('${cust.id}')">
+                        <div class="map-popup-card" data-cust-id="${safeCustId}" role="button" tabindex="0">
                             <img src="${escapeHTML(thumb)}" class="map-popup-img" alt="">
                             <div class="flex justify-between items-start">
                                 <div>
@@ -362,7 +363,24 @@ async function renderMapMarkers() {
                             <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20">Chỉ đường</a>
                         </div>
                     `;
-                    marker.setPopup(new maplibregl.Popup({ offset: 18, closeButton: true, className: 'clientpro-map-popup', maxWidth: '300px' }).setHTML(popupContent));
+                    const popup = new maplibregl.Popup({ offset: 18, closeButton: true, className: 'clientpro-map-popup', maxWidth: '300px' }).setHTML(popupContent);
+                    popup.on('open', () => {
+                        const popupEl = popup.getElement();
+                        const card = popupEl && popupEl.querySelector('.map-popup-card[data-cust-id]');
+                        if (!card) return;
+                        const openCurrentFolder = () => openMapFolder(card.dataset.custId);
+                        card.addEventListener('click', (event) => {
+                            if (event.target && event.target.closest('a')) return;
+                            openCurrentFolder();
+                        });
+                        card.addEventListener('keydown', (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                openCurrentFolder();
+                            }
+                        });
+                    });
+                    marker.setPopup(popup);
                     markers.push(marker);
                     bounds.push([loc.lng, loc.lat]);
                 }

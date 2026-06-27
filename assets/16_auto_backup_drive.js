@@ -348,6 +348,12 @@
     }
 
     async function restoreFromDriveBackup(fileId) {
+        if (typeof requireUnlockedForRestore === 'function' && !requireUnlockedForRestore()) return false;
+        if ((typeof isAppUnlocked === 'function' && !isAppUnlocked()) || typeof masterKey === 'undefined' || !masterKey) {
+            alert('Vui lòng mở khóa dữ liệu trước khi khôi phục.');
+            return false;
+        }
+
         // Ensure backup secret
         if (typeof ensureBackupSecret === 'function') {
             const sec = await ensureBackupSecret();
