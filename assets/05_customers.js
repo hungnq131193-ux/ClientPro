@@ -387,10 +387,11 @@ function renderList(list, opts = {}) {
         };
 
             const statusTone = isApproved ? 'Đã duyệt vay' : 'Đang thẩm định';
+            const safeCreditLimit = escapeHTML(c.creditLimit || '0');
             const limitHtml = isApproved
                 ? `<div class="flex items-center gap-1.5 mt-2">
                     <span class="customer-chip approved">
-                        ${iconCheckCircle} HM: ${c.creditLimit || '0'}
+                        ${iconCheckCircle} HM: ${safeCreditLimit}
                     </span>
                    </div>`
                 : `<div class="flex items-center gap-1.5 mt-2">

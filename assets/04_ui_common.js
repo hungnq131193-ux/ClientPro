@@ -59,7 +59,19 @@ function openZaloChat(phone) {
     window.open(fallback, '_blank', 'noopener');
 }
 function showToast(msg) { const t = getEl('toast'); getEl('toast-msg').textContent = msg; t.classList.add('toast-show'); setTimeout(() => t.classList.remove('toast-show'), 2000); }
-function formatLink(link) { if (!link) return ''; if (link.startsWith('http')) return link; return 'https://' + link; }
+function formatLink(link) {
+  if (!link) return '';
+  const raw = String(link).trim();
+  if (!raw || /^(javascript|data|vbscript):/i.test(raw)) return '';
+  const candidate = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+    return url.href;
+  } catch (e) {
+    return '';
+  }
+}
 
 // ============================================================
 // CAMERA WRAPPER (直接 gọi không cần lazy load)
