@@ -412,8 +412,7 @@ function compressImage(base64, cb) {
 
   img.src = base64;
 }
-// --- BƯỚC 3: SỬA HÀM LƯU ẢNH (ĐỂ KÍCH HOẠT OCR TÀI SẢN) ---
-// --- ĐÃ SỬA: FIX LỖI KHÔNG REFRESH ẢNH & BỎ TỰ ĐỘNG OCR ---
+// --- ĐÃ SỬA: FIX LỖI KHÔNG REFRESH ẢNH ---
 function saveImageToDB(rawBase64) {
   return new Promise(async (resolve) => {
     if (!currentCustomerId) {
@@ -432,7 +431,7 @@ function saveImageToDB(rawBase64) {
     getEl("loader").classList.remove("hidden");
     getEl("loader-text").textContent = "Xử lý ảnh...";
 
-    // Không xử lý làm nét hoặc OCR nữa, sử dụng trực tiếp ảnh gốc
+    // Sử dụng trực tiếp ảnh gốc
     const enhancedBase64 = rawBase64;
 
     getEl("loader-text").textContent = "Đang lưu ảnh...";

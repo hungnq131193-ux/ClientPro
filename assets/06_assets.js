@@ -199,9 +199,6 @@ function renderAssets() {
     const mapBtn = mapLink
       ? `<a href="${mapLink}" target="_blank" class="glass-btn flex-1 py-2.5 rounded-lg text-xs font-bold text-slate-300 flex items-center justify-center gap-1 hover:text-white"><i data-lucide="map" class="w-3 h-3"></i> Bản đồ</a>`
       : `<span class="glass-btn flex-1 py-2.5 rounded-lg text-xs text-slate-500 text-center cursor-not-allowed opacity-50">No Map</span>`;
-    const ocrBtn = asset.ocrData
-      ? `<button onclick="viewSavedOcr('${asset.id}')" class="glass-btn px-3 py-2.5 text-purple-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:text-white"><i data-lucide="info" class="w-3 h-3"></i> Thông tin bìa</button>`
-      : "";
 
     const areaInfo = safeArea
       ? `<span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10">${safeArea}m²</span>`
@@ -216,7 +213,15 @@ function renderAssets() {
       ? `<div class="text-xs text-slate-400 mt-1 italic"><i data-lucide="home" class="w-3 h-3 inline mr-1"></i>${safeOnland}</div>`
       : "";
 
-    el.innerHTML = ` <div class="flex justify-between items-start mb-1"> <div class="flex gap-3 items-center"> <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-white/10"><i data-lucide="map-pin" class="w-5 h-5"></i></div> <div><h4 class="font-bold text-white text-sm line-clamp-1">${safeName}</h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div> </div> <div class="flex gap-1"> <button onclick="openEditAssetModal(${index})" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button> <button onclick="deleteAsset(${index})" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button> </div> </div> ${onlandInfo} <div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"> <span>ĐG: <b class="text-emerald-400 text-sm">${safeVal}</b></span> <span>Vay: <b class="text-blue-400 text-sm">${safeLoan}</b></span> </div> <div class="flex gap-2"> ${mapBtn} ${ocrBtn} <button onclick="referenceAssetPrice(${index})" class="glass-btn flex-1 py-2.5 text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button> </div> <button onclick="openAssetGallery('${asset.id}', '${safeName}', ${index})" class="glass-btn w-full py-2.5 text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white mt-1"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`;
+    el.innerHTML = ` <div class="flex justify-between items-start mb-1"> <div class="flex gap-3 items-center"> <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-white/10"><i data-lucide="map-pin" class="w-5 h-5"></i></div> <div><h4 class="font-bold text-white text-sm line-clamp-1">${safeName}</h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div> </div> <div class="flex gap-1"> <button data-action="edit" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button> <button data-action="delete" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button> </div> </div> ${onlandInfo} <div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"> <span>ĐG: <b class="text-emerald-400 text-sm">${safeVal}</b></span> <span>Vay: <b class="text-blue-400 text-sm">${safeLoan}</b></span> </div> <div class="flex gap-2"> ${mapBtn} <button data-action="reference" class="glass-btn flex-1 py-2.5 text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button> </div> <button data-action="gallery" class="glass-btn w-full py-2.5 text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white mt-1"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`;
+    const editBtn = el.querySelector('[data-action="edit"]');
+    if (editBtn) editBtn.addEventListener("click", () => openEditAssetModal(index));
+    const deleteBtn = el.querySelector('[data-action="delete"]');
+    if (deleteBtn) deleteBtn.addEventListener("click", () => deleteAsset(index));
+    const referenceBtn = el.querySelector('[data-action="reference"]');
+    if (referenceBtn) referenceBtn.addEventListener("click", () => referenceAssetPrice(index));
+    const galleryBtn = el.querySelector('[data-action="gallery"]');
+    if (galleryBtn) galleryBtn.addEventListener("click", () => openAssetGallery(asset.id, decName, index));
     list.appendChild(el);
   });
   lucide.createIcons();
@@ -331,9 +336,6 @@ function openEditAssetModal(index) {
   getEl("asset-onland").value = decryptText(asset.onland) || "";
   getEl("asset-year").value = decryptText(asset.year) || "";
 
-  // Giải mã cả dữ liệu OCR cũ (nếu có)
-  getEl("asset-ocr-data").value = decryptText(asset.ocrData) || "";
-
   // Gán ID để xử lý ảnh đúng tài sản
   currentAssetId = asset.id;
 }
@@ -377,7 +379,6 @@ function saveAsset() {
     width: enc(getEl("asset-width").value),
     onland: enc(getEl("asset-onland").value),
     year: enc(getEl("asset-year").value),
-    ocrData: enc(getEl("asset-ocr-data").value),
   };
 
   const index = getEl("edit-asset-index").value;

@@ -59,7 +59,6 @@
         asset.width = safeDecrypt(asset.width);
         asset.onland = safeDecrypt(asset.onland);
         asset.year = safeDecrypt(asset.year);
-        asset.ocrData = safeDecrypt(asset.ocrData);
         asset.driveLink = null;
         return asset;
       });
@@ -85,7 +84,6 @@
         asset.width = safeEncrypt(asset.width);
         asset.onland = safeEncrypt(asset.onland);
         asset.year = safeEncrypt(asset.year);
-        asset.ocrData = safeEncrypt(asset.ocrData);
         return asset;
       });
     }

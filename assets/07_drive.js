@@ -458,17 +458,7 @@ async function reconnectDriveFolder() {
         alert("Không tìm thấy folder nào khớp với Tên + CCCD hoặc Tên + SĐT.");
     }
 }
-// ============================================================
-// LOGIC KẾT NỐI GOOGLE APPS SCRIPT (OCR & UPLOAD)
-// ============================================================
-
-// Link Script mặc định đã bị loại bỏ trong mô hình "Quản lý tập trung - Lưu trữ phân tán".
-// Vui lòng cấu hình link Script cá nhân của bạn trong phần Cài đặt (lưu bằng USER_SCRIPT_KEY). Không dùng biến mặc định nữa.
-
-let currentOcrBase64 = null;
-
-// 1. Mở Modal OCR
-// Removed OCR modal handlers and OCR execution functions as OCR is no longer used
+// Link Script cá nhân được cấu hình trong phần Cài đặt (USER_SCRIPT_KEY).
 
 // 4. HÀM UPLOAD ẢNH (Gửi mảng ảnh lên Google Script)
 async function uploadToGoogleDrive() {
@@ -545,54 +535,6 @@ async function uploadToGoogleDrive() {
         }
     };
 }
-
-// --- CẬP NHẬT REGEX THÔNG MINH (V5: BẮT DÍNH LOẠI ĐẤT & SỐ BÌA) ---
-
-function parseRedBookInfo(text) {
-    // Trả về đối tượng rỗng (OCR parser đã bỏ)
-    return {};
-}
-
-// --- CẬP NHẬT HIỂN THỊ KẾT QUẢ ---
-function renderRedBookInfo(info) {
-    const item = (label, val, icon, highlight = false) => {
-        // Nếu không có dữ liệu thì hiện dòng mờ
-        const content = val ? `<b class="${highlight ? 'text-emerald-400' : 'text-white'} select-all text-right">${val}</b>` : `<span class="opacity-20 text-[10px]">---</span>`;
-        return `
-            <div class="flex items-start justify-between border-b border-white/5 pb-2 last:border-0 gap-3">
-                <span class="text-slate-400 text-xs flex items-center gap-1.5 shrink-0 mt-0.5 min-w-[90px]">
-                    <i data-lucide="${icon}" class="w-3.5 h-3.5 text-slate-500"></i> ${label}
-                </span>
-                <span class="text-sm break-words font-medium leading-tight flex-1 text-right">${content}</span>
-            </div>
-        `;
-    };
-
-    return `
-        <div class="space-y-3 animate-fade-in">
-            ${item('Chủ sở hữu', info.chuSoHuu, 'user')}
-            ${item('Số bìa đỏ', info.soPhatHanh, 'qr-code', true)}
-            <div class="grid grid-cols-2 gap-4">
-                ${item('Tờ bản đồ', info.toBanDo, 'map')}
-                ${item('Thửa đất', info.thuaDat, 'grid')}
-            </div>
-            ${item('Diện tích', info.dienTich ? info.dienTich + ' m²' : '', 'maximize')}
-            
-            ${item('Loại đất', info.mucDich, 'sprout')}
-            
-            ${item('Địa chỉ', info.diaChi, 'map-pin')}
-            ${item('Số vào sổ', info.soVaoSo, 'file-text')}
-        </div>
-        <div class="mt-3 text-[10px] text-slate-500 text-center italic">
-            * Dữ liệu được trích xuất tự động từ ảnh
-        </div>
-    `;
-}
-
-
-// Removed old mobile copy functions (copyOcrResult and fallbackCopyText) as OCR features have been replaced by QR scanning. Use copyToClipboard() instead.
-
-
 
 // --- LOGIC UPLOAD ẢNH HỒ SƠ ---
 async function uploadToGoogleDrive() {
@@ -676,69 +618,4 @@ async function uploadToGoogleDrive() {
             alert("Lỗi Upload: " + err.message);
         }
     };
-}
-
-// --- CẬP NHẬT REGEX V7: CHIẾN THUẬT "CHẶN ĐUÔI" (FIX LỖI DÍNH DÒNG) ---
-function parseRedBookInfo(text) {
-    if (!text) return {};
-    
-    // 1. Chuẩn hóa văn bản: Xóa xuống dòng, xóa dấu | bảng biểu
-    const raw = text.replace(/\|/g, ' ')
-                    .replace(/\r\n/g, ' ')
-                    .replace(/\n/g, ' ')
-                    .replace(/\s+/g, ' '); // Gộp tất cả thành 1 dòng dài duy nhất
-
-    const get = (regex) => {
-        const m = raw.match(regex);
-        return m && m[1] ? m[1].trim() : '';
-    };
-
-    return {
-        // [SỐ BÌA ĐỎ]: Bắt mã AA/BS...
-        soPhatHanh: get(/\b([A-Z]{2}\s{0,2}[0-9]{6,9})\b/),
-        
-        // [DIỆN TÍCH]: Bắt số ngay sau chữ "Diện tích"
-        // Chỉ lấy số và dấu phẩy/chấm, bỏ qua chữ "c)" hay ":"
-        dienTich: get(/Diện tích(?:.*?)[:\s]*([0-9]+[.,][0-9]+|[0-9]+)/i),
-        
-        // [ĐỊA CHỈ - QUAN TRỌNG NHẤT]: 
-        // Chiến thuật: Bắt từ "Địa chỉ" cho đến khi gặp từ khóa "Diện tích" hoặc "Mục đích" hoặc "c)"
-        // (?=...) là cú pháp "Dừng lại trước khi gặp..."
-        diaChi: get(/(?:Địa chỉ|thửa đất)(?:\s*thửa đất)?[:\s]*(.*?)(?=\s*Diện tích|\s*Mục đích|\s*Hình thức|\s*c\))/i),
-
-        // Các thông tin phụ (để hiển thị xem thêm)
-        toBanDo: get(/(?:Tờ bản đồ số|TBĐ số|bản đồ số)[:\s]*([0-9]+)/i),
-        thuaDat: get(/(?:Thửa đất số|Thửa số|thửa đất số)[:\s]*([0-9\-\,]+)/i),
-        mucDich: get(/(?:Mục đích sử dụng|Mục đích|Loại đất)[:\s]*([^.;]+)/i),
-        chuSoHuu: get(/(?:Ông|Bà|Người sử dụng đất|Hộ ông|Hộ bà|Họ và tên)[:\s]*([A-ZĂÂÁẮẤÀẰẦẢẲẨÃẴẪẠẶẬĐEÊÉẾÈỀẺỂẼỄẸỆIÍÌỈĨỊOÔƠÓỐỚÒỒỜỎỔỞÕỖỠỌỘỢUƯÚỨÙỪỦỬŨỮỤỰYÝỲỶỸỴ\s]+)/)
-    };
-}
-
-// 6. Render Kết quả
-function renderRedBookInfo(info) {
-    const item = (label, val, icon, highlight = false) => {
-        const content = val ? `<b class="${highlight ? 'text-emerald-400' : 'text-white'} select-all">${val}</b>` : `<span class="opacity-20 text-[10px]">---</span>`;
-        return `
-            <div class="flex items-start justify-between border-b border-white/5 pb-2 last:border-0 gap-2">
-                <span class="text-slate-400 text-xs flex items-center gap-1.5 shrink-0 mt-0.5">
-                    <i data-lucide="${icon}" class="w-3.5 h-3.5 text-slate-500"></i> ${label}
-                </span>
-                <span class="text-sm text-right break-words font-medium leading-tight">${content}</span>
-            </div>
-        `;
-    };
-
-    return `
-        <div class="space-y-3 animate-fade-in">
-            ${item('Số phát hành', info.soPhatHanh, 'qr-code', true)}
-            ${item('Số vào sổ', info.soVaoSo, 'file-text')}
-            <div class="grid grid-cols-2 gap-4">
-                ${item('Tờ bản đồ', info.toBanDo, 'map')}
-                ${item('Thửa đất', info.thuaDat, 'grid')}
-            </div>
-            ${item('Diện tích', info.dienTich ? info.dienTich + ' m²' : '', 'maximize')}
-            ${item('Mục đích', info.mucDich, 'sprout')}
-            ${item('Địa chỉ', info.diaChi, 'map-pin')}
-        </div>
-    `;
 }

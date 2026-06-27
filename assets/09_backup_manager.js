@@ -102,28 +102,47 @@ async function renderBackupList() {
   }
   emptyEl.classList.add("hidden");
 
-  listEl.innerHTML = all
-    .map((b) => {
-      const fname = escapeHTML(b.filename || "");
-      const created = _formatDateTime(b.createdAt || Date.now());
-      const size = _formatBytes(b.size || 0);
-      return `
-      <div class="p-4 rounded-2xl border" style="border-color: var(--border-panel); background: rgba(255,255,255,0.03);">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="text-sm font-bold truncate" style="color: var(--text-main)">${fname}</div>
-            <div class="text-[11px] mt-1 opacity-70" style="color: var(--text-sub)">Ngày tạo: ${created} • Dung lượng: ${size}</div>
-          </div>
-          <div class="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-            <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(16,185,129,0.15); color: #34d399;" onclick="restoreBackupFromApp('${b.id}')">Restore</button>
-            <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(59,130,246,0.15); color: #60a5fa;" onclick="exportBackupFromApp('${b.id}')">Xuất file</button>
-            <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);" onclick="CloudTransferUI.sendBackupFromApp('${b.id}')">Gửi</button>
-            <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(239,68,68,0.15); color: #f87171;" onclick="deleteBackupFromApp('${b.id}')">Xóa</button>
-          </div>
-        </div>
-      </div>`;
-    })
-    .join("");
+  listEl.textContent = "";
+  all.forEach((b) => {
+    const card = document.createElement("div");
+    card.className = "p-4 rounded-2xl border";
+    card.style.borderColor = "var(--border-panel)";
+    card.style.background = "rgba(255,255,255,0.03)";
+
+    const row = document.createElement("div");
+    row.className = "flex items-start justify-between gap-3";
+
+    const info = document.createElement("div");
+    info.className = "min-w-0";
+    const title = document.createElement("div");
+    title.className = "text-sm font-bold truncate";
+    title.style.color = "var(--text-main)";
+    title.textContent = b.filename || "";
+    const meta = document.createElement("div");
+    meta.className = "text-[11px] mt-1 opacity-70";
+    meta.style.color = "var(--text-sub)";
+    meta.textContent = `Ngày tạo: ${_formatDateTime(b.createdAt || Date.now())} • Dung lượng: ${_formatBytes(b.size || 0)}`;
+    info.append(title, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "flex gap-2 flex-shrink-0 flex-wrap justify-end";
+    const addButton = (label, style, handler) => {
+      const btn = document.createElement("button");
+      btn.className = "px-3 py-2 rounded-xl text-xs font-bold";
+      btn.setAttribute("style", style);
+      btn.textContent = label;
+      btn.addEventListener("click", handler);
+      actions.appendChild(btn);
+    };
+    addButton("Restore", "background: rgba(16,185,129,0.15); color: #34d399;", () => restoreBackupFromApp(b.id));
+    addButton("Xuất file", "background: rgba(59,130,246,0.15); color: #60a5fa;", () => exportBackupFromApp(b.id));
+    addButton("Gửi", "background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);", () => CloudTransferUI.sendBackupFromApp(b.id));
+    addButton("Xóa", "background: rgba(239,68,68,0.15); color: #f87171;", () => deleteBackupFromApp(b.id));
+
+    row.append(info, actions);
+    card.appendChild(row);
+    listEl.appendChild(card);
+  });
 }
 
 async function deleteBackupFromApp(id) {
@@ -242,7 +261,6 @@ async function _restoreFromEncryptedContent(encryptedContent) {
         asset.width = enc(asset.width);
         asset.onland = enc(asset.onland);
         asset.year = enc(asset.year);
-        asset.ocrData = enc(asset.ocrData);
         return asset;
       });
     }
@@ -314,7 +332,6 @@ async function backupData() {
           asset.width = decryptText(asset.width);
           asset.onland = decryptText(asset.onland);
           asset.year = decryptText(asset.year);
-          asset.ocrData = decryptText(asset.ocrData);
           asset.driveLink = null;
           return asset;
         });

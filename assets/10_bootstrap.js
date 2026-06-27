@@ -4,7 +4,6 @@ function parseMoneyToNumber(str) {
 }
 
 // --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
-// Removed enhanceDocumentWithAI as OCR is no longer used
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Ensure modal partials are present before any UX/security flows attempt to open them.

@@ -173,7 +173,6 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
 function parseMoneyToNumber(str) { if (!str) return 0; return parseInt(str.toString().replace(/\D/g, '')) || 0; }
 
 // --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
-// Removed enhanceDocumentWithAI as OCR is no longer used
 
 // --- MAP FUNCTIONS ---
 async function toggleMap() {
@@ -336,7 +335,7 @@ async function renderMapMarkers() {
                     const statusTag = isApproved ? '<span class="map-tag approved">Đã Duyệt</span>' : '<span class="map-tag pending">Thẩm định</span>';
 
                     // Hiển thị giá trị định giá đã giải mã
-                    const valStr = assetVal ? `<div class="text-xs text-slate-300">Định giá: <b class="text-white">${assetVal}</b></div>` : '';
+                    const valStr = assetVal ? `<div class="text-xs text-slate-300">Định giá: <b class="text-white">${escapeHTML(assetVal)}</b></div>` : '';
 
                     const markerEl = document.createElement('div');
                     markerEl.className = 'custom-div-icon';
@@ -353,8 +352,8 @@ async function renderMapMarkers() {
                             <div class="flex justify-between items-start">
                                 <div>
                                     ${statusTag}
-                                    <div class="font-bold text-sm truncate w-40">${custName}</div>
-                                    <div class="text-[10px] text-slate-400 truncate w-40">${assetName}</div>
+                                    <div class="font-bold text-sm truncate w-40">${escapeHTML(custName)}</div>
+                                    <div class="text-[10px] text-slate-400 truncate w-40">${escapeHTML(assetName)}</div>
                                     ${valStr}
                                 </div>
                                 <div class="p-2 bg-indigo-500 rounded-lg text-white mt-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></div>
