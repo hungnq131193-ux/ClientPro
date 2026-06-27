@@ -93,13 +93,17 @@ function showRefModal(results) {
         ? `${Math.round(item.distance)} m`
         : `${(item.distance / 1000).toFixed(2)} km`;
     const valStr = item.valuation.toLocaleString("vi-VN") + " tr₫";
+    const assetName = escapeHTML(item.assetName || "");
+    const customerName = escapeHTML(item.customerName || "");
+    const area = escapeHTML(item.area || "");
+    const width = escapeHTML(item.width || "");
 
     // Badge diện tích và mặt tiền
-    const areaBadge = item.area
-      ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[10px] font-bold">${escapeHTML(item.area)}m²</span>`
+    const areaBadge = area
+      ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[10px] font-bold">${area}m²</span>`
       : '';
-    const widthBadge = item.width
-      ? `<span class="bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded text-[10px] font-bold">MT:${escapeHTML(item.width)}m</span>`
+    const widthBadge = width
+      ? `<span class="bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded text-[10px] font-bold">MT:${width}m</span>`
       : '';
     const badges = (areaBadge || widthBadge) ? `<div class="flex gap-1 mt-1">${areaBadge}${widthBadge}</div>` : '';
 
@@ -110,9 +114,9 @@ function showRefModal(results) {
         <span class="text-xs font-bold text-emerald-400">#${idx + 1} • Cách ${distStr}</span>
         <span class="text-sm font-bold text-white">${valStr}</span>
       </div>
-      <h4 class="text-sm font-medium text-slate-300 truncate">${item.assetName}</h4>
+      <h4 class="text-sm font-medium text-slate-300 truncate">${assetName}</h4>
       ${badges}
-      <p class="text-[10px] text-slate-500 mt-1 uppercase">KH: ${item.customerName}</p>`;
+      <p class="text-[10px] text-slate-500 mt-1 uppercase">KH: ${customerName}</p>`;
     container.appendChild(div);
   });
   modal.classList.remove("hidden");

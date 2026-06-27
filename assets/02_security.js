@@ -281,6 +281,17 @@ function requireUnlockedForBackup() {
   return true;
 }
 
+function requireUnlockedForRestore() {
+  if (!isAppUnlocked()) {
+    const msg = "Vui lòng mở khóa dữ liệu trước khi khôi phục.";
+    try { showToast(msg); } catch (e) { }
+    try { console.warn("[Restore] Blocked: masterKey is not available; app is not unlocked."); } catch (e) { }
+    alert(msg);
+    return false;
+  }
+  return true;
+}
+
 function isSafeImageUrl(url) {
   if (!url) return false;
   const s = String(url).trim();

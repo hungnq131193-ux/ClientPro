@@ -189,6 +189,12 @@ async function createBackupFileNow() {
 }
 
 async function restoreBackupFromApp(id) {
+  if (typeof requireUnlockedForRestore === "function" && !requireUnlockedForRestore()) return;
+  if ((typeof isAppUnlocked === "function" && !isAppUnlocked()) || typeof masterKey === "undefined" || !masterKey) {
+    alert("Vui lòng mở khóa dữ liệu trước khi khôi phục.");
+    return;
+  }
+
   // Phương án 1: mỗi lần Restore sẽ verify lại và xin secret từ server
   if (typeof ensureBackupSecret === "function") {
     const sec = await ensureBackupSecret();
@@ -223,6 +229,12 @@ async function restoreBackupFromApp(id) {
 }
 
 async function _restoreFromEncryptedContent(encryptedContent) {
+  if (typeof requireUnlockedForRestore === "function" && !requireUnlockedForRestore()) throw new Error("App locked");
+  if ((typeof isAppUnlocked === "function" && !isAppUnlocked()) || typeof masterKey === "undefined" || !masterKey) {
+    alert("Vui lòng mở khóa dữ liệu trước khi khôi phục.");
+    throw new Error("App locked");
+  }
+
   // Giải mã (AES-GCM envelope v2 + tương thích legacy CryptoJS v1)
   let decryptedStr = "";
   try {
@@ -408,6 +420,12 @@ async function backupData() {
 }
 
 async function restoreData(input) {
+  if (typeof requireUnlockedForRestore === "function" && !requireUnlockedForRestore()) return;
+  if ((typeof isAppUnlocked === "function" && !isAppUnlocked()) || typeof masterKey === "undefined" || !masterKey) {
+    alert("Vui lòng mở khóa dữ liệu trước khi khôi phục.");
+    return;
+  }
+
   // Đóng menu nếu đang mở (tránh lỗi khi gọi từ Backup Manager Modal)
   _closeMenuIfOpen();
   const f = input.files && input.files[0];

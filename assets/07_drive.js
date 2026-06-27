@@ -61,9 +61,10 @@ function renderDriveStatus(url) {
     
     if (!area) return;
     
-    const safeUrl = _normalizeDriveUrl(url);
-    const safeHref = escapeHTML(safeUrl);
-    if (safeUrl && safeUrl.length > 5) {
+    const safeUrl = _normalizeDriveUrl(url).trim();
+    const hasSafeDriveUrl = typeof isSafeDriveUrl === 'function' && isSafeDriveUrl(safeUrl);
+    const safeHref = hasSafeDriveUrl ? escapeHTML(safeUrl) : '';
+    if (hasSafeDriveUrl) {
         // ĐÃ CÓ LINK → hiện nút Mở Drive
         area.classList.remove('hidden');
         area.innerHTML = `
@@ -203,9 +204,10 @@ function renderAssetDriveStatus(url) {
     if (!area) return;
     area.classList.remove('hidden');
 
-    const safeUrl = _normalizeDriveUrl(url);
-    const safeHref = escapeHTML(safeUrl);
-    if (safeUrl && safeUrl.length > 5) {
+    const safeUrl = _normalizeDriveUrl(url).trim();
+    const hasSafeDriveUrl = typeof isSafeDriveUrl === 'function' && isSafeDriveUrl(safeUrl);
+    const safeHref = hasSafeDriveUrl ? escapeHTML(safeUrl) : '';
+    if (hasSafeDriveUrl) {
         // Đã có link -> Hiện nút mở
         area.innerHTML = `
             <a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border border-teal-400/30">
