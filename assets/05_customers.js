@@ -426,9 +426,17 @@ function renderList(list, opts = {}) {
                             ${limitHtml}
                         </div>
                         <div class="customer-actions">
-                            <a href="${getZaloDeepLink(c.phone)}" onclick="openZaloChat('${c.phone}'); return false;" class="action-btn customer-action-btn zalo">${iconMessage}</a>
+                            <a href="${getZaloDeepLink(c.phone)}" data-action="zalo" class="action-btn customer-action-btn zalo">${iconMessage}</a>
                             <a href="${getTelLink(c.phone)}" class="action-btn customer-action-btn call">${iconPhone}</a>
                         </div>`;
+
+            const zaloBtn = el.querySelector('[data-action="zalo"]');
+            if (zaloBtn) {
+                zaloBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    openZaloChat(c.phone);
+                });
+            }
 
         frag.appendChild(el);
     }

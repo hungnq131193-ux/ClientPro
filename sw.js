@@ -62,8 +62,6 @@ const STATIC_ASSETS = [
   './assets/15_auth_gate.js',
   './assets/16_auto_backup_drive.js',
   './assets/17_onboarding_tour.js',
-  './assets/19_calendar.js',
-  './assets/20_excel_import.js',
 
   './assets/ui/load_modals.js',
 

@@ -233,7 +233,6 @@ function decryptCustomerObject(cust) {
       a.width = decryptText(a.width);
       a.onland = decryptText(a.onland);
       a.year = decryptText(a.year);
-      a.ocrData = decryptText(a.ocrData);
       a.driveLink = decryptText(a.driveLink);
     });
   }

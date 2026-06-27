@@ -498,26 +498,57 @@
     }
     emptyEl.classList.add('hidden');
 
-    listEl.innerHTML = list.map((it) => {
-      const fromName = esc(it.fromName || it.fromEmployeeId || it.fromDeviceId || 'User');
-      const fname = esc(it.filename || 'backup');
+    listEl.textContent = '';
+    list.forEach((it) => {
+      const fromName = it.fromName || it.fromEmployeeId || it.fromDeviceId || 'User';
+      const fname = it.filename || 'backup';
       const created = formatDateTime(Number(it.createdAt || now()));
       const size = formatBytes(Number(it.size || 0));
-      return `
-        <div class="p-4 rounded-2xl border" style="border-color: var(--border-panel); background: rgba(255,255,255,0.03);">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="text-sm font-bold truncate" style="color: var(--text-main)">${fname}</div>
-              <div class="text-[11px] mt-1 opacity-70" style="color: var(--text-sub)">Từ: <span class="font-bold" style="color:#60a5fa">${fromName}</span> • ${created} • ${size}</div>
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-              <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(16,185,129,0.15); color: #34d399;" onclick="CloudTransferUI.acceptAndRestore('${esc(it.transferId || it.backupId || it.id || '')}')">Nhận & Restore</button>
-              <button class="px-3 py-2 rounded-xl text-xs font-bold" style="background: rgba(239,68,68,0.15); color: #f87171;" onclick="CloudTransferUI.dismiss('${esc(it.transferId || it.backupId || it.id || '')}')">Bỏ qua</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+      const id = String(it.transferId || it.backupId || it.id || '');
+
+      const card = document.createElement('div');
+      card.className = 'p-4 rounded-2xl border';
+      card.style.borderColor = 'var(--border-panel)';
+      card.style.background = 'rgba(255,255,255,0.03)';
+
+      const row = document.createElement('div');
+      row.className = 'flex items-start justify-between gap-3';
+
+      const info = document.createElement('div');
+      info.className = 'min-w-0';
+      const title = document.createElement('div');
+      title.className = 'text-sm font-bold truncate';
+      title.style.color = 'var(--text-main)';
+      title.textContent = fname;
+      const meta = document.createElement('div');
+      meta.className = 'text-[11px] mt-1 opacity-70';
+      meta.style.color = 'var(--text-sub)';
+      meta.append(document.createTextNode('Từ: '));
+      const sender = document.createElement('span');
+      sender.className = 'font-bold';
+      sender.style.color = '#60a5fa';
+      sender.textContent = fromName;
+      meta.append(sender, document.createTextNode(` • ${created} • ${size}`));
+      info.append(title, meta);
+
+      const actions = document.createElement('div');
+      actions.className = 'flex gap-2 flex-shrink-0';
+      const acceptBtn = document.createElement('button');
+      acceptBtn.className = 'px-3 py-2 rounded-xl text-xs font-bold';
+      acceptBtn.style.cssText = 'background: rgba(16,185,129,0.15); color: #34d399;';
+      acceptBtn.textContent = 'Nhận & Restore';
+      acceptBtn.addEventListener('click', () => CloudTransferUI.acceptAndRestore(id));
+      const dismissBtn = document.createElement('button');
+      dismissBtn.className = 'px-3 py-2 rounded-xl text-xs font-bold';
+      dismissBtn.style.cssText = 'background: rgba(239,68,68,0.15); color: #f87171;';
+      dismissBtn.textContent = 'Bỏ qua';
+      dismissBtn.addEventListener('click', () => CloudTransferUI.dismiss(id));
+      actions.append(acceptBtn, dismissBtn);
+
+      row.append(info, actions);
+      card.appendChild(row);
+      listEl.appendChild(card);
+    });
   }
 
   function hashInboxIds(items) {

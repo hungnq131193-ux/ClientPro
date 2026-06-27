@@ -137,7 +137,6 @@
                             asset.width = decryptText(asset.width);
                             asset.onland = decryptText(asset.onland);
                             asset.year = decryptText(asset.year);
-                            asset.ocrData = decryptText(asset.ocrData);
                         }
                         asset.driveLink = null;
                         return asset;
@@ -428,38 +427,49 @@
             return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
         };
 
-        container.innerHTML = backups.map((b) => `
-        <div class="p-4 rounded-xl border mb-3" style="border-color: var(--border-panel); background: rgba(255,255,255,0.03);">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="text-sm font-bold truncate" style="color: var(--text-main)">
-                <i data-lucide="cloud" class="w-4 h-4 inline-block mr-1 text-blue-400"></i>
-                ${escapeHTML(b.filename || 'Backup')}
-              </div>
-              <div class="text-[11px] mt-1 opacity-70" style="color: var(--text-sub)">
-                ${formatDate(b.createdAt)} • ${formatSize(b.size || 0)}
-              </div>
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-              <button class="px-3 py-2 rounded-xl text-xs font-bold"
-                      style="background: rgba(16,185,129,0.15); color: #34d399;"
-                      onclick="DriveBackup.restore('${b.id}')">
-                Restore
-              </button>
-              <button class="px-3 py-2 rounded-xl text-xs font-bold"
-                      style="background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);"
-                      onclick="DriveBackup.send('${b.id}', '${escapeHTML(b.filename || 'Backup')}')">
-                Gửi
-              </button>
-              <button class="px-3 py-2 rounded-xl text-xs font-bold"
-                      style="background: rgba(239,68,68,0.15); color: #f87171;"
-                      onclick="DriveBackup.delete('${b.id}')">
-                Xóa
-              </button>
-            </div>
-          </div>
-        </div>
-      `).join('');
+        container.textContent = '';
+        backups.forEach((b) => {
+            const card = document.createElement('div');
+            card.className = 'p-4 rounded-xl border mb-3';
+            card.style.borderColor = 'var(--border-panel)';
+            card.style.background = 'rgba(255,255,255,0.03)';
+
+            const row = document.createElement('div');
+            row.className = 'flex items-start justify-between gap-3';
+
+            const info = document.createElement('div');
+            info.className = 'min-w-0';
+            const title = document.createElement('div');
+            title.className = 'text-sm font-bold truncate';
+            title.style.color = 'var(--text-main)';
+            const icon = document.createElement('i');
+            icon.setAttribute('data-lucide', 'cloud');
+            icon.className = 'w-4 h-4 inline-block mr-1 text-blue-400';
+            title.append(icon, document.createTextNode(b.filename || 'Backup'));
+            const meta = document.createElement('div');
+            meta.className = 'text-[11px] mt-1 opacity-70';
+            meta.style.color = 'var(--text-sub)';
+            meta.textContent = `${formatDate(b.createdAt)} • ${formatSize(b.size || 0)}`;
+            info.append(title, meta);
+
+            const actions = document.createElement('div');
+            actions.className = 'flex gap-2 flex-shrink-0';
+            const addButton = (label, style, handler) => {
+                const btn = document.createElement('button');
+                btn.className = 'px-3 py-2 rounded-xl text-xs font-bold';
+                btn.style.cssText = style;
+                btn.textContent = label;
+                btn.addEventListener('click', handler);
+                actions.appendChild(btn);
+            };
+            addButton('Restore', 'background: rgba(16,185,129,0.15); color: #34d399;', () => DriveBackup.restore(b.id));
+            addButton('Gửi', 'background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);', () => DriveBackup.send(b.id, b.filename || 'Backup'));
+            addButton('Xóa', 'background: rgba(239,68,68,0.15); color: #f87171;', () => DriveBackup.delete(b.id));
+
+            row.append(info, actions);
+            card.appendChild(row);
+            container.appendChild(card);
+        });
 
         if (window.lucide) lucide.createIcons();
     }
@@ -484,7 +494,11 @@
             console.error('[DriveBackups] Error:', err);
             // Only show error if no cached data was shown
             if (!cached || !cached.backups || !cached.backups.length) {
-                container.innerHTML = `<p class="text-center text-sm text-red-400">${err.message}</p>`;
+                container.textContent = '';
+                const msg = document.createElement('p');
+                msg.className = 'text-center text-sm text-red-400';
+                msg.textContent = err.message || 'Không thể tải backup trên Drive';
+                container.appendChild(msg);
             }
         }
     }
