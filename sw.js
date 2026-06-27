@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v5.0.1.3-map-ui-20260622-2';
+const VERSION = 'v5.0.1.4-split-backup-weather-donate';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -50,7 +50,10 @@ const STATIC_ASSETS = [
   './assets/06_assets.js',
   './assets/07_drive.js',
   './assets/08_images_camera.js',
-  './assets/09_backup_weather_donate.js',
+  './assets/09_menu.js',
+  './assets/09_backup_manager.js',
+  './assets/09_donate.js',
+  './assets/09_weather.js',
   './assets/10_bootstrap.js',
   './assets/11_edge_back_swipe.js',
   './assets/12_backup_core.js',
