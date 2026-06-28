@@ -29,6 +29,28 @@
           catch (e) { setTimeout(fn, 0); }
         }
 
+        function slideScreenIn(el) {
+          if (!el) return;
+          el.classList.add('is-sliding');
+          nextFrame(() => {
+            el.classList.remove('translate-x-full');
+            afterTransition(el, () => el.classList.remove('is-sliding'));
+          });
+        }
+
+        function slideScreenOut(el, cb) {
+          if (!el) {
+            if (typeof cb === 'function') cb();
+            return;
+          }
+          el.classList.add('is-sliding');
+          el.classList.add('translate-x-full');
+          afterTransition(el, () => {
+            el.classList.remove('is-sliding');
+            if (typeof cb === 'function') cb();
+          });
+        }
+
         function afterTransition(el, cb, ms = UI_SLIDE_MS) {
           let done = false;
           const finish = () => {

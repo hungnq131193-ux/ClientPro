@@ -35,7 +35,7 @@ function getZaloLink(phone) {
 }
 function getZaloDeepLink(phone) {
     const p = normalizePhoneForLink(phone);
-    return p ? `zalo://conversation?phone=${p}` : '#';
+    return p ? `zalo://conversation?phone=${encodeURIComponent(p)}` : '#';
 }
 function isMobileDevice() {
     return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
@@ -45,18 +45,31 @@ function getTelLink(phone) {
     return p ? `tel:+${p}` : '#';
 }
 function openZaloChat(phone) {
+    const p = normalizePhoneForLink(phone);
     const fallback = getZaloLink(phone);
     const deep = getZaloDeepLink(phone);
-    if (!phone) return;
+    if (!p || fallback === '#' || deep === '#') {
+        showToast('Chưa có số điện thoại để mở Zalo');
+        return;
+    }
 
-    // Trên điện thoại phải đi thẳng vào app Zalo. Không tự fallback sang
-    // zalo.me vì trình duyệt có thể ưu tiên mở Zalo Web thay vì app.
+    // Trên điện thoại ưu tiên mở app Zalo bằng deep link. Nếu thiết bị không
+    // bắt được scheme (chưa cài Zalo / trình duyệt chặn), tự chuyển sang
+    // zalo.me để nút vẫn có phản hồi thay vì "bấm không thấy gì".
     if (isMobileDevice()) {
+        let didLeavePage = false;
+        const markLeft = () => { didLeavePage = true; };
+        document.addEventListener('visibilitychange', markLeft, { once: true });
+        window.addEventListener('pagehide', markLeft, { once: true });
+        setTimeout(() => {
+            if (!didLeavePage && !document.hidden) window.location.href = fallback;
+        }, 1200);
         window.location.href = deep;
         return;
     }
 
-    window.open(fallback, '_blank', 'noopener');
+    const win = window.open(fallback, '_blank', 'noopener');
+    if (!win) window.location.href = fallback;
 }
 function showToast(msg) { const t = getEl('toast'); getEl('toast-msg').textContent = msg; t.classList.add('toast-show'); setTimeout(() => t.classList.remove('toast-show'), 2000); }
 function formatLink(link) {

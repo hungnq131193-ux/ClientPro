@@ -163,10 +163,10 @@ function openCustomerList(type) {
 
     // Show screen with slide animation first (ưu tiên mượt animation)
     screen.classList.remove('hidden');
-    setTimeout(() => {
-        screen.classList.remove('translate-x-full');
-        if (dashboard) dashboard.style.transform = 'translateX(-30%)';
-    }, 10);
+    if (dashboard) dashboard.style.transform = 'translate3d(-30%, 0, 0)';
+    if (typeof slideScreenIn === 'function') slideScreenIn(screen);
+    else if (typeof nextFrame === 'function') nextFrame(() => screen.classList.remove('translate-x-full'));
+    else setTimeout(() => screen.classList.remove('translate-x-full'), 10);
 
     // Load ngay danh sách (không lazy/defer) để tránh cảm giác trễ khi bấm mở màn hình.
     loadCustomers('');
@@ -179,14 +179,17 @@ function closeCustomerList() {
 
     if (!screen) return;
 
-    screen.classList.add('translate-x-full');
     if (dashboard) dashboard.style.transform = '';
-
-    setTimeout(() => {
+    const finishClose = () => {
         screen.classList.add('hidden');
         // Refresh folder counts when returning to home
         updateFolderCounts();
-    }, 300);
+    };
+    if (typeof slideScreenOut === 'function') slideScreenOut(screen, finishClose);
+    else {
+        screen.classList.add('translate-x-full');
+        setTimeout(finishClose, 300);
+    }
 }
 
 // Update folder counts on home screen
@@ -904,7 +907,8 @@ function openFolder(id) {
             loadCustomerInfo();
 
             // NOW show folder slide-in (data is already populated)
-            if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
+            if (typeof slideScreenIn === 'function') slideScreenIn(folderScreen);
+            else if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
             else folderScreen.classList.remove('translate-x-full');
 
             // Decrypt assets in background for other tabs
@@ -933,11 +937,7 @@ function closeFolder() {
     const folderScreen = getEl('screen-folder');
     const customerListScreen = getEl('screen-customer-list');
 
-    folderScreen.classList.add('translate-x-full');
-
-    // Reset customer ID after animation
-    if (typeof afterTransition === 'function') {
-        afterTransition(folderScreen, () => {
+    const finishClose = () => {
             currentCustomerId = null;
             currentCustomerData = null; // Clear stale data
             // Reload customer list if still visible
@@ -945,15 +945,18 @@ function closeFolder() {
                 const q = (getEl('search-input') && getEl('search-input').value) || '';
                 loadCustomers(q);
             }
-        });
+    };
+
+    // Reset customer ID after animation
+    if (typeof slideScreenOut === 'function') {
+        slideScreenOut(folderScreen, finishClose);
+    } else if (typeof afterTransition === 'function') {
+        folderScreen.classList.add('translate-x-full');
+        afterTransition(folderScreen, finishClose);
     } else {
+        folderScreen.classList.add('translate-x-full');
         setTimeout(() => {
-            currentCustomerId = null;
-            currentCustomerData = null; // Clear stale data
-            if (customerListScreen && !customerListScreen.classList.contains('hidden') && !customerListScreen.classList.contains('translate-x-full')) {
-                const q = (getEl('search-input') && getEl('search-input').value) || '';
-                loadCustomers(q);
-            }
+            finishClose();
         }, 360);
     }
 }
