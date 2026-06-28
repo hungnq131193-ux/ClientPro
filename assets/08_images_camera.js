@@ -27,7 +27,8 @@ function openAssetGallery(id, name, idx) {
   } catch (e) { }
 
   // Hiển thị màn hình Gallery (slide-in on next frame for smoother compositing)
-  if (typeof nextFrame === "function") nextFrame(() => galScreen.classList.remove("translate-x-full"));
+  if (typeof slideScreenIn === "function") slideScreenIn(galScreen);
+  else if (typeof nextFrame === "function") nextFrame(() => galScreen.classList.remove("translate-x-full"));
   else galScreen.classList.remove("translate-x-full");
 
   // Lấy thông tin tài sản đang chọn từ bộ nhớ (để đảm bảo chính xác nhất)
@@ -62,7 +63,9 @@ function openAssetGallery(id, name, idx) {
 }
 
 function closeAssetGallery() {
-  getEl("screen-asset-gallery").classList.add("translate-x-full");
+  const galScreen = getEl("screen-asset-gallery");
+  if (typeof slideScreenOut === "function") slideScreenOut(galScreen);
+  else galScreen.classList.add("translate-x-full");
   currentAssetId = null;
   isSelectionMode = false;
   selectedImages.clear();

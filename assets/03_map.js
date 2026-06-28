@@ -179,7 +179,8 @@ async function toggleMap() {
     const mapScreen = getEl('screen-map');
     if (mapScreen.classList.contains('translate-x-full')) {
         // Slide-in first (avoid blocking animation with heavy map work)
-        if (typeof nextFrame === 'function') nextFrame(() => mapScreen.classList.remove('translate-x-full'));
+        if (typeof slideScreenIn === 'function') slideScreenIn(mapScreen);
+        else if (typeof nextFrame === 'function') nextFrame(() => mapScreen.classList.remove('translate-x-full'));
         else mapScreen.classList.remove('translate-x-full');
 
         // Lightweight loading overlay while MapLibre/markers are prepared
@@ -228,7 +229,8 @@ async function toggleMap() {
         if (typeof afterTransition === 'function') afterTransition(mapScreen, doInit);
         else setTimeout(doInit, 360);
     } else {
-        mapScreen.classList.add('translate-x-full');
+        if (typeof slideScreenOut === 'function') slideScreenOut(mapScreen);
+        else mapScreen.classList.add('translate-x-full');
     }
 }
 
