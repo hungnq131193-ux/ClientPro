@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v5.1.0-ui-vietinbank-20260629';
+const VERSION = 'v5.2.0-ui-vietinbank-premium-20260629';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -34,17 +34,17 @@ const STATIC_ASSETS = [
   './assets/css/tailwind.clientpro.css',
   './assets/css/app.patch.css',
   './assets/styles.css',
-  './assets/styles.css?v=UI_VIETINBANK_20260629',
+  './assets/styles.css?v=UI_VIETINBANK_220_UI_PREMIUM',
   './assets/head.js',
-  './assets/head.js?v=UI_VIETINBANK_20260629',
+  './assets/head.js?v=UI_VIETINBANK_220_UI_PREMIUM',
   './assets/pwa.js',
-  './assets/pwa.js?v=UI_VIETINBANK_20260629',
+  './assets/pwa.js?v=UI_VIETINBANK_220_UI_PREMIUM',
 
   './assets/00_globals.js',
   './assets/01_config.js',
   './assets/02_security.js',
   './assets/03_map.js',
-  './assets/03_map.js?v=UI_VIETINBANK_20260629',
+  './assets/03_map.js?v=UI_VIETINBANK_220_UI_PREMIUM',
   './assets/04_ui_common.js',
   './assets/05_customers.js',
   './assets/06_assets.js',

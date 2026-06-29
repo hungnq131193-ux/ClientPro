@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ClientPro</title>
+    <title>Client Pro</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
     <meta name="theme-color" content="#005b9f">
@@ -22,8 +22,8 @@
     <!-- CryptoJS library for hashing and encryption -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
-    <script defer src="./assets/head.js?v=UI_VIETINBANK_20260629"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=UI_VIETINBANK_20260629">
+    <script defer src="./assets/head.js?v=UI_VIETINBANK_220_UI_PREMIUM"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=UI_VIETINBANK_220_UI_PREMIUM">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <style>
         html,
@@ -175,8 +175,8 @@
                         </g>
                     </svg>
                     <div class="vietin-text-group">
-                        <span class="vietin-brand">ClientPro</span>
-                        <span class="vietin-sub">Quản Lý Khách Hàng</span>
+                        <span class="vietin-brand">Client <em>Pro</em></span>
+                        <span class="vietin-sub">VietinBank Premium CRM</span>
                     </div>
                 </div>
 
@@ -199,12 +199,6 @@
         </header>
 
         <div class="scroll-area flex-1 p-4 premium-dashboard" id="folder-view">
-            <section class="premium-hero-card">
-                <p class="eyebrow">VietinBank Premium CRM</p>
-                <h1>Client Pro</h1>
-                <p class="hero-desc">Quản trị hồ sơ khách hàng, tài sản bảo đảm và dữ liệu Drive an toàn.</p>
-            </section>
-
             <section class="premium-card">
                 <div class="section-head"><span>Tổng quan hôm nay</span><i data-lucide="bar-chart-3" class="w-4 h-4"></i></div>
                 <div class="overview-grid">
@@ -271,10 +265,10 @@
         class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black">
         <div id="map-container"></div>
         <button onclick="toggleMap()"
-            class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i
+            class="map-back-btn absolute top-4 left-4 z-[400] p-3 rounded-full shadow-lg active:scale-95 transition-transform"><i
                 data-lucide="arrow-left" class="w-6 h-6"></i></button>
         <button onclick="locateMe()"
-            class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i
+            class="map-locate-btn absolute bottom-24 right-6 z-[400] p-4 rounded-full shadow-xl active:scale-95 transition-transform"><i
                 data-lucide="crosshair" class="w-6 h-6"></i></button>
     </div>
 
@@ -500,6 +494,15 @@
                     class="w-5 h-5"></i></button></div>
     </div>
 
+
+    <nav id="bottom-nav" class="bottom-nav" aria-label="Điều hướng chính">
+        <button class="bottom-nav-item active" data-nav="dashboard" onclick="goDashboard()"><i data-lucide="home"></i><span>Tổng quan</span></button>
+        <button class="bottom-nav-item" data-nav="customers" onclick="openCustomerList('all')"><i data-lucide="users"></i><span>Khách hàng</span></button>
+        <button class="bottom-nav-item" data-nav="assets" onclick="openCustomerList('approved')"><i data-lucide="landmark"></i><span>Tài sản</span></button>
+        <button class="bottom-nav-item" data-nav="map" onclick="toggleMap()"><i data-lucide="map-pin"></i><span>Bản đồ</span></button>
+        <button class="bottom-nav-item" data-nav="settings" onclick="toggleMenu()"><i data-lucide="settings"></i><span>Cài đặt</span></button>
+    </nav>
+
     <!-- UI Partials: Modals are loaded from /assets/ui/modals/*.html for maintainability -->
     <div id="ui-modals-root"></div>
     <script src="./assets/ui/load_modals.js" defer></script>
@@ -510,7 +513,7 @@
     <script src="./assets/12_backup_core.js" defer></script>
     <script src="./assets/13_ui_select_customers.js" defer></script>
     <script src="./assets/15_auth_gate.js" defer></script>
-    <script src="./assets/03_map.js?v=UI_VIETINBANK_20260629" defer></script>
+    <script src="./assets/03_map.js?v=UI_VIETINBANK_220_UI_PREMIUM" defer></script>
     <script src="./assets/04_ui_common.js" defer></script>
     <script src="./assets/05_customers.js" defer></script>
     <script src="./assets/06_assets.js" defer></script>
@@ -529,7 +532,7 @@
     <script src="./assets/17_onboarding_tour.js" defer></script>
         <script src="./assets/10_bootstrap.js" defer></script>
     <script src="./assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
-    <script src="./assets/pwa.js?v=UI_VIETINBANK_20260629" defer></script>
+    <script src="./assets/pwa.js?v=UI_VIETINBANK_220_UI_PREMIUM" defer></script>
 
 
     <!-- Backup Manager Modal -->
