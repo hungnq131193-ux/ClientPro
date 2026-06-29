@@ -1,10 +1,10 @@
 {
-  "name": "ClientPro Quản Lý Khách Hàng",
-  "short_name": "ClientPro",
-  "start_url": "./index.html",  
+  "name": "Client Pro - VietinBank Premium CRM",
+  "short_name": "Client Pro",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#f3f8fb",
+  "theme_color": "#005b9f",
   "icons": [
     {
       "src": "icon-192.png",
@@ -16,6 +16,6 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "version": "2.2.0-ui-vietinbank"
 }
-
