@@ -22,8 +22,8 @@
     <!-- CryptoJS library for hashing and encryption -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
-    <script defer src="./assets/head.js?v=MAP_UI_20260622_2"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=MAP_UI_20260622_2">
+    <script defer src="./assets/head.js?v=DASHBOARD_UI_20260629_1"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=DASHBOARD_UI_20260629_1">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <style>
         html,
@@ -219,23 +219,30 @@
         <div class="scroll-area flex-1 p-4 dashboard-scroll" id="folder-view">
             <section class="dashboard-card dashboard-overview-card">
                 <div class="dashboard-section-head">
-                    <h2>Tổng quan hôm nay</h2>
+                    <div>
+                        <p class="dashboard-eyebrow">Tổng quan</p>
+                        <h2>Tổng quan hôm nay</h2>
+                    </div>
                     <span>ClientPro</span>
                 </div>
                 <div class="dashboard-overview-grid">
                     <button class="overview-stat" onclick="openCustomerList('all')">
+                        <span class="overview-icon"><i data-lucide="users" class="w-5 h-5"></i></span>
                         <strong id="count-total">0</strong>
                         <span>Tổng hồ sơ</span>
                     </button>
                     <button class="overview-stat" onclick="openCustomerList('approved')">
+                        <span class="overview-icon"><i data-lucide="badge-check" class="w-5 h-5"></i></span>
                         <strong id="count-approved">0</strong>
                         <span>Đã vay</span>
                     </button>
                     <button class="overview-stat" onclick="openCustomerList('pending')">
+                        <span class="overview-icon"><i data-lucide="clock-3" class="w-5 h-5"></i></span>
                         <strong id="count-pending">0</strong>
                         <span>Đang thẩm định</span>
                     </button>
                     <button class="overview-stat" onclick="openCustomerList('all')">
+                        <span class="overview-icon"><i data-lucide="landmark" class="w-5 h-5"></i></span>
                         <strong id="count-assets">0</strong>
                         <span>Tài sản bảo đảm</span>
                     </button>
@@ -560,7 +567,7 @@
     <script src="./assets/12_backup_core.js" defer></script>
     <script src="./assets/13_ui_select_customers.js" defer></script>
     <script src="./assets/15_auth_gate.js" defer></script>
-    <script src="./assets/03_map.js?v=MAP_UI_20260622_2" defer></script>
+    <script src="./assets/03_map.js?v=DASHBOARD_UI_20260629_1" defer></script>
     <script src="./assets/04_ui_common.js" defer></script>
     <script src="./assets/05_customers.js" defer></script>
     <script src="./assets/06_assets.js" defer></script>
@@ -579,7 +586,7 @@
     <script src="./assets/17_onboarding_tour.js" defer></script>
         <script src="./assets/10_bootstrap.js" defer></script>
     <script src="./assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
-    <script src="./assets/pwa.js?v=MAP_UI_20260622_2" defer></script>
+    <script src="./assets/pwa.js?v=DASHBOARD_UI_20260629_1" defer></script>
 
 
     <!-- Backup Manager Modal -->
