@@ -1,6 +1,7 @@
     // --- LOGIC UPLOAD DRIVE & CẤU HÌNH ---
 function saveScriptUrl() {
-    const url = getEl('user-script-url').value.trim();
+    const input = getEl('dashboard-drive-url') || getEl('user-script-url');
+    const url = input ? input.value.trim() : '';
     if (!url.startsWith('https://script.google.com/')) {
         alert("Link không đúng định dạng!");
         return;
@@ -11,7 +12,10 @@ function saveScriptUrl() {
 }
 document.addEventListener('DOMContentLoaded', () => {
     const savedUrl = localStorage.getItem(USER_SCRIPT_KEY);
-    if(savedUrl) getEl('user-script-url').value = savedUrl;
+    if(savedUrl) {
+        const input = getEl('dashboard-drive-url') || getEl('user-script-url');
+        if (input) input.value = savedUrl;
+    }
 });
 
 // =============================

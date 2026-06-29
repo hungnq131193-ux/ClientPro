@@ -158,7 +158,7 @@ function openCustomerList(type) {
 
     // Set title based on type
     if (titleEl) {
-        titleEl.textContent = type === 'approved' ? 'Khách hàng đã vay' : 'KH đang thẩm định';
+        titleEl.textContent = type === 'approved' ? 'Khách hàng đã vay' : (type === 'all' ? 'Tất cả khách hàng' : 'KH đang thẩm định');
     }
 
     // Show screen with slide animation first (ưu tiên mượt animation)
@@ -206,17 +206,23 @@ async function updateFolderCounts() {
 
         let approvedCount = 0;
         let pendingCount = 0;
+        let assetCount = 0;
 
         list.forEach(c => {
             if (c && c.status === 'approved') approvedCount++;
             else pendingCount++;
+            if (c && Array.isArray(c.assets)) assetCount += c.assets.length;
         });
 
+        const totalEl = getEl('count-total');
         const approvedEl = getEl('count-approved');
         const pendingEl = getEl('count-pending');
+        const assetsEl = getEl('count-assets');
 
+        if (totalEl) totalEl.textContent = list.length;
         if (approvedEl) approvedEl.textContent = approvedCount;
         if (pendingEl) pendingEl.textContent = pendingCount;
+        if (assetsEl) assetsEl.textContent = assetCount;
         try { lucide.createIcons(); } catch (e) { }
     } catch (e) { }
 }
@@ -289,7 +295,8 @@ async function loadCustomers(query = '') {
     const list = [];
     for (let i = all.length - 1; i >= 0; i--) {
         const c = all[i];
-        if (!c || (c.status || 'pending') !== activeListTab) continue;
+        if (!c) continue;
+        if (activeListTab !== 'all' && (c.status || 'pending') !== activeListTab) continue;
 
         if (q) {
             const qq = q.toLowerCase();
