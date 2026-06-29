@@ -1915,3 +1915,121 @@ input::placeholder {
   background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.045)) !important;
   border-color: var(--border-panel) !important;
 }
+
+/* Dashboard enterprise refresh 2026-06-29: clearer hierarchy, calm corporate palette. */
+.glass-header {
+  background: linear-gradient(180deg, rgba(5, 16, 35, 0.94), rgba(7, 22, 46, 0.82)) !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 42px rgba(2, 8, 23, 0.28);
+}
+
+.vietin-logo-container {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(226, 232, 240, 0.88);
+  box-shadow: 0 12px 30px rgba(2, 8, 23, 0.18);
+}
+
+.vietin-brand {
+  color: #0f2f5f;
+  text-shadow: none;
+  letter-spacing: -0.01em;
+}
+
+.vietin-sub {
+  color: #47637f;
+  text-shadow: none;
+}
+
+.dashboard-date-ticker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: -2px 0 10px;
+  overflow: visible;
+  border-radius: 16px;
+  padding: 10px 12px;
+  color: #f8fafc;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(15, 46, 89, 0.82));
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  box-shadow: 0 10px 24px rgba(2, 8, 23, 0.24), inset 0 1px 0 rgba(255,255,255,0.10);
+}
+
+.dashboard-date-icon {
+  flex: 0 0 auto;
+  color: #7dd3fc;
+}
+
+.dashboard-date-ticker span {
+  display: block;
+  min-width: 0;
+  padding-left: 0;
+  white-space: normal;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.32);
+  animation: none;
+}
+
+#folder-view.dashboard-scroll {
+  gap: 18px !important;
+  padding-top: 16px !important;
+}
+
+#folder-view .dashboard-card {
+  border-radius: 26px;
+  padding: 18px;
+  color: #0f172a !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,249,0.96)) !important;
+  border: 1px solid rgba(226, 232, 240, 0.92) !important;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+#folder-view .dashboard-section-head h2 {
+  color: #0f172a !important;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+#folder-view .dashboard-eyebrow {
+  color: #0f5f9e !important;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+#folder-view .overview-stat,
+#folder-view .quick-action-btn {
+  background: linear-gradient(180deg, #ffffff, #f8fbff) !important;
+  border-color: rgba(15, 95, 158, 0.14) !important;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.98);
+}
+
+#folder-view .overview-stat strong {
+  color: #0b5f9f !important;
+  letter-spacing: -0.04em;
+}
+
+#folder-view .overview-stat span:not(.overview-icon),
+#folder-view .quick-action-btn strong {
+  color: #24364f !important;
+  font-weight: 800;
+}
+
+#folder-view .overview-icon,
+#folder-view .quick-action-btn > span {
+  background: linear-gradient(135deg, #0b5f9f 0%, #0284c7 58%, #38bdf8 100%) !important;
+  box-shadow: 0 12px 22px rgba(2, 132, 199, 0.22);
+}
+
+#folder-view .dashboard-drive-config {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.08), rgba(37, 99, 235, 0.06)) !important;
+  border-color: rgba(14, 116, 144, 0.16) !important;
+  color: #0f172a;
+}
+
+#folder-view .dashboard-drive-config label {
+  color: #0f5f9e !important;
+}
