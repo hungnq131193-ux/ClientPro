@@ -104,3 +104,41 @@ function tryOpenCamera(mode) {
         showToast('Không mở được camera');
     }
 }
+
+// VietinBank Premium bottom navigation helpers (UI-only; keeps existing routing functions).
+function setBottomNavActive(key) {
+    try {
+        document.querySelectorAll('.bottom-nav-item').forEach((btn) => {
+            btn.classList.toggle('active', btn.dataset.nav === key);
+        });
+    } catch (e) { }
+}
+function goDashboard() {
+    try {
+        const customer = getEl('screen-customer-list');
+        const folder = getEl('screen-folder');
+        const map = getEl('screen-map');
+        const gallery = getEl('screen-asset-gallery');
+        if (gallery) gallery.classList.add('translate-x-full');
+        if (folder) folder.classList.add('translate-x-full');
+        if (map) map.classList.add('translate-x-full');
+        if (customer) { customer.classList.add('translate-x-full'); setTimeout(() => customer.classList.add('hidden'), 250); }
+        const dashboard = getEl('screen-dashboard');
+        if (dashboard) dashboard.style.transform = '';
+        setBottomNavActive('dashboard');
+        if (typeof updateFolderCounts === 'function') updateFolderCounts();
+    } catch (e) { }
+}
+(function patchNavigationActiveState(){
+    const wrap = (name, key) => {
+        const original = window[name];
+        if (typeof original !== 'function' || original.__vietinWrapped) return;
+        window[name] = function(...args) {
+            const result = original.apply(this, args);
+            setBottomNavActive(key);
+            return result;
+        };
+        window[name].__vietinWrapped = true;
+    };
+    setTimeout(() => { wrap('openCustomerList', 'customers'); wrap('toggleMap', 'map'); }, 0);
+})();
