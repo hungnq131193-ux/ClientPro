@@ -1,3 +1,14 @@
+
+function updateDashboardDateTicker() {
+  const el = (typeof getEl === "function") ? getEl("dashboard-date-ticker-text") : null;
+  if (!el) return;
+  const now = new Date();
+  const weekday = new Intl.DateTimeFormat("vi-VN", { weekday: "long" }).format(now);
+  const date = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(now);
+  const time = new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(now);
+  el.textContent = `Hôm nay là ${weekday}, ngày ${date} - ${time}`;
+}
+
 function parseMoneyToNumber(str) {
   if (!str) return 0;
   return parseInt(str.toString().replace(/\D/g, "")) || 0;
@@ -57,6 +68,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   setTheme(savedTheme);
 
   setTheme(savedTheme);
+  updateDashboardDateTicker();
+  setInterval(updateDashboardDateTicker, 60000);
   // 🌤 Khởi động thời tiết
   initWeather();
 

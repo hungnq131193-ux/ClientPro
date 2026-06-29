@@ -22,8 +22,8 @@
     <!-- CryptoJS library for hashing and encryption -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
-    <script defer src="./assets/head.js?v=DASHBOARD_UI_20260629_1"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=DASHBOARD_UI_20260629_1">
+    <script defer src="./assets/head.js?v=DASHBOARD_UI_20260629_2"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=DASHBOARD_UI_20260629_2">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <style>
         html,
@@ -217,6 +217,9 @@
         </header>
 
         <div class="scroll-area flex-1 p-4 dashboard-scroll" id="folder-view">
+            <div class="dashboard-date-ticker" aria-live="polite">
+                <span id="dashboard-date-ticker-text">Hôm nay là...</span>
+            </div>
             <section class="dashboard-card dashboard-overview-card">
                 <div class="dashboard-section-head">
                     <div>
@@ -266,12 +269,12 @@
                         <span><i data-lucide="archive-restore" class="w-6 h-6"></i></span>
                         <strong>Sao lưu & khôi phục</strong>
                     </button>
-                    <button class="quick-action-btn" onclick="document.getElementById('dashboard-drive-url')?.focus()">
+                    <button class="quick-action-btn" onclick="toggleDashboardDriveConfig()">
                         <span><i data-lucide="cloud" class="w-6 h-6"></i></span>
                         <strong>Cài đặt Google Drive</strong>
                     </button>
                 </div>
-                <div class="dashboard-drive-config">
+                <div id="dashboard-drive-config" class="dashboard-drive-config hidden" aria-hidden="true">
                     <label for="dashboard-drive-url">Link GAS cá nhân</label>
                     <div class="dashboard-drive-row">
                         <input id="dashboard-drive-url" type="text" placeholder="https://script.google.com/...">
