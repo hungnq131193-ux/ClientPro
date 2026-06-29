@@ -37,10 +37,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   let savedTheme = localStorage.getItem(THEME_KEY);
   // Danh sách các theme hợp lệ hiện tại
   const validThemes = [
-    "theme-vietinbank",
-    "theme-vietinbank-light",
-    "theme-vietinbank-dark",
-    "theme-high-contrast",
     "theme-midnight",
     "theme-sunset",
     "theme-ocean",
@@ -53,10 +49,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     "theme-solar",
   ];
 
-  // Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về VietinBank Light
+  // Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về Midnight
   if (!validThemes.includes(savedTheme)) {
-    savedTheme = "theme-vietinbank";
+    savedTheme = "theme-midnight";
   }
+
+  setTheme(savedTheme);
 
   setTheme(savedTheme);
   // 🌤 Khởi động thời tiết
