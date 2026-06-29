@@ -207,10 +207,6 @@
                 </div>
             </div>
 
-            <div class="dashboard-date-ticker" aria-live="polite">
-                <i data-lucide="calendar-clock" class="dashboard-date-icon w-4 h-4"></i>
-                <span id="dashboard-date-ticker-text">Hôm nay là...</span>
-            </div>
 
             <div class="flex justify-end mb-2 text-[11px] font-medium">
                 <button onclick="refreshWeather()"
@@ -224,25 +220,25 @@
         <div class="scroll-area flex-1 p-4 dashboard-scroll" id="folder-view">
             <section class="dashboard-card dashboard-overview-card">
                 <div class="dashboard-overview-grid">
-                    <button class="overview-stat" onclick="openCustomerList('all')">
+                    <div class="overview-stat overview-stat-summary" role="group" aria-label="Tổng số hồ sơ">
                         <span class="overview-icon"><i data-lucide="users" class="w-5 h-5"></i></span>
                         <strong id="count-total">0</strong>
                         <span>Tổng hồ sơ</span>
-                    </button>
-                    <button class="overview-stat" onclick="openCustomerList('approved')">
-                        <span class="overview-icon"><i data-lucide="badge-check" class="w-5 h-5"></i></span>
-                        <strong id="count-approved">0</strong>
-                        <span>Đã vay</span>
-                    </button>
-                    <button class="overview-stat" onclick="openCustomerList('pending')">
-                        <span class="overview-icon"><i data-lucide="clock-3" class="w-5 h-5"></i></span>
-                        <strong id="count-pending">0</strong>
-                        <span>Đang thẩm định</span>
-                    </button>
-                    <button class="overview-stat" onclick="openCustomerList('all')">
+                    </div>
+                    <div class="overview-stat overview-stat-summary" role="group" aria-label="Tổng số tài sản bảo đảm">
                         <span class="overview-icon"><i data-lucide="landmark" class="w-5 h-5"></i></span>
                         <strong id="count-assets">0</strong>
                         <span>Tài sản bảo đảm</span>
+                    </div>
+                    <button class="overview-stat overview-stat-wide" onclick="openCustomerList('approved')">
+                        <span class="overview-icon"><i data-lucide="badge-check" class="w-5 h-5"></i></span>
+                        <strong id="count-approved">0</strong>
+                        <span>Khách hàng đã vay</span>
+                    </button>
+                    <button class="overview-stat overview-stat-wide" onclick="openCustomerList('pending')">
+                        <span class="overview-icon"><i data-lucide="clock-3" class="w-5 h-5"></i></span>
+                        <strong id="count-pending">0</strong>
+                        <span>Khách hàng đang thẩm định</span>
                     </button>
                 </div>
             </section>
