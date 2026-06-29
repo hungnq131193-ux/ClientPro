@@ -5,8 +5,7 @@ function updateDashboardDateTicker() {
   const now = new Date();
   const weekday = new Intl.DateTimeFormat("vi-VN", { weekday: "long" }).format(now);
   const date = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(now);
-  const time = new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(now);
-  el.textContent = `${weekday}, ${date} • ${time}`;
+  el.textContent = `${weekday}, ${date}`;
 }
 
 function parseMoneyToNumber(str) {
