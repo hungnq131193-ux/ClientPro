@@ -161,37 +161,15 @@
                 </button>
             </div>
         </div>
-        <!-- Action Buttons - 2 Column Grid -->
+        <!-- Action Buttons - dashboard now hosts backup/drive/restore/reset-related entry points -->
         <div class="grid grid-cols-2 gap-1 p-2 border-b border-white/5">
             <button onclick="openSecuritySetup()" class="settings-btn text-indigo-400">
                 <i data-lucide="shield" class="w-3.5 h-3.5"></i> Bảo mật
-            </button>
-            <button onclick="openBackupManager()" class="settings-btn text-cyan-400">
-                <i data-lucide="archive" class="w-3.5 h-3.5"></i> Kho backup
             </button>
             <button onclick="openDonateModal()" class="settings-btn text-pink-400">
                 <i data-lucide="heart" class="w-3.5 h-3.5"></i> Donate
             </button>
         </div>
-        <!-- Google Drive Link -->
-        <div class="px-3 py-2 border-b border-white/5">
-            <p class="text-[10px] font-bold uppercase mb-1.5 opacity-60" style="color: var(--text-sub)">Google Drive</p>
-            <div class="flex gap-1">
-                <input id="user-script-url" type="text" placeholder="Link Apps Script..."
-                    class="flex-1 bg-black/30 border border-white/10 rounded-lg p-1.5 text-[10px] text-white outline-none">
-                <button onclick="saveScriptUrl()"
-                    class="p-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg"><i
-                        data-lucide="save" class="w-3 h-3"></i></button>
-            </div>
-        </div>
-        <!-- Bottom Actions -->
-        <label class="settings-btn-full text-orange-400 cursor-pointer border-b border-white/5">
-            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Khôi phục (.cpb)
-            <input type="file" id="restore-input" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)">
-        </label>
-        <button onclick="resetAppData()" class="settings-btn-full text-red-400">
-            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Reset App
-        </button>
         <div class="px-3 py-2 text-center">
             <span class="text-[8px] opacity-40" style="color: var(--text-sub)">© Nguyễn Quốc Hưng 2025</span>
         </div>
@@ -238,39 +216,62 @@
             </div>
         </header>
 
-        <div class="scroll-area flex-1 p-4" id="folder-view">
-            <section class="customer-hub-card">
-                <div class="customer-hub-head">
-                    <div>
-                        <p class="customer-hub-kicker"></p>
-                        <h2 class="customer-hub-title">Quản lý khách hàng</h2>
-                    </div>
+        <div class="scroll-area flex-1 p-4 dashboard-scroll" id="folder-view">
+            <section class="dashboard-card dashboard-overview-card">
+                <div class="dashboard-section-head">
+                    <h2>Tổng quan hôm nay</h2>
+                    <span>ClientPro</span>
                 </div>
-
-                <div class="customer-hub-stats two-folders">
-                    <button class="hub-stat approved" onclick="openCustomerList('approved')">
-                        <span class="hub-stat-label"><i data-lucide="badge-check" class="w-3.5 h-3.5"></i>KH đã vay</span>
-                        <strong id="count-approved">0</strong>
+                <div class="dashboard-overview-grid">
+                    <button class="overview-stat" onclick="openCustomerList('all')">
+                        <strong id="count-total">0</strong>
+                        <span>Tổng hồ sơ</span>
                     </button>
-                    <button class="hub-stat pending" onclick="openCustomerList('pending')">
-                        <span class="hub-stat-label"><i data-lucide="hourglass" class="w-3.5 h-3.5"></i>KH đang thẩm định</span>
+                    <button class="overview-stat" onclick="openCustomerList('approved')">
+                        <strong id="count-approved">0</strong>
+                        <span>Đã vay</span>
+                    </button>
+                    <button class="overview-stat" onclick="openCustomerList('pending')">
                         <strong id="count-pending">0</strong>
+                        <span>Đang thẩm định</span>
+                    </button>
+                    <button class="overview-stat" onclick="openCustomerList('all')">
+                        <strong id="count-assets">0</strong>
+                        <span>Tài sản bảo đảm</span>
                     </button>
                 </div>
             </section>
-        </div>
 
-        <div class="absolute bottom-8 right-6 flex items-center gap-4 z-[100]">
-            <button onclick="toggleMap()"
-                class="w-14 h-14 rounded-full shadow-2xl flex items-center justify-center font-bold text-white transition-transform active:scale-95 border border-white/20 glass-panel"
-                style="background: rgba(16, 185, 129, 0.2); backdrop-filter: blur(20px);">
-                <i data-lucide="map" class="w-6 h-6 text-emerald-400"></i>
-            </button>
-            <button onclick="openModal()"
-                class="h-14 pl-5 pr-6 text-white rounded-full shadow-2xl flex items-center justify-center font-bold gap-2 transition-transform active:scale-95 border border-white/20"
-                style="background: var(--accent-gradient); box-shadow: 0 8px 20px -5px rgba(99, 102, 241, 0.5);">
-                <i data-lucide="plus" class="w-6 h-6"></i> <span class="text-sm">Thêm Mới</span>
-            </button>
+            <section class="dashboard-card quick-actions-card">
+                <div class="dashboard-section-head">
+                    <h2>Thao tác nhanh</h2>
+                </div>
+                <div class="quick-action-grid">
+                    <button class="quick-action-btn" onclick="openModal()">
+                        <span><i data-lucide="plus" class="w-6 h-6"></i></span>
+                        <strong>Thêm khách hàng</strong>
+                    </button>
+                    <button class="quick-action-btn" onclick="toggleMap()">
+                        <span><i data-lucide="map-pin" class="w-6 h-6"></i></span>
+                        <strong>Bản đồ</strong>
+                    </button>
+                    <button class="quick-action-btn" onclick="openBackupManager()">
+                        <span><i data-lucide="archive-restore" class="w-6 h-6"></i></span>
+                        <strong>Sao lưu & khôi phục</strong>
+                    </button>
+                    <button class="quick-action-btn" onclick="document.getElementById('dashboard-drive-url')?.focus()">
+                        <span><i data-lucide="cloud" class="w-6 h-6"></i></span>
+                        <strong>Cài đặt Google Drive</strong>
+                    </button>
+                </div>
+                <div class="dashboard-drive-config">
+                    <label for="dashboard-drive-url">Link GAS cá nhân</label>
+                    <div class="dashboard-drive-row">
+                        <input id="dashboard-drive-url" type="text" placeholder="https://script.google.com/...">
+                        <button onclick="saveScriptUrl()"><i data-lucide="save" class="w-4 h-4"></i> Lưu</button>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
 
