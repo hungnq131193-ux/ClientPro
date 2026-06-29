@@ -2033,3 +2033,88 @@ input::placeholder {
 #folder-view .dashboard-drive-config label {
   color: #0f5f9e !important;
 }
+
+/* Dashboard refinement 2026-06-29: align home surfaces with the active app theme. */
+.glass-header {
+  background: linear-gradient(180deg, var(--header-bg), color-mix(in srgb, var(--bg-panel) 78%, transparent)) !important;
+  border-bottom-color: var(--border-panel) !important;
+}
+
+.vietin-logo-container {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-panel) 82%, white 8%), rgba(255,255,255,0.08)) !important;
+  border-color: var(--border-panel) !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.14) !important;
+}
+
+.vietin-brand {
+  color: var(--text-main) !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.28) !important;
+}
+
+.vietin-sub {
+  color: var(--text-sub) !important;
+}
+
+#folder-view .dashboard-card {
+  color: var(--text-main) !important;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--bg-panel) 88%, white 6%), rgba(255,255,255,0.07)) !important;
+  border-color: var(--border-panel) !important;
+  box-shadow: 0 18px 42px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.14) !important;
+}
+
+#folder-view .dashboard-overview-card {
+  padding-top: 18px;
+}
+
+#folder-view .dashboard-section-head h2,
+#folder-view .overview-stat span:not(.overview-icon),
+#folder-view .quick-action-btn strong {
+  color: var(--text-main) !important;
+}
+
+#folder-view .overview-stat strong,
+#folder-view .dashboard-eyebrow,
+#folder-view .dashboard-drive-config label {
+  color: var(--accent) !important;
+}
+
+#folder-view .overview-stat,
+#folder-view .quick-action-btn {
+  background: linear-gradient(160deg, rgba(255,255,255,0.13), rgba(255,255,255,0.045)) !important;
+  border-color: var(--border-panel) !important;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+}
+
+#folder-view .quick-action-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+#folder-view .quick-action-btn {
+  min-height: 84px !important;
+  border-radius: 18px !important;
+  padding: 10px 6px !important;
+  gap: 7px !important;
+}
+
+#folder-view .quick-action-btn > span {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 14px !important;
+}
+
+#folder-view .quick-action-btn > span svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+#folder-view .quick-action-btn strong {
+  font-size: 10.5px !important;
+  line-height: 1.15 !important;
+}
+
+#folder-view .dashboard-drive-config {
+  background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.045)) !important;
+  border-color: var(--border-panel) !important;
+  color: var(--text-main) !important;
+}
