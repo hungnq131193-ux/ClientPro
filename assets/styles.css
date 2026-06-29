@@ -1571,3 +1571,183 @@ input::placeholder {
   text-align: center;
   padding: 16px 8px;
 }
+
+/* === VietinBank Premium UI refresh (2026-06-29) === */
+body.theme-vietinbank,
+body.theme-vietinbank-light {
+  --bg-base: #f3f8fb;
+  --bg-mesh: radial-gradient(circle at 12% 0%, rgba(0, 163, 224, .16), transparent 34%), linear-gradient(180deg, #f7fbfd 0%, #edf5f9 100%);
+  --bg-panel: rgba(255, 255, 255, .92);
+  --header-bg: rgba(255, 255, 255, .88);
+  --border-panel: rgba(0, 91, 159, .14);
+  --input-bg: #ffffff;
+  --text-main: #102a43;
+  --text-sub: #667085;
+  --accent: #005b9f;
+  --accent-2: #00a3e0;
+  --danger: #da251d;
+  --accent-gradient: linear-gradient(135deg, #004b8d 0%, #005b9f 58%, #00a3e0 100%);
+}
+body.theme-vietinbank-dark {
+  --bg-base: #071827;
+  --bg-mesh: radial-gradient(circle at 15% 5%, rgba(0, 163, 224, .24), transparent 34%), linear-gradient(180deg, #071827 0%, #0d2638 100%);
+  --bg-panel: rgba(12, 35, 52, .9);
+  --header-bg: rgba(7, 24, 39, .92);
+  --border-panel: rgba(108, 178, 216, .22);
+  --input-bg: rgba(255,255,255,.07);
+  --text-main: #f5fbff;
+  --text-sub: #a8bed0;
+  --accent: #53bde8;
+  --accent-2: #00a3e0;
+  --danger: #ff6b65;
+  --accent-gradient: linear-gradient(135deg, #005b9f 0%, #00a3e0 100%);
+}
+body.theme-high-contrast {
+  --bg-base: #000;
+  --bg-mesh: none;
+  --bg-panel: #000;
+  --header-bg: #000;
+  --border-panel: #fff;
+  --input-bg: #111;
+  --text-main: #fff;
+  --text-sub: #fff;
+  --accent: #00d4ff;
+  --accent-2: #fff200;
+  --danger: #ff453a;
+  --accent-gradient: linear-gradient(135deg, #005b9f 0%, #00d4ff 100%);
+}
+body.theme-vietinbank .glass-panel,
+body.theme-vietinbank-light .glass-panel { box-shadow: 0 18px 48px rgba(16,42,67,.10); }
+.vietin-logo-container { background: var(--bg-panel); border-color: var(--border-panel); box-shadow: 0 12px 30px rgba(0,91,159,.12); }
+.vietin-brand { font-size: 18px; letter-spacing: -.03em; color: transparent; background: var(--accent-gradient); -webkit-background-clip: text; background-clip: text; text-shadow: none; }
+.vietin-sub { color: var(--text-sub); }
+.premium-dashboard { display: flex; flex-direction: column; gap: 16px; padding-bottom: calc(24px + var(--sab)); }
+.premium-card { background: var(--bg-panel); border: 1px solid var(--border-panel); border-radius: 24px; box-shadow: 0 18px 44px rgba(0,91,159,.10); padding: 18px; }
+.section-head { display: flex; justify-content: space-between; align-items: center; color: var(--text-main); font-weight: 800; margin-bottom: 14px; }
+.overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.overview-stat { text-align: left; border: 1px solid var(--border-panel); border-radius: 18px; background: rgba(255,255,255,.72); padding: 14px; color: var(--text-main); }
+body.theme-vietinbank-dark .overview-stat { background: rgba(255,255,255,.06); }
+.overview-stat small { display:block; color: var(--text-sub); font-size: 11px; margin-bottom: 6px; }
+.overview-stat strong { font-size: 24px; color: var(--accent); }
+.quick-grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.quick-action { min-height: 74px; border-radius: 18px; border: 1px solid var(--border-panel); background: rgba(255,255,255,.72); color: var(--text-main); display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:8px; padding:12px; font-weight:800; font-size:12px; }
+.quick-action svg { width: 20px; height: 20px; color: var(--accent); }
+.quick-action.primary { background: var(--accent-gradient); color:#fff; border:0; }
+.quick-action.primary svg { color:#fff; }
+.theme-choice { aspect-ratio: auto; max-height: none; width: 100%; display: flex; align-items:center; gap:10px; padding: 10px; height: auto; border-radius: 14px; box-shadow: none; color: var(--text-main); background: rgba(255,255,255,.06); }
+.settings-theme-list { display:flex; flex-direction:column; gap:8px; }
+.settings-section-title { color: var(--text-sub); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 8px; }
+.theme-swatch { width: 22px; height: 22px; border-radius: 999px; border: 1px solid var(--border-panel); flex:none; }
+.theme-swatch.light { background: linear-gradient(135deg,#fff,#f3f8fb 45%,#005b9f); }
+.theme-swatch.dark { background: linear-gradient(135deg,#071827,#005b9f,#00a3e0); }
+.theme-swatch.contrast { background: linear-gradient(135deg,#000 0 48%,#fff 49% 100%); }
+.settings-list { display:flex; flex-direction:column; gap:7px; }
+.settings-btn { color: var(--text-main); border-color: var(--border-panel); background: rgba(255,255,255,.06); border-radius: 14px; font-size: 12px; padding: 12px; }
+.settings-btn.donate { opacity: .86; }
+.cust-card, .glass-panel-lite { background: var(--bg-panel); border-color: var(--border-panel); box-shadow: 0 14px 34px rgba(16,42,67,.08); }
+.cust-card.cust-approved::before, .cust-card.cust-pending::before { background: var(--accent); box-shadow: none; }
+.customer-avatar, .customer-avatar.approved, .customer-avatar.pending { background: linear-gradient(135deg, #005b9f, #00a3e0) !important; color: #fff !important; }
+.customer-chip.approved, .customer-chip.pending { background: rgba(0,91,159,.08) !important; color: var(--accent) !important; border-color: rgba(0,91,159,.14) !important; }
+.profile-glass-box, #content-info .glass-panel, #content-assets .glass-panel, .photo-action-card { border-radius: 22px; background: var(--bg-panel); border-color: var(--border-panel); box-shadow: 0 16px 38px rgba(16,42,67,.09); }
+.glass-tab-active { background: var(--accent-gradient) !important; color: #fff !important; }
+.glass-tab-inactive { color: var(--text-sub) !important; }
+#actions-images .flex, #screen-asset-gallery .photo-action-card .flex { gap: 10px; }
+#actions-images button, #actions-images label, #screen-asset-gallery .photo-action-card button, #screen-asset-gallery .photo-action-card label { border-radius: 16px; }
+#screen-map > button { background: var(--bg-panel) !important; color: var(--accent) !important; border-color: var(--border-panel) !important; box-shadow: 0 14px 34px rgba(0,91,159,.18); }
+#screen-map > button[onclick="locateMe()"] { background: var(--accent-gradient) !important; color: #fff !important; }
+input, textarea { background: var(--input-bg) !important; color: var(--text-main) !important; border-color: var(--border-panel) !important; }
+
+/* === VietinBank Premium Light correction (2026-06-29) === */
+body.theme-vietinbank,
+body.theme-vietinbank-light {
+  --bg-base: #f3f8fb;
+  --bg-main: #f3f8fb;
+  --bg-mesh: linear-gradient(180deg, #f7fcff 0%, #eef8ff 48%, #f3f8fb 100%);
+  --bg-panel: #ffffff;
+  --header-bg: #005b9f;
+  --border-panel: rgba(0, 75, 141, 0.12);
+  --accent: #005b9f;
+  --accent-2: #00a3e0;
+  --text-main: #102a43;
+  --text-sub: #667085;
+  --accent-gradient: linear-gradient(135deg, #004b8d 0%, #005b9f 70%, #00a3e0 100%);
+}
+body.theme-vietinbank-dark { --bg-main: #071827; }
+body.theme-high-contrast { --bg-main: #000; }
+body.theme-vietinbank .app-container,
+body.theme-vietinbank-light .app-container { background: #f3f8fb; }
+body.theme-vietinbank #screen-dashboard,
+body.theme-vietinbank-light #screen-dashboard { background: linear-gradient(180deg, #e9f7ff 0%, #f3f8fb 38%, #f8fbfd 100%); }
+.dashboard-header {
+  background: linear-gradient(135deg, #004b8d 0%, #005b9f 70%, #0077bd 100%) !important;
+  border-bottom: 0;
+  box-shadow: 0 12px 28px rgba(0, 75, 141, .18);
+}
+.dashboard-header .vietin-logo-container {
+  background: rgba(255,255,255,.96);
+  border: 1px solid rgba(255,255,255,.72);
+  box-shadow: 0 10px 26px rgba(0, 42, 82, .16);
+  padding: 8px 12px;
+  border-radius: 20px;
+}
+.dashboard-header .vietin-logo-img { width: 44px !important; height: 44px !important; filter: none; }
+.dashboard-header .vietin-brand {
+  font-size: 21px;
+  letter-spacing: -.045em;
+  color: #004b8d;
+  background: none;
+  -webkit-text-fill-color: #004b8d;
+}
+.dashboard-header .vietin-sub {
+  color: #667085;
+  text-transform: none;
+  letter-spacing: .02em;
+  font-size: 10px;
+  font-weight: 700;
+}
+.dashboard-header button[onclick="toggleMenu()"] {
+  background: rgba(255,255,255,.95) !important;
+  border-color: rgba(255,255,255,.72) !important;
+  color: #005b9f !important;
+  box-shadow: 0 10px 22px rgba(0, 42, 82, .13);
+}
+.weather-chip {
+  background: rgba(255,255,255,.96) !important;
+  border: 1px solid rgba(255,255,255,.76) !important;
+  color: #005b9f !important;
+  box-shadow: 0 8px 20px rgba(0, 42, 82, .12);
+}
+.premium-dashboard { gap: 14px; padding-top: 16px; }
+.premium-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 75, 141, 0.12) !important;
+  border-radius: 24px;
+  box-shadow: 0 14px 34px rgba(0, 75, 141, .08);
+}
+.section-head { color: #102a43; }
+.section-head svg { color: #005b9f; }
+.overview-stat {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 75, 141, 0.12) !important;
+  box-shadow: 0 8px 18px rgba(0, 75, 141, .055);
+}
+.overview-stat small { color: #667085; }
+.overview-stat strong { color: #005b9f; }
+.quick-action {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 75, 141, 0.14) !important;
+  color: #102a43 !important;
+  box-shadow: 0 10px 22px rgba(0, 75, 141, .075);
+}
+.quick-action svg { color: #005b9f !important; }
+.quick-action.primary {
+  background: linear-gradient(135deg, #004b8d 0%, #005b9f 72%, #00a3e0 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: 0 14px 30px rgba(0, 91, 159, .24);
+}
+.quick-action.primary svg { color: #ffffff !important; }
+body.theme-vietinbank .customer-search-wrap,
+body.theme-vietinbank-light .customer-search-wrap { background: #ffffff; border: 1px solid rgba(0,75,141,.12); }
+body.theme-vietinbank .customer-select-toggle,
+body.theme-vietinbank-light .customer-select-toggle { background: #ffffff !important; color: #005b9f !important; }

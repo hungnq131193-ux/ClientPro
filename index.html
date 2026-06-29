@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ClientPro</title>
+    <title>Client Pro</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
     <meta name="theme-color" content="#005b9f">
@@ -22,8 +22,8 @@
     <!-- CryptoJS library for hashing and encryption -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
-    <script defer src="./assets/head.js?v=MAP_UI_20260622_2"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=MAP_UI_20260622_2">
+    <script defer src="./assets/head.js?v=UI_VIETINBANK_LIGHT_20260629"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=UI_VIETINBANK_LIGHT_20260629">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <style>
         html,
@@ -37,7 +37,7 @@
     </style>
 </head>
 
-<body class="theme-midnight">
+<body class="theme-vietinbank">
 
 
 
@@ -114,65 +114,24 @@
         <div class="px-3 py-2.5 border-b border-white/5">
             <h3 class="font-bold text-sm" style="color: var(--text-main)">Cài Đặt</h3>
         </div>
-        <!-- Theme Grid - Compact -->
-        <div class="px-3 py-3 border-b border-white/5">
-            <p class="text-[10px] font-bold uppercase mb-2 opacity-60 tracking-wider" style="color: var(--text-sub)">
-                Giao diện</p>
-            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
-                <button onclick="setTheme('theme-midnight')" class="theme-btn-sm" title="Midnight">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #00346e 0%, #005b9f 50%, #00aaff 100%);"></div>
-                </button>
-                <button onclick="setTheme('theme-sunset')" class="theme-btn-sm" title="Sunset">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #00346e 0%, #da251d 50%, #ff6b6b 100%);"></div>
-                </button>
-                <button onclick="setTheme('theme-ocean')" class="theme-btn-sm" title="Ocean">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #005b9f 0%, #00c8ff 50%, #00ffcc 100%);"></div>
-                </button>
-                <button onclick="setTheme('theme-mint')" class="theme-btn-sm" title="Mint">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #00346e 0%, #00ffcc 50%, #10b981 100%);"></div>
-                </button>
-                <button onclick="setTheme('theme-royal')" class="theme-btn-sm" title="Royal">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #00346e 0%, #c8a86b 50%, #fde047 100%);"></div>
-                </button>
-                <button onclick="setTheme('theme-aurora')" class="theme-btn-sm" title="Aurora">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #005b9f 0%, #00ffcc 50%, #22d3ee 100%);"></div>
-                </button>
-                <button onclick="setTheme('theme-violet')" class="theme-btn-sm" title="Violet">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #00346e 0%, #8b5cf6 50%, #a855f7 100%);"></div>
-                </button>
-                <button onclick="setTheme('theme-emerald')" class="theme-btn-sm" title="Emerald">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #00346e 0%, #10b981 50%, #34d399 100%);"></div>
-                </button>
-                <button onclick="setTheme('theme-sakura')" class="theme-btn-sm" title="Sakura">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #005b9f 0%, #fb7185 50%, #fda4af 100%);"></div>
-                </button>
-                <button onclick="setTheme('theme-solar')" class="theme-btn-sm" title="Solar">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #00346e 0%, #ffb800 50%, #fde047 100%);"></div>
-                </button>
+        <!-- Premium Settings Menu -->
+        <div class="px-3 py-3 border-b border-white/5 settings-section">
+            <p class="settings-section-title">Giao diện</p>
+            <div class="settings-theme-list">
+                <button onclick="setTheme('theme-vietinbank')" class="theme-btn-sm theme-choice" title="VietinBank Light"><span class="theme-swatch light"></span><span>VietinBank Light</span></button>
+                <button onclick="setTheme('theme-vietinbank-dark')" class="theme-btn-sm theme-choice" title="VietinBank Dark"><span class="theme-swatch dark"></span><span>VietinBank Dark</span></button>
+                <button onclick="setTheme('theme-high-contrast')" class="theme-btn-sm theme-choice" title="High Contrast"><span class="theme-swatch contrast"></span><span>High Contrast</span></button>
             </div>
         </div>
-        <!-- Action Buttons - 2 Column Grid -->
-        <div class="grid grid-cols-2 gap-1 p-2 border-b border-white/5">
-            <button onclick="openSecuritySetup()" class="settings-btn text-indigo-400">
-                <i data-lucide="shield" class="w-3.5 h-3.5"></i> Bảo mật
-            </button>
-            <button onclick="openBackupManager()" class="settings-btn text-cyan-400">
-                <i data-lucide="archive" class="w-3.5 h-3.5"></i> Kho backup
-            </button>
-            <button onclick="openDonateModal()" class="settings-btn text-pink-400">
-                <i data-lucide="heart" class="w-3.5 h-3.5"></i> Donate
-            </button>
+        <div class="settings-list p-2 border-b border-white/5">
+            <button onclick="openSecuritySetup()" class="settings-btn"><i data-lucide="shield" class="w-4 h-4"></i> Bảo mật</button>
+            <button onclick="openBackupManager()" class="settings-btn"><i data-lucide="archive" class="w-4 h-4"></i> Backup & Khôi phục</button>
+            <button onclick="openBackupManager()" class="settings-btn"><i data-lucide="hard-drive" class="w-4 h-4"></i> Google Drive</button>
+            <button onclick="toggleAdvancedSettings()" class="settings-btn"><i data-lucide="sliders-horizontal" class="w-4 h-4"></i> Cài đặt nâng cao</button>
+            <button onclick="showAppInfo()" class="settings-btn"><i data-lucide="info" class="w-4 h-4"></i> Thông tin ứng dụng</button>
+            <button onclick="openDonateModal()" class="settings-btn donate"><i data-lucide="heart" class="w-4 h-4"></i> Donate</button>
         </div>
+        <div id="advanced-settings" class="hidden">
         <!-- Google Drive Link -->
         <div class="px-3 py-2 border-b border-white/5">
             <p class="text-[10px] font-bold uppercase mb-1.5 opacity-60" style="color: var(--text-sub)">Google Drive</p>
@@ -192,13 +151,14 @@
         <button onclick="resetAppData()" class="settings-btn-full text-red-400">
             <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Reset App
         </button>
+        </div>
         <div class="px-3 py-2 text-center">
             <span class="text-[8px] opacity-40" style="color: var(--text-sub)">© Nguyễn Quốc Hưng 2025</span>
         </div>
     </div>
 
     <div id="screen-dashboard" class="app-container z-10 transition-transform duration-300">
-        <header class="glass-header px-4 py-4 flex-none w-full shadow-lg">
+        <header class="glass-header dashboard-header px-4 py-4 flex-none w-full shadow-lg">
             <div class="flex justify-between items-center mb-4">
                 <div class="vietin-logo-container">
                     <svg class="vietin-logo-img" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"
@@ -215,8 +175,8 @@
                         </g>
                     </svg>
                     <div class="vietin-text-group">
-                        <span class="vietin-brand">ClientPro</span>
-                        <span class="vietin-sub">Quản Lý Khách Hàng</span>
+                        <span class="vietin-brand">Client Pro</span>
+                        <span class="vietin-sub">Quản lý khách hàng</span>
                     </div>
                 </div>
 
@@ -229,48 +189,35 @@
                 </div>
             </div>
 
-            <div class="flex justify-end mb-2 text-[11px] font-medium">
-                <button onclick="refreshWeather()"
-                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-slate-200 hover:bg-white/10 active:scale-95 transition">
+            <div class="flex justify-end mb-1 text-[11px] font-medium">
+                <button onclick="refreshWeather()" class="weather-chip flex items-center gap-1.5 px-3 py-1.5 rounded-full active:scale-95 transition">
                     <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i>
-                    <span id="current-weather" class="max-w-[160px] truncate">Đang tải thời tiết...</span>
+                    <span id="current-weather" class="max-w-[180px] truncate">Đang tải thời tiết...</span>
                 </button>
             </div>
         </header>
 
-        <div class="scroll-area flex-1 p-4" id="folder-view">
-            <section class="customer-hub-card">
-                <div class="customer-hub-head">
-                    <div>
-                        <p class="customer-hub-kicker"></p>
-                        <h2 class="customer-hub-title">Quản lý khách hàng</h2>
-                    </div>
-                </div>
-
-                <div class="customer-hub-stats two-folders">
-                    <button class="hub-stat approved" onclick="openCustomerList('approved')">
-                        <span class="hub-stat-label"><i data-lucide="badge-check" class="w-3.5 h-3.5"></i>KH đã vay</span>
-                        <strong id="count-approved">0</strong>
-                    </button>
-                    <button class="hub-stat pending" onclick="openCustomerList('pending')">
-                        <span class="hub-stat-label"><i data-lucide="hourglass" class="w-3.5 h-3.5"></i>KH đang thẩm định</span>
-                        <strong id="count-pending">0</strong>
-                    </button>
+        <div class="scroll-area flex-1 p-4 premium-dashboard" id="folder-view">
+            <section class="premium-card">
+                <div class="section-head"><span>Tổng quan hôm nay</span><i data-lucide="bar-chart-3" class="w-4 h-4"></i></div>
+                <div class="overview-grid">
+                    <button class="overview-stat" onclick="openCustomerList('all')"><small>Tổng hồ sơ</small><strong id="count-total">0</strong></button>
+                    <button class="overview-stat" onclick="openCustomerList('approved')"><small>Đã vay</small><strong id="count-approved">0</strong></button>
+                    <button class="overview-stat" onclick="openCustomerList('pending')"><small>Đang thẩm định</small><strong id="count-pending">0</strong></button>
+                    <div class="overview-stat"><small>TSBĐ</small><strong id="count-assets">0</strong></div>
                 </div>
             </section>
-        </div>
 
-        <div class="absolute bottom-8 right-6 flex items-center gap-4 z-[100]">
-            <button onclick="toggleMap()"
-                class="w-14 h-14 rounded-full shadow-2xl flex items-center justify-center font-bold text-white transition-transform active:scale-95 border border-white/20 glass-panel"
-                style="background: rgba(16, 185, 129, 0.2); backdrop-filter: blur(20px);">
-                <i data-lucide="map" class="w-6 h-6 text-emerald-400"></i>
-            </button>
-            <button onclick="openModal()"
-                class="h-14 pl-5 pr-6 text-white rounded-full shadow-2xl flex items-center justify-center font-bold gap-2 transition-transform active:scale-95 border border-white/20"
-                style="background: var(--accent-gradient); box-shadow: 0 8px 20px -5px rgba(99, 102, 241, 0.5);">
-                <i data-lucide="plus" class="w-6 h-6"></i> <span class="text-sm">Thêm Mới</span>
-            </button>
+            <section class="premium-card">
+                <div class="section-head"><span>Thao tác nhanh</span><i data-lucide="zap" class="w-4 h-4"></i></div>
+                <div class="quick-grid">
+                    <button onclick="openModal()" class="quick-action primary"><i data-lucide="user-plus"></i><span>Thêm khách hàng</span></button>
+                    <button onclick="openCustomerList('approved')" class="quick-action"><i data-lucide="landmark"></i><span>Tài sản</span></button>
+                    <button onclick="toggleMap()" class="quick-action"><i data-lucide="map"></i><span>Bản đồ</span></button>
+                    <button onclick="window.DriveBackup && DriveBackup.performNow ? DriveBackup.performNow() : openBackupManager()" class="quick-action"><i data-lucide="cloud-upload"></i><span>Backup Drive</span></button>
+                    <button onclick="openBackupManager()" class="quick-action"><i data-lucide="rotate-ccw"></i><span>Khôi phục</span></button>
+                </div>
+            </section>
         </div>
     </div>
 
@@ -382,14 +329,11 @@
 
             <div class="p-1 rounded-xl bg-black/20 border border-white/5 mx-0 mb-3 flex gap-1">
                 <button onclick="switchTab('info')" id="tab-btn-info"
-                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Thông
-                    Tin</button>
+                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Hồ sơ</button>
                 <button onclick="switchTab('images')" id="tab-btn-images"
-                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Hồ
-                    Sơ Ảnh</button>
+                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Ảnh</button>
                 <button onclick="switchTab('assets')" id="tab-btn-assets"
-                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Tài
-                    Sản</button>
+                    class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">TSBĐ</button>
             </div>
         </div>
 
@@ -495,8 +439,7 @@
                     class="px-3 py-1.5 rounded-lg border bg-blue-900/20 text-blue-400 border-blue-500/30">--</span>
             </div>
         </div>
-        <div id="asset-gallery-grid" class="scroll-area flex-1 img-grid-container content-start"></div>
-        <div class="glass-panel border-t p-4 pb-8 flex flex-col gap-3 flex-none z-30"
+        <div class="glass-panel border-t p-4 pb-4 flex flex-col gap-3 flex-none z-30 photo-action-card"
             style="border-color: var(--border-panel)">
 
             <div id="asset-drive-status-area" class="hidden w-full"></div>
@@ -525,6 +468,7 @@
                 </label>
             </div>
         </div>
+        <div id="asset-gallery-grid" class="scroll-area flex-1 img-grid-container content-start"></div>
 
     </div>
 
@@ -559,7 +503,7 @@
     <script src="./assets/12_backup_core.js" defer></script>
     <script src="./assets/13_ui_select_customers.js" defer></script>
     <script src="./assets/15_auth_gate.js" defer></script>
-    <script src="./assets/03_map.js?v=MAP_UI_20260622_2" defer></script>
+    <script src="./assets/03_map.js?v=UI_VIETINBANK_LIGHT_20260629" defer></script>
     <script src="./assets/04_ui_common.js" defer></script>
     <script src="./assets/05_customers.js" defer></script>
     <script src="./assets/06_assets.js" defer></script>
@@ -578,7 +522,7 @@
     <script src="./assets/17_onboarding_tour.js" defer></script>
         <script src="./assets/10_bootstrap.js" defer></script>
     <script src="./assets/11_edge_back_swipe.js?v=20260120_fix_back" defer></script>
-    <script src="./assets/pwa.js?v=MAP_UI_20260622_2" defer></script>
+    <script src="./assets/pwa.js?v=UI_VIETINBANK_LIGHT_20260629" defer></script>
 
 
     <!-- Backup Manager Modal -->

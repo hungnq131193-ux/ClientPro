@@ -35,26 +35,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("resize", setAppHeight);
   setAppHeight();
   let savedTheme = localStorage.getItem(THEME_KEY);
-  // Danh sách các theme hợp lệ hiện tại
+  // Danh sách theme hiển thị hiện tại; theme cũ sẽ được migrate về VietinBank Light
   const validThemes = [
-    "theme-midnight",
-    "theme-sunset",
-    "theme-ocean",
-    "theme-mint",
-    "theme-royal",
-    "theme-aurora",
-    "theme-violet",
-    "theme-emerald",
-    "theme-sakura",
-    "theme-solar",
+    "theme-vietinbank",
+    "theme-vietinbank-light",
+    "theme-vietinbank-dark",
+    "theme-high-contrast",
   ];
-
-  // Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về Midnight
+  // Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về VietinBank Light
   if (!validThemes.includes(savedTheme)) {
-    savedTheme = "theme-midnight";
+    savedTheme = "theme-vietinbank";
   }
-
-  setTheme(savedTheme);
 
   setTheme(savedTheme);
   // 🌤 Khởi động thời tiết
