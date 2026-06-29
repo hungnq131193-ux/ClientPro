@@ -383,7 +383,7 @@ function renderList(list, opts = {}) {
     }
     for (let i = 0; i < list.length; i++) {
         const c = list[i];
-        const isApproved = activeListTab === 'approved';
+        const isApproved = (c.status || 'pending') === 'approved';
         const el = document.createElement('div');
         _ensureSummaryDecrypted(c);
 
@@ -431,7 +431,6 @@ function renderList(list, opts = {}) {
                             <div class="customer-status-line">${statusTone}</div>
                             <h3 class="customer-name-line">
                                 ${safeName}
-                                ${isApproved ? iconBadgeCheck : ''}
                             </h3>
                             <p class="customer-phone-line">${iconSmartphone} ${safePhone}</p>
                             ${limitHtml}

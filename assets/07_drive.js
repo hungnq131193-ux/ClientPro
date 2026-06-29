@@ -1,4 +1,17 @@
     // --- LOGIC UPLOAD DRIVE & CẤU HÌNH ---
+
+function toggleDashboardDriveConfig() {
+    const panel = getEl('dashboard-drive-config');
+    const input = getEl('dashboard-drive-url') || getEl('user-script-url');
+    if (!panel) {
+        if (input) input.focus();
+        return;
+    }
+    const willOpen = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !willOpen);
+    panel.setAttribute('aria-hidden', willOpen ? 'false' : 'true');
+    if (willOpen && input) setTimeout(() => input.focus(), 80);
+}
 function saveScriptUrl() {
     const input = getEl('dashboard-drive-url') || getEl('user-script-url');
     const url = input ? input.value.trim() : '';
