@@ -2118,3 +2118,54 @@ input::placeholder {
   border-color: var(--border-panel) !important;
   color: var(--text-main) !important;
 }
+
+/* Dashboard overview order: static totals on top, wide customer shortcuts below. */
+#folder-view .overview-stat-summary {
+  cursor: default !important;
+  user-select: none;
+}
+
+#folder-view .overview-stat-summary:active {
+  transform: none !important;
+}
+
+#folder-view .overview-stat-wide {
+  grid-column: 1 / -1;
+  min-height: 108px !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 14px !important;
+}
+
+#folder-view .overview-stat-wide .overview-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  flex: 0 0 auto;
+}
+
+#folder-view .overview-stat-wide strong {
+  margin-left: auto;
+  order: 3;
+}
+
+#folder-view .overview-stat-wide span:not(.overview-icon) {
+  text-align: left;
+  font-size: 15px;
+}
+
+/* Dashboard icons inherit the active theme accent instead of hard-coded blue tones. */
+#screen-dashboard .overview-icon,
+#screen-dashboard .quick-action-btn > span,
+#folder-view .overview-icon,
+#folder-view .quick-action-btn > span {
+  background: var(--accent-gradient) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 22px color-mix(in srgb, var(--accent) 32%, transparent) !important;
+}
+
+#screen-dashboard .glass-header button i,
+#screen-dashboard button[onclick="refreshWeather()"] i {
+  color: var(--accent) !important;
+}

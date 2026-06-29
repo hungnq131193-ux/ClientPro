@@ -1,11 +1,6 @@
 
 function updateDashboardDateTicker() {
-  const el = (typeof getEl === "function") ? getEl("dashboard-date-ticker-text") : null;
-  if (!el) return;
-  const now = new Date();
-  const weekday = new Intl.DateTimeFormat("vi-VN", { weekday: "long" }).format(now);
-  const date = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(now);
-  el.textContent = `${weekday}, ${date}`;
+  // Date ticker was removed from the dashboard UI. Keep this no-op for older cached markup.
 }
 
 function parseMoneyToNumber(str) {
@@ -68,7 +63,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   setTheme(savedTheme);
   updateDashboardDateTicker();
-  setInterval(updateDashboardDateTicker, 60000);
   // 🌤 Khởi động thời tiết
   initWeather();
 
