@@ -57,7 +57,7 @@ const LazyLoader = (() => {
     // Load Map module. MapLibre GL JS is lazy-loaded inside 03_map.js only when the map screen opens.
     async loadMap() {
       if (loaded.has('map')) return;
-      await loadScript('./assets/03_map.js?v=MAP_UI_20260622_2');
+      await loadScript('./assets/03_map.js?v=UI_VIETINBANK_20260629');
       loaded.add('map');
     },
 

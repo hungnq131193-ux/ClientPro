@@ -158,7 +158,7 @@ function openCustomerList(type) {
 
     // Set title based on type
     if (titleEl) {
-        titleEl.textContent = type === 'approved' ? 'Khách hàng đã vay' : 'KH đang thẩm định';
+        titleEl.textContent = type === 'approved' ? 'Khách hàng đã vay' : (type === 'pending' ? 'KH đang thẩm định' : 'Tất cả hồ sơ');
     }
 
     // Show screen with slide animation first (ưu tiên mượt animation)
@@ -206,17 +206,23 @@ async function updateFolderCounts() {
 
         let approvedCount = 0;
         let pendingCount = 0;
+        let assetCount = 0;
 
         list.forEach(c => {
             if (c && c.status === 'approved') approvedCount++;
             else pendingCount++;
+            if (c && Array.isArray(c.assets)) assetCount += c.assets.length;
         });
 
+        const totalEl = getEl('count-total');
         const approvedEl = getEl('count-approved');
         const pendingEl = getEl('count-pending');
+        const assetEl = getEl('count-assets');
 
+        if (totalEl) totalEl.textContent = list.length;
         if (approvedEl) approvedEl.textContent = approvedCount;
         if (pendingEl) pendingEl.textContent = pendingCount;
+        if (assetEl) assetEl.textContent = assetCount;
         try { lucide.createIcons(); } catch (e) { }
     } catch (e) { }
 }
@@ -289,7 +295,7 @@ async function loadCustomers(query = '') {
     const list = [];
     for (let i = all.length - 1; i >= 0; i--) {
         const c = all[i];
-        if (!c || (c.status || 'pending') !== activeListTab) continue;
+        if (!c || (activeListTab !== 'all' && (c.status || 'pending') !== activeListTab)) continue;
 
         if (q) {
             const qq = q.toLowerCase();
@@ -376,7 +382,7 @@ function renderList(list, opts = {}) {
     }
     for (let i = 0; i < list.length; i++) {
         const c = list[i];
-        const isApproved = activeListTab === 'approved';
+        const isApproved = (c.status || 'pending') === 'approved';
         const el = document.createElement('div');
         _ensureSummaryDecrypted(c);
 
@@ -979,6 +985,7 @@ function switchTab(tabName) {
     const contentAssets = getEl('content-assets');
     const actionsImages = getEl('actions-images');
     const actionsAssets = getEl('actions-assets');
+    const bottomActions = actionsImages ? actionsImages.closest('.glass-panel') : null;
 
     if (contentInfo) contentInfo.classList.add('hidden');
     if (contentImages) contentImages.classList.add('hidden');
@@ -993,11 +1000,19 @@ function switchTab(tabName) {
         loadCustomerInfo();
     } else if (tabName === 'images') {
         if (tabImages) tabImages.className = activeClass;
+        if (bottomActions && contentImages && bottomActions.nextElementSibling === contentImages) {
+            // Keep photo actions above thumbnails for Drive-first workflow.
+        } else if (bottomActions && contentImages && contentImages.parentNode) {
+            contentImages.parentNode.insertBefore(bottomActions, contentImages);
+        }
         if (contentImages) contentImages.classList.remove('hidden');
         if (actionsImages) actionsImages.classList.remove('hidden');
         loadProfileImages();
     } else if (tabName === 'assets') {
         if (tabAssets) tabAssets.className = activeClass;
+        if (bottomActions && contentAssets && contentAssets.parentNode) {
+            contentAssets.parentNode.insertBefore(bottomActions, contentAssets.nextSibling);
+        }
         if (contentAssets) contentAssets.classList.remove('hidden');
         if (actionsAssets) actionsAssets.classList.remove('hidden');
         renderAssets();
@@ -1062,3 +1077,13 @@ async function saveCustomerNotes() {
         showToast('Đã lưu ghi chú');
     };
 }        
+
+
+function toggleAdvancedSettings() {
+    const panel = getEl('advanced-settings');
+    if (panel) panel.classList.toggle('hidden');
+}
+
+function showAppInfo() {
+    alert('Client Pro\nPhiên bản 2.2.0-ui-vietinbank\nPWA nội bộ quản lý khách hàng.');
+}
