@@ -2281,9 +2281,11 @@ input::placeholder {
 }
 
 /* Backup Manager refreshed UI */
-.backup-manager-shell { width: min(100%, 32rem); max-height: min(92dvh, 760px); max-width: calc(100dvw - 24px); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; touch-action: auto; }
+.backup-manager-shell { width: min(100%, 32rem); max-height: min(92dvh, 760px); max-width: calc(100dvw - 24px); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; touch-action: pan-y; }
 .backup-manager-content { width: 100%; min-width: 0; flex: 1 1 auto; min-height: 0; max-height: calc(min(92dvh, 760px) - 76px); overflow-y: auto; overflow-x: hidden; display: grid; gap: 12px; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; touch-action: pan-y; scrollbar-gutter: stable; }
 .backup-manager-shell *, .backup-manager-shell *::before, .backup-manager-shell *::after { box-sizing: border-box; max-width: 100%; }
+.backup-manager-shell > .px-5 { flex: 0 0 auto; }
+.backup-manager-content, .backup-manager-content * { touch-action: pan-y; }
 .backup-section { min-width: 0; overflow: hidden; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.045); border-radius: 18px; padding: 14px; }
 .backup-section--primary { background: linear-gradient(135deg, rgba(59,130,246,0.18), rgba(14,165,233,0.08)); border-color: rgba(96,165,250,0.28); }
 .backup-section--warning { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.22); }
@@ -2314,28 +2316,29 @@ input::placeholder {
 .backup-list-action { min-width: 0; border-radius: 12px; padding: 8px 10px; font-size: 11px; font-weight: 800; line-height: 1.1; white-space: nowrap; }
 @media (max-width: 420px) {
   #backup-manager-modal > .relative { padding: 4px !important; align-items: flex-end; overflow: hidden; }
-  .backup-manager-shell { width: calc(100dvw - 8px); max-width: calc(100dvw - 8px); height: calc(100dvh - 8px); max-height: calc(100dvh - 8px); border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; }
-  .backup-manager-shell > .px-5 { padding: 10px 12px !important; }
+  .backup-manager-shell { width: calc(100dvw - 8px); max-width: calc(100dvw - 8px); height: calc(100dvh - 8px); max-height: calc(100dvh - 8px); border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; touch-action: pan-y !important; }
+  .backup-manager-shell > .px-5 { padding: 8px 10px !important; flex: 0 0 auto; }
   .backup-manager-shell h3 { font-size: 15px !important; line-height: 1.2; }
   .backup-manager-shell h3 + p { font-size: 10px !important; line-height: 1.25; }
   .backup-manager-subtitle, .backup-list-caption, .backup-local-desc { display: none !important; }
-  .backup-manager-content { flex: 1 1 auto; height: auto; max-height: none; min-height: 0; padding: 5px 6px 14px !important; gap: 5px; overflow-y: scroll !important; overflow-x: hidden !important; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; touch-action: pan-y !important; display: block; scrollbar-width: thin; }
+  .backup-manager-content { flex: 1 1 0; height: 100%; max-height: none; min-height: 0; padding: 4px 5px 12px !important; gap: 4px; overflow-y: auto !important; overflow-x: hidden !important; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; touch-action: pan-y !important; display: block; scrollbar-width: thin; }
   .backup-manager-content::after { content: ""; display: block; height: max(10px, env(safe-area-inset-bottom)); }
-  .backup-section { padding: 7px; border-radius: 13px; margin-bottom: 5px; }
-  .backup-section-head { gap: 6px; margin-bottom: 5px; }
+  .backup-section { padding: 6px; border-radius: 12px; margin-bottom: 4px; }
+  .backup-section-head { gap: 5px; margin-bottom: 4px; }
   .backup-kicker { font-size: 8.5px; margin-bottom: 2px; }
   .backup-section h4 { font-size: 12px; }
   .backup-desc { font-size: 9.5px; line-height: 1.28; }
   .backup-section--primary > .backup-desc, .backup-section--warning .backup-desc { display: none; }
-  .backup-drive-btn, .backup-export-btn { margin-top: 5px; padding: 7px 10px; border-radius: 11px; font-size: 10px; }
-  .drive-backup-status { margin-top: 5px; padding: 5px 7px; font-size: 9px; line-height: 1.2; }
-  .backup-inline-pane { padding-top: 5px; margin-top: 5px !important; overflow: visible; touch-action: pan-y !important; }
+  .backup-drive-btn, .backup-export-btn { margin-top: 4px; padding: 6px 9px; border-radius: 10px; font-size: 10px; }
+  .drive-backup-status { margin-top: 4px; padding: 4px 6px; font-size: 9px; line-height: 1.18; }
+  .backup-inline-pane { padding-top: 4px; margin-top: 4px !important; overflow: visible; touch-action: pan-y !important; }
   .backup-action-grid, .backup-action-grid--local { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
   .backup-action-card, .backup-mini-tab { min-height: 31px; padding: 5px 4px; border-radius: 10px; gap: 3px; font-size: 9px; line-height: 1.05; }
   .backup-action-card svg, .backup-mini-tab svg { width: 13px; height: 13px; flex: 0 0 auto; }
   .backup-pill { white-space: normal; text-align: right; padding: 3px 6px; font-size: 9px; }
-  .backup-list-card { padding: 7px; margin-bottom: 5px; }
+  .backup-list-card { padding: 6px; margin-bottom: 4px; }
   .backup-list-row { flex-direction: column; gap: 7px; }
   .backup-list-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: 5px; }
-  .backup-list-action { width: 100%; padding: 6px 3px; font-size: 9px; white-space: normal; }
+  .backup-list-action { width: 100%; padding: 5px 3px; font-size: 9px; white-space: normal; }
+  #drive-backup-list, #backup-list, #inbox-list { touch-action: pan-y !important; }
 }
