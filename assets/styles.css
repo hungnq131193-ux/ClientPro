@@ -2282,7 +2282,7 @@ input::placeholder {
 
 /* Backup Manager refreshed UI */
 .backup-manager-shell { width: min(100%, 32rem); max-height: min(92dvh, 760px); max-width: calc(100dvw - 24px); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
-.backup-manager-content { width: 100%; min-width: 0; max-height: calc(min(92dvh, 760px) - 76px); overflow-y: auto; overflow-x: hidden; display: grid; gap: 12px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.backup-manager-content { width: 100%; min-width: 0; flex: 1 1 auto; max-height: calc(min(92dvh, 760px) - 76px); overflow-y: auto; overflow-x: hidden; display: grid; gap: 12px; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; touch-action: pan-y; scrollbar-gutter: stable; }
 .backup-manager-shell *, .backup-manager-shell *::before, .backup-manager-shell *::after { box-sizing: border-box; max-width: 100%; }
 .backup-section { min-width: 0; overflow: hidden; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.045); border-radius: 18px; padding: 14px; }
 .backup-section--primary { background: linear-gradient(135deg, rgba(59,130,246,0.18), rgba(14,165,233,0.08)); border-color: rgba(96,165,250,0.28); }
@@ -2304,7 +2304,7 @@ input::placeholder {
 .backup-action-card, .backup-mini-tab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 42px; padding: 9px 8px; border-radius: 14px; border: 1px solid var(--border-panel); background: rgba(255,255,255,.045); color: var(--text-main); font-size: 11px; font-weight: 850; text-align: center; overflow-wrap: anywhere; }
 .backup-action-card--wide { width: 100%; }
 .backup-mini-tab { min-height: 30px; padding: 6px 10px; color: #93c5fd; }
-.backup-inline-pane { border-top: 1px solid rgba(255,255,255,.08); padding-top: 12px; min-width: 0; }
+.backup-inline-pane { border-top: 1px solid rgba(255,255,255,.08); padding-top: 12px; min-width: 0; overflow: visible; touch-action: pan-y; }
 .backup-list-card { min-width: 0; overflow: hidden; padding: 14px; border-radius: 14px; border: 1px solid var(--border-panel); background: rgba(255,255,255,0.03); }
 .backup-list-row { width: 100%; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-width: 0; }
 .backup-list-info { min-width: 0; max-width: 100%; flex: 1 1 0; overflow: hidden; }
@@ -2314,24 +2314,25 @@ input::placeholder {
 .backup-list-action { min-width: 0; border-radius: 12px; padding: 8px 10px; font-size: 11px; font-weight: 800; line-height: 1.1; white-space: nowrap; }
 @media (max-width: 420px) {
   #backup-manager-modal > .relative { padding: 4px !important; align-items: flex-end; overflow: hidden; }
-  .backup-manager-shell { width: calc(100dvw - 8px); max-width: calc(100dvw - 8px); max-height: calc(100dvh - 8px); border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+  .backup-manager-shell { width: calc(100dvw - 8px); max-width: calc(100dvw - 8px); height: calc(100dvh - 8px); max-height: calc(100dvh - 8px); border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; }
   .backup-manager-shell > .px-5 { padding: 10px 12px !important; }
   .backup-manager-shell h3 { font-size: 15px !important; line-height: 1.2; }
   .backup-manager-shell h3 + p { font-size: 10px !important; line-height: 1.25; }
-  .backup-manager-content { max-height: calc(100dvh - 58px); padding: 8px !important; gap: 8px; }
-  .backup-section { padding: 8px; border-radius: 14px; }
-  .backup-section-head { gap: 6px; margin-bottom: 6px; }
-  .backup-kicker { font-size: 9px; margin-bottom: 3px; }
+  .backup-manager-content { max-height: none; min-height: 0; padding: 6px !important; gap: 6px; overflow-y: auto !important; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; touch-action: pan-y; }
+  .backup-section { padding: 7px; border-radius: 13px; }
+  .backup-section-head { gap: 6px; margin-bottom: 5px; }
+  .backup-kicker { font-size: 8.5px; margin-bottom: 2px; }
   .backup-section h4 { font-size: 13px; }
-  .backup-desc { font-size: 10px; line-height: 1.35; }
-  .backup-drive-btn, .backup-export-btn { margin-top: 8px; padding: 9px 10px; border-radius: 12px; font-size: 11px; }
-  .drive-backup-status { margin-top: 7px; padding: 7px 8px; font-size: 10px; }
-  .backup-inline-pane { padding-top: 8px; }
+  .backup-desc { font-size: 9.5px; line-height: 1.28; }
+  .backup-section--primary > .backup-desc, .backup-section--warning .backup-desc { display: none; }
+  .backup-drive-btn, .backup-export-btn { margin-top: 6px; padding: 8px 10px; border-radius: 12px; font-size: 10.5px; }
+  .drive-backup-status { margin-top: 6px; padding: 6px 8px; font-size: 9.5px; }
+  .backup-inline-pane { padding-top: 6px; }
   .backup-action-grid, .backup-action-grid--local { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
   .backup-action-card, .backup-mini-tab { min-height: 34px; padding: 6px 4px; border-radius: 11px; gap: 4px; font-size: 9.5px; line-height: 1.1; }
   .backup-action-card svg, .backup-mini-tab svg { width: 13px; height: 13px; flex: 0 0 auto; }
   .backup-pill { white-space: normal; text-align: right; padding: 3px 6px; font-size: 9px; }
-  .backup-list-card { padding: 8px; }
+  .backup-list-card { padding: 7px; }
   .backup-list-row { flex-direction: column; gap: 7px; }
   .backup-list-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: 5px; }
   .backup-list-action { width: 100%; padding: 7px 3px; font-size: 9.5px; white-space: normal; }
