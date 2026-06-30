@@ -118,15 +118,13 @@ async function renderBackupList() {
   listEl.textContent = "";
   all.forEach((b) => {
     const card = document.createElement("div");
-    card.className = "p-4 rounded-2xl border";
-    card.style.borderColor = "var(--border-panel)";
-    card.style.background = "rgba(255,255,255,0.03)";
+    card.className = "backup-list-card";
 
     const row = document.createElement("div");
-    row.className = "flex items-start justify-between gap-3";
+    row.className = "backup-list-row";
 
     const info = document.createElement("div");
-    info.className = "min-w-0";
+    info.className = "backup-list-info";
     const title = document.createElement("div");
     title.className = "text-sm font-bold truncate";
     title.style.color = "var(--text-main)";
@@ -138,10 +136,10 @@ async function renderBackupList() {
     info.append(title, meta);
 
     const actions = document.createElement("div");
-    actions.className = "flex gap-2 flex-shrink-0 flex-wrap justify-end";
+    actions.className = "backup-list-actions";
     const addButton = (label, style, handler) => {
       const btn = document.createElement("button");
-      btn.className = "px-3 py-2 rounded-xl text-xs font-bold";
+      btn.className = "backup-list-action";
       btn.setAttribute("style", style);
       btn.textContent = label;
       btn.addEventListener("click", handler);

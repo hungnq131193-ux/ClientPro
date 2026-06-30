@@ -14,7 +14,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v5.0.12-backup-layout-20260630';
+  var SW_BUILD = 'v5.0.13-backup-mobile-fit-20260630';
 
   function sendSkipWaiting(sw) {
     try {
