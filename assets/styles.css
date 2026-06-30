@@ -2169,3 +2169,113 @@ input::placeholder {
 #screen-dashboard button[onclick="refreshWeather()"] i {
   color: var(--accent) !important;
 }
+
+/* Dashboard visual harmonization 2026-06-30: softer accents, lighter typography, compact totals. */
+#folder-view.dashboard-scroll {
+  gap: 14px !important;
+}
+
+#folder-view .dashboard-card {
+  border-radius: 24px !important;
+  padding: 16px !important;
+}
+
+#folder-view .dashboard-overview-card {
+  padding: 14px !important;
+}
+
+#folder-view .dashboard-overview-grid {
+  gap: 10px !important;
+}
+
+#folder-view .overview-stat,
+#folder-view .quick-action-btn {
+  background: linear-gradient(160deg, rgba(255,255,255,0.11), rgba(255,255,255,0.045)) !important;
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border-panel)) !important;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.11), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+}
+
+#folder-view .overview-stat-summary {
+  min-height: 86px !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  padding: 12px !important;
+  border-radius: 18px !important;
+}
+
+#folder-view .overview-stat-summary strong {
+  order: 2;
+  margin-left: auto;
+  font-size: clamp(24px, 7vw, 32px) !important;
+}
+
+#folder-view .overview-stat-summary span:not(.overview-icon) {
+  order: 1;
+  max-width: 76px;
+  text-align: left !important;
+  font-size: 12px !important;
+}
+
+#folder-view .overview-stat-wide {
+  min-height: 92px !important;
+  border-radius: 18px !important;
+  padding: 13px !important;
+}
+
+#folder-view .overview-stat-wide strong {
+  font-size: clamp(26px, 7vw, 34px) !important;
+}
+
+#folder-view .overview-stat strong {
+  font-weight: 780 !important;
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-main)) !important;
+}
+
+#folder-view .dashboard-section-head h2,
+#folder-view .overview-stat span:not(.overview-icon),
+#folder-view .quick-action-btn strong {
+  font-weight: 650 !important;
+  color: color-mix(in srgb, var(--text-main) 86%, var(--text-sub)) !important;
+}
+
+#folder-view .overview-stat-wide span:not(.overview-icon) {
+  font-size: 14px !important;
+  font-weight: 650 !important;
+}
+
+#screen-dashboard .overview-icon,
+#screen-dashboard .quick-action-btn > span,
+#folder-view .overview-icon,
+#folder-view .quick-action-btn > span {
+  color: color-mix(in srgb, var(--accent) 82%, white) !important;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent) 20%, rgba(255,255,255,0.18)),
+    color-mix(in srgb, var(--accent) 10%, rgba(255,255,255,0.08))) !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, rgba(255,255,255,0.14)) !important;
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--accent) 18%, transparent), inset 0 1px 0 rgba(255,255,255,0.14) !important;
+}
+
+#folder-view .overview-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 14px !important;
+}
+
+#folder-view .overview-stat-wide .overview-icon {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 16px !important;
+}
+
+#folder-view .quick-action-btn {
+  min-height: 78px !important;
+  border-radius: 16px !important;
+}
+
+#folder-view .quick-action-btn > span {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 13px !important;
+}
