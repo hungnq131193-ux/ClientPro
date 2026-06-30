@@ -484,7 +484,7 @@
 
     if (localPane) localPane.classList.toggle('hidden', tab !== 'local');
     if (inboxPane) inboxPane.classList.toggle('hidden', tab !== 'inbox');
-    if (drivePane) drivePane.classList.add('hidden');
+    if (drivePane) drivePane.classList.remove('hidden');
   }
 
   async function renderInboxUI(items) {
