@@ -1,87 +1,101 @@
 <div id="backup-manager-modal" class="fixed inset-0 z-50 hidden">
   <div class="absolute inset-0 bg-black/60" onclick="closeBackupManager()"></div>
   <div class="relative w-full h-full flex items-end sm:items-center justify-center p-3">
-    <div class="glass-panel w-full max-w-lg rounded-2xl border border-slate-700 overflow-hidden">
+    <div class="glass-panel backup-manager-shell w-full max-w-lg rounded-2xl border border-slate-700 overflow-hidden">
       <div class="px-5 py-4 flex items-center justify-between border-b border-white/10">
         <div>
-          <h3 class="text-lg font-bold" style="color: var(--text-main)">Quản lý Backup</h3>
-          <p class="text-xs opacity-70" style="color: var(--text-sub)">Danh sách backup lưu ngay trong app. Bạn có thể
-            Restore, Xóa, hoặc Xuất file .cpb.</p>
+          <h3 class="text-lg font-bold" style="color: var(--text-main)">Trung tâm Backup</h3>
+          <p class="text-xs opacity-70" style="color: var(--text-sub)">Sao lưu mã hóa, restore và xuất/nhập file .cpb.</p>
         </div>
         <button onclick="closeBackupManager()" class="p-2 rounded-xl hover:bg-white/10" style="color: var(--text-main)">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
 
-      <div class="px-5 py-3 border-b border-white/10 grid grid-cols-2 gap-2">
-        <button onclick="createBackupFileNow()" class="py-2.5 rounded-xl font-bold text-white"
-          style="background: var(--accent-gradient);">Tạo file .cpb</button>
-        <label class="py-2.5 rounded-xl font-bold text-center cursor-pointer border"
-          style="border-color: var(--border-panel); color: var(--text-main); background: rgba(255,255,255,0.04);">
-          Nhập file .cpb
-          <input type="file" id="restore-input-2" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)" />
-        </label>
-      </div>
-
-      <!-- TABS: Local | Inbox | Drive -->
-      <div class="px-5 py-2 flex gap-2 border-b border-white/10">
-        <button id="bkTabLocal" onclick="CloudTransferUI.showTab('local')"
-          class="flex-1 py-2 rounded-xl text-xs font-extrabold border"
-          style="border-color: var(--border-panel); color: var(--text-main); background: rgba(255,255,255,0.04);">Backup
-          trong máy</button>
-        <button id="bkTabInbox" onclick="CloudTransferUI.showTab('inbox')"
-          class="flex-1 py-2 rounded-xl text-xs font-extrabold border"
-          style="border-color: var(--border-panel); color: var(--text-main); background: rgba(255,255,255,0.04);">
-          Nhận từ user
-          <span id="inbox-badge" class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-black hidden"
-            style="background: rgba(59,130,246,0.18); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35);">0</span>
-        </button>
-        <button id="bkTabDrive" onclick="showDriveBackupTab()"
-          class="flex-1 py-2 rounded-xl text-xs font-extrabold border"
-          style="border-color: var(--border-panel); color: var(--text-main); background: rgba(255,255,255,0.04);">
-          <i data-lucide="cloud" class="w-3 h-3 inline-block mr-1"></i>Drive
-        </button>
-      </div>
-
-      <div class="px-5 py-3" style="max-height: 50vh; overflow-y: auto;">
-        <!-- LOCAL BACKUP PANE -->
-        <div id="local-backup-pane">
-          <div id="backup-list" class="space-y-3"></div>
-          <div id="backup-empty" class="hidden text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Chưa
-            có bản backup nào.</div>
-        </div>
-
-        <!-- INBOX PANE -->
-        <div id="inbox-backup-pane" class="hidden">
-          <div class="text-[11px] opacity-70 mb-2" style="color: var(--text-sub)">Bản ghi trung chuyển sẽ tự động xóa
-            sau 24 giờ.</div>
-          <div id="inbox-list" class="space-y-3"></div>
-          <div id="inbox-empty" class="hidden text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Chưa
-            có bản ghi nào trong inbox.</div>
-        </div>
-
-        <!-- DRIVE BACKUP PANE (NEW) -->
-        <div id="drive-backup-pane" class="hidden">
-          <div class="flex items-center justify-between mb-3">
-            <div class="text-[11px] opacity-70" style="color: var(--text-sub)">
-              <i data-lucide="cloud" class="w-3 h-3 inline-block mr-1"></i>
-              Backup tự động trên Drive (giữ 3 bản gần nhất)
+      <div class="backup-manager-content px-5 py-4">
+        <section class="backup-section backup-section--primary">
+          <div class="backup-section-head">
+            <div>
+              <p class="backup-kicker">Backup lên Drive</p>
+              <h4>Google Drive cá nhân</h4>
             </div>
-            <button onclick="DriveBackup.performNow().then(() => DriveBackup.renderList('drive-backup-list'))"
-              class="px-3 py-1.5 rounded-lg text-[11px] font-bold"
-              style="background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3);">
-              <i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Backup ngay
+            <span class="backup-pill">Giữ 3 bản mới nhất</span>
+          </div>
+          <p class="backup-desc">Bản backup được mã hóa trước khi upload. App vẫn kiểm tra unlock/masterKey và quyền backup như hiện tại.</p>
+          <button id="btn-drive-backup-now" onclick="DriveBackup.performNow()" class="backup-drive-btn">
+            <i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Backup ngay
+          </button>
+          <div id="drive-backup-status" class="drive-backup-status muted">Sẵn sàng backup khi app đã mở khóa.</div>
+        </section>
+
+        <section class="backup-section">
+          <div class="backup-section-head">
+            <div>
+              <p class="backup-kicker">Khôi phục / Restore</p>
+              <h4>Nguồn backup</h4>
+            </div>
+          </div>
+          <div class="backup-action-grid">
+            <label class="backup-action-card cursor-pointer">
+              <i data-lucide="file-input" class="w-4 h-4"></i>
+              <span>Nhập file .cpb</span>
+              <input type="file" id="restore-input-2" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)" />
+            </label>
+            <button id="bkTabDrive" onclick="showDriveBackupTab()" class="backup-action-card" type="button">
+              <i data-lucide="cloud" class="w-4 h-4"></i>
+              <span>Restore từ Drive</span>
+            </button>
+            <button id="bkTabInbox" onclick="CloudTransferUI.showTab('inbox')" class="backup-action-card" type="button">
+              <i data-lucide="inbox" class="w-4 h-4"></i>
+              <span>Nhận từ user</span>
+              <span id="inbox-badge" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black hidden"
+                style="background: rgba(59,130,246,0.18); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35);">0</span>
             </button>
           </div>
-          <div id="drive-backup-list" class="space-y-3">
-            <p class="text-center text-sm opacity-60" style="color: var(--text-sub)">Đang tải...</p>
+        </section>
+
+        <section class="backup-section">
+          <div class="backup-section-head">
+            <div>
+              <p class="backup-kicker">Xuất file / Export</p>
+              <h4>Backup trong máy</h4>
+            </div>
+            <button id="bkTabLocal" onclick="CloudTransferUI.showTab('local')" class="backup-mini-tab" type="button">Xem danh sách</button>
+          </div>
+          <button onclick="createBackupFileNow()" class="backup-export-btn" type="button">Tạo & xuất file .cpb</button>
+          <p class="backup-desc mt-2">Chuẩn tên file: CLIENTPRO_BK_{DEVICEID}_{YYYYMMDD}_{HASH}.cpb</p>
+        </section>
+
+        <section class="backup-section backup-section--warning">
+          <div class="backup-section-head">
+            <div>
+              <p class="backup-kicker">Cảnh báo bảo mật</p>
+              <h4>Không chia sẻ file backup</h4>
+            </div>
+            <i data-lucide="shield-alert" class="w-5 h-5 text-amber-300"></i>
+          </div>
+          <p class="backup-desc">Backup/restore bị chặn khi app chưa unlock hoặc thiếu masterKey. Không hiển thị dữ liệu nhạy cảm trong trạng thái backup.</p>
+        </section>
+
+        <div class="backup-list-panel">
+          <div id="local-backup-pane">
+            <div id="backup-list" class="space-y-3"></div>
+            <div id="backup-empty" class="hidden text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Chưa có bản backup nào.</div>
+          </div>
+          <div id="inbox-backup-pane" class="hidden">
+            <div class="text-[11px] opacity-70 mb-2" style="color: var(--text-sub)">Bản ghi trung chuyển sẽ tự động xóa sau 24 giờ.</div>
+            <div id="inbox-list" class="space-y-3"></div>
+            <div id="inbox-empty" class="hidden text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Chưa có bản ghi nào trong inbox.</div>
+          </div>
+          <div id="drive-backup-pane" class="hidden">
+            <div class="text-[11px] opacity-70 mb-3" style="color: var(--text-sub)">
+              <i data-lucide="clock" class="w-3 h-3 inline-block mr-1"></i>Trạng thái backup gần nhất trên Drive
+            </div>
+            <div id="drive-backup-list" class="space-y-3">
+              <p class="text-center text-sm opacity-60" style="color: var(--text-sub)">Đang tải...</p>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div class="px-5 py-4 border-t border-white/10">
-        <div class="text-[11px] opacity-60" style="color: var(--text-sub)">Chuẩn tên file:
-          CLIENTPRO_BK_{DEVICEID}_{YYYYMMDD}_{HASH}.cpb</div>
       </div>
     </div>
   </div>

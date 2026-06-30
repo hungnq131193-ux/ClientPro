@@ -281,7 +281,10 @@ async function loadCustomers(query = '') {
     if (!listEl) return;
     listEl.dataset.loading = '1';
     listEl.dataset.token = loadToken;
-    listEl.innerHTML = `<div class="text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Đang tải danh sách khách hàng...</div>`;
+    // Giữ DOM hiện tại trong lúc đọc IndexedDB để tránh flash trắng/stale khi chuyển màn hoặc tab nhanh.
+    if (!listEl.children.length) {
+        listEl.innerHTML = `<div class="text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Đang tải danh sách khách hàng...</div>`;
+    }
 
     const all = await new Promise((resolve) => {
         const tx = db.transaction(['customers'], 'readonly');
@@ -730,8 +733,6 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
             return;
         }
 
-        console.log('_doSaveCustomer: Starting save...', { name, phoneNorm, cccd: cccd ? '***' : '', editId });
-
         const makeId = () => `cust_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
         const tx = db.transaction(['customers'], 'readwrite');
@@ -742,16 +743,16 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
             alert('Lỗi lưu hồ sơ. Vui lòng thử lại.');
         };
 
-        tx.oncomplete = () => {
-            console.log('_doSaveCustomer: Transaction completed successfully');
-        };
 
         const finalize = (savedId) => {
-            console.log('_doSaveCustomer: Finalizing...', savedId);
             closeModal();
             try { showToast(editId ? 'Đã cập nhật hồ sơ' : 'Đã tạo hồ sơ'); } catch (e) { }
             // Refresh list (giữ nguyên search hiện tại nếu có)
             try { loadCustomers(getEl('search-input') ? getEl('search-input').value : ''); } catch (e) { try { loadCustomers(); } catch (e2) { } }
+            // Nếu đang mở chi tiết hồ sơ vừa sửa, cập nhật UI ngay thay vì đợi chuyển tab/mở lại.
+            if (editId && currentCustomerId === editId) {
+                try { openFolder(editId); } catch (e) { }
+            }
             // UX: tạo mới xong vào luôn folder để thao tác tiếp
             if (!editId && savedId) {
                 try { openFolder(savedId); } catch (e) { }
@@ -788,8 +789,6 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
         } else {
             // Create new record
             const newId = makeId();
-            console.log('_doSaveCustomer: Creating new customer with ID:', newId);
-
             const rec = {
                 id: newId,
                 name: encryptText(name),
@@ -804,7 +803,6 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
 
             const putReq = store.put(rec);
             putReq.onsuccess = () => {
-                console.log('_doSaveCustomer: Customer saved successfully');
                 finalize(newId);
             };
             putReq.onerror = (err) => {
@@ -908,9 +906,8 @@ function openFolder(id) {
             if (typeof selectedImages !== 'undefined') selectedImages.clear();
             if (typeof updateSelectionUI === 'function') updateSelectionUI();
 
-            // Switch to info tab and load info data BEFORE showing folder
+            // Switch to info tab BEFORE showing folder. switchTab() already renders info synchronously.
             switchTab('info');
-            loadCustomerInfo();
 
             // NOW show folder slide-in (data is already populated)
             if (typeof slideScreenIn === 'function') slideScreenIn(folderScreen);
@@ -1064,7 +1061,13 @@ async function saveCustomerNotes() {
         c.notes = encryptText(notesText);
         c.updatedAt = Date.now();
 
-        store.put(c);
-        showToast('Đã lưu ghi chú');
+        const putReq = store.put(c);
+        putReq.onsuccess = () => {
+            if (currentCustomerData && currentCustomerData.id === currentCustomerId) {
+                currentCustomerData.notes = c.notes;
+                currentCustomerData.updatedAt = c.updatedAt;
+            }
+            showToast('Đã lưu ghi chú');
+        };
     };
 }        

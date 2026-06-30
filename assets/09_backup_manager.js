@@ -78,7 +78,11 @@ async function openBackupManager() {
     }
   } catch (e) { }
 
-  await renderBackupList();
+  if (window.CloudTransferUI && typeof window.CloudTransferUI.showTab === 'function') {
+    window.CloudTransferUI.showTab('local');
+  } else {
+    await renderBackupList();
+  }
   if (window.lucide) lucide.createIcons();
 }
 
