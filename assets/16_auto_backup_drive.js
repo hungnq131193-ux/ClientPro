@@ -21,6 +21,7 @@
     const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes cache
     const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
     const MAX_DRIVE_BACKUPS = 3;
+    let manualBackupInProgress = false;
 
     // ============================================================
     // HELPERS
@@ -65,6 +66,48 @@
         localStorage.setItem(LAST_AUTO_BACKUP_KEY, String(ts || Date.now()));
     }
 
+    function setDriveBackupStatus(message, tone) {
+        const el = document.getElementById('drive-backup-status');
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = 'drive-backup-status ' + (tone || 'muted');
+    }
+
+    function setManualBackupButtonLoading(isLoading) {
+        const btn = document.getElementById('btn-drive-backup-now');
+        if (!btn) return;
+        btn.disabled = !!isLoading;
+        btn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+        btn.innerHTML = isLoading
+            ? '<span class="inline-block w-3 h-3 mr-1 rounded-full border-2 border-current border-t-transparent animate-spin align-[-2px]"></span>Đang backup…'
+            : '<i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Backup ngay';
+        try { if (!isLoading && window.lucide) lucide.createIcons(); } catch (e) { }
+    }
+
+    async function performManualBackupNow() {
+        if (manualBackupInProgress) return false;
+        manualBackupInProgress = true;
+        setManualBackupButtonLoading(true);
+        setDriveBackupStatus('Đã nhận lệnh. Đang xác thực và đóng gói backup…', 'working');
+        try { if (typeof showToast === 'function') showToast('Đang backup lên Drive…'); } catch (e) { }
+        try {
+            await performAutoBackup();
+            setDriveBackupStatus('Backup thành công. Danh sách đang được cập nhật.', 'success');
+            try { if (typeof showToast === 'function') showToast('Backup thành công'); } catch (e) { }
+            await renderDriveBackupsList('drive-backup-list');
+            return true;
+        } catch (err) {
+            const msg = err && err.message ? err.message : 'Backup Drive thất bại';
+            setDriveBackupStatus(msg, 'error');
+            try { if (typeof showToast === 'function') showToast('Backup lỗi'); } catch (e) { }
+            alert(msg);
+            return false;
+        } finally {
+            manualBackupInProgress = false;
+            setManualBackupButtonLoading(false);
+        }
+    }
+
     // ============================================================
     // AUTO BACKUP CHECK
     // ============================================================
@@ -106,7 +149,11 @@
 
         if (elapsed < AUTO_BACKUP_INTERVAL_MS) return;
 
-        await performAutoBackup();
+        try {
+            await performAutoBackup();
+        } catch (err) {
+            console.warn('[AutoBackup] Daily backup failed:', err && err.message ? err.message : err);
+        }
     }
 
     async function performAutoBackup() {
@@ -114,25 +161,25 @@
             if ((typeof isAppUnlocked === 'function' && !isAppUnlocked()) || typeof masterKey === 'undefined' || !masterKey) {
                 console.warn('[AutoBackup] Stopped: unlock data before auto backup.');
                 try { showToast('Vui lòng mở khóa dữ liệu trước khi sao lưu.'); } catch (e) { }
-                return;
+                throw new Error('Vui lòng mở khóa dữ liệu trước khi sao lưu.');
             }
             if (typeof ensureBackupSecret !== 'function') {
                 console.warn('[AutoBackup] Stopped: missing ensureBackupSecret.');
-                return;
+                throw new Error('Thiếu cơ chế xác thực backup.');
             }
             const sec = await ensureBackupSecret();
             if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
                 console.warn('[AutoBackup] Stopped: backup secret unavailable.', sec && sec.message ? sec.message : '');
-                return;
+                throw new Error(sec && sec.message ? sec.message : 'Không thể lấy khóa bảo mật backup.');
             }
             if (typeof decryptText !== 'function') {
                 console.warn('[AutoBackup] Stopped: decryptText unavailable.');
-                return;
+                throw new Error('Thiếu cơ chế giải mã dữ liệu.');
             }
             // Wait for DB to be ready
             if (typeof db === 'undefined' || !db) {
                 console.warn('[AutoBackup] DB not ready');
-                return;
+                throw new Error('Cơ sở dữ liệu chưa sẵn sàng.');
             }
 
             // Get all customers
@@ -192,7 +239,7 @@
             // Encrypt backup
             if (typeof encryptBackupPayload !== 'function') {
                 console.error('[AutoBackup] Missing encryptBackupPayload');
-                return;
+                throw new Error('Thiếu cơ chế mã hóa backup.');
             }
 
             const encrypted = await encryptBackupPayload(rawStr, APP_BACKUP_KDATA_B64U, { type: 'auto_backup' });
@@ -204,7 +251,8 @@
             setLastAutoBackupTime(Date.now());
 
         } catch (err) {
-            console.error('[AutoBackup] Error:', err);
+            console.error('[AutoBackup] Error:', err && err.message ? err.message : err);
+            throw err;
         }
     }
 
@@ -549,7 +597,8 @@
     window.DriveBackup = {
         // Auto backup
         checkDaily: checkAndAutoBackupDaily,
-        performNow: performAutoBackup,
+        performNow: performManualBackupNow,
+        performAuto: performAutoBackup,
 
         // Settings
         isEnabled: isAutoBackupEnabled,

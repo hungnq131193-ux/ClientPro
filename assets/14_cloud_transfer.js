@@ -475,12 +475,16 @@
     const inboxBtn = document.getElementById('bkTabInbox');
     const localPane = document.getElementById('local-backup-pane');
     const inboxPane = document.getElementById('inbox-backup-pane');
+    const drivePane = document.getElementById('drive-backup-pane');
+    const driveBtn = document.getElementById('bkTabDrive');
 
     if (localBtn) localBtn.style.background = (tab === 'local') ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)';
     if (inboxBtn) inboxBtn.style.background = (tab === 'inbox') ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)';
+    if (driveBtn) driveBtn.style.background = 'rgba(255,255,255,0.04)';
 
     if (localPane) localPane.classList.toggle('hidden', tab !== 'local');
     if (inboxPane) inboxPane.classList.toggle('hidden', tab !== 'inbox');
+    if (drivePane) drivePane.classList.add('hidden');
   }
 
   async function renderInboxUI(items) {
