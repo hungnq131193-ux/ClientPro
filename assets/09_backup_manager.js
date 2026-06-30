@@ -83,6 +83,15 @@ async function openBackupManager() {
   } else {
     await renderBackupList();
   }
+
+  // Drive backups are now displayed inside the Google Drive section, so load
+  // them immediately without switching away from the local/inbox pane.
+  try {
+    if (window.DriveBackup && typeof window.DriveBackup.renderList === 'function') {
+      window.DriveBackup.renderList('drive-backup-list');
+    }
+  } catch (e) { }
+
   if (window.lucide) lucide.createIcons();
 }
 
