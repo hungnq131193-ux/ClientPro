@@ -1,10 +1,10 @@
-// BUILD: 2026-06-30_BACKUP_MOBILE_SCROLL_3
+// BUILD: 2026-06-30_BACKUP_MOBILE_SCROLL_4
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
 // v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v5.0.17-backup-mobile-scroll-20260630';
+const VERSION = 'v5.0.18-backup-mobile-scroll-20260630';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -34,17 +34,17 @@ const STATIC_ASSETS = [
   './assets/css/tailwind.clientpro.css',
   './assets/css/app.patch.css',
   './assets/styles.css',
-  './assets/styles.css?v=BACKUP_MOBILE_SCROLL_20260630_3',
+  './assets/styles.css?v=BACKUP_MOBILE_SCROLL_20260630_4',
   './assets/head.js',
-  './assets/head.js?v=BACKUP_MOBILE_SCROLL_20260630_3',
+  './assets/head.js?v=BACKUP_MOBILE_SCROLL_20260630_4',
   './assets/pwa.js',
-  './assets/pwa.js?v=BACKUP_MOBILE_SCROLL_20260630_3',
+  './assets/pwa.js?v=BACKUP_MOBILE_SCROLL_20260630_4',
 
   './assets/00_globals.js',
   './assets/01_config.js',
   './assets/02_security.js',
   './assets/03_map.js',
-  './assets/03_map.js?v=BACKUP_MOBILE_SCROLL_20260630_3',
+  './assets/03_map.js?v=BACKUP_MOBILE_SCROLL_20260630_4',
   './assets/04_ui_common.js',
   './assets/05_customers.js',
   './assets/06_assets.js',
