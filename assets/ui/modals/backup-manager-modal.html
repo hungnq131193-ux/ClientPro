@@ -5,7 +5,7 @@
       <div class="px-5 py-4 flex items-center justify-between border-b border-white/10">
         <div>
           <h3 class="text-lg font-bold" style="color: var(--text-main)">Trung tâm Backup</h3>
-          <p class="text-xs opacity-70" style="color: var(--text-sub)">Sao lưu mã hóa, restore và xuất/nhập file .cpb.</p>
+          <p class="text-xs opacity-70 backup-manager-subtitle" style="color: var(--text-sub)">Sao lưu mã hóa, restore và xuất/nhập file .cpb.</p>
         </div>
         <button onclick="closeBackupManager()" class="p-2 rounded-xl hover:bg-white/10" style="color: var(--text-main)">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -27,7 +27,7 @@
           </button>
           <div id="drive-backup-status" class="drive-backup-status muted">Sẵn sàng sao lưu khi app đã mở khóa.</div>
           <div id="drive-backup-pane" class="backup-inline-pane mt-3">
-            <div class="text-[11px] opacity-70 mb-3" style="color: var(--text-sub)">
+            <div class="text-[11px] opacity-70 mb-3 backup-list-caption" style="color: var(--text-sub)">
               <i data-lucide="clock" class="w-3 h-3 inline-block mr-1"></i>Danh sách bản sao lưu gần nhất trên Drive
             </div>
             <div id="drive-backup-list" class="space-y-3">
@@ -61,7 +61,7 @@
                 style="background: rgba(59,130,246,0.18); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35);">0</span>
             </button>
           </div>
-          <p class="backup-desc mt-2">Chuẩn tên file: CLIENTPRO_BK_{DEVICEID}_{YYYYMMDD}_{HASH}.cpb</p>
+          <p class="backup-desc backup-local-desc mt-2">Chuẩn tên file: CLIENTPRO_BK_{DEVICEID}_{YYYYMMDD}_{HASH}.cpb</p>
           <div class="backup-inline-pane mt-3">
             <div id="local-backup-pane">
               <div id="backup-list" class="space-y-3"></div>
