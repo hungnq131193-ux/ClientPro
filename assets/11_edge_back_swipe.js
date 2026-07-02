@@ -197,6 +197,11 @@
       return callIfFn('closeLightbox') || (get('lightbox').classList.add('hidden'), true);
     }
 
+    // Selection mode must be consumed before any screen navigation.
+    if (callIfFn('handleAppBack')) {
+      return true;
+    }
+
     // Common modals
     if (isVisibleModal('approve-modal')) {
       return callIfFn('closeApproveModal') || (get('approve-modal').classList.add('hidden'), true);

@@ -2342,3 +2342,37 @@ input::placeholder {
   .backup-list-action { width: 100%; padding: 5px 3px; font-size: 9px; white-space: normal; }
   #drive-backup-list, #backup-list, #inbox-list { touch-action: pan-y !important; }
 }
+
+/* Long-press selectable cards/images: block native text selection/callout only in item zones. */
+.cust-card,
+.cust-card *,
+.customer-card,
+.customer-card *,
+.customer-row,
+.customer-row *,
+.img-wrapper,
+.img-wrapper *,
+.image-card,
+.image-card *,
+.gallery-item,
+.gallery-item *,
+.asset-gallery-item,
+.asset-gallery-item *,
+.selectable-item,
+.selectable-item * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Keep text editing/selection normal in all input/form zones. */
+input,
+textarea,
+select,
+[contenteditable="true"],
+.allow-text-select,
+.allow-text-select * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
