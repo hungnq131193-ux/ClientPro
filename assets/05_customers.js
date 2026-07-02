@@ -1,9 +1,18 @@
+function setCustSelectionMode(enabled, options) {
+    const opts = options || {};
+    isCustSelectionMode = !!enabled;
+    if (!opts.keepSelection) selectedCustomers.clear();
+    const bar = getEl('cust-selection-bar');
+    if (bar) {
+        if (isCustSelectionMode) { bar.classList.remove('translate-y-full'); bar.classList.add('translate-y-0'); }
+        else { bar.classList.add('translate-y-full'); bar.classList.remove('translate-y-0'); }
+    }
+    const count = getEl('cust-selection-count');
+    if (count) count.textContent = selectedCustomers.size;
+    if (!opts.skipReload) loadCustomers(getEl('search-input').value);
+}
 function toggleCustSelectionMode() {
-    isCustSelectionMode = !isCustSelectionMode; selectedCustomers.clear();
-    const bar = getEl('cust-selection-bar'); const btn = getEl('btn-cust-select');
-    if (isCustSelectionMode) { bar.classList.remove('translate-y-full'); bar.classList.add('translate-y-0'); btn.classList.add('btn-active'); }
-    else { bar.classList.add('translate-y-full'); bar.classList.remove('translate-y-0'); btn.classList.remove('btn-active'); }
-    getEl('cust-selection-count').textContent = '0'; loadCustomers(getEl('search-input').value);
+    setCustSelectionMode(!isCustSelectionMode);
 }
 function toggleCustomerSelection(id, div) {
     if (selectedCustomers.has(id)) { selectedCustomers.delete(id); div.classList.remove('selected'); } else { selectedCustomers.add(id); div.classList.add('selected'); }
@@ -19,7 +28,7 @@ async function backupSelectedCustomers() {
     exportData.images = allImages.filter(img => custIds.includes(img.customerId));
     const blob = new Blob([JSON.stringify({ v: 1.0, ...exportData })], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `QLKH_Export_${selectedCustomers.size}_KH.json`; a.click();
-    getEl('loader').classList.add('hidden'); toggleCustSelectionMode();
+    getEl('loader').classList.add('hidden'); setCustSelectionMode(false);
 }
 
 // Gửi dữ liệu KH đã chọn sang user khác (gói .cpb được mã hóa, không lộ dữ liệu)
@@ -123,7 +132,7 @@ async function sendSelectedCustomersToUser() {
         await CloudTransferUI.sendEncryptedRecord(rec);
 
         showToast && showToast('Đã gửi gói khách hàng (mã hóa)');
-        toggleCustSelectionMode();
+        setCustSelectionMode(false);
     } catch (e) {
         console.error(e);
         alert(e && e.message ? e.message : 'Không thể gửi');
@@ -135,7 +144,7 @@ function deleteSelectedCustomers() {
     if (selectedCustomers.size === 0) return; if (!confirm(`Xóa vĩnh viễn ${selectedCustomers.size} khách hàng?`)) return;
     const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
     selectedCustomers.forEach(custId => { custStore.delete(custId); imgStore.index('customerId').getAllKeys(custId).onsuccess = e => { e.target.result.forEach(imgId => imgStore.delete(imgId)); }; });
-    tx.oncomplete = () => { showToast("Đã xóa"); toggleCustSelectionMode(); };
+    tx.oncomplete = () => { showToast("Đã xóa"); setCustSelectionMode(false); };
 }
 
 function switchListTab(tab) {
@@ -398,6 +407,13 @@ function renderList(list, opts = {}) {
             if (isCustSelectionMode) toggleCustomerSelection(c.id, el);
             else openFolder(c.id);
         };
+
+        if (typeof bindLongPress === 'function') {
+            bindLongPress(el, () => {
+                if (!isCustSelectionMode) setCustSelectionMode(true, { keepSelection: true, skipReload: true });
+                if (!selectedCustomers.has(c.id)) toggleCustomerSelection(c.id, el);
+            }, { ignoreSelector: '.action-btn,button,a,input,textarea,select,label,[data-long-press-ignore]' });
+        }
 
             const statusTone = isApproved ? 'Đã duyệt vay' : 'Đang thẩm định';
             const safeCreditLimit = escapeHTML(c.creditLimit || '0');
