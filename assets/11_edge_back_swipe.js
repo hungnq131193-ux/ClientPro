@@ -252,6 +252,7 @@
   let cooldownUntil = 0;
   let lastTouchBackAt = 0;          // timestamp of last touch-driven runBackAction()
   const POPSTATE_DEDUPE_MS = 600;   // if popstate fires this soon after, treat as the same physical gesture
+  const SENTINEL_STATE = { __clientpro_edge_back: 1 };
 
   // PERF: Chỉ gắn touchmove (passive:false) khi thật sự bắt đầu edge-swipe.
   // Tránh ảnh hưởng scroll performance toàn app.
@@ -345,7 +346,13 @@
     if (passTime && passAxis && passDistance) {
       const ok = runBackAction();
       lastTouchBackAt = Date.now();
-      if (ok) cooldownUntil = Date.now() + COOLDOWN_MS;
+      if (ok) {
+        cooldownUntil = Date.now() + COOLDOWN_MS;
+        // Top up the history buffer right away (synchronously), instead of only
+        // relying on the async popstate round-trip, so a fast 2nd swipe right
+        // after this one can't outrun the trap being re-armed.
+        try { history.pushState(SENTINEL_STATE, document.title, location.href); } catch (_) { }
+      }
     }
   }
 
@@ -358,12 +365,14 @@
 
     // History sentinel: helps keep user inside app for browser back & hardware back
     try {
-      const SENTINEL_STATE = { __clientpro_edge_back: 1 };
-      // Push 2 sentinels to reduce the chance of Chrome showing a partial
-      // native back transition on the first gesture.
+      const SENTINEL_DEPTH = 6; // bigger buffer to absorb rapid/near-simultaneous back triggers
+      // Push several sentinels to reduce the chance of the OS's own back-gesture
+      // (predictive back / edge-swipe) deciding to close the app before our JS
+      // gets a chance to re-arm the trap on a fast, repeated swipe.
       if (!history.state || !history.state.__clientpro_edge_back) {
-        history.pushState(SENTINEL_STATE, document.title, location.href);
-        history.pushState(SENTINEL_STATE, document.title, location.href);
+        for (let i = 0; i < SENTINEL_DEPTH; i++) {
+          history.pushState(SENTINEL_STATE, document.title, location.href);
+        }
       }
       window.addEventListener('popstate', function () {
         const justHandledByTouch = (Date.now() - lastTouchBackAt) < POPSTATE_DEDUPE_MS;
