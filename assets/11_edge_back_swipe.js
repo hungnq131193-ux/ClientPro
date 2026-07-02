@@ -10,111 +10,6 @@
 (function () {
   'use strict';
 
-  // ==========================================================================
-  // TEMPORARY DEBUG SCAFFOLDING — remove once the exit-on-2nd-back bug is
-  // confirmed fixed. Logs to localStorage so the log survives the app being
-  // closed (which is exactly the bug we're chasing). Purely additive: a
-  // pointer-events:none-by-default panel, no effect on app logic.
-  // ==========================================================================
-  const DEBUG_MODE = true;
-  const DEBUG_KEY = 'clientpro_edgeback_debug_log';
-  function dbg(msg) {
-    if (!DEBUG_MODE) return;
-    try {
-      const line = new Date().toISOString().slice(11, 23) + '  ' + msg;
-      let arr = [];
-      try { arr = JSON.parse(localStorage.getItem(DEBUG_KEY) || '[]'); } catch (_) { arr = []; }
-      arr.push(line);
-      if (arr.length > 60) arr = arr.slice(arr.length - 60);
-      localStorage.setItem(DEBUG_KEY, JSON.stringify(arr));
-      renderDebugPanel(arr);
-    } catch (_) { }
-  }
-  let __dbgPanelEl = null;
-  let __dbgExpanded = false;
-  function renderDebugPanel(arr) {
-    try {
-      if (!__dbgPanelEl) {
-        __dbgPanelEl = document.createElement('div');
-        __dbgPanelEl.id = 'clientpro-edgeback-debug';
-        __dbgPanelEl.setAttribute('data-edge-back', 'ignore');
-        __dbgPanelEl.style.cssText = [
-          'position:fixed', 'bottom:12px', 'right:12px',
-          'background:rgba(0,0,0,0.85)', 'color:#0f0', 'font:10px/1.4 monospace',
-          'z-index:2147483647', 'border-radius:10px', 'transition:all .15s'
-        ].join(';');
-        const header = document.createElement('div');
-        header.textContent = '🐞';
-        header.style.cssText = 'color:#ff0;font-weight:bold;padding:8px 10px;text-align:center;cursor:pointer;';
-        const body = document.createElement('div');
-        body.id = 'clientpro-edgeback-debug-body';
-        body.style.cssText = 'display:none;max-width:min(94vw,520px);max-height:32vh;overflow:auto;padding:0 8px 8px;white-space:pre-wrap;word-break:break-all;';
-        function applyExpandedState() {
-          if (__dbgExpanded) {
-            header.textContent = '[DEBUG edge-back — chạm để copy, chạm giữ để xoá, chạm 🔽 để thu nhỏ]';
-            header.style.padding = '6px 8px';
-            body.style.display = 'block';
-          } else {
-            header.textContent = '🐞';
-            header.style.padding = '8px 10px';
-            body.style.display = 'none';
-          }
-        }
-        header.addEventListener('click', function () {
-          if (!__dbgExpanded) { __dbgExpanded = true; applyExpandedState(); return; }
-          const full = (JSON.parse(localStorage.getItem(DEBUG_KEY) || '[]')).join('\n');
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(full).then(function () {
-              const old = header.textContent;
-              header.textContent = '[DA COPY!]';
-              setTimeout(function () { header.textContent = old; }, 900);
-            }).catch(function () { });
-          }
-        });
-        let pressTimer = null;
-        header.addEventListener('pointerdown', function () {
-          pressTimer = setTimeout(function () {
-            localStorage.removeItem(DEBUG_KEY);
-            body.textContent = '';
-          }, 700);
-        });
-        header.addEventListener('pointerup', function () { clearTimeout(pressTimer); });
-        // small collapse handle inside expanded body footer
-        const collapseBtn = document.createElement('div');
-        collapseBtn.textContent = '🔽 thu nhỏ';
-        collapseBtn.style.cssText = 'color:#6cf;cursor:pointer;margin-top:4px;text-align:center;';
-        collapseBtn.addEventListener('click', function (ev) {
-          ev.stopPropagation();
-          __dbgExpanded = false;
-          applyExpandedState();
-        });
-        body.appendChild(document.createElement('div')).id = 'clientpro-edgeback-debug-lines';
-        body.appendChild(collapseBtn);
-        __dbgPanelEl.appendChild(header);
-        __dbgPanelEl.appendChild(body);
-        document.body.appendChild(__dbgPanelEl);
-        applyExpandedState();
-      }
-      const lines = __dbgPanelEl.querySelector('#clientpro-edgeback-debug-lines');
-      lines.textContent = arr.slice(-24).join('\n');
-      const body = __dbgPanelEl.querySelector('#clientpro-edgeback-debug-body');
-      body.scrollTop = body.scrollHeight;
-    } catch (_) { }
-  }
-  if (DEBUG_MODE) {
-    try {
-      const prev = JSON.parse(localStorage.getItem(DEBUG_KEY) || '[]');
-      if (prev.length) {
-        document.addEventListener('DOMContentLoaded', function () { renderDebugPanel(prev); });
-        if (document.readyState !== 'loading') renderDebugPanel(prev);
-      }
-      dbg('--- app (re)loaded, history.length=' + history.length + ' state=' + JSON.stringify(history.state));
-    } catch (_) { }
-  }
-  // ==========================================================================
-  // END DEBUG SCAFFOLDING (rest of file below is the real logic)
-  // ==========================================================================
-
   // Reduce Chrome Android native back-swipe visual flash.
   // Keep this local to the module (no global CSS edits).
   function applyNavGuards() {
@@ -395,9 +290,7 @@
     fromRightEdge = (vw - t.clientX) <= EDGE_PX;
 
     if (!fromLeftEdge && !fromRightEdge) return;
-    if (shouldIgnoreTarget(e.target)) { dbg('onStart: edge touch but IGNORED target=' + (e.target && e.target.id)); return; }
-
-    dbg('onStart: EDGE CAUGHT x=' + t.clientX.toFixed(0) + ' left=' + fromLeftEdge + ' right=' + fromRightEdge + ' cancelable=' + e.cancelable);
+    if (shouldIgnoreTarget(e.target)) return;
 
     // Claim gesture early to reduce browser "back"
     if (e.cancelable) e.preventDefault();
@@ -432,12 +325,10 @@
       if (fromLeftEdge && dx > 0 && horizontalDominant) horizontal = true;
       else if (fromRightEdge && dx < 0 && horizontalDominant) horizontal = true;
       else {
-        dbg('onMove: decided NON-horizontal, dx=' + dx.toFixed(0) + ' dy=' + dy.toFixed(0) + ' -> cancel');
         tracking = false;
         unbindMove();
         return;
       }
-      dbg('onMove: decided HORIZONTAL, dx=' + dx.toFixed(0) + ' dy=' + dy.toFixed(0));
     }
 
     if (horizontal && e.cancelable) e.preventDefault();
@@ -462,18 +353,12 @@
       (fromLeftEdge && dx >= TRIGGER_PX) ||
       (fromRightEdge && dx <= -TRIGGER_PX);
 
-    dbg('onEnd: passTime=' + passTime + ' passAxis=' + passAxis + ' passDistance=' + passDistance +
-      ' dx=' + dx.toFixed(0) + ' dt=' + dt + ' | history.length BEFORE=' + history.length);
-
     if (passTime && passAxis && passDistance) {
       suppressDepthPush = true;
       const ok = runBackAction();
       lastTouchBackAt = Date.now();
-      dbg('onEnd: runBackAction() -> ok=' + ok + ' | history.length AFTER=' + history.length + ' state=' + JSON.stringify(history.state));
       if (ok) cooldownUntil = Date.now() + COOLDOWN_MS;
       requestAnimationFrame(function () { suppressDepthPush = false; });
-    } else {
-      dbg('onEnd: criteria FAILED, gesture ignored');
     }
   }
 
@@ -524,10 +409,7 @@
       if (opened && !suppressDepthPush) {
         try {
           history.pushState(SENTINEL_STATE, document.title, location.href);
-          dbg('scanForOpens: OPEN detected -> pushed. history.length=' + history.length);
         } catch (_) { }
-      } else if (opened && suppressDepthPush) {
-        dbg('scanForOpens: open-looking change but SUPPRESSED (was a close)');
       }
     }
 
@@ -552,29 +434,16 @@
       }
       window.addEventListener('popstate', function (ev) {
         const justHandledByTouch = (Date.now() - lastTouchBackAt) < POPSTATE_DEDUPE_MS;
-        dbg('*** POPSTATE FIRED *** justHandledByTouch=' + justHandledByTouch +
-          ' history.length=' + history.length + ' state=' + JSON.stringify(ev && ev.state));
         // Closing a screen changes classes too; don't let that close also
         // count as a fresh "open" in the very same tick.
         suppressDepthPush = true;
         if (!justHandledByTouch) {
-          const ok2 = runBackAction();
-          dbg('popstate: runBackAction() -> ok=' + ok2);
+          runBackAction();
         }
         requestAnimationFrame(function () { suppressDepthPush = false; });
       });
     } catch (_) { }
 
-    if (DEBUG_MODE) {
-      try {
-        document.addEventListener('visibilitychange', function () {
-          dbg('visibilitychange -> ' + document.visibilityState + ' history.length=' + history.length);
-        });
-        window.addEventListener('pagehide', function (ev) {
-          dbg('*** PAGEHIDE *** persisted=' + ev.persisted + ' history.length=' + history.length);
-        });
-      } catch (_) { }
-    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
