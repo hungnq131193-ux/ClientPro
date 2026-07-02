@@ -10,6 +10,85 @@
 (function () {
   'use strict';
 
+  // ==========================================================================
+  // TEMPORARY DEBUG SCAFFOLDING — remove once the exit-on-2nd-back bug is
+  // confirmed fixed. Logs to localStorage so the log survives the app being
+  // closed (which is exactly the bug we're chasing). Purely additive: a
+  // pointer-events:none-by-default panel, no effect on app logic.
+  // ==========================================================================
+  const DEBUG_MODE = true;
+  const DEBUG_KEY = 'clientpro_edgeback_debug_log';
+  function dbg(msg) {
+    if (!DEBUG_MODE) return;
+    try {
+      const line = new Date().toISOString().slice(11, 23) + '  ' + msg;
+      let arr = [];
+      try { arr = JSON.parse(localStorage.getItem(DEBUG_KEY) || '[]'); } catch (_) { arr = []; }
+      arr.push(line);
+      if (arr.length > 60) arr = arr.slice(arr.length - 60);
+      localStorage.setItem(DEBUG_KEY, JSON.stringify(arr));
+      renderDebugPanel(arr);
+    } catch (_) { }
+  }
+  let __dbgPanelEl = null;
+  function renderDebugPanel(arr) {
+    try {
+      if (!__dbgPanelEl) {
+        __dbgPanelEl = document.createElement('div');
+        __dbgPanelEl.id = 'clientpro-edgeback-debug';
+        __dbgPanelEl.setAttribute('data-edge-back', 'ignore');
+        __dbgPanelEl.style.cssText = [
+          'position:fixed', 'top:8px', 'left:50%', 'transform:translateX(-50%)',
+          'width:min(94vw,520px)', 'max-height:32vh', 'overflow:auto',
+          'background:rgba(0,0,0,0.85)', 'color:#0f0', 'font:10px/1.4 monospace',
+          'padding:6px 8px', 'z-index:2147483647', 'border-radius:8px',
+          'white-space:pre-wrap', 'word-break:break-all'
+        ].join(';');
+        const header = document.createElement('div');
+        header.textContent = '[DEBUG edge-back — chạm để copy log, chạm giữ để xoá]';
+        header.style.cssText = 'color:#ff0;margin-bottom:4px;font-weight:bold;';
+        header.addEventListener('click', function () {
+          const full = (JSON.parse(localStorage.getItem(DEBUG_KEY) || '[]')).join('\n');
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(full).then(function () {
+              header.textContent = '[DA COPY! — chạm giữ để xoá]';
+              setTimeout(function () { header.textContent = '[DEBUG edge-back — chạm để copy log, chạm giữ để xoá]'; }, 1200);
+            }).catch(function () { });
+          }
+        });
+        let pressTimer = null;
+        header.addEventListener('pointerdown', function () {
+          pressTimer = setTimeout(function () {
+            localStorage.removeItem(DEBUG_KEY);
+            body.textContent = '';
+          }, 700);
+        });
+        header.addEventListener('pointerup', function () { clearTimeout(pressTimer); });
+        const body = document.createElement('div');
+        body.id = 'clientpro-edgeback-debug-body';
+        __dbgPanelEl.appendChild(header);
+        __dbgPanelEl.appendChild(body);
+        document.body.appendChild(__dbgPanelEl);
+      }
+      const body = __dbgPanelEl.querySelector('#clientpro-edgeback-debug-body');
+      body.textContent = arr.slice(-24).join('\n');
+      body.scrollTop = body.scrollHeight;
+    } catch (_) { }
+  }
+  if (DEBUG_MODE) {
+    try {
+      const prev = JSON.parse(localStorage.getItem(DEBUG_KEY) || '[]');
+      if (prev.length) {
+        document.addEventListener('DOMContentLoaded', function () { renderDebugPanel(prev); });
+        if (document.readyState !== 'loading') renderDebugPanel(prev);
+      }
+      dbg('--- app (re)loaded, history.length=' + history.length + ' state=' + JSON.stringify(history.state));
+    } catch (_) { }
+  }
+  // ==========================================================================
+  // END DEBUG SCAFFOLDING (rest of file below is the real logic)
+  // ==========================================================================
+
   // Reduce Chrome Android native back-swipe visual flash.
   // Keep this local to the module (no global CSS edits).
   function applyNavGuards() {
@@ -253,6 +332,7 @@
   let lastTouchBackAt = 0;          // timestamp of last touch-driven runBackAction()
   const POPSTATE_DEDUPE_MS = 600;   // if popstate fires this soon after, treat as the same physical gesture
   const SENTINEL_STATE = { __clientpro_edge_back: 1 };
+  let suppressDepthPush = false;    // true while we're closing something, so that doesn't get miscounted as an "open"
 
   // PERF: Chỉ gắn touchmove (passive:false) khi thật sự bắt đầu edge-swipe.
   // Tránh ảnh hưởng scroll performance toàn app.
@@ -280,7 +360,9 @@
     fromRightEdge = (vw - t.clientX) <= EDGE_PX;
 
     if (!fromLeftEdge && !fromRightEdge) return;
-    if (shouldIgnoreTarget(e.target)) return;
+    if (shouldIgnoreTarget(e.target)) { dbg('onStart: edge touch but IGNORED target=' + (e.target && e.target.id)); return; }
+
+    dbg('onStart: EDGE CAUGHT x=' + t.clientX.toFixed(0) + ' left=' + fromLeftEdge + ' right=' + fromRightEdge + ' cancelable=' + e.cancelable);
 
     // Claim gesture early to reduce browser "back"
     if (e.cancelable) e.preventDefault();
@@ -315,10 +397,12 @@
       if (fromLeftEdge && dx > 0 && horizontalDominant) horizontal = true;
       else if (fromRightEdge && dx < 0 && horizontalDominant) horizontal = true;
       else {
+        dbg('onMove: decided NON-horizontal, dx=' + dx.toFixed(0) + ' dy=' + dy.toFixed(0) + ' -> cancel');
         tracking = false;
         unbindMove();
         return;
       }
+      dbg('onMove: decided HORIZONTAL, dx=' + dx.toFixed(0) + ' dy=' + dy.toFixed(0));
     }
 
     if (horizontal && e.cancelable) e.preventDefault();
@@ -343,16 +427,18 @@
       (fromLeftEdge && dx >= TRIGGER_PX) ||
       (fromRightEdge && dx <= -TRIGGER_PX);
 
+    dbg('onEnd: passTime=' + passTime + ' passAxis=' + passAxis + ' passDistance=' + passDistance +
+      ' dx=' + dx.toFixed(0) + ' dt=' + dt + ' | history.length BEFORE=' + history.length);
+
     if (passTime && passAxis && passDistance) {
+      suppressDepthPush = true;
       const ok = runBackAction();
       lastTouchBackAt = Date.now();
-      if (ok) {
-        cooldownUntil = Date.now() + COOLDOWN_MS;
-        // Top up the history buffer right away (synchronously), instead of only
-        // relying on the async popstate round-trip, so a fast 2nd swipe right
-        // after this one can't outrun the trap being re-armed.
-        try { history.pushState(SENTINEL_STATE, document.title, location.href); } catch (_) { }
-      }
+      dbg('onEnd: runBackAction() -> ok=' + ok + ' | history.length AFTER=' + history.length + ' state=' + JSON.stringify(history.state));
+      if (ok) cooldownUntil = Date.now() + COOLDOWN_MS;
+      requestAnimationFrame(function () { suppressDepthPush = false; });
+    } else {
+      dbg('onEnd: criteria FAILED, gesture ignored');
     }
   }
 
@@ -363,31 +449,97 @@
     document.addEventListener('touchend', onEnd, { passive: true });
     document.addEventListener('touchcancel', function () { tracking = false; unbindMove(); }, { passive: true });
 
-    // History sentinel: helps keep user inside app for browser back & hardware back
-    try {
-      const SENTINEL_DEPTH = 6; // bigger buffer to absorb rapid/near-simultaneous back triggers
-      // Push several sentinels to reduce the chance of the OS's own back-gesture
-      // (predictive back / edge-swipe) deciding to close the app before our JS
-      // gets a chance to re-arm the trap on a fast, repeated swipe.
-      if (!history.state || !history.state.__clientpro_edge_back) {
-        for (let i = 0; i < SENTINEL_DEPTH; i++) {
+    // -------- Real depth tracking (replaces the old "sentinel loop") --------
+    // Chrome collapses/ignores repeated history.pushState() calls that keep
+    // reusing the same URL with throwaway state objects — that's exactly what
+    // a "sentinel loop" is, so on current Chrome it stops reliably trapping
+    // back navigation after a while (reported: 2nd back exits the app even
+    // without fast repeated swipes). The fix: push exactly ONE history entry
+    // per screen/modal that actually opens, so each back gesture consumes
+    // exactly one real, legitimate navigation step — matching how Chrome
+    // expects an SPA's history to behave, so it doesn't get collapsed.
+    const TRACKED_MODAL_IDS = [
+      'camera-modal', 'lightbox', 'approve-modal', 'ref-price-modal',
+      'guide-modal', 'donate-modal', 'asset-modal', 'add-modal',
+      'forgot-pin-modal', 'backup-manager-modal', 'settings-menu'
+    ];
+    const TRACKED_SLIDE_IDS = [
+      'screen-asset-gallery', 'screen-map', 'screen-folder', 'screen-customer-list'
+    ];
+    const lastVisible = new Map();
+    TRACKED_MODAL_IDS.forEach((id) => lastVisible.set(id, isVisibleModal(id)));
+    TRACKED_SLIDE_IDS.forEach((id) => lastVisible.set(id, isVisibleSlide(id)));
+
+    let scanQueued = false;
+    function scanForOpens() {
+      scanQueued = false;
+      let opened = false;
+      TRACKED_MODAL_IDS.forEach((id) => {
+        const now = isVisibleModal(id);
+        if (now && !lastVisible.get(id)) opened = true;
+        lastVisible.set(id, now);
+      });
+      TRACKED_SLIDE_IDS.forEach((id) => {
+        const now = isVisibleSlide(id);
+        if (now && !lastVisible.get(id)) opened = true;
+        lastVisible.set(id, now);
+      });
+      // A screen/modal just opened by a normal tap (not by our own back
+      // handling) — record exactly one real history step for it.
+      if (opened && !suppressDepthPush) {
+        try {
           history.pushState(SENTINEL_STATE, document.title, location.href);
-        }
+          dbg('scanForOpens: OPEN detected -> pushed. history.length=' + history.length);
+        } catch (_) { }
+      } else if (opened && suppressDepthPush) {
+        dbg('scanForOpens: open-looking change but SUPPRESSED (was a close)');
       }
-      window.addEventListener('popstate', function () {
-        const justHandledByTouch = (Date.now() - lastTouchBackAt) < POPSTATE_DEDUPE_MS;
-        if (!justHandledByTouch) {
-          // Independent trigger (hardware back button, or a native OS edge-swipe
-          // that our touch handler didn't catch) — run our own back logic too.
-          runBackAction();
-        }
-        // Always re-arm the sentinel, even if there was nothing left to close
-        // (e.g. already at the dashboard). Otherwise the trap silently loses a
-        // level every time it's "used up" at the root screen, and a later back
-        // gesture falls through past the app's own history and exits it.
+    }
+
+    try {
+      const mo = new MutationObserver(function () {
+        if (scanQueued) return;
+        scanQueued = true;
+        // Batch rapid class mutations (animation classes toggle alongside
+        // hidden/translate-x-full) into a single check per frame.
+        requestAnimationFrame(scanForOpens);
+      });
+      mo.observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+    } catch (_) { }
+
+    // Baseline: a single entry so the very first back gesture (from the
+    // dashboard root, nothing open) has something safe to consume instead of
+    // instantly exiting on a stray gesture. Beyond that, depth is earned
+    // entirely by real screen/modal opens above.
+    try {
+      if (!history.state || !history.state.__clientpro_edge_back) {
         history.pushState(SENTINEL_STATE, document.title, location.href);
+      }
+      window.addEventListener('popstate', function (ev) {
+        const justHandledByTouch = (Date.now() - lastTouchBackAt) < POPSTATE_DEDUPE_MS;
+        dbg('*** POPSTATE FIRED *** justHandledByTouch=' + justHandledByTouch +
+          ' history.length=' + history.length + ' state=' + JSON.stringify(ev && ev.state));
+        // Closing a screen changes classes too; don't let that close also
+        // count as a fresh "open" in the very same tick.
+        suppressDepthPush = true;
+        if (!justHandledByTouch) {
+          const ok2 = runBackAction();
+          dbg('popstate: runBackAction() -> ok=' + ok2);
+        }
+        requestAnimationFrame(function () { suppressDepthPush = false; });
       });
     } catch (_) { }
+
+    if (DEBUG_MODE) {
+      try {
+        document.addEventListener('visibilitychange', function () {
+          dbg('visibilitychange -> ' + document.visibilityState + ' history.length=' + history.length);
+        });
+        window.addEventListener('pagehide', function (ev) {
+          dbg('*** PAGEHIDE *** persisted=' + ev.persisted + ' history.length=' + history.length);
+        });
+      } catch (_) { }
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
