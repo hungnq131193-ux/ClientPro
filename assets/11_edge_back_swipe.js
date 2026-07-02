@@ -27,10 +27,11 @@
   }
 
   // --- Gesture tuning ---
-  const EDGE_PX = 24;            // touch must start within left/right edge band
-  const TRIGGER_PX = 90;         // minimum horizontal travel to trigger
+  const EDGE_PX = 28;            // touch must start within left/right edge band
+  const TRIGGER_PX = 80;         // minimum horizontal travel to trigger
   const MAX_OFF_AXIS_PX = 70;    // max vertical drift allowed
-  const MIN_INTENT_PX = 10;      // movement before locking intent
+  const MIN_INTENT_PX = 16;      // movement before locking intent (higher = fewer false locks on scroll)
+  const DIRECTION_RATIO = 1.2;   // dx must exceed dy by this ratio to be considered horizontal intent
   const MAX_GESTURE_MS = 800;    // gesture time limit
   const COOLDOWN_MS = 450;       // prevent double-trigger
 
@@ -53,7 +54,20 @@
   function shouldIgnoreTarget(t) {
     if (!t) return false;
     const el = t.closest
-      ? t.closest('input, textarea, select, [contenteditable="true"], .no-edge-back, [data-edge-back="ignore"]')
+      ? t.closest([
+          'input',
+          'textarea',
+          'select',
+          '[contenteditable="true"]',
+          '.no-edge-back',
+          '[data-edge-back="ignore"]',
+          // Lightbox has its own full-width left/right swipe to navigate images
+          // (see setupSwipe() in 04_ui_common.js). Starting an edge-back gesture
+          // there would fight with image navigation, so let the lightbox own it.
+          '#lightbox',
+          // MapLibre canvas handles its own pan/pinch/rotate touch gestures.
+          '.maplibregl-canvas, .maplibregl-canvas-container, .maplibregl-map'
+        ].join(', '))
       : null;
     return !!el;
   }
@@ -200,6 +214,12 @@
       return callIfFn('closeBackupManagerModal') || (get('backup-manager-modal').classList.add('hidden'), true);
     }
 
+    // Settings/hamburger dropdown (menu-overlay + settings-menu). Not a modal or
+    // slide-panel, so it needs its own check; toggleMenu() closes it either way.
+    if (isVisibleModal('settings-menu')) {
+      return callIfFn('toggleMenu') || (get('settings-menu').classList.add('hidden'), true);
+    }
+
     // Slide panels (order matters: most nested first)
     if (isVisibleSlide('screen-asset-gallery')) {
       return callIfFn('closeAssetGallery') || (get('screen-asset-gallery').classList.add('translate-x-full'), true);
@@ -285,11 +305,15 @@
       if (Math.abs(dx) < MIN_INTENT_PX && Math.abs(dy) < MIN_INTENT_PX) return;
       decided = true;
 
-      // left edge: must go right; right edge: must go left
-      if (fromLeftEdge && dx > 0 && Math.abs(dx) > Math.abs(dy)) horizontal = true;
-      else if (fromRightEdge && dx < 0 && Math.abs(dx) > Math.abs(dy)) horizontal = true;
+      // left edge: must go right; right edge: must go left.
+      // Require dx to clearly dominate dy (not just barely exceed it) so a
+      // slightly-diagonal vertical scroll near the edge isn't mistaken for back-swipe.
+      const horizontalDominant = Math.abs(dx) > Math.abs(dy) * DIRECTION_RATIO;
+      if (fromLeftEdge && dx > 0 && horizontalDominant) horizontal = true;
+      else if (fromRightEdge && dx < 0 && horizontalDominant) horizontal = true;
       else {
         tracking = false;
+        unbindMove();
         return;
       }
     }
@@ -302,7 +326,7 @@
     tracking = false;
     unbindMove();
     if (!horizontal) return;
-    if (!e.changedTouches || e.changedTouches.length !== 1) return;
+    if (!e.changedTouches || e.changedTouches.length !== 1) return; // multi-touch (e.g. pinch) already cleaned up above
 
     const t = e.changedTouches[0];
     const dx = t.clientX - sx;
