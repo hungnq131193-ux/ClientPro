@@ -286,7 +286,6 @@
         start: startTour,
         reset: () => {
             localStorage.removeItem(TOUR_KEY);
-            console.log('✅ Onboarding tour reset. Refresh to see tour again.');
         }
     };
 

@@ -418,9 +418,6 @@ function compressImage(base64, cb) {
       // Ước lượng size binary từ base64
       const sizeBytes = Math.floor(dataUrl.length * 0.75);
 
-      // DEBUG nếu muốn xem thực tế:
-      // console.log('q=', q, 'size=', (sizeBytes/1024).toFixed(0), 'KB');
-
       // Nếu > 700KB → giảm chất lượng xuống
       if (sizeBytes > MAX_BYTES && q > 0.5) {
         q -= 0.05;

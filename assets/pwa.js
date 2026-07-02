@@ -60,7 +60,7 @@
         location.reload();
       });
     } catch (err) {
-      console.log("Loi Service Worker:", err);
+      console.warn("Lỗi Service Worker:", err);
     }
   });
 })();

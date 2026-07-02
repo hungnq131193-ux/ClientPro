@@ -1,10 +1,10 @@
-// BUILD: 2026-07-02_ZALO_APP_PRIORITY_1
+// BUILD: 2026-07-02_PIN6_SECURITY_1
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-// v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v5.0.29-zalo-app-priority-20260702';
+// v5.1.0: PIN 6 số + PBKDF2/AES-GCM, lockout brute-force, dọn dẹp code
+const VERSION = 'v5.1.0-pin6-security-20260702';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -20,8 +20,9 @@ const LIMITS = {
 
 const META_HEADER = 'sw-cache-time';
 
-// App shell (same-origin) – đảm bảo đúng đường dẫn thực tế
-// IMPORTANT: Bạn sẽ xóa qr-modal.html => tuyệt đối không precache file đó nữa (tránh addAll fail).
+// App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
+// (cache.match phân biệt query string, precache URL lệch token là dead weight).
+const ASSET_V = 'PIN6_SEC_20260702_1';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -33,39 +34,31 @@ const STATIC_ASSETS = [
   // Tailwind (self-host)
   './assets/css/tailwind.clientpro.css',
   './assets/css/app.patch.css',
-  './assets/styles.css',
-  './assets/styles.css?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
-  './assets/head.js',
-  './assets/head.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
-  './assets/pwa.js',
-  './assets/pwa.js?v=ZALO_APP_PRIORITY_20260702_1',
+  `./assets/styles.css?v=${ASSET_V}`,
+  `./assets/head.js?v=${ASSET_V}`,
+  `./assets/pwa.js?v=${ASSET_V}`,
 
-  './assets/00_globals.js',
-  './assets/01_config.js',
-  './assets/02_security.js',
-  './assets/03_map.js',
-  './assets/03_map.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
-  './assets/04_ui_common.js',
-  './assets/04_ui_common.js?v=ZALO_APP_PRIORITY_20260702_1',
-  './assets/05_customers.js',
-  './assets/05_customers.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
-  './assets/06_assets.js',
-  './assets/07_drive.js',
-  './assets/08_images_camera.js',
-  './assets/08_images_camera.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
-  './assets/09_menu.js',
-  './assets/09_backup_manager.js',
-  './assets/09_donate.js',
-  './assets/09_weather.js',
-  './assets/10_bootstrap.js',
-  './assets/11_edge_back_swipe.js',
-  './assets/11_edge_back_swipe.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
-  './assets/12_backup_core.js',
-  './assets/13_ui_select_customers.js',
-  './assets/14_cloud_transfer.js',
-  './assets/15_auth_gate.js',
-  './assets/16_auto_backup_drive.js',
-  './assets/17_onboarding_tour.js',
+  `./assets/00_globals.js?v=${ASSET_V}`,
+  `./assets/01_config.js?v=${ASSET_V}`,
+  `./assets/02_security.js?v=${ASSET_V}`,
+  `./assets/03_map.js?v=${ASSET_V}`,
+  `./assets/04_ui_common.js?v=${ASSET_V}`,
+  `./assets/05_customers.js?v=${ASSET_V}`,
+  `./assets/06_assets.js?v=${ASSET_V}`,
+  `./assets/07_drive.js?v=${ASSET_V}`,
+  `./assets/08_images_camera.js?v=${ASSET_V}`,
+  `./assets/09_menu.js?v=${ASSET_V}`,
+  `./assets/09_backup_manager.js?v=${ASSET_V}`,
+  `./assets/09_donate.js?v=${ASSET_V}`,
+  `./assets/09_weather.js?v=${ASSET_V}`,
+  `./assets/10_bootstrap.js?v=${ASSET_V}`,
+  `./assets/11_edge_back_swipe.js?v=${ASSET_V}`,
+  `./assets/12_backup_core.js?v=${ASSET_V}`,
+  `./assets/13_ui_select_customers.js?v=${ASSET_V}`,
+  `./assets/14_cloud_transfer.js?v=${ASSET_V}`,
+  `./assets/15_auth_gate.js?v=${ASSET_V}`,
+  `./assets/16_auto_backup_drive.js?v=${ASSET_V}`,
+  `./assets/17_onboarding_tour.js?v=${ASSET_V}`,
 
   './assets/ui/load_modals.js',
 

@@ -34,15 +34,6 @@
     return list;
   }
 
-  function escapeHTML(s) {
-    return String(s || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
   function renderPicker(list, resolve) {
     const overlay = document.createElement('div');
     // IMPORTANT: must be above other modals (z-index 9999) to avoid being hidden behind it.

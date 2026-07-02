@@ -216,6 +216,191 @@ function generateMasterKey() {
   );
 }
 
+// ============================================================
+// PIN Envelope v2 (PBKDF2-SHA-256 + AES-256-GCM via WebCrypto)
+// - masterKey được "niêm phong" bằng PIN 6 số / mã nhân viên với KDF chậm + salt
+//   ngẫu nhiên (chống brute-force offline, khác hẳn SHA-256 đơn của bản cũ).
+// - GCM auth tag tự xác thực: sai PIN => decrypt throw, không cần oracle "mk_".
+// - Định dạng legacy (CryptoJS.AES với SHA-256(pin), PIN 4 số) vẫn đọc được
+//   để người dùng cũ mở khóa lần cuối rồi bắt buộc nâng cấp lên PIN 6 số.
+// ============================================================
+const PIN_ENVELOPE_V = 2;
+const PBKDF2_ITER_DEFAULT = 150000; // ~100-300ms trên Android tầm trung; lưu trong envelope nên đổi sau không cần migration
+const PIN_LENGTH = 6;
+const LEGACY_PIN_LENGTH = 4;
+
+function parseV2Envelope(raw) {
+  const s = String(raw || "").trim();
+  if (!s.startsWith("{")) return null;
+  try {
+    const env = JSON.parse(s);
+    if (env && env.v === PIN_ENVELOPE_V && env.alg === "A256GCM" && env.salt && env.iv && env.ct) return env;
+  } catch (e) { }
+  return null;
+}
+
+function isLegacyEnvelope(raw) {
+  return !!raw && !parseV2Envelope(raw);
+}
+
+/** Số ký tự PIN đang áp dụng: 4 nếu còn envelope legacy, 6 với envelope v2/thiết lập mới. */
+function getPinLength() {
+  return isLegacyEnvelope(localStorage.getItem(PIN_KEY)) ? LEGACY_PIN_LENGTH : PIN_LENGTH;
+}
+
+async function _deriveEnvelopeKey(secret, saltBytes, iter) {
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey("raw", enc.encode(String(secret)), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", hash: "SHA-256", salt: saltBytes, iterations: iter },
+    base,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+/** Niêm phong masterKey bằng secret (PIN/mã nhân viên) -> chuỗi JSON envelope v2. */
+async function sealMasterKey(secret, masterKeyStr, iter = PBKDF2_ITER_DEFAULT) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await _deriveEnvelopeKey(secret, salt, iter);
+  const ctBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(String(masterKeyStr)));
+  return JSON.stringify({
+    v: PIN_ENVELOPE_V,
+    alg: "A256GCM",
+    kdf: "PBKDF2-SHA256",
+    iter,
+    salt: _b64EncodeBytes(salt),
+    iv: _b64EncodeBytes(iv),
+    ct: _b64EncodeBytes(new Uint8Array(ctBuf)),
+  });
+}
+
+/** Mở envelope v2. Trả về masterKey hoặc null (sai secret => GCM throw => null). */
+async function openMasterKeyV2(secret, rawStored) {
+  const env = parseV2Envelope(rawStored);
+  if (!env) return null;
+  try {
+    const key = await _deriveEnvelopeKey(secret, _b64DecodeToBytes(env.salt), Number(env.iter) || PBKDF2_ITER_DEFAULT);
+    const ptBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: _b64DecodeToBytes(env.iv) }, key, _b64DecodeToBytes(env.ct));
+    const mk = new TextDecoder().decode(ptBuf);
+    return mk && mk.startsWith("mk_") ? mk : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Mở envelope legacy (CryptoJS.AES với passphrase = SHA-256(secret)). */
+async function openMasterKeyLegacy(secret, rawStored) {
+  if (!rawStored) return null;
+  try {
+    const hashed = await hashString(String(secret));
+    const bytes = CryptoJS.AES.decrypt(String(rawStored), hashed);
+    const mk = bytes.toString(CryptoJS.enc.Utf8);
+    return mk && mk.startsWith("mk_") ? mk : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Mở khóa với cả 2 định dạng. Trả về { masterKey, legacy } hoặc null. */
+async function unwrapMasterKeyAny(secret, rawStored) {
+  if (!rawStored) return null;
+  if (parseV2Envelope(rawStored)) {
+    const mk = await openMasterKeyV2(secret, rawStored);
+    return mk ? { masterKey: mk, legacy: false } : null;
+  }
+  const mk = await openMasterKeyLegacy(secret, rawStored);
+  return mk ? { masterKey: mk, legacy: true } : null;
+}
+
+// ---- Chống brute-force: đếm lần sai + khóa lũy tiến, sống sót qua reload ----
+// Attacker xóa được localStorage thì cũng dump được ciphertext để attack offline;
+// phòng tuyến tầng đó là PBKDF2 — lockout chỉ chặn đoán online trên máy nạn nhân.
+const PIN_LOCKOUT_KEY = "app_pin_lockout_v1";
+const PIN_MAX_FREE_FAILS = 5;
+const PIN_LOCK_BASE_MS = 30 * 1000;
+const PIN_LOCK_MAX_MS = 30 * 60 * 1000;
+let _pinChecking = false;
+let _lockoutTimer = null;
+
+function _readLockout() {
+  try {
+    const st = JSON.parse(localStorage.getItem(PIN_LOCKOUT_KEY));
+    if (st && typeof st === "object") return { fails: Number(st.fails) || 0, until: Number(st.until) || 0 };
+  } catch (e) { }
+  return { fails: 0, until: 0 };
+}
+
+function getLockoutRemainingMs() {
+  return Math.max(0, _readLockout().until - Date.now());
+}
+
+function resetPinFailures() {
+  try { localStorage.removeItem(PIN_LOCKOUT_KEY); } catch (e) { }
+  _updateLockMessage("");
+}
+
+function registerPinFailure() {
+  const st = _readLockout();
+  st.fails += 1;
+  if (st.fails >= PIN_MAX_FREE_FAILS) {
+    const lockMs = Math.min(PIN_LOCK_BASE_MS * Math.pow(2, st.fails - PIN_MAX_FREE_FAILS), PIN_LOCK_MAX_MS);
+    st.until = Date.now() + lockMs;
+  }
+  try { localStorage.setItem(PIN_LOCKOUT_KEY, JSON.stringify(st)); } catch (e) { }
+  return st;
+}
+
+function _updateLockMessage(text) {
+  const el = getEl("pin-lockout-msg");
+  if (!el) return;
+  el.textContent = text || "";
+  el.classList.toggle("hidden", !text);
+}
+
+function _setKeypadDisabled(disabled) {
+  const pad = getEl("pin-keypad");
+  if (pad) pad.classList.toggle("keypad-disabled", !!disabled);
+}
+
+function updateLockoutUI() {
+  if (_lockoutTimer) { clearInterval(_lockoutTimer); _lockoutTimer = null; }
+  if (getLockoutRemainingMs() > 0) {
+    _setKeypadDisabled(true);
+    const tick = () => {
+      const ms = getLockoutRemainingMs();
+      if (ms <= 0) {
+        clearInterval(_lockoutTimer);
+        _lockoutTimer = null;
+        _setKeypadDisabled(false);
+        _updateLockMessage("");
+        return;
+      }
+      _updateLockMessage(`Sai quá nhiều lần. Thử lại sau ${Math.ceil(ms / 1000)} giây`);
+    };
+    tick();
+    _lockoutTimer = setInterval(tick, 1000);
+    return;
+  }
+  _setKeypadDisabled(false);
+  const st = _readLockout();
+  if (st.fails > 0 && st.fails < PIN_MAX_FREE_FAILS) {
+    _updateLockMessage(`Sai mã PIN (còn ${PIN_MAX_FREE_FAILS - st.fails} lần thử)`);
+  } else {
+    _updateLockMessage("");
+  }
+}
+
+function _shakePinDots() {
+  const display = getEl("pin-display");
+  if (!display) return;
+  display.classList.remove("pin-shake");
+  void display.offsetWidth;
+  display.classList.add("pin-shake");
+}
+
 /** * Giải mã toàn bộ thông tin khách hàng (bao gồm tài sản) bằng masterKey. * @param {Object} cust * @returns {Object} */
 function decryptCustomerObject(cust) {
   if (!cust) return cust;
@@ -389,7 +574,7 @@ async function checkSecurity() {
       }
     }
   } catch (err) {
-    console.log("Offline mode: Tính năng Backup bảo mật tạm thời bị tắt.");
+    // Offline: bỏ qua check ngầm với server, app vẫn hoạt động bình thường
   }
 }
 
@@ -503,16 +688,19 @@ function openSecuritySetup() {
   getEl("setup-answer").value = "";
 }
 function closeSetupModal() {
-  if (localStorage.getItem(PIN_KEY)) {
+  // Chỉ cho đóng khi đã có PIN v2 — người dùng legacy bắt buộc hoàn tất nâng cấp 6 số.
+  if (parseV2Envelope(localStorage.getItem(PIN_KEY))) {
     getEl("setup-lock-modal").classList.add("hidden");
+    const note = getEl("setup-pin-note");
+    if (note) note.classList.add("hidden");
   } else {
-    alert("Bạn cần thiết lập bảo mật!");
+    alert("Bạn cần tạo mã PIN 6 số để hoàn tất nâng cấp bảo mật!");
   }
 }
 async function saveSecuritySetup() {
   const pin = getEl("setup-pin").value;
   let ans = getEl("setup-answer").value.trim();
-  if (pin.length !== 4 || isNaN(pin)) return alert("Mã PIN phải là 4 số");
+  if (!/^\d{6}$/.test(pin)) return alert("Mã PIN phải là 6 số");
   // Nếu người dùng không nhập mã nhân viên, lấy từ localStorage đã lưu khi kích hoạt (nếu có)
   if (!ans) {
     const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
@@ -526,32 +714,48 @@ async function saveSecuritySetup() {
   }
   // Lưu lại mã nhân viên đề phòng chưa lưu lúc kích hoạt
   localStorage.setItem(EMPLOYEE_KEY, ans);
-  /* * Thiết lập bảo mật mới: * - Sinh masterKey nếu chưa tồn tại * - Băm PIN và mã nhân viên bằng SHA-256 * - Mã hóa masterKey bằng 2 khóa băm này và lưu vào localStorage để phục vụ mở khóa hằng ngày (PIN) và khôi phục (mã nhân viên) */
-  const hashedPin = await hashString(pin);
-  const hashedAns = await hashString(ans);
+  /* * Thiết lập bảo mật v2: * - Sinh masterKey nếu chưa tồn tại * - Niêm phong masterKey bằng PBKDF2 + AES-GCM với 2 secret: PIN 6 số (mở khóa hằng ngày) và mã nhân viên (khôi phục) */
   // Nếu masterKey chưa sinh (lần đầu thiết lập), tạo mới
   if (!masterKey) {
     masterKey = generateMasterKey();
   }
-  // Lưu 2 phiên bản masterKey đã mã hóa: một bằng PIN để đăng nhập hằng ngày, một bằng mã nhân viên để khôi phục
-  const encByPin = CryptoJS.AES.encrypt(masterKey, hashedPin).toString();
-  const encByAns = CryptoJS.AES.encrypt(masterKey, hashedAns).toString();
-  localStorage.setItem(PIN_KEY, encByPin);
-  localStorage.setItem(SEC_KEY, encByAns);
+  const btn = getEl("setup-save-btn");
+  const btnLabel = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Đang mã hóa..."; }
+  try {
+    localStorage.setItem(PIN_KEY, await sealMasterKey(pin, masterKey));
+    localStorage.setItem(SEC_KEY, await sealMasterKey(ans, masterKey));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
+  }
+  resetPinFailures();
   // Ẩn hộp thoại và thông báo
+  const note = getEl("setup-pin-note");
+  if (note) note.classList.add("hidden");
   getEl("setup-lock-modal").classList.add("hidden");
   showToast("Đã lưu bảo mật");
 }
 function showLockScreen() {
   getEl("screen-lock").classList.remove("hidden");
+  const pinLen = getPinLength();
+  const display = getEl("pin-display");
+  if (display) display.innerHTML = '<div class="pin-dot"></div>'.repeat(pinLen);
+  const subtitle = getEl("pin-subtitle");
+  if (subtitle) subtitle.textContent = `Nhập mã PIN ${pinLen} số để truy cập`;
   currentPin = "";
   updatePinDots();
+  updateLockoutUI();
 }
 function enterPin(num) {
-  if (currentPin.length < 4) {
+  if (_pinChecking || getLockoutRemainingMs() > 0) {
+    updateLockoutUI();
+    return;
+  }
+  const pinLen = getPinLength();
+  if (currentPin.length < pinLen) {
     currentPin += num;
     updatePinDots();
-    if (currentPin.length === 4) validatePin();
+    if (currentPin.length === pinLen) validatePin();
   }
 }
 function clearPin() {
@@ -566,27 +770,50 @@ function updatePinDots() {
   });
 }
 async function validatePin() {
-  const encMaster = localStorage.getItem(PIN_KEY);
-  // Tính băm của PIN nhập vào
-  const hashedPin = await hashString(currentPin);
-  let decrypted = "";
-  try {
-    const bytes = CryptoJS.AES.decrypt(String(encMaster), hashedPin);
-    decrypted = bytes.toString(CryptoJS.enc.Utf8);
-  } catch (e) {
-    decrypted = "";
+  if (getLockoutRemainingMs() > 0) {
+    updateLockoutUI();
+    clearPin();
+    return;
   }
-  if (decrypted && decrypted.startsWith("mk_")) {
-    // Nếu giải mã thành công, thiết lập masterKey và mở khóa giao diện
-    masterKey = decrypted;
+  const encMaster = localStorage.getItem(PIN_KEY);
+  _pinChecking = true;
+  _setKeypadDisabled(true);
+  let res = null;
+  try {
+    res = await unwrapMasterKeyAny(currentPin, encMaster);
+  } finally {
+    _pinChecking = false;
+  }
+  if (res && res.masterKey) {
+    // Giải mã thành công: thiết lập masterKey và mở khóa giao diện
+    masterKey = res.masterKey;
+    currentPin = ""; // không giữ PIN trong bộ nhớ lâu hơn cần thiết
+    resetPinFailures();
+    _setKeypadDisabled(false);
     getEl("screen-lock").classList.add("hidden");
     // Sau khi unlock, tải lại danh sách khách hàng để giải mã dữ liệu
     loadCustomers(getEl("search-input").value);
+    // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới (masterKey giữ nguyên, dữ liệu không đổi)
+    if (res.legacy) _openForcedPinUpgrade();
   } else {
-    setTimeout(() => {
-      alert("Sai mã PIN");
-      clearPin();
-    }, 100);
+    registerPinFailure();
+    _shakePinDots();
+    clearPin();
+    updateLockoutUI();
+  }
+}
+
+function _openForcedPinUpgrade() {
+  const modal = getEl("setup-lock-modal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  getEl("setup-pin").value = "";
+  const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
+  if (storedEmp) getEl("setup-answer").value = storedEmp;
+  const note = getEl("setup-pin-note");
+  if (note) {
+    note.textContent = "Nâng cấp bảo mật: vui lòng tạo mã PIN mới gồm 6 số. Dữ liệu của bạn được giữ nguyên.";
+    note.classList.remove("hidden");
   }
 }
 function forgotPin() {
@@ -596,19 +823,18 @@ function closeForgotModal() {
   getEl("forgot-pin-modal").classList.add("hidden");
 }
 async function checkRecovery() {
-  const input = getEl("recovery-answer").value;
+  const input = getEl("recovery-answer").value.trim();
   const encMaster = localStorage.getItem(SEC_KEY);
-  const hashedAns = await hashString(input);
-  let decrypted = "";
-  try {
-    const bytes = CryptoJS.AES.decrypt(String(encMaster), hashedAns);
-    decrypted = bytes.toString(CryptoJS.enc.Utf8);
-  } catch (e) {
-    decrypted = "";
+  if (getLockoutRemainingMs() > 0) {
+    alert("Sai quá nhiều lần. Vui lòng chờ hết thời gian khóa rồi thử lại.");
+    return;
   }
-  if (decrypted && decrypted.startsWith("mk_")) {
-    // Khôi phục masterKey và cho phép đặt lại PIN
-    masterKey = decrypted;
+  // Chấp nhận cả SEC_KEY legacy lẫn v2; input untrimmed cũ vẫn khớp vì setup luôn trim
+  const res = await unwrapMasterKeyAny(input, encMaster);
+  if (res && res.masterKey) {
+    // Khôi phục masterKey và cho phép đặt lại PIN 6 số
+    masterKey = res.masterKey;
+    resetPinFailures();
     alert("Xác thực thành công. Tạo PIN mới.");
     closeForgotModal();
     // Ẩn màn hình khóa, mở modal thiết lập PIN mới
@@ -618,6 +844,9 @@ async function checkRecovery() {
     // điền sẵn mã nhân viên để người dùng không cần gõ lại
     getEl("setup-answer").value = input;
   } else {
+    // Cửa khôi phục cũng có thể bị đoán mò -> dùng chung bộ đếm lockout với PIN
+    registerPinFailure();
+    updateLockoutUI();
     alert("Mã nhân viên không khớp!");
   }
 }
@@ -671,19 +900,16 @@ async function activateApp() {
         getEl("setup-answer").value = employeeId;
         showToast("Kích hoạt thành công! Vui lòng tạo mã PIN.");
       } else {
-        // Tái kích hoạt trên máy đã có dữ liệu: xác thực mã nhân viên
+        // Tái kích hoạt trên máy đã có dữ liệu: xác thực mã nhân viên (nhận cả định dạng cũ và v2)
         const encMaster = localStorage.getItem(SEC_KEY);
-        let decrypted = "";
-        try {
-          const hashedAns = await hashString(employeeId);
-          const bytes = CryptoJS.AES.decrypt(String(encMaster), hashedAns);
-          decrypted = bytes.toString(CryptoJS.enc.Utf8);
-        } catch (e) {
-          decrypted = "";
-        }
-        if (decrypted && decrypted.startsWith("mk_")) {
+        const recovered = await unwrapMasterKeyAny(employeeId, encMaster);
+        if (recovered && recovered.masterKey) {
           // Đúng nhân viên cũ: giữ nguyên masterKey và dữ liệu, gia hạn thành công
-          masterKey = decrypted;
+          masterKey = recovered.masterKey;
+          // Nhân tiện nâng cấp SEC_KEY lên v2 nếu còn định dạng cũ
+          if (recovered.legacy) {
+            try { localStorage.setItem(SEC_KEY, await sealMasterKey(employeeId, masterKey)); } catch (e) { }
+          }
           localStorage.setItem(ACTIVATED_KEY, "true");
           localStorage.setItem(EMPLOYEE_KEY, employeeId);
           try { await ensureBackupSecret(); } catch (e) { }
