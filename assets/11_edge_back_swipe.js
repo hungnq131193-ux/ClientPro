@@ -198,7 +198,12 @@
     }
 
     // Selection mode must be consumed before any screen navigation.
-    if (callIfFn('handleAppBack')) {
+    // IMPORTANT: check handleAppBack()'s REAL return value. It returns true
+    // only when it actually consumed the gesture (a selection mode was
+    // active). Using callIfFn() here was a bug: callIfFn returns true merely
+    // because the function EXISTS, so every back gesture stopped here and
+    // none of the modal/slide-screen closing below ever ran.
+    if (typeof window.handleAppBack === 'function' && window.handleAppBack() === true) {
       return true;
     }
 
