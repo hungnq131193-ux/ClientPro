@@ -1,10 +1,10 @@
-// BUILD: 2026-07-02_EDGEBACK_FIX_3
+// BUILD: 2026-07-02_ZALO_APP_PRIORITY_1
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
 // v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v5.0.28-zalo-intent-fix-20260703';
+const VERSION = 'v5.0.29-zalo-app-priority-20260702';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -38,7 +38,7 @@ const STATIC_ASSETS = [
   './assets/head.js',
   './assets/head.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
   './assets/pwa.js',
-  './assets/pwa.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
+  './assets/pwa.js?v=ZALO_APP_PRIORITY_20260702_1',
 
   './assets/00_globals.js',
   './assets/01_config.js',
@@ -46,7 +46,7 @@ const STATIC_ASSETS = [
   './assets/03_map.js',
   './assets/03_map.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
   './assets/04_ui_common.js',
-  './assets/04_ui_common.js?v=ZALO_INTENT_FIX_20260703_1',
+  './assets/04_ui_common.js?v=ZALO_APP_PRIORITY_20260702_1',
   './assets/05_customers.js',
   './assets/05_customers.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
   './assets/06_assets.js',
