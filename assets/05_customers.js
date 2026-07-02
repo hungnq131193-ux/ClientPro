@@ -1,3 +1,13 @@
+// Icon SVG dùng trong danh sách khách hàng — hoist ra module scope để không tạo lại chuỗi mỗi lần render
+const SVG_ICONS = Object.freeze({
+    check: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+    smartphone: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3 opacity-70"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><path d="M12 18h.01"></path></svg>`,
+    clock: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`,
+    checkCircle: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="10"></circle></svg>`,
+    message: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+    phone: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.9 12.9 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.1 9.9a16 16 0 0 0 6 6l1.26-1.26a2 2 0 0 1 2.11-.45 12.9 12.9 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`,
+});
+
 function setCustSelectionMode(enabled, options) {
     const opts = options || {};
     isCustSelectionMode = !!enabled;
@@ -351,13 +361,16 @@ function renderList(list, opts = {}) {
     const pending = summaryCounts ? summaryCounts.pending : (list.length - approved);
     const total = approved + pending;
 
-    const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-    const iconBadgeCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-emerald-400 shrink-0"><path d="m12 15 2 2 4-4"></path><path d="M9 12a3 3 0 0 1 3-3"></path><path d="M20 12a8 8 0 1 1-8-8"></path></svg>`;
-    const iconSmartphone = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3 opacity-70"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><path d="M12 18h.01"></path></svg>`;
-    const iconClock = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
-    const iconCheckCircle = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="10"></circle></svg>`;
-    const iconMessage = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
-    const iconPhone = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.9 12.9 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.1 9.9a16 16 0 0 0 6 6l1.26-1.26a2 2 0 0 1 2.11-.45 12.9 12.9 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`;
+    // Delegation 1 lần cho nút Zalo trên toàn danh sách (thay vì listener trên từng card)
+    if (!listEl.dataset.zaloDelegated) {
+        listEl.dataset.zaloDelegated = '1';
+        listEl.addEventListener('click', (event) => {
+            const zaloBtn = event.target && event.target.closest ? event.target.closest('[data-action="zalo"]') : null;
+            if (!zaloBtn || !listEl.contains(zaloBtn)) return;
+            event.preventDefault();
+            openZaloChat(zaloBtn.dataset.phone || '');
+        });
+    }
 
     const frag = document.createDocumentFragment();
     if (!append) {
@@ -424,15 +437,15 @@ function renderList(list, opts = {}) {
             const limitHtml = isApproved
                 ? `<div class="flex items-center gap-1.5 mt-2">
                     <span class="customer-chip approved">
-                        ${iconCheckCircle} HM: ${safeCreditLimit}
+                        ${SVG_ICONS.checkCircle} HM: ${safeCreditLimit}
                     </span>
                    </div>`
                 : `<div class="flex items-center gap-1.5 mt-2">
                     <span class="customer-chip pending">
-                        ${iconClock} Đang thẩm định
+                        ${SVG_ICONS.clock} Đang thẩm định
                     </span>
                    </div>`;
-            const checkIcon = isCustSelectionMode ? `<div class="select-ring">${svgCheck}</div>` : '';
+            const checkIcon = isCustSelectionMode ? `<div class="select-ring">${SVG_ICONS.check}</div>` : '';
 
             // Escape dynamic values to prevent XSS
             // Fallback if data still looks encrypted
@@ -455,21 +468,13 @@ function renderList(list, opts = {}) {
                             <h3 class="customer-name-line">
                                 ${safeName}
                             </h3>
-                            <p class="customer-phone-line">${iconSmartphone} ${safePhone}</p>
+                            <p class="customer-phone-line">${SVG_ICONS.smartphone} ${safePhone}</p>
                             ${limitHtml}
                         </div>
                         <div class="customer-actions">
-                            <a href="${getZaloDeepLink(c.phone)}" data-action="zalo" class="action-btn customer-action-btn zalo">${iconMessage}</a>
-                            <a href="${getTelLink(c.phone)}" class="action-btn customer-action-btn call">${iconPhone}</a>
+                            <a href="${getZaloDeepLink(c.phone)}" data-action="zalo" data-phone="${escapeHTML(c.phone || '')}" class="action-btn customer-action-btn zalo">${SVG_ICONS.message}</a>
+                            <a href="${getTelLink(c.phone)}" class="action-btn customer-action-btn call">${SVG_ICONS.phone}</a>
                         </div>`;
-
-            const zaloBtn = el.querySelector('[data-action="zalo"]');
-            if (zaloBtn) {
-                zaloBtn.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    openZaloChat(c.phone);
-                });
-            }
 
         frag.appendChild(el);
     }

@@ -60,8 +60,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   setTheme(savedTheme);
-
-  setTheme(savedTheme);
   updateDashboardDateTicker();
   // 🌤 Khởi động thời tiết
   initWeather();

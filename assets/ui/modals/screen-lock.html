@@ -1,7 +1,8 @@
 <div id="screen-lock" class="fixed inset-0 z-[300] flex flex-col items-center justify-center p-6 hidden" style="background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(20px);">
-        <div class="mb-10 text-center relative z-10 animate-fade-in"><div class="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-2xl ring-4 ring-white/5" style="background: var(--accent-gradient);"><i data-lucide="lock" class="w-8 h-8 text-white"></i></div><h2 class="text-2xl font-bold mb-2 tracking-tight" style="color: var(--text-main);">ClientPro</h2><p class="text-sm font-medium opacity-70" style="color: var(--text-main);">Nhập mã PIN để truy cập</p></div>
-        <div class="flex gap-6 mb-12 relative z-10" id="pin-display"><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div></div>
-        <div class="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[300px] mb-8 relative z-10">
+        <div class="mb-10 text-center relative z-10 animate-fade-in"><div class="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-2xl ring-4 ring-white/5" style="background: var(--accent-gradient);"><i data-lucide="lock" class="w-8 h-8 text-white"></i></div><h2 class="text-2xl font-bold mb-2 tracking-tight" style="color: var(--text-main);">ClientPro</h2><p id="pin-subtitle" class="text-sm font-medium opacity-70" style="color: var(--text-main);">Nhập mã PIN để truy cập</p></div>
+        <div class="flex gap-4 mb-4 relative z-10" id="pin-display"></div>
+        <p id="pin-lockout-msg" class="hidden text-xs font-bold text-red-400 mb-4 relative z-10 text-center"></p>
+        <div class="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[300px] mb-8 relative z-10" id="pin-keypad">
             <button class="keypad-btn" onclick="enterPin(1)">1</button><button class="keypad-btn" onclick="enterPin(2)">2</button><button class="keypad-btn" onclick="enterPin(3)">3</button>
             <button class="keypad-btn" onclick="enterPin(4)">4</button><button class="keypad-btn" onclick="enterPin(5)">5</button><button class="keypad-btn" onclick="enterPin(6)">6</button>
             <button class="keypad-btn" onclick="enterPin(7)">7</button><button class="keypad-btn" onclick="enterPin(8)">8</button><button class="keypad-btn" onclick="enterPin(9)">9</button>

@@ -773,6 +773,25 @@ input::placeholder {
   transform: scale(1.1);
 }
 
+/* Keypad bị vô hiệu khi đang kiểm tra PIN hoặc trong thời gian khóa brute-force */
+.keypad-disabled .keypad-btn {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* Rung nhẹ hàng pin-dot khi nhập sai PIN */
+.pin-shake {
+  animation: pin-shake 0.35s ease-in-out;
+}
+
+@keyframes pin-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+
 .theme-btn {
   width: 42px;
   height: 42px;
