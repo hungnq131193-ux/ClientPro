@@ -4,6 +4,102 @@ function setupSwipe() {
     lb.addEventListener('touchend', e => { endX = e.changedTouches[0].screenX; handleSwipe(); }, { passive: true });
     function handleSwipe() { if (startX - endX > 50) navigateLightbox(1); if (endX - startX > 50) navigateLightbox(-1); }
 }
+
+function bindLongPress(el, onLongPress, options) {
+    if (!el || typeof onLongPress !== 'function') return function () { };
+    const opts = options || {};
+    const delay = opts.delay || 500;
+    const moveTolerance = opts.moveTolerance || 10;
+    const ignoreSelector = opts.ignoreSelector || 'button,a,input,textarea,select,label,.action-btn,[data-long-press-ignore]';
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    let pointerId = null;
+    let fired = false;
+
+    function clearTimer() {
+        if (timer) {
+            clearTimeout(timer);
+            timer = null;
+        }
+    }
+
+    function reset() {
+        clearTimer();
+        pointerId = null;
+        window.removeEventListener('scroll', cancel, true);
+    }
+
+    function cancel() {
+        if (fired) return;
+        reset();
+    }
+
+    function shouldIgnore(target) {
+        return !!(target && target.closest && target.closest(ignoreSelector));
+    }
+
+    function suppressNextClick(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        el.removeEventListener('click', suppressNextClick, true);
+    }
+
+    function onPointerDown(event) {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        if (shouldIgnore(event.target)) return;
+        reset();
+        fired = false;
+        pointerId = event.pointerId;
+        startX = event.clientX;
+        startY = event.clientY;
+        window.addEventListener('scroll', cancel, true);
+        timer = setTimeout(() => {
+            timer = null;
+            fired = true;
+            el.addEventListener('click', suppressNextClick, true);
+            try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) { }
+            onLongPress(event);
+        }, delay);
+    }
+
+    function onPointerMove(event) {
+        if (pointerId !== event.pointerId || !timer) return;
+        const dx = Math.abs(event.clientX - startX);
+        const dy = Math.abs(event.clientY - startY);
+        if (dx > moveTolerance || dy > moveTolerance) cancel();
+    }
+
+    function onPointerEnd(event) {
+        if (pointerId !== null && pointerId !== event.pointerId) return;
+        reset();
+    }
+
+    function onContextMenu(event) {
+        if (fired || timer) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }
+
+    el.addEventListener('pointerdown', onPointerDown, { passive: true });
+    el.addEventListener('pointermove', onPointerMove, { passive: true });
+    el.addEventListener('pointerup', onPointerEnd, { passive: true });
+    el.addEventListener('pointercancel', onPointerEnd, { passive: true });
+    el.addEventListener('contextmenu', onContextMenu);
+
+    return function unbindLongPress() {
+        reset();
+        el.removeEventListener('pointerdown', onPointerDown);
+        el.removeEventListener('pointermove', onPointerMove);
+        el.removeEventListener('pointerup', onPointerEnd);
+        el.removeEventListener('pointercancel', onPointerEnd);
+        el.removeEventListener('contextmenu', onContextMenu);
+        el.removeEventListener('click', suppressNextClick, true);
+    };
+}
+
 function navigateLightbox(dir) {
     if (currentLightboxList.length <= 1) return;
     currentLightboxIndex += dir; if (currentLightboxIndex < 0) currentLightboxIndex = currentLightboxList.length - 1; if (currentLightboxIndex >= currentLightboxList.length) currentLightboxIndex = 0;

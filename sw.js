@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v5.0.24-official-edge-back-20260702';
+const VERSION = 'v5.0.25-longpress-select-20260702';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -34,29 +34,32 @@ const STATIC_ASSETS = [
   './assets/css/tailwind.clientpro.css',
   './assets/css/app.patch.css',
   './assets/styles.css',
-  './assets/styles.css?v=OFFICIAL_EDGE_BACK_20260702_1',
+  './assets/styles.css?v=CLIENTPRO_LONGPRESS_SELECT_20260702_1',
   './assets/head.js',
-  './assets/head.js?v=OFFICIAL_EDGE_BACK_20260702_1',
+  './assets/head.js?v=CLIENTPRO_LONGPRESS_SELECT_20260702_1',
   './assets/pwa.js',
-  './assets/pwa.js?v=OFFICIAL_EDGE_BACK_20260702_1',
+  './assets/pwa.js?v=CLIENTPRO_LONGPRESS_SELECT_20260702_1',
 
   './assets/00_globals.js',
   './assets/01_config.js',
   './assets/02_security.js',
   './assets/03_map.js',
-  './assets/03_map.js?v=OFFICIAL_EDGE_BACK_20260702_1',
+  './assets/03_map.js?v=CLIENTPRO_LONGPRESS_SELECT_20260702_1',
   './assets/04_ui_common.js',
+  './assets/04_ui_common.js?v=CLIENTPRO_LONGPRESS_SELECT_20260702_1',
   './assets/05_customers.js',
+  './assets/05_customers.js?v=CLIENTPRO_LONGPRESS_SELECT_20260702_1',
   './assets/06_assets.js',
   './assets/07_drive.js',
   './assets/08_images_camera.js',
+  './assets/08_images_camera.js?v=CLIENTPRO_LONGPRESS_SELECT_20260702_1',
   './assets/09_menu.js',
   './assets/09_backup_manager.js',
   './assets/09_donate.js',
   './assets/09_weather.js',
   './assets/10_bootstrap.js',
   './assets/11_edge_back_swipe.js',
-  './assets/11_edge_back_swipe.js?v=OFFICIAL_EDGE_BACK_20260702_1',
+  './assets/11_edge_back_swipe.js?v=CLIENTPRO_LONGPRESS_SELECT_20260702_1',
   './assets/12_backup_core.js',
   './assets/13_ui_select_customers.js',
   './assets/14_cloud_transfer.js',

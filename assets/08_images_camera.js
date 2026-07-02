@@ -73,13 +73,19 @@ function closeAssetGallery() {
 }
 
 
-function toggleSelectionMode() {
-  isSelectionMode = !isSelectionMode;
-  selectedImages.clear();
+function setImageSelectionMode(enabled, options) {
+  const opts = options || {};
+  isSelectionMode = !!enabled;
+  if (!opts.keepSelection) selectedImages.clear();
   updateSelectionUI();
-  if (!getEl("screen-asset-gallery").classList.contains("translate-x-full"))
-    loadAssetImages(currentAssetId);
-  else loadProfileImages();
+  if (!opts.skipReload) {
+    if (!getEl("screen-asset-gallery").classList.contains("translate-x-full"))
+      loadAssetImages(currentAssetId);
+    else loadProfileImages();
+  }
+}
+function toggleSelectionMode() {
+  setImageSelectionMode(!isSelectionMode);
 }
 function updateSelectionUI() {
   const btns = [getEl("btn-select-mode"), getEl("btn-select-mode-asset")];
@@ -102,12 +108,21 @@ function updateSelectionUI() {
 }
 
 function toggleImage(id, div) {
+  const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
   if (selectedImages.has(id)) {
     selectedImages.delete(id);
     div.classList.remove("selected");
+    const ring = div.querySelector('.select-ring');
+    if (ring) ring.remove();
   } else {
     selectedImages.add(id);
     div.classList.add("selected");
+    if (!div.querySelector('.select-ring')) {
+      const ring = document.createElement('div');
+      ring.className = 'select-ring';
+      ring.innerHTML = svgCheck;
+      div.appendChild(ring);
+    }
   }
   getEl("selection-count").textContent = selectedImages.size;
 }
@@ -118,7 +133,7 @@ function deleteSelectedImages() {
   selectedImages.forEach((id) => tx.objectStore("images").delete(id));
   tx.oncomplete = () => {
     showToast("Đã xóa");
-    toggleSelectionMode();
+    setImageSelectionMode(false);
   };
 }
 function dataURLtoBlob(dataurl) {
@@ -215,7 +230,7 @@ async function shareSelectedImages() {
         alert("Thiết bị không hỗ trợ chia sẻ nhiều ảnh.");
       }
     }
-    toggleSelectionMode();
+    setImageSelectionMode(false);
   } catch (err) {
     getEl("loader").classList.add("hidden");
     console.error(err);
@@ -278,6 +293,12 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
             if (isSelectionMode) toggleImage(img.id, div);
             else openLightbox(img.data, img.id, idx, imgs);
           };
+          if (typeof bindLongPress === 'function') {
+            bindLongPress(div, () => {
+              if (!isSelectionMode) setImageSelectionMode(true, { keepSelection: true, skipReload: true });
+              if (!selectedImages.has(img.id)) toggleImage(img.id, div);
+            });
+          }
           frag.appendChild(div);
         }
         grid.appendChild(frag);
@@ -337,6 +358,12 @@ function loadAssetImages(id) {
             if (isSelectionMode) toggleImage(img.id, div);
             else openLightbox(img.data, img.id, idx, imgs);
           };
+          if (typeof bindLongPress === 'function') {
+            bindLongPress(div, () => {
+              if (!isSelectionMode) setImageSelectionMode(true, { keepSelection: true, skipReload: true });
+              if (!selectedImages.has(img.id)) toggleImage(img.id, div);
+            });
+          }
 
           frag.appendChild(div);
         }
