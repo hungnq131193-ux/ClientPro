@@ -40,7 +40,7 @@ function bindLongPress(el, onLongPress, options) {
     }
 
     function suppressNextClick(event) {
-        event.preventDefault();
+        if (event.cancelable) event.preventDefault();
         event.stopPropagation();
         if (event.stopImmediatePropagation) event.stopImmediatePropagation();
         el.removeEventListener('click', suppressNextClick, true);
@@ -49,6 +49,7 @@ function bindLongPress(el, onLongPress, options) {
     function onPointerDown(event) {
         if (event.pointerType === 'mouse' && event.button !== 0) return;
         if (shouldIgnore(event.target)) return;
+        if (typeof clearNativeTextSelection === 'function') clearNativeTextSelection();
         reset();
         fired = false;
         pointerId = event.pointerId;
@@ -58,9 +59,12 @@ function bindLongPress(el, onLongPress, options) {
         timer = setTimeout(() => {
             timer = null;
             fired = true;
+            if (event && event.cancelable) event.preventDefault();
+            if (typeof clearNativeTextSelection === 'function') clearNativeTextSelection();
             el.addEventListener('click', suppressNextClick, true);
             try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) { }
             onLongPress(event);
+            if (typeof clearNativeTextSelection === 'function') clearNativeTextSelection();
         }, delay);
     }
 
@@ -77,13 +81,17 @@ function bindLongPress(el, onLongPress, options) {
     }
 
     function onContextMenu(event) {
-        if (fired || timer) {
+        const target = event.target;
+        const allowed = typeof isEditableTarget === 'function' && isEditableTarget(target);
+        const control = target && target.closest && target.closest('a[href],button,[role="button"],[onclick],.action-btn,[data-long-press-ignore]');
+        if (!allowed && !control) {
             event.preventDefault();
             event.stopPropagation();
+            if (typeof clearNativeTextSelection === 'function') clearNativeTextSelection();
         }
     }
 
-    el.addEventListener('pointerdown', onPointerDown, { passive: true });
+    el.addEventListener('pointerdown', onPointerDown, { passive: false });
     el.addEventListener('pointermove', onPointerMove, { passive: true });
     el.addEventListener('pointerup', onPointerEnd, { passive: true });
     el.addEventListener('pointercancel', onPointerEnd, { passive: true });
@@ -118,6 +126,75 @@ let currentCustomerId = null; let currentCustomerData = null; let currentAssetId
 let activeListTab = 'pending'; let isSelectionMode = false; let selectedImages = new Set();
 let isCustSelectionMode = false; let selectedCustomers = new Set();
 let captureMode = 'profile'; let stream = null; let currentImageId = null; let currentImageBase64 = null;
+
+function clearNativeTextSelection() {
+    try {
+        const sel = window.getSelection && window.getSelection();
+        if (sel && sel.removeAllRanges) sel.removeAllRanges();
+    } catch (e) { }
+}
+
+function isEditableTarget(target) {
+    if (!target) return false;
+    const el = target.nodeType === 1 ? target : target.parentElement;
+    return !!(el && el.closest && el.closest('input,textarea,select,[contenteditable="true"],.allow-text-select'));
+}
+
+let __selectionHistoryActive = false;
+function pushSelectionHistoryLayer(type) {
+    if (__selectionHistoryActive) return;
+    try {
+        history.pushState({ clientProSelectionLayer: true, type: type || 'selection' }, document.title, location.href);
+        __selectionHistoryActive = true;
+    } catch (e) { }
+}
+function clearSelectionHistoryLayer() { __selectionHistoryActive = false; }
+
+function isAnySelectionModeActive() {
+    return !!((typeof isCustSelectionMode !== 'undefined' && (isCustSelectionMode || (selectedCustomers && selectedCustomers.size))) ||
+        (typeof isSelectionMode !== 'undefined' && (isSelectionMode || (selectedImages && selectedImages.size))));
+}
+
+function cancelCustomerSelectionMode() {
+    if (typeof selectedCustomers !== 'undefined' && selectedCustomers && selectedCustomers.clear) selectedCustomers.clear();
+    if (typeof isCustSelectionMode !== 'undefined') isCustSelectionMode = false;
+    document.querySelectorAll('.cust-card.selected, .customer-card.selected, .customer-row.selected').forEach((el) => el.classList.remove('selected'));
+    const bar = document.getElementById('cust-selection-bar');
+    if (bar) { bar.classList.add('translate-y-full'); bar.classList.remove('translate-y-0'); }
+    const count = document.getElementById('cust-selection-count');
+    if (count) count.textContent = '0';
+}
+
+function cancelImageSelectionMode() {
+    if (typeof selectedImages !== 'undefined' && selectedImages && selectedImages.clear) selectedImages.clear();
+    if (typeof isSelectionMode !== 'undefined') isSelectionMode = false;
+    document.querySelectorAll('.img-wrapper.selected, .image-card.selected, .gallery-item.selected, .asset-gallery-item.selected').forEach((el) => {
+        el.classList.remove('selected');
+        const ring = el.querySelector('.select-ring');
+        if (ring) ring.remove();
+    });
+    if (typeof updateSelectionUI === 'function') updateSelectionUI();
+}
+
+function cancelAllSelectionModes() {
+    cancelCustomerSelectionMode();
+    cancelImageSelectionMode();
+    document.querySelectorAll('.selected, .selecting, .active-selection').forEach((el) => el.classList.remove('selected', 'selecting', 'active-selection'));
+    document.body && document.body.classList.remove('selection-mode', 'cust-selection-mode', 'image-selection-mode', 'active-selection');
+    const app = document.getElementById('app');
+    if (app) app.classList.remove('selection-mode', 'cust-selection-mode', 'image-selection-mode', 'active-selection');
+    clearNativeTextSelection();
+    clearSelectionHistoryLayer();
+}
+
+function handleAppBack() {
+    if (isAnySelectionModeActive()) {
+        cancelAllSelectionModes();
+        return true;
+    }
+    return false;
+}
+
 
 function normalizePhoneForLink(phone) {
     let p = String(phone || '').replace(/[^0-9+]/g, '');

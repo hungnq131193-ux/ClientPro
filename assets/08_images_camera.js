@@ -67,8 +67,8 @@ function closeAssetGallery() {
   if (typeof slideScreenOut === "function") slideScreenOut(galScreen);
   else galScreen.classList.add("translate-x-full");
   currentAssetId = null;
-  isSelectionMode = false;
-  selectedImages.clear();
+  if (typeof cancelImageSelectionMode === 'function') cancelImageSelectionMode();
+  else { isSelectionMode = false; selectedImages.clear(); }
   updateSelectionUI();
 }
 
@@ -76,7 +76,10 @@ function closeAssetGallery() {
 function setImageSelectionMode(enabled, options) {
   const opts = options || {};
   isSelectionMode = !!enabled;
+  if (isSelectionMode && typeof pushSelectionHistoryLayer === 'function') pushSelectionHistoryLayer('images');
   if (!opts.keepSelection) selectedImages.clear();
+  if (document.body) document.body.classList.toggle('image-selection-mode', isSelectionMode);
+  if (!isSelectionMode) { document.querySelectorAll('.img-wrapper.selected').forEach((el) => { el.classList.remove('selected'); const ring = el.querySelector('.select-ring'); if (ring) ring.remove(); }); if (typeof clearSelectionHistoryLayer === 'function') clearSelectionHistoryLayer(); }
   updateSelectionUI();
   if (!opts.skipReload) {
     if (!getEl("screen-asset-gallery").classList.contains("translate-x-full"))
@@ -294,7 +297,9 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
             else openLightbox(img.data, img.id, idx, imgs);
           };
           if (typeof bindLongPress === 'function') {
-            bindLongPress(div, () => {
+            bindLongPress(div, (event) => {
+              if (event && event.cancelable) event.preventDefault();
+              if (typeof clearNativeTextSelection === 'function') clearNativeTextSelection();
               if (!isSelectionMode) setImageSelectionMode(true, { keepSelection: true, skipReload: true });
               if (!selectedImages.has(img.id)) toggleImage(img.id, div);
             });
@@ -359,7 +364,9 @@ function loadAssetImages(id) {
             else openLightbox(img.data, img.id, idx, imgs);
           };
           if (typeof bindLongPress === 'function') {
-            bindLongPress(div, () => {
+            bindLongPress(div, (event) => {
+              if (event && event.cancelable) event.preventDefault();
+              if (typeof clearNativeTextSelection === 'function') clearNativeTextSelection();
               if (!isSelectionMode) setImageSelectionMode(true, { keepSelection: true, skipReload: true });
               if (!selectedImages.has(img.id)) toggleImage(img.id, div);
             });

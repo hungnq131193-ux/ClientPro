@@ -1,11 +1,13 @@
 function setCustSelectionMode(enabled, options) {
     const opts = options || {};
     isCustSelectionMode = !!enabled;
+    if (isCustSelectionMode && typeof pushSelectionHistoryLayer === 'function') pushSelectionHistoryLayer('customers');
     if (!opts.keepSelection) selectedCustomers.clear();
+    if (document.body) document.body.classList.toggle('cust-selection-mode', isCustSelectionMode);
     const bar = getEl('cust-selection-bar');
     if (bar) {
         if (isCustSelectionMode) { bar.classList.remove('translate-y-full'); bar.classList.add('translate-y-0'); }
-        else { bar.classList.add('translate-y-full'); bar.classList.remove('translate-y-0'); }
+        else { bar.classList.add('translate-y-full'); bar.classList.remove('translate-y-0'); document.querySelectorAll('.cust-card.selected').forEach((el) => el.classList.remove('selected')); if (typeof clearSelectionHistoryLayer === 'function') clearSelectionHistoryLayer(); }
     }
     const count = getEl('cust-selection-count');
     if (count) count.textContent = selectedCustomers.size;
@@ -409,7 +411,9 @@ function renderList(list, opts = {}) {
         };
 
         if (typeof bindLongPress === 'function') {
-            bindLongPress(el, () => {
+            bindLongPress(el, (event) => {
+                if (event && event.cancelable) event.preventDefault();
+                if (typeof clearNativeTextSelection === 'function') clearNativeTextSelection();
                 if (!isCustSelectionMode) setCustSelectionMode(true, { keepSelection: true, skipReload: true });
                 if (!selectedCustomers.has(c.id)) toggleCustomerSelection(c.id, el);
             }, { ignoreSelector: '.action-btn,button,a,input,textarea,select,label,[data-long-press-ignore]' });
