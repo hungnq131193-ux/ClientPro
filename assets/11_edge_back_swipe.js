@@ -250,6 +250,8 @@
   let sy = 0;
   let st = 0;
   let cooldownUntil = 0;
+  let lastTouchBackAt = 0;          // timestamp of last touch-driven runBackAction()
+  const POPSTATE_DEDUPE_MS = 600;   // if popstate fires this soon after, treat as the same physical gesture
 
   // PERF: Chỉ gắn touchmove (passive:false) khi thật sự bắt đầu edge-swipe.
   // Tránh ảnh hưởng scroll performance toàn app.
@@ -342,6 +344,7 @@
 
     if (passTime && passAxis && passDistance) {
       const ok = runBackAction();
+      lastTouchBackAt = Date.now();
       if (ok) cooldownUntil = Date.now() + COOLDOWN_MS;
     }
   }
@@ -363,8 +366,17 @@
         history.pushState(SENTINEL_STATE, document.title, location.href);
       }
       window.addEventListener('popstate', function () {
-        const ok = runBackAction();
-        if (ok) history.pushState(SENTINEL_STATE, document.title, location.href);
+        const justHandledByTouch = (Date.now() - lastTouchBackAt) < POPSTATE_DEDUPE_MS;
+        if (!justHandledByTouch) {
+          // Independent trigger (hardware back button, or a native OS edge-swipe
+          // that our touch handler didn't catch) — run our own back logic too.
+          runBackAction();
+        }
+        // Always re-arm the sentinel, even if there was nothing left to close
+        // (e.g. already at the dashboard). Otherwise the trap silently loses a
+        // level every time it's "used up" at the root screen, and a later back
+        // gesture falls through past the app's own history and exits it.
+        history.pushState(SENTINEL_STATE, document.title, location.href);
       });
     } catch (_) { }
   }
