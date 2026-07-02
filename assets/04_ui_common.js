@@ -217,6 +217,14 @@ function getTelLink(phone) {
     const p = normalizePhoneForLink(phone);
     return p ? `tel:+${p}` : '#';
 }
+function isAndroidDevice() {
+    return /Android/i.test(navigator.userAgent || '');
+}
+function isIOSDevice() {
+    const ua = navigator.userAgent || '';
+    // iPadOS mới báo UA là "Macintosh" nên phải kiểm tra thêm cảm ứng
+    return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+}
 function openZaloChat(phone) {
     const p = normalizePhoneForLink(phone);
     const fallback = getZaloLink(phone);
@@ -226,21 +234,45 @@ function openZaloChat(phone) {
         return;
     }
 
-    // Trên điện thoại ưu tiên mở app Zalo bằng deep link. Nếu thiết bị không
-    // bắt được scheme (chưa cài Zalo / trình duyệt chặn), tự chuyển sang
-    // zalo.me để nút vẫn có phản hồi thay vì "bấm không thấy gì".
-    if (isMobileDevice()) {
+    // ANDROID: dùng intent URL — Chrome/WebView sẽ mở thẳng app Zalo
+    // (package com.zing.zalo). Nếu máy CHƯA cài Zalo, trình duyệt tự chuyển
+    // sang browser_fallback_url. Không dùng timer nên không còn tình trạng
+    // app đã mở mà trang vẫn nhảy sang zalo.me web.
+    if (isAndroidDevice()) {
+        window.location.href =
+            'intent://conversation?phone=' + encodeURIComponent(p) +
+            '#Intent;scheme=zalo;package=com.zing.zalo;' +
+            'S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
+        return;
+    }
+
+    // iOS: mở bằng scheme zalo://. Chỉ fallback sang zalo.me khi chắc chắn
+    // app không mở: chờ lâu hơn (2.5s vì iOS có hộp thoại "Mở bằng Zalo?"),
+    // bắt thêm blur/pagehide, và nếu timer bị "đóng băng" (đã chuyển sang
+    // app rồi quay lại) thì bỏ qua fallback.
+    if (isIOSDevice()) {
         let didLeavePage = false;
         const markLeft = () => { didLeavePage = true; };
         document.addEventListener('visibilitychange', markLeft, { once: true });
         window.addEventListener('pagehide', markLeft, { once: true });
+        window.addEventListener('blur', markLeft, { once: true });
+        const startedAt = Date.now();
         setTimeout(() => {
-            if (!didLeavePage && !document.hidden) window.location.href = fallback;
-        }, 1200);
+            const timerWasFrozen = (Date.now() - startedAt) > 3200;
+            if (didLeavePage || document.hidden || timerWasFrozen) return;
+            window.location.href = fallback;
+        }, 2500);
         window.location.href = deep;
         return;
     }
 
+    // Điện thoại khác (hiếm) vẫn thử deep link trước
+    if (isMobileDevice()) {
+        window.location.href = deep;
+        return;
+    }
+
+    // Desktop: mở web zalo.me
     const win = window.open(fallback, '_blank', 'noopener');
     if (!win) window.location.href = fallback;
 }
