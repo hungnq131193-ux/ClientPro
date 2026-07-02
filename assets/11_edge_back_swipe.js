@@ -31,6 +31,7 @@
     } catch (_) { }
   }
   let __dbgPanelEl = null;
+  let __dbgExpanded = false;
   function renderDebugPanel(arr) {
     try {
       if (!__dbgPanelEl) {
@@ -38,21 +39,35 @@
         __dbgPanelEl.id = 'clientpro-edgeback-debug';
         __dbgPanelEl.setAttribute('data-edge-back', 'ignore');
         __dbgPanelEl.style.cssText = [
-          'position:fixed', 'top:8px', 'left:50%', 'transform:translateX(-50%)',
-          'width:min(94vw,520px)', 'max-height:32vh', 'overflow:auto',
+          'position:fixed', 'bottom:12px', 'right:12px',
           'background:rgba(0,0,0,0.85)', 'color:#0f0', 'font:10px/1.4 monospace',
-          'padding:6px 8px', 'z-index:2147483647', 'border-radius:8px',
-          'white-space:pre-wrap', 'word-break:break-all'
+          'z-index:2147483647', 'border-radius:10px', 'transition:all .15s'
         ].join(';');
         const header = document.createElement('div');
-        header.textContent = '[DEBUG edge-back — chạm để copy log, chạm giữ để xoá]';
-        header.style.cssText = 'color:#ff0;margin-bottom:4px;font-weight:bold;';
+        header.textContent = '🐞';
+        header.style.cssText = 'color:#ff0;font-weight:bold;padding:8px 10px;text-align:center;cursor:pointer;';
+        const body = document.createElement('div');
+        body.id = 'clientpro-edgeback-debug-body';
+        body.style.cssText = 'display:none;max-width:min(94vw,520px);max-height:32vh;overflow:auto;padding:0 8px 8px;white-space:pre-wrap;word-break:break-all;';
+        function applyExpandedState() {
+          if (__dbgExpanded) {
+            header.textContent = '[DEBUG edge-back — chạm để copy, chạm giữ để xoá, chạm 🔽 để thu nhỏ]';
+            header.style.padding = '6px 8px';
+            body.style.display = 'block';
+          } else {
+            header.textContent = '🐞';
+            header.style.padding = '8px 10px';
+            body.style.display = 'none';
+          }
+        }
         header.addEventListener('click', function () {
+          if (!__dbgExpanded) { __dbgExpanded = true; applyExpandedState(); return; }
           const full = (JSON.parse(localStorage.getItem(DEBUG_KEY) || '[]')).join('\n');
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(full).then(function () {
-              header.textContent = '[DA COPY! — chạm giữ để xoá]';
-              setTimeout(function () { header.textContent = '[DEBUG edge-back — chạm để copy log, chạm giữ để xoá]'; }, 1200);
+              const old = header.textContent;
+              header.textContent = '[DA COPY!]';
+              setTimeout(function () { header.textContent = old; }, 900);
             }).catch(function () { });
           }
         });
@@ -64,14 +79,25 @@
           }, 700);
         });
         header.addEventListener('pointerup', function () { clearTimeout(pressTimer); });
-        const body = document.createElement('div');
-        body.id = 'clientpro-edgeback-debug-body';
+        // small collapse handle inside expanded body footer
+        const collapseBtn = document.createElement('div');
+        collapseBtn.textContent = '🔽 thu nhỏ';
+        collapseBtn.style.cssText = 'color:#6cf;cursor:pointer;margin-top:4px;text-align:center;';
+        collapseBtn.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          __dbgExpanded = false;
+          applyExpandedState();
+        });
+        body.appendChild(document.createElement('div')).id = 'clientpro-edgeback-debug-lines';
+        body.appendChild(collapseBtn);
         __dbgPanelEl.appendChild(header);
         __dbgPanelEl.appendChild(body);
         document.body.appendChild(__dbgPanelEl);
+        applyExpandedState();
       }
+      const lines = __dbgPanelEl.querySelector('#clientpro-edgeback-debug-lines');
+      lines.textContent = arr.slice(-24).join('\n');
       const body = __dbgPanelEl.querySelector('#clientpro-edgeback-debug-body');
-      body.textContent = arr.slice(-24).join('\n');
       body.scrollTop = body.scrollHeight;
     } catch (_) { }
   }
@@ -140,6 +166,15 @@
           '[contenteditable="true"]',
           '.no-edge-back',
           '[data-edge-back="ignore"]',
+          // Any real button/link/clickable control (this app uses inline
+          // onclick="" handlers extensively, e.g. header back-arrow icons
+          // that happen to sit right inside the edge band). A tap there
+          // should always go to its own handler, never be swallowed by our
+          // gesture tracking/preventDefault.
+          'button',
+          'a[href]',
+          '[role="button"]',
+          '[onclick]',
           // Lightbox has its own full-width left/right swipe to navigate images
           // (see setupSwipe() in 04_ui_common.js). Starting an edge-back gesture
           // there would fight with image navigation, so let the lightbox own it.
