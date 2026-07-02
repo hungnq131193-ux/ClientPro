@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v5.0.21-backup-mobile-scroll-20260630';
+const VERSION = 'v5.0.22-backup-mobile-scroll-20260630';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
