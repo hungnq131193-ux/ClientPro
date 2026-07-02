@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v4.3.0: Added duplicate detection, edit customer fix, onboarding tour
-const VERSION = 'v5.0.28-edgeback-fix-20260702';
+const VERSION = 'v5.0.28-zalo-intent-fix-20260703';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -46,7 +46,7 @@ const STATIC_ASSETS = [
   './assets/03_map.js',
   './assets/03_map.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
   './assets/04_ui_common.js',
-  './assets/04_ui_common.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
+  './assets/04_ui_common.js?v=ZALO_INTENT_FIX_20260703_1',
   './assets/05_customers.js',
   './assets/05_customers.js?v=CLIENTPRO_EDGEBACK_FIX_20260702_3',
   './assets/06_assets.js',
