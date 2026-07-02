@@ -1,6 +1,17 @@
 
 function updateDashboardDateTicker() {
-  // Date ticker was removed from the dashboard UI. Keep this no-op for older cached markup.
+  // Populate the light-theme hero date line (safe no-op if the element is absent).
+  try {
+    const el = document.getElementById("dash-hero-date");
+    if (!el) return;
+    const now = new Date();
+    const weekdays = [
+      "Chủ Nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7",
+    ];
+    const dd = String(now.getDate()).padStart(2, "0");
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    el.textContent = `Hôm nay là ${weekdays[now.getDay()]}, ${dd}/${mm}/${now.getFullYear()}`;
+  } catch (e) { }
 }
 
 function parseMoneyToNumber(str) {
@@ -42,6 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let savedTheme = localStorage.getItem(THEME_KEY);
   // Danh sách các theme hợp lệ hiện tại
   const validThemes = [
+    "theme-vietinbank",
     "theme-midnight",
     "theme-sunset",
     "theme-ocean",
@@ -54,9 +66,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     "theme-solar",
   ];
 
-  // Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về Midnight
+  // Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về VietinBank Light
   if (!validThemes.includes(savedTheme)) {
-    savedTheme = "theme-midnight";
+    savedTheme = "theme-vietinbank";
   }
 
   setTheme(savedTheme);

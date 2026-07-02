@@ -107,6 +107,24 @@ body.theme-midnight {
   --accent-gradient: linear-gradient(135deg, #005b9f 0%, #00aaff 50%, #22d3ee 100%);
 }
 
+/* 0. VIETINBANK LIGHT - Giao diện sáng cao cấp (Theme Mặc Định)
+   Nền sáng, thẻ trắng, header xanh VietinBank, chữ đậm dễ đọc. */
+body.theme-vietinbank {
+  --text-main: #12284c;
+  --text-sub: #5b7089;
+  --bg-base: #eaf1fa;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 12% 8%, rgba(0, 91, 159, 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 100% 70% at 92% 4%, rgba(0, 160, 227, 0.10) 0%, transparent 50%),
+    radial-gradient(ellipse 90% 60% at 50% 100%, rgba(0, 91, 159, 0.06) 0%, transparent 55%);
+  --bg-panel: #ffffff;
+  --header-bg: #004a8f;
+  --border-panel: rgba(0, 74, 143, 0.14);
+  --input-bg: #f4f8fd;
+  --accent: #005b9f;
+  --accent-gradient: linear-gradient(135deg, #004a8f 0%, #0072bc 55%, #00a0e3 100%);
+}
+
 
 
 /* 2. SUNSET - Cam Đỏ Rực Rỡ */
@@ -2394,4 +2412,146 @@ select,
   -webkit-user-select: text;
   user-select: text;
   -webkit-touch-callout: default;
+}
+
+/* ============================================================
+   PHASE 1 — VIETINBANK LIGHT (Redesign 2026-07-02)
+   Scoped to body.theme-vietinbank. Higher specificity + later
+   position let these win over the historical dashboard overrides
+   without touching the 10 existing dark themes.
+   ============================================================ */
+
+/* --- Solid blue headers with white text on every screen (matches mockup) --- */
+body.theme-vietinbank .glass-header {
+  background: linear-gradient(160deg, #0058a6 0%, #004a8f 100%) !important;
+  border-bottom: 1px solid rgba(0, 40, 80, 0.25) !important;
+  box-shadow: 0 14px 30px rgba(0, 51, 102, 0.22) !important;
+}
+
+/* Header action buttons (back / settings / add / weather) -> white glyphs */
+body.theme-vietinbank .glass-header button {
+  color: #ffffff !important;
+}
+body.theme-vietinbank .glass-header button i,
+body.theme-vietinbank .glass-header button svg,
+body.theme-vietinbank #screen-dashboard .glass-header button i,
+body.theme-vietinbank #screen-dashboard button[onclick="refreshWeather()"] i {
+  color: #ffffff !important;
+}
+body.theme-vietinbank .glass-header h2 {
+  color: #ffffff !important;
+}
+
+/* Dashboard settings gear: subtle glass chip on the blue hero */
+body.theme-vietinbank #screen-dashboard .glass-header > .flex > .flex > button {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+/* Weather pill stays readable on the blue hero */
+body.theme-vietinbank #screen-dashboard button[onclick="refreshWeather()"] {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: #eaf3ff !important;
+}
+
+/* Header search field (customer list) -> white pill on blue header */
+body.theme-vietinbank .glass-header input {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+  color: #ffffff !important;
+}
+body.theme-vietinbank .glass-header input::placeholder {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+body.theme-vietinbank .customer-search-wrap i {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Dashboard greeting block inside the blue hero */
+body.theme-vietinbank .dash-hero-greeting {
+  margin-top: 2px;
+}
+body.theme-vietinbank .dash-hi {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+body.theme-vietinbank .dash-date {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(234, 243, 255, 0.85);
+}
+
+/* --- Dashboard body: light surface --- */
+body.theme-vietinbank #screen-dashboard {
+  background: var(--bg-base);
+}
+
+/* White cards with a soft blue shadow (matches mockup panels) */
+body.theme-vietinbank #folder-view .dashboard-card {
+  color: #12284c !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 74, 143, 0.10) !important;
+  box-shadow: 0 16px 34px rgba(0, 51, 102, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+body.theme-vietinbank #folder-view .dashboard-section-head h2 {
+  color: #12284c !important;
+}
+
+/* Stat + quick-action tiles: crisp white cards with subtle blue border */
+body.theme-vietinbank #folder-view .overview-stat,
+body.theme-vietinbank #folder-view .quick-action-btn {
+  background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%) !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+  box-shadow: 0 8px 18px rgba(0, 51, 102, 0.07) !important;
+}
+
+/* Bold VietinBank-blue numbers */
+body.theme-vietinbank #folder-view .overview-stat strong {
+  color: #005b9f !important;
+  font-weight: 900 !important;
+}
+
+/* Tile labels: dark, legible */
+body.theme-vietinbank #folder-view .overview-stat span:not(.overview-icon),
+body.theme-vietinbank #folder-view .quick-action-btn strong {
+  color: #24364f !important;
+  font-weight: 700 !important;
+}
+
+/* Icon chips: SOLID VietinBank blue with white glyph (matches mockup) */
+body.theme-vietinbank #screen-dashboard .overview-icon,
+body.theme-vietinbank #screen-dashboard .quick-action-btn > span,
+body.theme-vietinbank #folder-view .overview-icon,
+body.theme-vietinbank #folder-view .quick-action-btn > span {
+  background: linear-gradient(135deg, #004a8f 0%, #0072bc 55%, #00a0e3 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 16px rgba(0, 91, 159, 0.28) !important;
+}
+body.theme-vietinbank #folder-view .overview-icon i,
+body.theme-vietinbank #folder-view .quick-action-btn > span i {
+  color: #ffffff !important;
+}
+
+/* Drive config panel on light theme */
+body.theme-vietinbank #folder-view .dashboard-drive-config {
+  background: linear-gradient(135deg, rgba(0, 91, 159, 0.06), rgba(0, 160, 227, 0.05)) !important;
+  border-color: rgba(0, 74, 143, 0.14) !important;
+  color: #12284c !important;
+}
+body.theme-vietinbank #folder-view .dashboard-drive-config label {
+  color: #005b9f !important;
+}
+
+/* --- Safety: keep list cards light on other screens until Phases 2-3 --- */
+body.theme-vietinbank .glass-panel-lite {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+  box-shadow: 0 10px 24px rgba(0, 51, 102, 0.08) !important;
 }
