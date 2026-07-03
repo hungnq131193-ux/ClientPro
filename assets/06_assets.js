@@ -1,8 +1,10 @@
 // --- ĐÃ SỬA: GIẢI MÃ DỮ LIỆU TRƯỚC KHI TÍNH TOÁN KHOẢNG CÁCH ---
 // Guard cho phần khoảng cách đường bộ: seq chống response cũ đè modal của tài sản khác,
-// cờ in-flight chống bắn request OSRM chồng nhau khi bấm liên tiếp.
+// khóa in-flight theo "chữ ký" request (origin + danh sách điểm) — bấm lại cùng một tài sản
+// khi request chưa xong thì bỏ qua, nhưng mở tham khảo cho TÀI SẢN KHÁC vẫn được chạy
+// (bản cũ dùng cờ boolean nên tài sản mở sau bị bỏ qua âm thầm, chỉ hiện đường chim bay).
 let __refPriceSeq = 0;
-let __refRoadInFlight = false;
+let __refRoadInFlightKey = null;
 
 function referenceAssetPrice(assetIndex) {
   // 1. Lấy tài sản đang chọn
@@ -97,8 +99,11 @@ function referenceAssetPrice(assetIndex) {
 
 async function enhanceRefWithRoadDistances(targetLoc, results, seq) {
   if (typeof fetchRoadDistances !== "function") return;
-  if (__refRoadInFlight) return;
-  __refRoadInFlight = true;
+  const reqKey =
+    `${targetLoc.lat},${targetLoc.lng}|` +
+    results.map((r) => `${r.lat},${r.lng}`).join(";");
+  if (__refRoadInFlightKey === reqKey) return;
+  __refRoadInFlightKey = reqKey;
 
   let dists = null;
   try {
@@ -106,7 +111,7 @@ async function enhanceRefWithRoadDistances(targetLoc, results, seq) {
   } catch (e) {
     dists = null; // fetchRoadDistances không reject, nhưng phòng hờ
   } finally {
-    __refRoadInFlight = false;
+    if (__refRoadInFlightKey === reqKey) __refRoadInFlightKey = null;
   }
 
   // Thất bại toàn phần -> giữ nguyên haversine, không thông báo gì
