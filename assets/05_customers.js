@@ -433,11 +433,10 @@ function renderList(list, opts = {}) {
         }
 
             const statusTone = isApproved ? 'Đã duyệt vay' : 'Đang thẩm định';
-            const safeCreditLimit = escapeHTML(c.creditLimit || '0');
             const limitHtml = isApproved
                 ? `<div class="flex items-center gap-1.5 mt-2">
                     <span class="customer-chip approved">
-                        ${SVG_ICONS.checkCircle} HM: ${safeCreditLimit}
+                        ${SVG_ICONS.checkCircle} HM: <span class="cl-value"></span>
                     </span>
                    </div>`
                 : `<div class="flex items-center gap-1.5 mt-2">
@@ -447,34 +446,39 @@ function renderList(list, opts = {}) {
                    </div>`;
             const checkIcon = isCustSelectionMode ? `<div class="select-ring">${SVG_ICONS.check}</div>` : '';
 
-            // Escape dynamic values to prevent XSS
             // Fallback if data still looks encrypted
             const displayName = (c.name && !_looksEncrypted(c.name)) ? c.name : 'Đang tải...';
             const displayPhone = (c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--';
-            const safeName = escapeHTML(displayName);
-            const safePhone = escapeHTML(displayPhone);
-            const safeInitial = escapeHTML(displayName.charAt(0).toUpperCase());
+            const displayInitial = displayName.charAt(0).toUpperCase();
 
             // Avatar styling - glow for approved
             const avatarClass = isApproved ? 'customer-avatar approved' : 'customer-avatar pending';
 
+            // Static shell only (icons/layout); dynamic customer data is set below via textContent/setAttribute
             el.innerHTML = `
                         ${checkIcon}
-                        <div class="${avatarClass}">
-                            ${safeInitial}
-                        </div>
+                        <div class="${avatarClass} avatar-initial"></div>
                         <div class="customer-card-main">
                             <div class="customer-status-line">${statusTone}</div>
-                            <h3 class="customer-name-line">
-                                ${safeName}
-                            </h3>
-                            <p class="customer-phone-line">${SVG_ICONS.smartphone} ${safePhone}</p>
+                            <h3 class="customer-name-line"></h3>
+                            <p class="customer-phone-line">${SVG_ICONS.smartphone} <span class="phone-value"></span></p>
                             ${limitHtml}
                         </div>
                         <div class="customer-actions">
-                            <a href="${getZaloLink(c.phone)}" data-action="zalo" data-phone="${escapeHTML(c.phone || '')}" class="action-btn customer-action-btn zalo">${SVG_ICONS.message}</a>
-                            <a href="${getTelLink(c.phone)}" class="action-btn customer-action-btn call">${SVG_ICONS.phone}</a>
+                            <a data-action="zalo" class="action-btn customer-action-btn zalo">${SVG_ICONS.message}</a>
+                            <a data-action="call" class="action-btn customer-action-btn call">${SVG_ICONS.phone}</a>
                         </div>`;
+
+            el.querySelector('.avatar-initial').textContent = displayInitial;
+            el.querySelector('.customer-name-line').textContent = displayName;
+            el.querySelector('.phone-value').textContent = displayPhone;
+            const clValueEl = el.querySelector('.cl-value');
+            if (clValueEl) clValueEl.textContent = c.creditLimit || '0';
+
+            const zaloBtn = el.querySelector('[data-action="zalo"]');
+            zaloBtn.setAttribute('href', getZaloLink(c.phone));
+            zaloBtn.setAttribute('data-phone', c.phone || '');
+            el.querySelector('[data-action="call"]').setAttribute('href', getTelLink(c.phone));
 
         frag.appendChild(el);
     }
@@ -631,12 +635,12 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
                             <strong>${fieldLabel}</strong> này đã tồn tại trong hệ thống:
                         </p>
                         <div class="bg-black/20 rounded-lg p-3">
-                            <p class="font-bold text-white text-base">${escapeHTML(existing.name || 'Không tên')}</p>
+                            <p class="font-bold text-white text-base dup-name"></p>
                             <p class="text-xs text-slate-400 mt-1">
-                                <span class="inline-flex items-center gap-1"><i data-lucide="smartphone" class="w-3 h-3"></i> ${escapeHTML(existing.phone || 'N/A')}</span>
+                                <span class="inline-flex items-center gap-1"><i data-lucide="smartphone" class="w-3 h-3"></i> <span class="dup-phone"></span></span>
                             </p>
                             <p class="text-xs text-slate-400 mt-0.5">
-                                <span class="inline-flex items-center gap-1"><i data-lucide="id-card" class="w-3 h-3"></i> ${escapeHTML(existing.cccd || 'N/A')}</span>
+                                <span class="inline-flex items-center gap-1"><i data-lucide="id-card" class="w-3 h-3"></i> <span class="dup-cccd"></span></span>
                             </p>
                         </div>
                     </div>
@@ -653,6 +657,10 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
                     </button>
                 </div>
             `;
+
+    overlay.querySelector('.dup-name').textContent = existing.name || 'Không tên';
+    overlay.querySelector('.dup-phone').textContent = existing.phone || 'N/A';
+    overlay.querySelector('.dup-cccd').textContent = existing.cccd || 'N/A';
 
     overlay.classList.remove('hidden');
     try { lucide.createIcons({ icons: { 'alert-triangle': lucide.icons['alert-triangle'], 'smartphone': lucide.icons['smartphone'], 'id-card': lucide.icons['id-card'], 'folder-open': lucide.icons['folder-open'] }, attrs: {} }); } catch (e) { try { lucide.createIcons(); } catch (e2) { } }
@@ -878,7 +886,7 @@ function updateCustomerAndReload() { persistCurrentCustomer((rec) => { rec.statu
 function renderFolderHeader(data) {
     getEl('folder-customer-name').textContent = data.name; getEl('folder-avatar').textContent = data.name.charAt(0).toUpperCase(); getEl('btn-detail-call').href = getTelLink(data.phone); getEl('btn-detail-zalo').href = getZaloLink(data.phone); getEl('btn-detail-zalo').onclick = () => { openZaloChat(data.phone); return false; };
     const badge = getEl('detail-status-badge');
-    if (data.status === 'approved') { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10"; badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span>${escapeHTML(data.creditLimit)}</span>`; }
+    if (data.status === 'approved') { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10"; badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span class="badge-value"></span>`; badge.querySelector('.badge-value').textContent = data.creditLimit; }
     else { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20"; badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`; } lucide.createIcons();
 }
 

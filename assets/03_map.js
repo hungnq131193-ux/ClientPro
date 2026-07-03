@@ -521,10 +521,6 @@ async function renderMapMarkers() {
                     // Style marker theo trạng thái
                     const isApproved = cust.status === 'approved';
                     const markerClass = isApproved ? 'marker-approved' : 'marker-pending';
-                    const statusTag = isApproved ? '<span class="map-tag approved">Đã Duyệt</span>' : '<span class="map-tag pending">Thẩm định</span>';
-
-                    // Hiển thị giá trị định giá đã giải mã
-                    const valStr = assetVal ? `<div class="text-xs text-slate-300">Định giá: <b class="text-white">${escapeHTML(assetVal)}</b></div>` : '';
 
                     const markerEl = document.createElement('div');
                     markerEl.className = 'custom-div-icon';
@@ -534,34 +530,78 @@ async function renderMapMarkers() {
                         .setLngLat([loc.lng, loc.lat])
                         .addTo(map);
 
-                    // Popup với thông tin đã giải mã
-                    const safeCustId = escapeHTML(cust.id);
-                    const popupContent = `
-                        <div class="map-popup-card" data-cust-id="${safeCustId}" role="button" tabindex="0">
-                            <img src="${escapeHTML(thumb)}" class="map-popup-img" alt="">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    ${statusTag}
-                                    <div class="font-bold text-sm truncate w-40">${escapeHTML(custName)}</div>
-                                    <div class="text-[10px] text-slate-400 truncate w-40">${escapeHTML(assetName)}</div>
-                                    ${valStr}
-                                </div>
-                                <div class="p-2 bg-indigo-500 rounded-lg text-white mt-1"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></div>
-                            </div>
-                            <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20">Chỉ đường</a>
-                        </div>
-                    `;
-                    const popup = new maplibregl.Popup({ offset: 18, closeButton: true, className: 'clientpro-map-popup', maxWidth: '300px' }).setHTML(popupContent);
+                    // Popup: dựng bằng DOM API (setDOMContent) thay vì nội suy HTML string,
+                    // để dữ liệu khách hàng/tài sản không bao giờ đi qua HTML parser.
+                    const card = document.createElement('div');
+                    card.className = 'map-popup-card';
+                    card.dataset.custId = cust.id;
+                    card.setAttribute('role', 'button');
+                    card.setAttribute('tabindex', '0');
+
+                    const imgEl = document.createElement('img');
+                    imgEl.className = 'map-popup-img';
+                    imgEl.alt = '';
+                    imgEl.src = thumb;
+                    card.appendChild(imgEl);
+
+                    const row = document.createElement('div');
+                    row.className = 'flex justify-between items-start';
+
+                    const infoDiv = document.createElement('div');
+
+                    const statusSpan = document.createElement('span');
+                    statusSpan.className = isApproved ? 'map-tag approved' : 'map-tag pending';
+                    statusSpan.textContent = isApproved ? 'Đã Duyệt' : 'Thẩm định';
+                    infoDiv.appendChild(statusSpan);
+
+                    const nameDiv = document.createElement('div');
+                    nameDiv.className = 'font-bold text-sm truncate w-40';
+                    nameDiv.textContent = custName;
+                    infoDiv.appendChild(nameDiv);
+
+                    const assetDiv = document.createElement('div');
+                    assetDiv.className = 'text-[10px] text-slate-400 truncate w-40';
+                    assetDiv.textContent = assetName;
+                    infoDiv.appendChild(assetDiv);
+
+                    if (assetVal) {
+                        const valDiv = document.createElement('div');
+                        valDiv.className = 'text-xs text-slate-300';
+                        valDiv.append('Định giá: ');
+                        const valB = document.createElement('b');
+                        valB.className = 'text-white';
+                        valB.textContent = assetVal;
+                        valDiv.appendChild(valB);
+                        infoDiv.appendChild(valDiv);
+                    }
+
+                    row.appendChild(infoDiv);
+
+                    const arrowDiv = document.createElement('div');
+                    arrowDiv.className = 'p-2 bg-indigo-500 rounded-lg text-white mt-1';
+                    arrowDiv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+                    row.appendChild(arrowDiv);
+
+                    card.appendChild(row);
+
+                    const directionLink = document.createElement('a');
+                    directionLink.className = 'block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20';
+                    directionLink.target = '_blank';
+                    directionLink.textContent = 'Chỉ đường';
+                    directionLink.setAttribute('href', `https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}`);
+                    card.appendChild(directionLink);
+
+                    const popup = new maplibregl.Popup({ offset: 18, closeButton: true, className: 'clientpro-map-popup', maxWidth: '300px' }).setDOMContent(card);
                     popup.on('open', () => {
                         const popupEl = popup.getElement();
-                        const card = popupEl && popupEl.querySelector('.map-popup-card[data-cust-id]');
-                        if (!card) return;
-                        const openCurrentFolder = () => openMapFolder(card.dataset.custId);
-                        card.addEventListener('click', (event) => {
+                        const cardEl = popupEl && popupEl.querySelector('.map-popup-card[data-cust-id]');
+                        if (!cardEl) return;
+                        const openCurrentFolder = () => openMapFolder(cardEl.dataset.custId);
+                        cardEl.addEventListener('click', (event) => {
                             if (event.target && event.target.closest('a')) return;
                             openCurrentFolder();
                         });
-                        card.addEventListener('keydown', (event) => {
+                        cardEl.addEventListener('keydown', (event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
                                 openCurrentFolder();

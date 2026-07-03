@@ -90,10 +90,12 @@
             ${isOn ? '<span style="color:#34d399;font-weight:900">✓</span>' : ''}
           </div>
           <div class="flex-1 min-w-0">
-            <div class="font-bold truncate" style="color: var(--text-main)">${escapeHTML(c.name || '---')}</div>
-            <div class="text-[11px] opacity-70 truncate" style="color: var(--text-sub)">${escapeHTML(c.phone || '')}</div>
+            <div class="font-bold truncate cust-pick-name" style="color: var(--text-main)"></div>
+            <div class="text-[11px] opacity-70 truncate cust-pick-phone" style="color: var(--text-sub)"></div>
           </div>
         `;
+        row.querySelector('.cust-pick-name').textContent = c.name || '---';
+        row.querySelector('.cust-pick-phone').textContent = c.phone || '';
 
         row.addEventListener('click', () => {
           if (selected.has(c.id)) selected.delete(c.id);
