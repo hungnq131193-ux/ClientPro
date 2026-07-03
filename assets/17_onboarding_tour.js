@@ -215,8 +215,8 @@
         const isLast = currentStep === tourSteps.length - 1;
 
         tooltip.innerHTML = `
-            <h3 class="font-bold text-lg mb-2 text-white">${step.title}</h3>
-            <p class="text-sm text-slate-300 mb-4">${step.content}</p>
+            <h3 class="font-bold text-lg mb-2 text-white tour-title"></h3>
+            <p class="text-sm text-slate-300 mb-4 tour-content"></p>
             <div class="flex items-center justify-between">
                 <div class="flex gap-1">
                     ${tourSteps.map((_, i) => `
@@ -239,6 +239,8 @@
                 </div>
             </div>
         `;
+        tooltip.querySelector('.tour-title').textContent = step.title;
+        tooltip.querySelector('.tour-content').textContent = step.content;
 
         positionTooltip(currentStep);
 
