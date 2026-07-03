@@ -4,7 +4,7 @@
 
 // Bump version when changing static asset list / gate behavior
 // v5.1.0: PIN 6 số + PBKDF2/AES-GCM, lockout brute-force, dọn dẹp code
-const VERSION = 'v5.5.1-fix-gps-timeout-20260703';
+const VERSION = 'v5.5.2-fix-gps-timeout-20260703';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
