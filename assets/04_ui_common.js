@@ -222,7 +222,16 @@ function pushSelectionHistoryLayer(type) {
         __selectionHistoryActive = true;
     } catch (e) { }
 }
-function clearSelectionHistoryLayer() { __selectionHistoryActive = false; }
+function clearSelectionHistoryLayer() {
+    if (!__selectionHistoryActive) return;
+    __selectionHistoryActive = false;
+    // Pop the history entry pushed when selection mode started (e.g. user tapped
+    // "Cancel" instead of swiping back), so it doesn't linger as a phantom step
+    // that a later Dashboard back-swipe has to burn through before it exits.
+    if (window.__edgeBackSwipe && typeof window.__edgeBackSwipe.consumeTrackedHistoryStep === 'function') {
+        window.__edgeBackSwipe.consumeTrackedHistoryStep();
+    }
+}
 
 function isAnySelectionModeActive() {
     return !!((typeof isCustSelectionMode !== 'undefined' && (isCustSelectionMode || (selectedCustomers && selectedCustomers.size))) ||

@@ -633,7 +633,11 @@ body.theme-mono {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg-main);
+  /* Was `var(--bg-main)`, a variable never defined anywhere in this file —
+     it resolved to transparent, letting the body/previous screen show
+     through during the slide transition (the reported black/old-screen
+     flash). Screens should opaquely paint the same base surface as body. */
+  background: var(--bg-base);
   position: absolute;
   top: 0;
   left: 0;

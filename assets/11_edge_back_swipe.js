@@ -273,6 +273,25 @@
     return genericCloseTopOverlayOrPanel();
   }
 
+  // Pop the history entry a tracked screen/modal/selection-layer pushed when
+  // it opened, but only when this close is happening OUTSIDE our own back
+  // gesture handling (suppressDepthPush is true while runBackAction() is
+  // running from a touch swipe or a popstate — in both of those cases the
+  // entry is already being/was already consumed, so popping again here would
+  // double-consume and skip a step). Other modules (e.g. the selection-mode
+  // toggle buttons in 04_ui_common.js) call this when they close something
+  // that pushed history via a plain tap, so that entry doesn't linger as a
+  // phantom step the Dashboard's real back-swipe has to burn through later.
+  function consumeTrackedHistoryStep() {
+    if (suppressDepthPush) return;
+    try {
+      if (history.state && (history.state.__clientpro_edge_back || history.state.clientProSelectionLayer)) {
+        lastTouchBackAt = Date.now(); // dedupe the resulting popstate; already handled
+        history.back();
+      }
+    } catch (_) { }
+  }
+
   // -------- Gesture handling (both edges) --------
   let tracking = false;
   let decided = false;
@@ -418,14 +437,19 @@
     function scanForOpens() {
       scanQueued = false;
       let opened = false;
+      let closed = false;
       TRACKED_MODAL_IDS.forEach((id) => {
         const now = isVisibleModal(id);
-        if (now && !lastVisible.get(id)) opened = true;
+        const was = lastVisible.get(id);
+        if (now && !was) opened = true;
+        else if (!now && was) closed = true;
         lastVisible.set(id, now);
       });
       TRACKED_SLIDE_IDS.forEach((id) => {
         const now = isVisibleSlide(id);
-        if (now && !lastVisible.get(id)) opened = true;
+        const was = lastVisible.get(id);
+        if (now && !was) opened = true;
+        else if (!now && was) closed = true;
         lastVisible.set(id, now);
       });
       // A screen/modal just opened by a normal tap (not by our own back
@@ -434,7 +458,17 @@
         try {
           history.pushState(SENTINEL_STATE, document.title, location.href);
         } catch (_) { }
+        return;
       }
+      // A screen/modal just closed via a normal tap (header back-arrow, "X",
+      // cancel button, etc.) rather than through our own back-gesture flow
+      // (that path already carries suppressDepthPush=true). Without this,
+      // the history entry pushed when it opened is never consumed, so it
+      // sits there as a phantom step — the Dashboard's real back-swipe later
+      // has to burn through all these leftovers before it actually exits,
+      // and each one it burns re-runs the back cascade for nothing (looks
+      // like a stray screen transition). Pop it here so open/close stay 1:1.
+      if (closed) consumeTrackedHistoryStep();
     }
 
     try {
@@ -473,5 +507,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  window.__edgeBackSwipe = { runBackAction };
+  window.__edgeBackSwipe = { runBackAction, consumeTrackedHistoryStep };
 })();

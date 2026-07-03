@@ -1,9 +1,9 @@
-// BUILD: 2026-07-03_CSP_INLINE_CLEANUP
+// BUILD: 2026-07-03_FIX_SCREEN_TRANSITION
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v5.7.5-csp-inline-cleanup-20260703';
+const VERSION = 'v5.7.6-fix-screen-transition-20260703';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -21,7 +21,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'CSP_INLINE_CLEANUP_20260703';
+const ASSET_V = 'FIX_SCREEN_TRANSITION_20260703';
 const STATIC_ASSETS = [
   './',
   './index.html',
