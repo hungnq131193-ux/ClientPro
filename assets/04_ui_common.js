@@ -206,10 +206,6 @@ function getZaloLink(phone) {
     const p = normalizePhoneForLink(phone);
     return p ? `https://zalo.me/${p}` : '#';
 }
-function getZaloDeepLink(phone) {
-    const p = normalizePhoneForLink(phone);
-    return p ? `zalo://conversation?phone=${encodeURIComponent(p)}` : '#';
-}
 function isMobileDevice() {
     return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
 }
@@ -225,63 +221,23 @@ function isIOSDevice() {
     // iPadOS mới báo UA là "Macintosh" nên phải kiểm tra thêm cảm ứng
     return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
 }
-// Fallback sang zalo.me web CHỈ khi chắc chắn app Zalo không mở: bắt
-// visibilitychange/pagehide/blur (app đã mở → trang bị ẩn → bỏ qua), và nếu
-// timer bị "đóng băng" (đã chuyển sang app rồi quay lại) cũng bỏ qua.
-function scheduleZaloWebFallback(fallback, waitMs) {
-    let didLeavePage = false;
-    const markLeft = () => { didLeavePage = true; };
-    document.addEventListener('visibilitychange', markLeft, { once: true });
-    window.addEventListener('pagehide', markLeft, { once: true });
-    window.addEventListener('blur', markLeft, { once: true });
-    const startedAt = Date.now();
-    setTimeout(() => {
-        const timerWasFrozen = (Date.now() - startedAt) > waitMs + 700;
-        if (didLeavePage || document.hidden || timerWasFrozen) return;
-        window.location.href = fallback;
-    }, waitMs);
-}
 function openZaloChat(phone) {
     const p = normalizePhoneForLink(phone);
     const fallback = getZaloLink(phone);
-    const deep = getZaloDeepLink(phone);
-    if (!p || fallback === '#' || deep === '#') {
+    if (!p || fallback === '#') {
         showToast('Chưa có số điện thoại để mở Zalo');
         return;
     }
 
-    if (isAndroidDevice()) {
-        const ua = navigator.userAgent || '';
-        // Trình duyệt nhân Chromium (Chrome/Samsung/Edge/WebView…): dùng
-        // intent URL — mở thẳng app Zalo (package com.zing.zalo). Nếu máy
-        // CHƯA cài Zalo, trình duyệt tự chuyển sang browser_fallback_url.
-        // Không dùng timer nên không còn tình trạng app đã mở mà trang vẫn
-        // nhảy sang zalo.me web.
-        if (/Chrome\/\d/i.test(ua) && !/Firefox/i.test(ua)) {
-            window.location.href =
-                'intent://conversation?phone=' + encodeURIComponent(p) +
-                '#Intent;scheme=zalo;package=com.zing.zalo;' +
-                'S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
-            return;
-        }
-        // Firefox và trình duyệt khác không hỗ trợ intent:// — mở bằng
-        // scheme zalo://, chỉ fallback web khi app không mở.
-        scheduleZaloWebFallback(fallback, 2500);
-        window.location.href = deep;
-        return;
-    }
-
-    // iOS: mở bằng scheme zalo://. Chờ lâu hơn (2.5s vì iOS có hộp thoại
-    // "Mở bằng Zalo?") rồi mới fallback sang zalo.me nếu app không mở.
-    if (isIOSDevice()) {
-        scheduleZaloWebFallback(fallback, 2500);
-        window.location.href = deep;
-        return;
-    }
-
-    // Điện thoại khác (hiếm) vẫn thử deep link trước
+    // Mọi thiết bị di động (iOS lẫn Android, mọi trình duyệt): dùng thẳng
+    // Universal Link/App Link https://zalo.me/<phone>. Custom scheme
+    // (zalo://, intent://…scheme=zalo…) luôn bị trình duyệt chặn lại bằng
+    // hộp thoại xác nhận "Mở bằng Zalo?" trước khi chuyển app — Universal
+    // Link/App Link mở thẳng app không qua hộp thoại nào, và tự rơi về
+    // trang zalo.me nếu máy chưa cài Zalo, nên không cần dò app đã mở hay
+    // chưa bằng timer nữa.
     if (isMobileDevice()) {
-        window.location.href = deep;
+        window.location.href = fallback;
         return;
     }
 
