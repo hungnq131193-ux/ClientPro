@@ -132,6 +132,16 @@
     return p.toString();
   }
 
+  function esc(s) {
+    if (typeof escapeHTML === 'function') return escapeHTML(s);
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function formatDateTime(ts) {
     if (typeof _formatDateTime === 'function') return _formatDateTime(ts);
     const d = new Date(ts);
@@ -269,29 +279,17 @@
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'w-full text-left p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition flex items-center gap-3';
-          const empVal = u.employeeId || '';
+          const empVal = esc(u.employeeId || '');
           btn.setAttribute('data-emp', empVal);
-          const name = u.name || u.displayName || u.employeeId || '---';
-          const dev = u.deviceId || u.deviceIdHint || '';
-
-          const avatar = document.createElement('div');
-          avatar.className = 'w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-300 font-black';
-          avatar.textContent = 'U';
-
-          const info = document.createElement('div');
-          info.className = 'flex-1 min-w-0';
-          const nameDiv = document.createElement('div');
-          nameDiv.className = 'font-bold truncate';
-          nameDiv.style.color = 'var(--text-main)';
-          nameDiv.textContent = name;
-          const metaDiv = document.createElement('div');
-          metaDiv.className = 'text-[11px] opacity-70 truncate';
-          metaDiv.style.color = 'var(--text-sub)';
-          if (empVal) metaDiv.append(`Mã: ${empVal}`);
-          if (dev) metaDiv.append(`${empVal ? ' ' : ''}• ${dev}`);
-          info.append(nameDiv, metaDiv);
-
-          btn.append(avatar, info);
+          const name = esc(u.name || u.displayName || u.employeeId || '---');
+          const dev = esc(u.deviceId || u.deviceIdHint || '');
+          btn.innerHTML = `
+            <div class="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-300 font-black">U</div>
+            <div class="flex-1 min-w-0">
+              <div class="font-bold truncate" style="color: var(--text-main)">${name}</div>
+              <div class="text-[11px] opacity-70 truncate" style="color: var(--text-sub)">${empVal ? ('Mã: ' + empVal) : ''} ${dev ? ('• ' + dev) : ''}</div>
+            </div>
+          `;
           frag.appendChild(btn);
         }
         listEl.innerHTML = '';
@@ -619,9 +617,9 @@
   }
 
   function buildReceiveNotice(payload) {
-    const fromName = payload.fromName || 'user';
-    const filename = payload.filename || 'backup';
-    const transferId = payload.transferId || payload.backupId || '';
+    const fromName = esc(payload.fromName || 'user');
+    const filename = esc(payload.filename || 'backup');
+    const transferId = esc(payload.transferId || payload.backupId || '');
 
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 z-[10080] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4';
@@ -632,8 +630,8 @@
             <i data-lucide="inbox" class="w-6 h-6"></i>
           </div>
           <div class="flex-1 min-w-0">
-            <div class="font-extrabold" style="color: var(--text-main)">Bạn đã nhận được bản ghi từ <span style="color:#60a5fa" class="notice-from"></span></div>
-            <div class="text-[11px] opacity-70 mt-1" style="color: var(--text-sub)">Tệp: <span class="notice-file"></span>. Bấm “Nhận & Restore” để nhập dữ liệu.</div>
+            <div class="font-extrabold" style="color: var(--text-main)">Bạn đã nhận được bản ghi từ <span style="color:#60a5fa">${fromName}</span></div>
+            <div class="text-[11px] opacity-70 mt-1" style="color: var(--text-sub)">Tệp: ${filename}. Bấm “Nhận & Restore” để nhập dữ liệu.</div>
           </div>
         </div>
         <div class="flex gap-3 mt-4">
@@ -642,8 +640,6 @@
         </div>
       </div>
     `;
-    overlay.querySelector('.notice-from').textContent = fromName;
-    overlay.querySelector('.notice-file').textContent = filename;
 
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) overlay.remove();
