@@ -32,10 +32,22 @@ const DONATE_ACCOUNT_NO = '888886838888';
 const DONATE_ACCOUNT_NAME = 'NGUYEN QUOC HUNG';
 const DONATE_DEFAULT_DESC = 'Ung ho tac gia ClientPro';
 // --- END DONATE CONFIG ---
-// --- ROAD DISTANCE CONFIG (OSRM demo server: không cần API key) ---
-const OSRM_TABLE_URL = 'https://router.project-osrm.org/table/v1/driving/';
+// --- ROAD DISTANCE CONFIG (OSRM: không cần API key) ---
+// Server chính: FOSSGIS (routing.openstreetmap.de) — server routing chính thức của
+// openstreetmap.org, dữ liệu OSM cập nhật hàng tuần, miễn phí, không cần key.
+// Server dự phòng: OSRM demo (router.project-osrm.org) — dữ liệu cũ hơn nhiều,
+// chỉ dùng khi server chính không phản hồi.
+const OSRM_TABLE_URLS = [
+    'https://routing.openstreetmap.de/routed-car/table/v1/driving/',
+    'https://router.project-osrm.org/table/v1/driving/'
+];
 const ROAD_DIST_TIMEOUT_MS = 8000;
-const ROAD_DIST_CACHE_KEY = 'app_road_dist_cache_v1';
+// v2: đổi key để loại bỏ các quãng đường sai đã cache từ bản cũ (chưa kiểm tra điểm bám đường)
+const ROAD_DIST_CACHE_KEY = 'app_road_dist_cache_v2';
+const ROAD_DIST_CACHE_OLD_KEYS = ['app_road_dist_cache_v1'];
 const ROAD_DIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 ngày
 const ROAD_DIST_CACHE_MAX = 600; // số cặp tọa độ tối đa trong cache
+// Tọa độ bị OSRM "bám" vào đường xa hơn mức này (mét) -> bản đồ thiếu đường quanh đó,
+// quãng đường trả về không đáng tin -> bỏ, giữ khoảng cách đường chim bay.
+const ROAD_DIST_SNAP_MAX_M = 500;
 // --- END ROAD DISTANCE CONFIG ---

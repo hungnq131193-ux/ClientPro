@@ -241,15 +241,41 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
 }
 
 // --- QUÃNG ĐƯỜNG ĐƯỜNG BỘ (OSRM Table service, 1 request cho cả batch) ---
+// Gọi 1 server trong OSRM_TABLE_URLS; lỗi thì thử server kế tiếp.
+// Trả về JSON đã kiểm tra cấu trúc, hoặc throw.
+async function __osrmFetchTable(baseUrl, coordsStr) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ROAD_DIST_TIMEOUT_MS);
+    try {
+        const res = await fetch(`${baseUrl}${coordsStr}?sources=0&annotations=distance`, { signal: controller.signal });
+        if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
+        const json = await res.json();
+        if (!json || json.code !== 'Ok' || !json.distances || !Array.isArray(json.distances[0])) {
+            throw new Error('OSRM response không hợp lệ');
+        }
+        return json;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 // origin: {lat,lng}; points: Array<{lat,lng}>
-// Resolve: Array<number|null> cùng độ dài points (mét đường bộ; null = không định tuyến được)
-//          hoặc null nếu toàn bộ request thất bại -> caller giữ khoảng cách haversine.
+// Resolve: Array<number|null> cùng độ dài points (mét đường bộ; null = không định tuyến được
+//          hoặc kết quả không đáng tin) hoặc null nếu toàn bộ request thất bại
+//          -> caller giữ khoảng cách haversine.
+// Kiểm tra chất lượng kết quả: OSRM "bám" tọa độ vào đường gần nhất KHÔNG giới hạn bán kính,
+// nên nơi bản đồ thiếu đường (khu mới, ngõ nhỏ) điểm bám có thể cách tọa độ thật rất xa
+// -> quãng đường sai hoàn toàn. Ta đọc khoảng cách bám (waypoint.distance) để loại các
+// kết quả đó, và loại luôn kết quả ngắn hơn đường chim bay (phi lý).
 // Không bao giờ reject. Tọa độ (đã giải mã) được gửi tới server OSRM công cộng,
 // tương đương việc app đã gửi GPS tới Open-Meteo cho thời tiết.
 async function fetchRoadDistances(origin, points) {
     const r5 = (v) => Math.round(v * 1e5) / 1e5;
     const oLat = r5(origin.lat), oLng = r5(origin.lng);
     const pts = points.map((p) => ({ lat: r5(p.lat), lng: r5(p.lng) }));
+
+    // Dọn cache phiên bản cũ (có thể chứa quãng đường sai)
+    try { (ROAD_DIST_CACHE_OLD_KEYS || []).forEach((k) => localStorage.removeItem(k)); } catch (e) { }
 
     let cache = {};
     try {
@@ -273,40 +299,57 @@ async function fetchRoadDistances(origin, points) {
         const coords = [`${oLng},${oLat}`]
             .concat(pending.map((i) => `${pts[i].lng},${pts[i].lat}`))
             .join(';');
-        const url = `${OSRM_TABLE_URL}${coords}?sources=0&annotations=distance`;
 
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), ROAD_DIST_TIMEOUT_MS);
-        try {
-            const res = await fetch(url, { signal: controller.signal });
-            if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
-            const json = await res.json();
-            const row = json && json.code === 'Ok' && json.distances && json.distances[0];
-            if (!Array.isArray(row)) throw new Error('OSRM response không hợp lệ');
-
-            pending.forEach((i, k) => {
-                const d = row[k + 1]; // index 0 là chính origin
-                results[i] = (typeof d === 'number') ? d : null;
-                cache[`${oLat},${oLng}|${pts[i].lat},${pts[i].lng}`] = { d: results[i], t: now };
-            });
-
+        let json = null;
+        for (let u = 0; u < OSRM_TABLE_URLS.length && !json; u++) {
             try {
-                const keys = Object.keys(cache);
-                if (keys.length > ROAD_DIST_CACHE_MAX) {
-                    keys.sort((a, b) => (cache[a].t || 0) - (cache[b].t || 0))
-                        .slice(0, keys.length - ROAD_DIST_CACHE_MAX)
-                        .forEach((k) => delete cache[k]);
-                }
-                localStorage.setItem(ROAD_DIST_CACHE_KEY, JSON.stringify(cache));
-            } catch (e) { /* quota đầy -> chạy không cache */ }
-        } catch (err) {
-            console.warn('fetchRoadDistances:', err && err.message ? err.message : err);
+                json = await __osrmFetchTable(OSRM_TABLE_URLS[u], coords);
+            } catch (err) {
+                console.warn(`fetchRoadDistances (${OSRM_TABLE_URLS[u]}):`, err && err.message ? err.message : err);
+            }
+        }
+
+        if (!json) {
             // Không cache lỗi: nếu không có gì từ cache thì báo thất bại toàn phần
             if (pending.length === pts.length) return null;
             pending.forEach((i) => { results[i] = null; });
-        } finally {
-            clearTimeout(timer);
+            return results;
         }
+
+        const row = json.distances[0];
+        const dstWps = json.destinations || [];
+        const srcWp = json.sources && json.sources[0];
+        const originSnap = (srcWp && typeof srcWp.distance === 'number') ? srcWp.distance : 0;
+
+        pending.forEach((i, k) => {
+            let d = row[k + 1]; // index 0 là chính origin
+            if (typeof d !== 'number') {
+                d = null;
+            } else {
+                const wp = dstWps[k + 1];
+                const destSnap = (wp && typeof wp.distance === 'number') ? wp.distance : 0;
+                const straight = distanceMeters(oLat, oLng, pts[i].lat, pts[i].lng);
+                if (originSnap > ROAD_DIST_SNAP_MAX_M || destSnap > ROAD_DIST_SNAP_MAX_M) {
+                    // Điểm bám đường quá xa tọa độ thật -> quãng đường không đáng tin
+                    d = null;
+                } else if (d + originSnap + destSnap + 50 < straight) {
+                    // Đường bộ ngắn hơn đường chim bay (đã trừ sai số điểm bám) là phi lý
+                    d = null;
+                }
+            }
+            results[i] = d;
+            cache[`${oLat},${oLng}|${pts[i].lat},${pts[i].lng}`] = { d: results[i], t: now };
+        });
+
+        try {
+            const keys = Object.keys(cache);
+            if (keys.length > ROAD_DIST_CACHE_MAX) {
+                keys.sort((a, b) => (cache[a].t || 0) - (cache[b].t || 0))
+                    .slice(0, keys.length - ROAD_DIST_CACHE_MAX)
+                    .forEach((k) => delete cache[k]);
+            }
+            localStorage.setItem(ROAD_DIST_CACHE_KEY, JSON.stringify(cache));
+        } catch (e) { /* quota đầy -> chạy không cache */ }
     }
 
     return results;
