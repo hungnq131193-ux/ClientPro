@@ -3,7 +3,7 @@
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v5.7.0-auth-gate-cleanup-20260703';
+const VERSION = 'v5.7.3-auth-gate-cleanup-20260703';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
