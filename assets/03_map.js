@@ -103,40 +103,110 @@ async function ensureMapLibreLoaded() {
     });
 }
 
-// --- GPS FEATURE V1.1 ---
-function getCurrentGPS() {
+// --- GPS FEATURE V1.2 (đa tầng dự phòng, tránh lỗi "Hết thời gian chờ") ---
+let __gpsBusy = false;
+
+function __gpsFillResult(position) {
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    // Tạo link chuẩn cho Google Maps (Search Query)
+    const mapLink = `https://www.google.com/maps?q=${lat},${lng}`;
+
+    const inputLink = getEl('asset-link');
+    if (inputLink) inputLink.value = mapLink;
+
+    const acc = Math.round(position.coords.accuracy || 0);
+    showToast(acc > 0 ? `Đã lấy tọa độ (sai số ~${acc}m)` : "Đã lấy tọa độ thành công");
+}
+
+function __gpsGetOnce(options) {
+    return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    });
+}
+
+// Dùng watchPosition để giữ chip GPS hoạt động liên tục trong lúc dò vệ tinh —
+// trên nhiều máy Android, getCurrentPosition(highAccuracy) bị timeout trong khi
+// watchPosition vẫn nhận được fix. Trả về fix đầu tiên đủ tốt (<=100m),
+// hoặc fix tốt nhất nhận được khi hết giờ.
+function __gpsWatchFirstFix(timeoutMs) {
+    return new Promise((resolve, reject) => {
+        let best = null;
+        let watchId = null;
+        let timer = null;
+        const stop = () => {
+            if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+            if (timer) { clearTimeout(timer); timer = null; }
+        };
+        timer = setTimeout(() => {
+            stop();
+            if (best) resolve(best);
+            else reject({ code: 3 }); // TIMEOUT
+        }, timeoutMs);
+        watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+                if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
+                if (pos.coords.accuracy <= 100) { stop(); resolve(pos); }
+            },
+            (err) => {
+                if (err.code === err.PERMISSION_DENIED) { stop(); reject(err); }
+                // Lỗi tạm thời (unavailable/timeout nội bộ): tiếp tục chờ đến hết giờ
+            },
+            { enableHighAccuracy: true, maximumAge: 0 }
+        );
+    });
+}
+
+async function getCurrentGPS() {
     if (!navigator.geolocation) {
         showToast("Thiết bị không hỗ trợ GPS");
         return;
     }
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang lấy tọa độ...";
+    if (window.isSecureContext === false) {
+        showToast("GPS chỉ hoạt động qua HTTPS");
+        return;
+    }
+    if (__gpsBusy) return;
+    __gpsBusy = true;
 
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            // Tạo link chuẩn cho Google Maps (Search Query)
-            const mapLink = `https://www.google.com/maps?q=${lat},${lng}`;
+    const loader = getEl('loader');
+    const loaderText = getEl('loader-text');
+    loader.classList.remove('hidden');
+    loaderText.textContent = "Đang lấy tọa độ...";
 
-            const inputLink = getEl('asset-link');
-            inputLink.value = mapLink;
+    try {
+        // Tầng 1: hỏi nhanh — chấp nhận vị trí hệ thống vừa đo trong 30s gần nhất
+        try {
+            __gpsFillResult(await __gpsGetOnce({ enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }));
+            return;
+        } catch (e1) {
+            if (e1 && e1.code === 1) throw e1; // bị chặn quyền → báo ngay, không thử tiếp
+        }
 
-            getEl('loader').classList.add('hidden');
-            showToast("Đã lấy tọa độ thành công");
-        },
-        (error) => {
-            getEl('loader').classList.add('hidden');
-            let msg = "Lỗi GPS";
-            switch (error.code) {
-                case error.PERMISSION_DENIED: msg = "Bạn đã chặn quyền GPS"; break;
-                case error.POSITION_UNAVAILABLE: msg = "Không tìm thấy vị trí"; break;
-                case error.TIMEOUT: msg = "Hết thời gian chờ"; break;
-            }
-            showToast(msg);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+        // Tầng 2: giữ GPS chạy liên tục để chờ khoá vệ tinh (tối đa 15s)
+        loaderText.textContent = "GPS yếu, đang dò vệ tinh...";
+        try {
+            __gpsFillResult(await __gpsWatchFirstFix(15000));
+            return;
+        } catch (e2) {
+            if (e2 && e2.code === 1) throw e2;
+        }
+
+        // Tầng 3: vị trí gần đúng qua Wi-Fi/mạng di động (gần như luôn có ngay)
+        loaderText.textContent = "Đang lấy vị trí gần đúng...";
+        __gpsFillResult(await __gpsGetOnce({ enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }));
+    } catch (error) {
+        let msg = "Lỗi GPS";
+        switch (error && error.code) {
+            case 1: msg = "Bạn đã chặn quyền GPS. Hãy cấp lại quyền Vị trí cho trình duyệt."; break;
+            case 2: msg = "Không tìm thấy vị trí. Hãy bật Định vị (Location) của thiết bị."; break;
+            case 3: msg = "Hết thời gian chờ. Hãy bật Định vị, ra nơi thoáng rồi thử lại."; break;
+        }
+        showToast(msg);
+    } finally {
+        loader.classList.add('hidden');
+        __gpsBusy = false;
+    }
 }
 
 // --- SMART LOCATION PARSER V2 (Fix lệch) ---
