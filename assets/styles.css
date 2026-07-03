@@ -2687,3 +2687,222 @@ body.theme-vietinbank #add-modal input:focus {
   border-color: rgba(0, 114, 188, 0.6) !important;
   box-shadow: 0 0 0 3px rgba(0, 114, 188, 0.14) !important;
 }
+
+/* ============================================================
+   PHASE 3 — ASSETS + MAP + SETTINGS + POLISH (Redesign 2026-07-03)
+   Scoped to body.theme-vietinbank. Matches mockup #5-8, #11.
+   Remaps the dark Tailwind utilities hardcoded in JS-rendered
+   markup (renderAssets, showRefModal, ...) for light surfaces.
+   ============================================================ */
+
+/* --- 1. Asset cards, tab "Tài Sản" (#content-assets) --- */
+body.theme-vietinbank #content-assets .glass-panel {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+  box-shadow: 0 10px 24px rgba(0, 51, 102, 0.08) !important;
+}
+body.theme-vietinbank #content-assets .text-white { color: #12284c !important; }
+body.theme-vietinbank #content-assets .text-slate-300 { color: #3d5474 !important; }
+body.theme-vietinbank #content-assets .text-slate-400 { color: #5b7089 !important; }
+body.theme-vietinbank #content-assets .text-slate-500 { color: #7a8ba3 !important; }
+
+/* Info strip ĐG / Vay */
+body.theme-vietinbank #content-assets .bg-black\/20 {
+  background: #f4f8fd !important;
+  border-color: rgba(0, 74, 143, 0.12) !important;
+}
+body.theme-vietinbank #content-assets .text-emerald-400 { color: #0f7a3d !important; }
+body.theme-vietinbank #content-assets .text-blue-400 { color: #0072bc !important; }
+body.theme-vietinbank #content-assets .text-indigo-400 { color: #4f46e5 !important; }
+
+/* Spec chips (m², MT, Năm) + icon chip */
+body.theme-vietinbank #content-assets .bg-indigo-500\/10 {
+  background: rgba(0, 114, 188, 0.08) !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+}
+body.theme-vietinbank #content-assets .bg-slate-500\/10 {
+  background: rgba(91, 112, 137, 0.10) !important;
+  border-color: rgba(0, 74, 143, 0.14) !important;
+}
+body.theme-vietinbank #content-assets .text-indigo-300 { color: #1d4ed8 !important; }
+
+/* Asset action buttons (Bản đồ / Tham khảo / Kho Ảnh) */
+body.theme-vietinbank #content-assets .glass-btn {
+  background: #f4f8fd !important;
+  border: 1px solid rgba(0, 74, 143, 0.16) !important;
+  backdrop-filter: none;
+}
+body.theme-vietinbank #content-assets .glass-btn:hover,
+body.theme-vietinbank #content-assets .glass-btn:active {
+  background: #e8f1fa !important;
+}
+body.theme-vietinbank #content-assets .hover\:bg-white\/5:hover {
+  background: rgba(0, 91, 159, 0.06) !important;
+}
+
+/* Empty states in both content tabs */
+body.theme-vietinbank #content-images .text-slate-500 { color: #7a8ba3 !important; }
+
+/* --- 2. Kho ảnh TSBĐ (#screen-asset-gallery) --- */
+body.theme-vietinbank #screen-asset-gallery .glass-header span[id^="gallery-asset"] {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+  color: #ffffff !important;
+}
+body.theme-vietinbank .img-wrapper {
+  background: #ffffff;
+  border-color: rgba(0, 74, 143, 0.14);
+  box-shadow: 0 3px 8px rgba(0, 51, 102, 0.10);
+}
+
+/* --- 3. Modal "Tham khảo giá" (#ref-price-modal) --- */
+body.theme-vietinbank #ref-price-modal .bg-white\/5 {
+  background: #f8fbff !important;
+  border-color: rgba(0, 74, 143, 0.14) !important;
+}
+body.theme-vietinbank #ref-price-modal .text-white { color: #12284c !important; }
+body.theme-vietinbank #ref-price-modal .text-slate-300 { color: #3d5474 !important; }
+body.theme-vietinbank #ref-price-modal .text-slate-500 { color: #7a8ba3 !important; }
+body.theme-vietinbank #ref-price-modal .text-emerald-400 { color: #0f7a3d !important; }
+body.theme-vietinbank #ref-price-modal .text-indigo-300 { color: #1d4ed8 !important; }
+body.theme-vietinbank #ref-price-modal .text-cyan-300 { color: #0e7490 !important; }
+body.theme-vietinbank #ref-price-modal .bg-indigo-500\/20 { background: rgba(29, 78, 216, 0.10) !important; }
+body.theme-vietinbank #ref-price-modal .bg-cyan-500\/20 { background: rgba(14, 116, 144, 0.10) !important; }
+
+/* --- 4. Bản đồ (mockup #7): white circular controls, light popup --- */
+body.theme-vietinbank #screen-map button[onclick="toggleMap()"] {
+  background: #ffffff !important;
+  color: #005b9f !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  box-shadow: 0 10px 24px rgba(0, 51, 102, 0.22) !important;
+}
+body.theme-vietinbank #screen-map button[onclick="locateMe()"] {
+  background: linear-gradient(135deg, #0072bc, #004a8f) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+}
+body.theme-vietinbank .maplibregl-popup.clientpro-map-popup .maplibregl-popup-content {
+  background: #ffffff !important;
+  color: #12284c !important;
+  border: 1px solid rgba(0, 74, 143, 0.16) !important;
+  box-shadow: 0 20px 45px rgba(0, 51, 102, 0.25) !important;
+}
+body.theme-vietinbank .maplibregl-popup.clientpro-map-popup .maplibregl-popup-tip {
+  border-top-color: #ffffff !important;
+  border-bottom-color: #ffffff !important;
+}
+body.theme-vietinbank .maplibregl-popup.clientpro-map-popup .map-popup-card {
+  color: #12284c !important;
+}
+body.theme-vietinbank .maplibregl-popup.clientpro-map-popup .maplibregl-popup-close-button {
+  color: #12284c !important;
+  text-shadow: none !important;
+}
+body.theme-vietinbank .map-popup-card .text-white { color: #12284c !important; }
+body.theme-vietinbank .map-popup-card .text-slate-400,
+body.theme-vietinbank .map-popup-card .text-slate-300 { color: #5b7089 !important; }
+body.theme-vietinbank .map-tag.approved { color: #0f7a3d; background: rgba(22, 163, 74, 0.12); }
+body.theme-vietinbank .map-tag.pending { color: #b45309; background: rgba(245, 158, 11, 0.14); }
+
+/* --- 5. Menu Cài đặt (#settings-menu, mockup #8) --- */
+body.theme-vietinbank #settings-menu {
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  box-shadow: 0 24px 55px rgba(0, 51, 102, 0.22) !important;
+}
+body.theme-vietinbank #settings-menu .border-b,
+body.theme-vietinbank #settings-menu .border-white\/5 {
+  border-color: rgba(0, 74, 143, 0.10) !important;
+}
+body.theme-vietinbank .settings-btn {
+  background: #f4f8fd !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+}
+body.theme-vietinbank .settings-btn:active {
+  background: #e8f1fa !important;
+}
+body.theme-vietinbank .settings-btn.text-indigo-400 { color: #4f46e5 !important; }
+body.theme-vietinbank .settings-btn.text-pink-400 { color: #db2777 !important; }
+body.theme-vietinbank .theme-btn-sm {
+  box-shadow: 0 2px 6px rgba(0, 51, 102, 0.18);
+}
+body.theme-vietinbank .theme-btn-sm.active {
+  border-color: #005b9f !important;
+  box-shadow: 0 0 0 3px rgba(0, 114, 188, 0.20) !important;
+}
+
+/* --- 6. App-wide polish --- */
+/* Toast: white card, dark text */
+body.theme-vietinbank #toast {
+  background: #ffffff !important;
+  color: #12284c !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  box-shadow: 0 18px 40px rgba(0, 51, 102, 0.22) !important;
+}
+body.theme-vietinbank #toast .text-emerald-400 { color: #16a34a !important; }
+
+/* Lock screen keeps its dark backdrop by design -> force light text
+   (inline style="color: var(--text-main)" needs !important to beat). */
+body.theme-vietinbank #screen-lock h2,
+body.theme-vietinbank #screen-lock #pin-subtitle {
+  color: #f8fafc !important;
+}
+body.theme-vietinbank #screen-lock button[onclick="forgotPin()"] {
+  color: rgba(248, 250, 252, 0.78) !important;
+}
+body.theme-vietinbank #screen-lock .pin-dot {
+  border-color: rgba(248, 250, 252, 0.55);
+}
+body.theme-vietinbank #screen-lock .pin-dot.filled {
+  background: #38bdf8;
+  border-color: #38bdf8;
+}
+
+/* Selection bars (white panels now): darken tinted labels for contrast */
+body.theme-vietinbank #cust-selection-bar .text-blue-300 { color: #0072bc !important; }
+body.theme-vietinbank #cust-selection-bar .text-red-400,
+body.theme-vietinbank #selection-bar .text-red-400 { color: #dc2626 !important; }
+
+/* Form modals: same light inputs as #add-modal (asset, setup-lock, forgot-pin, activation) */
+body.theme-vietinbank #asset-modal input:not([type="hidden"]),
+body.theme-vietinbank #setup-lock-modal input,
+body.theme-vietinbank #forgot-pin-modal input,
+body.theme-vietinbank #activation-modal input {
+  background: #f4f8fd !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+  color: #12284c !important;
+}
+body.theme-vietinbank #asset-modal input::placeholder,
+body.theme-vietinbank #setup-lock-modal input::placeholder,
+body.theme-vietinbank #forgot-pin-modal input::placeholder,
+body.theme-vietinbank #activation-modal input::placeholder {
+  color: #9aabbf !important;
+}
+body.theme-vietinbank #asset-modal input:focus,
+body.theme-vietinbank #setup-lock-modal input:focus,
+body.theme-vietinbank #forgot-pin-modal input:focus,
+body.theme-vietinbank #activation-modal input:focus {
+  border-color: rgba(0, 114, 188, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(0, 114, 188, 0.14) !important;
+}
+
+/* Asset modal: GPS helper buttons + "Hủy" ghost button on white panel */
+body.theme-vietinbank #asset-modal .bg-black\/20 {
+  background: #f4f8fd !important;
+}
+body.theme-vietinbank #asset-modal .text-white\/80 { color: #0072bc !important; }
+body.theme-vietinbank #asset-modal button[onclick="closeAssetModal()"],
+body.theme-vietinbank #forgot-pin-modal button[onclick="closeForgotModal()"] {
+  background: #eef2f7 !important;
+  color: #3d5474 !important;
+}
+
+/* Approve modal: dark-on-white fixes */
+body.theme-vietinbank #approve-modal .text-white { color: #12284c !important; }
+body.theme-vietinbank #approve-modal .bg-emerald-600.text-white { color: #ffffff !important; }
+body.theme-vietinbank #approve-modal #approve-limit {
+  background: rgba(22, 163, 74, 0.07) !important;
+  color: #0f7a3d !important;
+}
+body.theme-vietinbank #approve-modal .bg-slate-800 {
+  background: #eef2f7 !important;
+  color: #3d5474 !important;
+}
