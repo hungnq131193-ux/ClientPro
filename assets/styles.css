@@ -107,6 +107,24 @@ body.theme-midnight {
   --accent-gradient: linear-gradient(135deg, #005b9f 0%, #00aaff 50%, #22d3ee 100%);
 }
 
+/* 0. VIETINBANK LIGHT - Giao diện sáng cao cấp (Theme Mặc Định)
+   Nền sáng, thẻ trắng, header xanh VietinBank, chữ đậm dễ đọc. */
+body.theme-vietinbank {
+  --text-main: #12284c;
+  --text-sub: #5b7089;
+  --bg-base: #eaf1fa;
+  --bg-mesh:
+    radial-gradient(ellipse 120% 80% at 12% 8%, rgba(0, 91, 159, 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 100% 70% at 92% 4%, rgba(0, 160, 227, 0.10) 0%, transparent 50%),
+    radial-gradient(ellipse 90% 60% at 50% 100%, rgba(0, 91, 159, 0.06) 0%, transparent 55%);
+  --bg-panel: #ffffff;
+  --header-bg: #004a8f;
+  --border-panel: rgba(0, 74, 143, 0.14);
+  --input-bg: #f4f8fd;
+  --accent: #005b9f;
+  --accent-gradient: linear-gradient(135deg, #004a8f 0%, #0072bc 55%, #00a0e3 100%);
+}
+
 
 
 /* 2. SUNSET - Cam Đỏ Rực Rỡ */
@@ -2394,4 +2412,497 @@ select,
   -webkit-user-select: text;
   user-select: text;
   -webkit-touch-callout: default;
+}
+
+/* ============================================================
+   PHASE 1 — VIETINBANK LIGHT (Redesign 2026-07-02)
+   Scoped to body.theme-vietinbank. Higher specificity + later
+   position let these win over the historical dashboard overrides
+   without touching the 10 existing dark themes.
+   ============================================================ */
+
+/* --- Solid blue headers with white text on every screen (matches mockup) --- */
+body.theme-vietinbank .glass-header {
+  background: linear-gradient(160deg, #0058a6 0%, #004a8f 100%) !important;
+  border-bottom: 1px solid rgba(0, 40, 80, 0.25) !important;
+  box-shadow: 0 14px 30px rgba(0, 51, 102, 0.22) !important;
+}
+
+/* Header action buttons (back / settings / add / weather) -> white glyphs */
+body.theme-vietinbank .glass-header button {
+  color: #ffffff !important;
+}
+body.theme-vietinbank .glass-header button i,
+body.theme-vietinbank .glass-header button svg,
+body.theme-vietinbank #screen-dashboard .glass-header button i,
+body.theme-vietinbank #screen-dashboard button[onclick="refreshWeather()"] i {
+  color: #ffffff !important;
+}
+body.theme-vietinbank .glass-header h2 {
+  color: #ffffff !important;
+}
+
+/* Dashboard settings gear: subtle glass chip on the blue hero */
+body.theme-vietinbank #screen-dashboard .glass-header > .flex > .flex > button {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+/* Weather pill stays readable on the blue hero */
+body.theme-vietinbank #screen-dashboard button[onclick="refreshWeather()"] {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: #eaf3ff !important;
+}
+
+/* Header search field (customer list) -> white pill on blue header */
+body.theme-vietinbank .glass-header input {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+  color: #ffffff !important;
+}
+body.theme-vietinbank .glass-header input::placeholder {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+body.theme-vietinbank .customer-search-wrap i {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Dashboard greeting block inside the blue hero */
+body.theme-vietinbank .dash-hero-greeting {
+  margin-top: 2px;
+}
+body.theme-vietinbank .dash-hi {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+body.theme-vietinbank .dash-date {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(234, 243, 255, 0.85);
+}
+
+/* --- Dashboard body: light surface --- */
+body.theme-vietinbank #screen-dashboard {
+  background: var(--bg-base);
+}
+
+/* White cards with a soft blue shadow (matches mockup panels) */
+body.theme-vietinbank #folder-view .dashboard-card {
+  color: #12284c !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 74, 143, 0.10) !important;
+  box-shadow: 0 16px 34px rgba(0, 51, 102, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+body.theme-vietinbank #folder-view .dashboard-section-head h2 {
+  color: #12284c !important;
+}
+
+/* Stat + quick-action tiles: crisp white cards with subtle blue border */
+body.theme-vietinbank #folder-view .overview-stat,
+body.theme-vietinbank #folder-view .quick-action-btn {
+  background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%) !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+  box-shadow: 0 8px 18px rgba(0, 51, 102, 0.07) !important;
+}
+
+/* Bold VietinBank-blue numbers */
+body.theme-vietinbank #folder-view .overview-stat strong {
+  color: #005b9f !important;
+  font-weight: 900 !important;
+}
+
+/* Tile labels: dark, legible */
+body.theme-vietinbank #folder-view .overview-stat span:not(.overview-icon),
+body.theme-vietinbank #folder-view .quick-action-btn strong {
+  color: #24364f !important;
+  font-weight: 700 !important;
+}
+
+/* Icon chips: SOLID VietinBank blue with white glyph (matches mockup) */
+body.theme-vietinbank #screen-dashboard .overview-icon,
+body.theme-vietinbank #screen-dashboard .quick-action-btn > span,
+body.theme-vietinbank #folder-view .overview-icon,
+body.theme-vietinbank #folder-view .quick-action-btn > span {
+  background: linear-gradient(135deg, #004a8f 0%, #0072bc 55%, #00a0e3 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 16px rgba(0, 91, 159, 0.28) !important;
+}
+body.theme-vietinbank #folder-view .overview-icon i,
+body.theme-vietinbank #folder-view .quick-action-btn > span i {
+  color: #ffffff !important;
+}
+
+/* Drive config panel on light theme */
+body.theme-vietinbank #folder-view .dashboard-drive-config {
+  background: linear-gradient(135deg, rgba(0, 91, 159, 0.06), rgba(0, 160, 227, 0.05)) !important;
+  border-color: rgba(0, 74, 143, 0.14) !important;
+  color: #12284c !important;
+}
+body.theme-vietinbank #folder-view .dashboard-drive-config label {
+  color: #005b9f !important;
+}
+
+/* --- Safety: keep list cards light on other screens until Phases 2-3 --- */
+body.theme-vietinbank .glass-panel-lite {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+  box-shadow: 0 10px 24px rgba(0, 51, 102, 0.08) !important;
+}
+
+/* ============================================================
+   PHASE 2 — CUSTOMER LIST + DETAIL (Redesign 2026-07-02)
+   Scoped to body.theme-vietinbank. Matches mockup #2-4.
+   ============================================================ */
+
+/* --- Customer list: KPI summary chips (white, colored numbers) --- */
+body.theme-vietinbank .customer-kpi {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+  box-shadow: 0 6px 16px rgba(0, 51, 102, 0.06);
+}
+body.theme-vietinbank .customer-kpi p { color: #5b7089 !important; }
+body.theme-vietinbank .customer-kpi strong { color: #005b9f !important; }
+body.theme-vietinbank .customer-kpi.approved strong { color: #16a34a !important; }
+body.theme-vietinbank .customer-kpi.pending strong { color: #d97706 !important; }
+
+/* --- Customer cards (white base from glass-panel-lite safety) --- */
+body.theme-vietinbank .cust-card:hover {
+  background: #f8fbff !important;
+}
+body.theme-vietinbank .cust-card.cust-approved::before { background: #16a34a !important; }
+body.theme-vietinbank .cust-card.cust-pending::before { background: #f59e0b !important; }
+
+/* Avatars: solid color, white initials (approved=blue, pending=amber) */
+body.theme-vietinbank .customer-avatar.approved {
+  color: #ffffff !important;
+  background: linear-gradient(145deg, #0072bc, #004a8f) !important;
+  border: none !important;
+}
+body.theme-vietinbank .customer-avatar.pending {
+  color: #ffffff !important;
+  background: linear-gradient(145deg, #f59e0b, #d97706) !important;
+  border: none !important;
+}
+
+/* Card text */
+body.theme-vietinbank .customer-name-line { color: #12284c !important; }
+body.theme-vietinbank .customer-status-line { color: #7a8ba3 !important; }
+body.theme-vietinbank .customer-phone-line { color: #5b7089 !important; }
+
+/* Status chips */
+body.theme-vietinbank .customer-chip.approved {
+  color: #0f7a3d !important;
+  background: rgba(22, 163, 74, 0.12) !important;
+  border: 1px solid rgba(22, 163, 74, 0.30) !important;
+}
+body.theme-vietinbank .customer-chip.pending {
+  color: #b45309 !important;
+  background: rgba(245, 158, 11, 0.14) !important;
+  border: 1px solid rgba(245, 158, 11, 0.34) !important;
+}
+
+/* Action buttons (Gọi / Zalo) */
+body.theme-vietinbank .customer-action-btn {
+  background: #f4f8fd !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+}
+body.theme-vietinbank .customer-action-btn.zalo { color: #0072bc !important; }
+body.theme-vietinbank .customer-action-btn.call { color: #16a34a !important; }
+
+/* Empty state + search wrap */
+body.theme-vietinbank .customer-empty-icon {
+  background: #eef4fb !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  color: #005b9f !important;
+}
+body.theme-vietinbank .customer-empty-state { color: #5b7089 !important; }
+body.theme-vietinbank .customer-search-wrap { background: transparent !important; }
+
+/* --- Customer detail (folder) screen --- */
+/* Profile box + avatar + name sit on the blue header */
+body.theme-vietinbank .profile-glass-box {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+}
+body.theme-vietinbank #folder-avatar {
+  background: #ffffff !important;
+  color: #005b9f !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+}
+body.theme-vietinbank #folder-customer-name { color: #ffffff !important; }
+
+/* Contact pills on the blue header (keep the red delete button red) */
+body.theme-vietinbank #screen-folder .glass-header .glass-btn:not(.text-red-400) {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.30) !important;
+  color: #ffffff !important;
+}
+
+/* Detail tabs on the blue header: active = solid white/blue, inactive = white text */
+body.theme-vietinbank #screen-folder .glass-tab-active {
+  background: #ffffff !important;
+  color: #005b9f !important;
+  border: 1px solid #ffffff !important;
+}
+body.theme-vietinbank #screen-folder .glass-tab-inactive {
+  color: rgba(255, 255, 255, 0.82) !important;
+  opacity: 1 !important;
+}
+body.theme-vietinbank #screen-folder .glass-header .rounded-xl.bg-black\/20 {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+/* Notes textarea -> light input */
+body.theme-vietinbank #info-notes {
+  background: #f4f8fd !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  color: #12284c !important;
+}
+
+/* Bottom action bars (on the white content area): secondary glass buttons -> solid blue */
+body.theme-vietinbank .glass-panel.border-t .glass-btn {
+  background: linear-gradient(135deg, #0072bc, #004a8f) !important;
+  border: none !important;
+  color: #ffffff !important;
+}
+
+/* --- Add / edit customer modal: light input fields (mockup #10) --- */
+body.theme-vietinbank #add-modal input {
+  background: #f4f8fd !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+  color: #12284c !important;
+}
+body.theme-vietinbank #add-modal input::placeholder {
+  color: #9aabbf !important;
+}
+body.theme-vietinbank #add-modal input:focus {
+  border-color: rgba(0, 114, 188, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(0, 114, 188, 0.14) !important;
+}
+
+/* ============================================================
+   PHASE 3 — ASSETS + MAP + SETTINGS + POLISH (Redesign 2026-07-03)
+   Scoped to body.theme-vietinbank. Matches mockup #5-8, #11.
+   Remaps the dark Tailwind utilities hardcoded in JS-rendered
+   markup (renderAssets, showRefModal, ...) for light surfaces.
+   ============================================================ */
+
+/* --- 1. Asset cards, tab "Tài Sản" (#content-assets) --- */
+body.theme-vietinbank #content-assets .glass-panel {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+  box-shadow: 0 10px 24px rgba(0, 51, 102, 0.08) !important;
+}
+body.theme-vietinbank #content-assets .text-white { color: #12284c !important; }
+body.theme-vietinbank #content-assets .text-slate-300 { color: #3d5474 !important; }
+body.theme-vietinbank #content-assets .text-slate-400 { color: #5b7089 !important; }
+body.theme-vietinbank #content-assets .text-slate-500 { color: #7a8ba3 !important; }
+
+/* Info strip ĐG / Vay */
+body.theme-vietinbank #content-assets .bg-black\/20 {
+  background: #f4f8fd !important;
+  border-color: rgba(0, 74, 143, 0.12) !important;
+}
+body.theme-vietinbank #content-assets .text-emerald-400 { color: #0f7a3d !important; }
+body.theme-vietinbank #content-assets .text-blue-400 { color: #0072bc !important; }
+body.theme-vietinbank #content-assets .text-indigo-400 { color: #4f46e5 !important; }
+
+/* Spec chips (m², MT, Năm) + icon chip */
+body.theme-vietinbank #content-assets .bg-indigo-500\/10 {
+  background: rgba(0, 114, 188, 0.08) !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+}
+body.theme-vietinbank #content-assets .bg-slate-500\/10 {
+  background: rgba(91, 112, 137, 0.10) !important;
+  border-color: rgba(0, 74, 143, 0.14) !important;
+}
+body.theme-vietinbank #content-assets .text-indigo-300 { color: #1d4ed8 !important; }
+
+/* Asset action buttons (Bản đồ / Tham khảo / Kho Ảnh) */
+body.theme-vietinbank #content-assets .glass-btn {
+  background: #f4f8fd !important;
+  border: 1px solid rgba(0, 74, 143, 0.16) !important;
+  backdrop-filter: none;
+}
+body.theme-vietinbank #content-assets .glass-btn:hover,
+body.theme-vietinbank #content-assets .glass-btn:active {
+  background: #e8f1fa !important;
+}
+body.theme-vietinbank #content-assets .hover\:bg-white\/5:hover {
+  background: rgba(0, 91, 159, 0.06) !important;
+}
+
+/* Empty states in both content tabs */
+body.theme-vietinbank #content-images .text-slate-500 { color: #7a8ba3 !important; }
+
+/* --- 2. Kho ảnh TSBĐ (#screen-asset-gallery) --- */
+body.theme-vietinbank #screen-asset-gallery .glass-header span[id^="gallery-asset"] {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+  color: #ffffff !important;
+}
+body.theme-vietinbank .img-wrapper {
+  background: #ffffff;
+  border-color: rgba(0, 74, 143, 0.14);
+  box-shadow: 0 3px 8px rgba(0, 51, 102, 0.10);
+}
+
+/* --- 3. Modal "Tham khảo giá" (#ref-price-modal) --- */
+body.theme-vietinbank #ref-price-modal .bg-white\/5 {
+  background: #f8fbff !important;
+  border-color: rgba(0, 74, 143, 0.14) !important;
+}
+body.theme-vietinbank #ref-price-modal .text-white { color: #12284c !important; }
+body.theme-vietinbank #ref-price-modal .text-slate-300 { color: #3d5474 !important; }
+body.theme-vietinbank #ref-price-modal .text-slate-500 { color: #7a8ba3 !important; }
+body.theme-vietinbank #ref-price-modal .text-emerald-400 { color: #0f7a3d !important; }
+body.theme-vietinbank #ref-price-modal .text-indigo-300 { color: #1d4ed8 !important; }
+body.theme-vietinbank #ref-price-modal .text-cyan-300 { color: #0e7490 !important; }
+body.theme-vietinbank #ref-price-modal .bg-indigo-500\/20 { background: rgba(29, 78, 216, 0.10) !important; }
+body.theme-vietinbank #ref-price-modal .bg-cyan-500\/20 { background: rgba(14, 116, 144, 0.10) !important; }
+
+/* --- 4. Bản đồ (mockup #7): white circular controls, light popup --- */
+body.theme-vietinbank #screen-map button[onclick="toggleMap()"] {
+  background: #ffffff !important;
+  color: #005b9f !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  box-shadow: 0 10px 24px rgba(0, 51, 102, 0.22) !important;
+}
+body.theme-vietinbank #screen-map button[onclick="locateMe()"] {
+  background: linear-gradient(135deg, #0072bc, #004a8f) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+}
+body.theme-vietinbank .maplibregl-popup.clientpro-map-popup .maplibregl-popup-content {
+  background: #ffffff !important;
+  color: #12284c !important;
+  border: 1px solid rgba(0, 74, 143, 0.16) !important;
+  box-shadow: 0 20px 45px rgba(0, 51, 102, 0.25) !important;
+}
+body.theme-vietinbank .maplibregl-popup.clientpro-map-popup .maplibregl-popup-tip {
+  border-top-color: #ffffff !important;
+  border-bottom-color: #ffffff !important;
+}
+body.theme-vietinbank .maplibregl-popup.clientpro-map-popup .map-popup-card {
+  color: #12284c !important;
+}
+body.theme-vietinbank .maplibregl-popup.clientpro-map-popup .maplibregl-popup-close-button {
+  color: #12284c !important;
+  text-shadow: none !important;
+}
+body.theme-vietinbank .map-popup-card .text-white { color: #12284c !important; }
+body.theme-vietinbank .map-popup-card .text-slate-400,
+body.theme-vietinbank .map-popup-card .text-slate-300 { color: #5b7089 !important; }
+body.theme-vietinbank .map-tag.approved { color: #0f7a3d; background: rgba(22, 163, 74, 0.12); }
+body.theme-vietinbank .map-tag.pending { color: #b45309; background: rgba(245, 158, 11, 0.14); }
+
+/* --- 5. Menu Cài đặt (#settings-menu, mockup #8) --- */
+body.theme-vietinbank #settings-menu {
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  box-shadow: 0 24px 55px rgba(0, 51, 102, 0.22) !important;
+}
+body.theme-vietinbank #settings-menu .border-b,
+body.theme-vietinbank #settings-menu .border-white\/5 {
+  border-color: rgba(0, 74, 143, 0.10) !important;
+}
+body.theme-vietinbank .settings-btn {
+  background: #f4f8fd !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+}
+body.theme-vietinbank .settings-btn:active {
+  background: #e8f1fa !important;
+}
+body.theme-vietinbank .settings-btn.text-indigo-400 { color: #4f46e5 !important; }
+body.theme-vietinbank .settings-btn.text-pink-400 { color: #db2777 !important; }
+body.theme-vietinbank .theme-btn-sm {
+  box-shadow: 0 2px 6px rgba(0, 51, 102, 0.18);
+}
+body.theme-vietinbank .theme-btn-sm.active {
+  border-color: #005b9f !important;
+  box-shadow: 0 0 0 3px rgba(0, 114, 188, 0.20) !important;
+}
+
+/* --- 6. App-wide polish --- */
+/* Toast: white card, dark text */
+body.theme-vietinbank #toast {
+  background: #ffffff !important;
+  color: #12284c !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  box-shadow: 0 18px 40px rgba(0, 51, 102, 0.22) !important;
+}
+body.theme-vietinbank #toast .text-emerald-400 { color: #16a34a !important; }
+
+/* Lock screen keeps its dark backdrop by design -> force light text
+   (inline style="color: var(--text-main)" needs !important to beat). */
+body.theme-vietinbank #screen-lock h2,
+body.theme-vietinbank #screen-lock #pin-subtitle {
+  color: #f8fafc !important;
+}
+body.theme-vietinbank #screen-lock button[onclick="forgotPin()"] {
+  color: rgba(248, 250, 252, 0.78) !important;
+}
+body.theme-vietinbank #screen-lock .pin-dot {
+  border-color: rgba(248, 250, 252, 0.55);
+}
+body.theme-vietinbank #screen-lock .pin-dot.filled {
+  background: #38bdf8;
+  border-color: #38bdf8;
+}
+
+/* Selection bars (white panels now): darken tinted labels for contrast */
+body.theme-vietinbank #cust-selection-bar .text-blue-300 { color: #0072bc !important; }
+body.theme-vietinbank #cust-selection-bar .text-red-400,
+body.theme-vietinbank #selection-bar .text-red-400 { color: #dc2626 !important; }
+
+/* Form modals: same light inputs as #add-modal (asset, setup-lock, forgot-pin, activation) */
+body.theme-vietinbank #asset-modal input:not([type="hidden"]),
+body.theme-vietinbank #setup-lock-modal input,
+body.theme-vietinbank #forgot-pin-modal input,
+body.theme-vietinbank #activation-modal input {
+  background: #f4f8fd !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+  color: #12284c !important;
+}
+body.theme-vietinbank #asset-modal input::placeholder,
+body.theme-vietinbank #setup-lock-modal input::placeholder,
+body.theme-vietinbank #forgot-pin-modal input::placeholder,
+body.theme-vietinbank #activation-modal input::placeholder {
+  color: #9aabbf !important;
+}
+body.theme-vietinbank #asset-modal input:focus,
+body.theme-vietinbank #setup-lock-modal input:focus,
+body.theme-vietinbank #forgot-pin-modal input:focus,
+body.theme-vietinbank #activation-modal input:focus {
+  border-color: rgba(0, 114, 188, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(0, 114, 188, 0.14) !important;
+}
+
+/* Asset modal: GPS helper buttons + "Hủy" ghost button on white panel */
+body.theme-vietinbank #asset-modal .bg-black\/20 {
+  background: #f4f8fd !important;
+}
+body.theme-vietinbank #asset-modal .text-white\/80 { color: #0072bc !important; }
+body.theme-vietinbank #asset-modal button[onclick="closeAssetModal()"],
+body.theme-vietinbank #forgot-pin-modal button[onclick="closeForgotModal()"] {
+  background: #eef2f7 !important;
+  color: #3d5474 !important;
+}
+
+/* Approve modal: dark-on-white fixes */
+body.theme-vietinbank #approve-modal .text-white { color: #12284c !important; }
+body.theme-vietinbank #approve-modal .bg-emerald-600.text-white { color: #ffffff !important; }
+body.theme-vietinbank #approve-modal #approve-limit {
+  background: rgba(22, 163, 74, 0.07) !important;
+  color: #0f7a3d !important;
+}
+body.theme-vietinbank #approve-modal .bg-slate-800 {
+  background: #eef2f7 !important;
+  color: #3d5474 !important;
 }
