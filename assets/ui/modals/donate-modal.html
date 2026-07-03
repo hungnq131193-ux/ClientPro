@@ -1,6 +1,6 @@
 <div id="donate-modal" class="fixed inset-0 z-[120] bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
     <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative border border-pink-500/30 modal-animate">
-        <button onclick="closeDonateModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <button data-action="closeDonateModal" class="absolute top-4 right-4 text-slate-400 hover:text-white">
             <i data-lucide="x" class="w-5 h-5"></i>
         </button>
         
@@ -21,7 +21,7 @@
                         <p class="opacity-60 mb-0.5">Số tài khoản</p>
                         <p class="font-mono font-bold text-base tracking-wide text-white">8888 868 38888</p>
                     </div>
-                    <button onclick="copyDonateAccount()" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold bg-white/5 hover:bg-white/10 border border-white/15 active:scale-95 transition">
+                    <button data-action="copyDonateAccount" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold bg-white/5 hover:bg-white/10 border border-white/15 active:scale-95 transition">
                         <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                         Copy STK
                     </button>

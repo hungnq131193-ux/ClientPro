@@ -1,6 +1,6 @@
 <div id="add-modal" class="fixed inset-0 z-40 bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative modal-animate">
-            <button onclick="closeModal()" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <button data-action="closeModal" class="absolute top-4 right-4" style="color: var(--text-sub)"><i data-lucide="x" class="w-5 h-5"></i></button>
             <h3 class="font-bold text-lg mb-6" id="modal-title-cust" style="color: var(--text-main)">Thông tin khách hàng</h3>
             <input type="hidden" id="edit-cust-id">
             <div class="space-y-5">
@@ -21,7 +21,7 @@
                 </div>
             </div>
             <div class="mt-8">
-                <button onclick="saveCustomer()" class="w-full py-3.5 text-white font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform" id="btn-save-cust" style="background: var(--accent-gradient);">Lưu Hồ Sơ</button>
+                <button data-action="saveCustomer" class="w-full py-3.5 text-white font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform" id="btn-save-cust" style="background: var(--accent-gradient);">Lưu Hồ Sơ</button>
             </div>
         </div>
     </div>

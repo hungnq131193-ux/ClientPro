@@ -22,19 +22,19 @@
             position: 'bottom'
         },
         {
-            target: 'button[onclick="openModal()"]',
+            target: '#btn-quick-add',
             title: '➕ Thêm khách hàng mới',
             content: 'Nhấn nút này để tạo hồ sơ khách hàng mới.',
             position: 'top-left'
         },
         {
-            target: 'button[onclick="toggleMap()"]',
+            target: '#btn-quick-map',
             title: '🗺️ Xem bản đồ',
             content: 'Xem vị trí tất cả khách hàng trên bản đồ.',
             position: 'top-left'
         },
         {
-            target: 'button[onclick="toggleMenu()"]',
+            target: '#btn-open-menu',
             title: '⚙️ Cài đặt',
             content: 'Đổi giao diện, sao lưu dữ liệu, kết nối Google Drive.',
             position: 'bottom-left'
@@ -214,33 +214,27 @@
         const isFirst = currentStep === 0;
         const isLast = currentStep === tourSteps.length - 1;
 
-        tooltip.innerHTML = `
-            <h3 class="font-bold text-lg mb-2 text-white tour-title"></h3>
-            <p class="text-sm text-slate-300 mb-4 tour-content"></p>
-            <div class="flex items-center justify-between">
-                <div class="flex gap-1">
-                    ${tourSteps.map((_, i) => `
-                        <div class="w-2 h-2 rounded-full transition-colors ${i === currentStep ? 'bg-blue-400' : 'bg-white/20'}"></div>
-                    `).join('')}
-                </div>
-                <div class="flex gap-2">
-                    ${!isFirst ? `
-                        <button id="tour-prev" class="px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white transition">
-                            ← Trước
-                        </button>
-                    ` : `
-                        <button id="tour-skip" class="px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white transition">
-                            Bỏ qua
-                        </button>
-                    `}
-                    <button id="tour-next" class="px-4 py-1.5 text-xs font-bold text-white rounded-lg transition active:scale-95" style="background: var(--accent-gradient);">
-                        ${isLast ? 'Bắt đầu!' : 'Tiếp →'}
-                    </button>
-                </div>
-            </div>
-        `;
-        tooltip.querySelector('.tour-title').textContent = step.title;
-        tooltip.querySelector('.tour-content').textContent = step.content;
+        tooltip.textContent = '';
+        const titleEl = el('h3', { className: 'font-bold text-lg mb-2 text-white' });
+        const contentEl = el('p', { className: 'text-sm text-slate-300 mb-4' });
+        const dots = tourSteps.map((_, i) =>
+            el('div', { className: `w-2 h-2 rounded-full transition-colors ${i === currentStep ? 'bg-blue-400' : 'bg-white/20'}` })
+        );
+        tooltip.appendChild(el('div', {}, [
+            titleEl,
+            contentEl,
+            el('div', { className: 'flex items-center justify-between' }, [
+                el('div', { className: 'flex gap-1' }, dots),
+                el('div', { className: 'flex gap-2' }, [
+                    !isFirst
+                        ? el('button', { id: 'tour-prev', className: 'px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white transition', text: '← Trước' })
+                        : el('button', { id: 'tour-skip', className: 'px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white transition', text: 'Bỏ qua' }),
+                    el('button', { id: 'tour-next', className: 'px-4 py-1.5 text-xs font-bold text-white rounded-lg transition active:scale-95', style: 'background: var(--accent-gradient);', text: isLast ? 'Bắt đầu!' : 'Tiếp →' }),
+                ]),
+            ]),
+        ]));
+        titleEl.textContent = step.title;
+        contentEl.textContent = step.content;
 
         positionTooltip(currentStep);
 

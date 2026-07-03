@@ -234,24 +234,22 @@
       const overlay = document.createElement('div');
       overlay.className = 'fixed inset-0 z-[10060] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
 
-      overlay.innerHTML = `
-        <div class="glass-panel w-full max-w-md rounded-2xl border border-white/10 overflow-hidden">
-          <div class="px-4 py-3 flex items-center justify-between border-b border-white/10">
-            <div>
-              <div class="text-base font-extrabold" style="color: var(--text-main)">Chọn user để gửi</div>
-              <div class="text-[11px] opacity-70" style="color: var(--text-sub)">Chỉ user được cấp quyền mới nhận và restore được.</div>
-            </div>
-            <button class="p-2 rounded-xl hover:bg-white/10" data-act="close" style="color: var(--text-main)">
-              <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-          </div>
-          <div class="p-4 space-y-3">
-            <input id="ctUserSearch" placeholder="Tìm theo tên hoặc mã..." class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm" style="color: var(--text-main)" />
-            <div id="ctUserList" class="max-h-[56vh] overflow-auto space-y-2 pr-1 custom-scrollbar"></div>
-            <button class="w-full py-3 rounded-xl font-bold bg-white/5 border border-white/10" data-act="cancel" style="color: var(--text-main)">Hủy</button>
-          </div>
-        </div>
-      `;
+      overlay.appendChild(el('div', { className: 'glass-panel w-full max-w-md rounded-2xl border border-white/10 overflow-hidden' }, [
+        el('div', { className: 'px-4 py-3 flex items-center justify-between border-b border-white/10' }, [
+          el('div', {}, [
+            el('div', { className: 'text-base font-extrabold', style: 'color: var(--text-main)', text: 'Chọn user để gửi' }),
+            el('div', { className: 'text-[11px] opacity-70', style: 'color: var(--text-sub)', text: 'Chỉ user được cấp quyền mới nhận và restore được.' }),
+          ]),
+          el('button', { className: 'p-2 rounded-xl hover:bg-white/10', dataset: { act: 'close' }, style: 'color: var(--text-main)' }, [
+            el('i', { dataset: { lucide: 'x' }, className: 'w-5 h-5' }),
+          ]),
+        ]),
+        el('div', { className: 'p-4 space-y-3' }, [
+          el('input', { id: 'ctUserSearch', placeholder: 'Tìm theo tên hoặc mã...', className: 'w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm', style: 'color: var(--text-main)' }),
+          el('div', { id: 'ctUserList', className: 'max-h-[56vh] overflow-auto space-y-2 pr-1 custom-scrollbar' }),
+          el('button', { className: 'w-full py-3 rounded-xl font-bold bg-white/5 border border-white/10', dataset: { act: 'cancel' }, style: 'color: var(--text-main)', text: 'Hủy' }),
+        ]),
+      ]));
 
       document.body.appendChild(overlay);
       if (window.lucide) lucide.createIcons();
@@ -625,25 +623,25 @@
 
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 z-[10080] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4';
-    overlay.innerHTML = `
-      <div class="glass-panel w-full max-w-md rounded-2xl p-5 border border-white/10 shadow-2xl">
-        <div class="flex items-start gap-3">
-          <div class="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-300">
-            <i data-lucide="inbox" class="w-6 h-6"></i>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="font-extrabold" style="color: var(--text-main)">Bạn đã nhận được bản ghi từ <span style="color:#60a5fa" class="notice-from"></span></div>
-            <div class="text-[11px] opacity-70 mt-1" style="color: var(--text-sub)">Tệp: <span class="notice-file"></span>. Bấm “Nhận & Restore” để nhập dữ liệu.</div>
-          </div>
-        </div>
-        <div class="flex gap-3 mt-4">
-          <button type="button" class="flex-1 py-3 rounded-xl font-extrabold" style="background: rgba(16,185,129,0.20); color: #34d399; border: 1px solid rgba(16,185,129,0.35)" data-act="accept">Nhận & Restore</button>
-          <button type="button" class="flex-1 py-3 rounded-xl font-bold" style="background: rgba(255,255,255,0.06); color: var(--text-main); border: 1px solid rgba(255,255,255,0.12)" data-act="later">Để sau</button>
-        </div>
-      </div>
-    `;
-    overlay.querySelector('.notice-from').textContent = fromName;
-    overlay.querySelector('.notice-file').textContent = filename;
+    const fromEl = el('span', { style: 'color:#60a5fa' });
+    const fileEl = el('span', {});
+    overlay.appendChild(el('div', { className: 'glass-panel w-full max-w-md rounded-2xl p-5 border border-white/10 shadow-2xl' }, [
+      el('div', { className: 'flex items-start gap-3' }, [
+        el('div', { className: 'w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-300' }, [
+          el('i', { dataset: { lucide: 'inbox' }, className: 'w-6 h-6' }),
+        ]),
+        el('div', { className: 'flex-1 min-w-0' }, [
+          el('div', { className: 'font-extrabold', style: 'color: var(--text-main)' }, ['Bạn đã nhận được bản ghi từ ', fromEl]),
+          el('div', { className: 'text-[11px] opacity-70 mt-1', style: 'color: var(--text-sub)' }, ['Tệp: ', fileEl, '. Bấm “Nhận & Restore” để nhập dữ liệu.']),
+        ]),
+      ]),
+      el('div', { className: 'flex gap-3 mt-4' }, [
+        el('button', { type: 'button', className: 'flex-1 py-3 rounded-xl font-extrabold', style: 'background: rgba(16,185,129,0.20); color: #34d399; border: 1px solid rgba(16,185,129,0.35)', dataset: { act: 'accept' }, text: 'Nhận & Restore' }),
+        el('button', { type: 'button', className: 'flex-1 py-3 rounded-xl font-bold', style: 'background: rgba(255,255,255,0.06); color: var(--text-main); border: 1px solid rgba(255,255,255,0.12)', dataset: { act: 'later' }, text: 'Để sau' }),
+      ]),
+    ]));
+    fromEl.textContent = fromName;
+    fileEl.textContent = filename;
 
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) overlay.remove();

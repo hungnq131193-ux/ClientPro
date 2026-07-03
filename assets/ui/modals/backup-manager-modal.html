@@ -1,5 +1,5 @@
 <div id="backup-manager-modal" class="fixed inset-0 z-50 hidden">
-  <div class="absolute inset-0 bg-black/60" onclick="closeBackupManager()"></div>
+  <div class="absolute inset-0 bg-black/60" data-action="closeBackupManager"></div>
   <div class="relative w-full h-full flex items-end sm:items-center justify-center p-3">
     <div class="glass-panel backup-manager-shell w-full max-w-lg rounded-2xl border border-slate-700 overflow-hidden">
       <div class="px-5 py-4 flex items-center justify-between border-b border-white/10">
@@ -7,7 +7,7 @@
           <h3 class="text-lg font-bold" style="color: var(--text-main)">Trung tâm Backup</h3>
           <p class="text-xs opacity-70 backup-manager-subtitle" style="color: var(--text-sub)">Sao lưu mã hóa, restore và xuất/nhập file .cpb.</p>
         </div>
-        <button onclick="closeBackupManager()" class="p-2 rounded-xl hover:bg-white/10" style="color: var(--text-main)">
+        <button data-action="closeBackupManager" class="p-2 rounded-xl hover:bg-white/10" style="color: var(--text-main)">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
@@ -22,7 +22,7 @@
             <span class="backup-pill">Giữ 3 bản mới nhất</span>
           </div>
           <p class="backup-desc">Sao lưu mã hóa trực tiếp vào Google Drive cá nhân. Danh sách 3 bản mới nhất hiển thị sẵn bên dưới để khôi phục, gửi hoặc xóa ngay.</p>
-          <button id="btn-drive-backup-now" onclick="DriveBackup.performNow()" class="backup-drive-btn" type="button">
+          <button id="btn-drive-backup-now" data-action="DriveBackup.performNow" class="backup-drive-btn" type="button">
             <i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Sao lưu lên Drive
           </button>
           <div id="drive-backup-status" class="drive-backup-status muted">Sẵn sàng sao lưu khi app đã mở khóa.</div>
@@ -42,19 +42,19 @@
               <p class="backup-kicker">Lưu trữ trên thiết bị</p>
               <h4>Bản sao lưu trong máy</h4>
             </div>
-            <button id="bkTabLocal" onclick="CloudTransferUI.showTab('local')" class="backup-mini-tab" type="button">Xem danh sách</button>
+            <button id="bkTabLocal" data-action="CloudTransferUI.showTab" data-arg="local" class="backup-mini-tab" type="button">Xem danh sách</button>
           </div>
           <div class="backup-action-grid backup-action-grid--local">
             <label class="backup-action-card cursor-pointer">
               <i data-lucide="file-input" class="w-4 h-4"></i>
               <span>Nhập file .cpb</span>
-              <input type="file" id="restore-input-2" accept=".cpb,.cpro" class="hidden" onchange="restoreData(this)" />
+              <input type="file" id="restore-input-2" accept=".cpb,.cpro" class="hidden" data-action="restoreData" />
             </label>
-            <button onclick="createBackupFileNow()" class="backup-action-card" type="button">
+            <button data-action="createBackupFileNow" class="backup-action-card" type="button">
               <i data-lucide="download" class="w-4 h-4"></i>
               <span>Tạo & xuất file</span>
             </button>
-            <button id="bkTabInbox" onclick="CloudTransferUI.showTab('inbox')" class="backup-action-card" type="button">
+            <button id="bkTabInbox" data-action="CloudTransferUI.showTab" data-arg="inbox" class="backup-action-card" type="button">
               <i data-lucide="inbox" class="w-4 h-4"></i>
               <span>Nhận từ user</span>
               <span id="inbox-badge" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black hidden"

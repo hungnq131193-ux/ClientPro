@@ -39,35 +39,29 @@
     // IMPORTANT: must be above other modals (z-index 9999) to avoid being hidden behind it.
     overlay.className = 'fixed inset-0 z-[10050] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
 
-    overlay.innerHTML = `
-      <div class="glass-panel w-full max-w-md rounded-2xl border border-white/10 overflow-hidden">
-        <div class="px-4 py-3 flex items-center justify-between border-b border-white/10">
-          <div>
-            <div class="text-base font-extrabold" style="color: var(--text-main)">Chọn khách hàng</div>
-            <div class="text-[11px] opacity-70" style="color: var(--text-sub)">Chọn 1 hoặc nhiều KH để sao lưu/gửi một phần dữ liệu</div>
-          </div>
-          <button class="p-2 rounded-xl hover:bg-white/10" data-act="close" style="color: var(--text-main)">
-            <i data-lucide="x" class="w-5 h-5"></i>
-          </button>
-        </div>
-
-        <div class="p-4 space-y-3">
-          <input id="qrPickSearch" placeholder="Tìm tên hoặc SĐT..." class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm" style="color: var(--text-main)" />
-
-          <div class="flex gap-2">
-            <button class="flex-1 py-2.5 rounded-xl font-bold bg-white/5 border border-white/10" data-act="all" style="color: var(--text-main)">Chọn tất cả</button>
-            <button class="flex-1 py-2.5 rounded-xl font-bold bg-white/5 border border-white/10" data-act="none" style="color: var(--text-main)">Bỏ chọn</button>
-          </div>
-
-          <div id="qrPickList" class="max-h-[52vh] overflow-auto space-y-2 pr-1 custom-scrollbar"></div>
-
-          <div class="flex gap-2 pt-1">
-            <button class="flex-1 py-3 rounded-xl font-extrabold text-white" data-act="ok" style="background: var(--accent-gradient)">Xong</button>
-            <button class="flex-1 py-3 rounded-xl font-bold bg-white/5 border border-white/10" data-act="cancel" style="color: var(--text-main)">Hủy</button>
-          </div>
-        </div>
-      </div>
-    `;
+    overlay.appendChild(el('div', { className: 'glass-panel w-full max-w-md rounded-2xl border border-white/10 overflow-hidden' }, [
+      el('div', { className: 'px-4 py-3 flex items-center justify-between border-b border-white/10' }, [
+        el('div', {}, [
+          el('div', { className: 'text-base font-extrabold', style: 'color: var(--text-main)', text: 'Chọn khách hàng' }),
+          el('div', { className: 'text-[11px] opacity-70', style: 'color: var(--text-sub)', text: 'Chọn 1 hoặc nhiều KH để sao lưu/gửi một phần dữ liệu' }),
+        ]),
+        el('button', { className: 'p-2 rounded-xl hover:bg-white/10', dataset: { act: 'close' }, style: 'color: var(--text-main)' }, [
+          el('i', { dataset: { lucide: 'x' }, className: 'w-5 h-5' }),
+        ]),
+      ]),
+      el('div', { className: 'p-4 space-y-3' }, [
+        el('input', { id: 'qrPickSearch', placeholder: 'Tìm tên hoặc SĐT...', className: 'w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm', style: 'color: var(--text-main)' }),
+        el('div', { className: 'flex gap-2' }, [
+          el('button', { className: 'flex-1 py-2.5 rounded-xl font-bold bg-white/5 border border-white/10', dataset: { act: 'all' }, style: 'color: var(--text-main)', text: 'Chọn tất cả' }),
+          el('button', { className: 'flex-1 py-2.5 rounded-xl font-bold bg-white/5 border border-white/10', dataset: { act: 'none' }, style: 'color: var(--text-main)', text: 'Bỏ chọn' }),
+        ]),
+        el('div', { id: 'qrPickList', className: 'max-h-[52vh] overflow-auto space-y-2 pr-1 custom-scrollbar' }),
+        el('div', { className: 'flex gap-2 pt-1' }, [
+          el('button', { className: 'flex-1 py-3 rounded-xl font-extrabold text-white', dataset: { act: 'ok' }, style: 'background: var(--accent-gradient)', text: 'Xong' }),
+          el('button', { className: 'flex-1 py-3 rounded-xl font-bold bg-white/5 border border-white/10', dataset: { act: 'cancel' }, style: 'color: var(--text-main)', text: 'Hủy' }),
+        ]),
+      ]),
+    ]));
 
     document.body.appendChild(overlay);
     if (window.lucide) lucide.createIcons();
@@ -85,17 +79,13 @@
         row.dataset.id = c.id;
 
         const isOn = selected.has(c.id);
-        row.innerHTML = `
-          <div class="w-5 h-5 rounded-md border border-white/20 flex items-center justify-center ${isOn ? 'bg-emerald-500/20' : 'bg-transparent'}">
-            ${isOn ? '<span style="color:#34d399;font-weight:900">✓</span>' : ''}
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="font-bold truncate cust-pick-name" style="color: var(--text-main)"></div>
-            <div class="text-[11px] opacity-70 truncate cust-pick-phone" style="color: var(--text-sub)"></div>
-          </div>
-        `;
-        row.querySelector('.cust-pick-name').textContent = c.name || '---';
-        row.querySelector('.cust-pick-phone').textContent = c.phone || '';
+        const nameEl = el('div', { className: 'font-bold truncate', style: 'color: var(--text-main)' });
+        const phoneEl = el('div', { className: 'text-[11px] opacity-70 truncate', style: 'color: var(--text-sub)' });
+        row.appendChild(el('div', { className: `w-5 h-5 rounded-md border border-white/20 flex items-center justify-center ${isOn ? 'bg-emerald-500/20' : 'bg-transparent'}` },
+          isOn ? el('span', { style: 'color:#34d399;font-weight:900', text: '✓' }) : null));
+        row.appendChild(el('div', { className: 'flex-1 min-w-0' }, [nameEl, phoneEl]));
+        nameEl.textContent = c.name || '---';
+        phoneEl.textContent = c.phone || '';
 
         row.addEventListener('click', () => {
           if (selected.has(c.id)) selected.delete(c.id);

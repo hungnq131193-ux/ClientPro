@@ -101,7 +101,7 @@ function renderDriveStatus(url) {
         // CHƯA CÓ LINK → hiện nút tìm lại + nút upload
         area.classList.remove('hidden');
         area.innerHTML = `
-      <button onclick="reconnectDriveFolder()"
+      <button data-action="reconnectDriveFolder"
               class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600
                      rounded-lg text-xs font-medium text-slate-300
                      flex items-center justify-center gap-2 hover:bg-slate-700 transition">
@@ -235,7 +235,7 @@ function renderAssetDriveStatus(url) {
     } else {
         // Chưa có link -> Hiện nút TÌM LẠI
         area.innerHTML = `
-            <button onclick="reconnectAssetDriveFolder()" class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
+            <button data-action="reconnectAssetDriveFolder" class="w-full py-2 mb-2 bg-slate-700/50 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 flex items-center justify-center gap-2 hover:bg-slate-700 transition">
                 <i data-lucide="search" class="w-4 h-4"></i> Tìm kết nối cũ
             </button>`;
         if (btnUp) btnUp.classList.remove('hidden');

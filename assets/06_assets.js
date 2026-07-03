@@ -261,7 +261,7 @@ function renderAssets() {
       ? `<div class="text-xs text-slate-400 mt-1 italic"><i data-lucide="home" class="w-3 h-3 inline mr-1"></i><span class="asset-onland"></span></div>`
       : "";
 
-    el.innerHTML = ` <div class="flex justify-between items-start mb-1"> <div class="flex gap-3 items-center"> <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-white/10"><i data-lucide="map-pin" class="w-5 h-5"></i></div> <div><h4 class="font-bold text-white text-sm line-clamp-1 asset-name"></h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div> </div> <div class="flex gap-1"> <button data-action="edit" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button> <button data-action="delete" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button> </div> </div> ${onlandInfo} <div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"> <span>ĐG: <b class="text-emerald-400 text-sm asset-val"></b></span> <span>Vay: <b class="text-blue-400 text-sm asset-loan"></b></span> </div> <div class="flex gap-2"> ${mapBtn} <button data-action="reference" class="glass-btn flex-1 py-2.5 text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button> </div> <button data-action="gallery" class="glass-btn w-full py-2.5 text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white mt-1"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`;
+    el.innerHTML = ` <div class="flex justify-between items-start mb-1"> <div class="flex gap-3 items-center"> <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-white/10"><i data-lucide="map-pin" class="w-5 h-5"></i></div> <div><h4 class="font-bold text-white text-sm line-clamp-1 asset-name"></h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div> </div> <div class="flex gap-1"> <button data-asset-action="edit" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button> <button data-asset-action="delete" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button> </div> </div> ${onlandInfo} <div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"> <span>ĐG: <b class="text-emerald-400 text-sm asset-val"></b></span> <span>Vay: <b class="text-blue-400 text-sm asset-loan"></b></span> </div> <div class="flex gap-2"> ${mapBtn} <button data-asset-action="reference" class="glass-btn flex-1 py-2.5 text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button> </div> <button data-asset-action="gallery" class="glass-btn w-full py-2.5 text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white mt-1"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`;
 
     el.querySelector('.asset-name').textContent = decName;
     el.querySelector('.asset-val').textContent = decVal || "-";
@@ -277,13 +277,13 @@ function renderAssets() {
     const mapAnchor = el.querySelector('[data-map-link]');
     if (mapAnchor) mapAnchor.setAttribute('href', mapLink);
 
-    const editBtn = el.querySelector('[data-action="edit"]');
+    const editBtn = el.querySelector('[data-asset-action="edit"]');
     if (editBtn) editBtn.addEventListener("click", () => openEditAssetModal(index));
-    const deleteBtn = el.querySelector('[data-action="delete"]');
+    const deleteBtn = el.querySelector('[data-asset-action="delete"]');
     if (deleteBtn) deleteBtn.addEventListener("click", () => deleteAsset(index));
-    const referenceBtn = el.querySelector('[data-action="reference"]');
+    const referenceBtn = el.querySelector('[data-asset-action="reference"]');
     if (referenceBtn) referenceBtn.addEventListener("click", () => referenceAssetPrice(index));
-    const galleryBtn = el.querySelector('[data-action="gallery"]');
+    const galleryBtn = el.querySelector('[data-asset-action="gallery"]');
     if (galleryBtn) galleryBtn.addEventListener("click", () => openAssetGallery(asset.id, decName, index));
     list.appendChild(el);
   });
