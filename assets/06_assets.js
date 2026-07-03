@@ -249,6 +249,9 @@ function renderAssets() {
 
 function openAssetModal() {
   getEl("asset-modal").classList.remove("hidden");
+  // Tránh dùng nhầm currentAssetId còn sót lại từ lần Sửa/Hủy TSBĐ trước đó
+  // (nếu không reset, TSBĐ mới tạo có thể bị gán trùng id với TSBĐ cũ -> lẫn ảnh giữa 2 tài sản).
+  currentAssetId = null;
   getEl("edit-asset-index").value = "";
   getEl("modal-title-asset").textContent = "Thêm TSBĐ";
   getEl("btn-save-asset").textContent = "Thêm mới";
@@ -290,6 +293,9 @@ function openEditAssetModal(index) {
 }
 function closeAssetModal() {
   getEl("asset-modal").classList.add("hidden");
+  // Hủy sửa TSBĐ -> không còn "đang thao tác" trên tài sản đó nữa, tránh ảnh chụp
+  // sau đó (vd. ở tab Hình ảnh hồ sơ) bị gán nhầm assetId của tài sản vừa hủy sửa.
+  currentAssetId = null;
 }
 
 function saveAsset() {
