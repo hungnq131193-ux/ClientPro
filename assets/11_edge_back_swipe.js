@@ -197,6 +197,20 @@
       return callIfFn('closeLightbox') || (get('lightbox').classList.add('hidden'), true);
     }
 
+    // Dynamically-created "duplicate customer" warning overlay (05_customers.js
+    // showDuplicateWarning). It sits on top of add-modal without any of the
+    // generic dialog/overlay markers the fallback below looks for, so without
+    // this explicit check a back-swipe here would fall through to closing
+    // add-modal underneath it instead — leaving the warning stuck on screen
+    // with no form behind it once dismissed.
+    if (isVisibleModal('dup-warning-overlay')) {
+      const overlay = get('dup-warning-overlay');
+      const cancelBtn = overlay && overlay.querySelector('#dup-btn-cancel');
+      if (cancelBtn) { cancelBtn.click(); return true; }
+      overlay.classList.add('hidden');
+      return true;
+    }
+
     // Selection mode must be consumed before any screen navigation.
     // IMPORTANT: check handleAppBack()'s REAL return value. It returns true
     // only when it actually consumed the gesture (a selection mode was
