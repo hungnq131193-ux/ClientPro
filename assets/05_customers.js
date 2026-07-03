@@ -624,43 +624,52 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
         document.body.appendChild(overlay);
     }
 
-    overlay.innerHTML = `
-                <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl modal-animate">
-                    <div class="flex items-center gap-3 mb-4 text-amber-400">
-                        <i data-lucide="alert-triangle" class="w-8 h-8"></i>
-                        <h3 class="font-bold text-lg">Phát hiện trùng lặp!</h3>
-                    </div>
-                    <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-5">
-                        <p class="text-sm text-amber-200 mb-3">
-                            <strong>${fieldLabel}</strong> này đã tồn tại trong hệ thống:
-                        </p>
-                        <div class="bg-black/20 rounded-lg p-3">
-                            <p class="font-bold text-white text-base dup-name"></p>
-                            <p class="text-xs text-slate-400 mt-1">
-                                <span class="inline-flex items-center gap-1"><i data-lucide="smartphone" class="w-3 h-3"></i> <span class="dup-phone"></span></span>
-                            </p>
-                            <p class="text-xs text-slate-400 mt-0.5">
-                                <span class="inline-flex items-center gap-1"><i data-lucide="id-card" class="w-3 h-3"></i> <span class="dup-cccd"></span></span>
-                            </p>
-                        </div>
-                    </div>
-                    <div class="flex gap-3">
-                        <button id="dup-btn-view" class="flex-1 py-3 rounded-xl font-bold text-sm bg-white/10 border border-white/20 text-white active:scale-[0.98] transition-transform">
-                            <i data-lucide="folder-open" class="w-4 h-4 inline mr-1"></i> Xem KH
-                        </button>
-                        <button id="dup-btn-ignore" class="flex-1 py-3 rounded-xl font-bold text-sm text-white active:scale-[0.98] transition-transform" style="background: var(--accent-gradient);">
-                            Bỏ qua & Lưu
-                        </button>
-                    </div>
-                    <button id="dup-btn-cancel" class="w-full mt-3 py-2.5 text-sm text-slate-400 hover:text-white transition-colors">
-                        Hủy
-                    </button>
-                </div>
-            `;
+    overlay.textContent = '';
+    const nameEl = el('p', { className: 'font-bold text-white text-base' });
+    const phoneEl = el('span', {});
+    const cccdEl = el('span', {});
+    const panel = el('div', { className: 'glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl modal-animate' }, [
+        el('div', { className: 'flex items-center gap-3 mb-4 text-amber-400' }, [
+            el('i', { dataset: { lucide: 'alert-triangle' }, className: 'w-8 h-8' }),
+            el('h3', { className: 'font-bold text-lg', text: 'Phát hiện trùng lặp!' }),
+        ]),
+        el('div', { className: 'bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-5' }, [
+            el('p', { className: 'text-sm text-amber-200 mb-3' }, [
+                el('strong', { text: fieldLabel }),
+                ` này đã tồn tại trong hệ thống:`,
+            ]),
+            el('div', { className: 'bg-black/20 rounded-lg p-3' }, [
+                nameEl,
+                el('p', { className: 'text-xs text-slate-400 mt-1' }, [
+                    el('span', { className: 'inline-flex items-center gap-1' }, [
+                        el('i', { dataset: { lucide: 'smartphone' }, className: 'w-3 h-3' }),
+                        ' ',
+                        phoneEl,
+                    ]),
+                ]),
+                el('p', { className: 'text-xs text-slate-400 mt-0.5' }, [
+                    el('span', { className: 'inline-flex items-center gap-1' }, [
+                        el('i', { dataset: { lucide: 'id-card' }, className: 'w-3 h-3' }),
+                        ' ',
+                        cccdEl,
+                    ]),
+                ]),
+            ]),
+        ]),
+        el('div', { className: 'flex gap-3' }, [
+            el('button', { id: 'dup-btn-view', className: 'flex-1 py-3 rounded-xl font-bold text-sm bg-white/10 border border-white/20 text-white active:scale-[0.98] transition-transform' }, [
+                el('i', { dataset: { lucide: 'folder-open' }, className: 'w-4 h-4 inline mr-1' }),
+                ' Xem KH',
+            ]),
+            el('button', { id: 'dup-btn-ignore', className: 'flex-1 py-3 rounded-xl font-bold text-sm text-white active:scale-[0.98] transition-transform', style: 'background: var(--accent-gradient);', text: 'Bỏ qua & Lưu' }),
+        ]),
+        el('button', { id: 'dup-btn-cancel', className: 'w-full mt-3 py-2.5 text-sm text-slate-400 hover:text-white transition-colors', text: 'Hủy' }),
+    ]);
+    overlay.appendChild(panel);
 
-    overlay.querySelector('.dup-name').textContent = existing.name || 'Không tên';
-    overlay.querySelector('.dup-phone').textContent = existing.phone || 'N/A';
-    overlay.querySelector('.dup-cccd').textContent = existing.cccd || 'N/A';
+    nameEl.textContent = existing.name || 'Không tên';
+    phoneEl.textContent = existing.phone || 'N/A';
+    cccdEl.textContent = existing.cccd || 'N/A';
 
     overlay.classList.remove('hidden');
     try { lucide.createIcons({ icons: { 'alert-triangle': lucide.icons['alert-triangle'], 'smartphone': lucide.icons['smartphone'], 'id-card': lucide.icons['id-card'], 'folder-open': lucide.icons['folder-open'] }, attrs: {} }); } catch (e) { try { lucide.createIcons(); } catch (e2) { } }
@@ -681,7 +690,7 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
     };
 }
 
-// Create / Update customer (called from add-modal.html: onclick="saveCustomer()")
+// Create / Update customer (called from add-modal.html via data-action="saveCustomer")
 // IMPORTANT: Must keep existing data schema and encryption behavior.
 async function saveCustomer() {
     try {

@@ -1,3 +1,34 @@
+// Hyperscript-style helper để dựng khung overlay/modal bằng DOM API thay vì innerHTML.
+// props: attrs thường (className, id...), "style" (object hoặc chuỗi cssText), "on" (object
+// sự kiện -> handler), "dataset" (object cho data-*), "text" (textContent, đường tắt an toàn
+// cho nội dung có thể chứa biến). children: string | Node | Array<string|Node|falsy>.
+function el(tag, props, children) {
+    const node = document.createElement(tag);
+    props = props || {};
+    for (const key in props) {
+        if (key === 'style') {
+            if (typeof props.style === 'string') node.style.cssText = props.style;
+            else Object.assign(node.style, props.style);
+        } else if (key === 'dataset') {
+            Object.assign(node.dataset, props.dataset);
+        } else if (key === 'on') {
+            for (const evt in props.on) node.addEventListener(evt, props.on[evt]);
+        } else if (key === 'text') {
+            node.textContent = props.text;
+        } else if (key === 'href' || key === 'type' || key === 'role' || key === 'for' || key.indexOf('aria-') === 0) {
+            node.setAttribute(key, props[key]);
+        } else {
+            node[key] = props[key];
+        }
+    }
+    const kids = Array.isArray(children) ? children : (children == null ? [] : [children]);
+    for (const k of kids) {
+        if (k == null || k === false) continue;
+        node.appendChild(typeof k === 'string' ? document.createTextNode(k) : k);
+    }
+    return node;
+}
+
 function setupSwipe() {
     const lb = getEl('lightbox'); let startX = 0; let endX = 0;
     lb.addEventListener('touchstart', e => { startX = e.changedTouches[0].screenX; }, { passive: true });

@@ -66,3 +66,106 @@
           try { el && el.addEventListener('transitionend', onEnd, { once: true }); } catch (e) {}
           setTimeout(finish, (ms || 0) + 60);
         }
+
+        // =======================
+        // GLOBAL data-action DELEGATION
+        // Thay thế cho onclick="..."/onchange="..." inline (yêu cầu để bỏ 'unsafe-inline'
+        // khỏi script-src trong CSP). Quy ước:
+        //   - Phần tử tĩnh: data-action="tenHam" [data-arg="thamSoChuoi"]
+        //   - Namespace: data-action="DriveBackup.performNow"
+        //   - onchange trên <input type=file>: handler nhận chính input (tương đương `this` cũ)
+        // Không dùng window[name]() generic để tránh gọi nhầm hàm ngoài ý muốn — khai báo
+        // tường minh từng action trong 2 bảng dưới đây.
+        // =======================
+        (function () {
+          const CLICK_ACTIONS = {
+            // --- 0 tham số ---
+            toggleMenu: () => toggleMenu(),
+            toggleMap: () => toggleMap(),
+            openModal: () => openModal(),
+            closeBackupManager: () => closeBackupManager(),
+            uploadToGoogleDrive: () => uploadToGoogleDrive(),
+            uploadAssetToDrive: () => uploadAssetToDrive(),
+            toggleSelectionMode: () => toggleSelectionMode(),
+            toggleDashboardDriveConfig: () => toggleDashboardDriveConfig(),
+            toggleCustomerStatus: () => toggleCustomerStatus(),
+            toggleCustSelectionMode: () => toggleCustSelectionMode(),
+            shareSelectedImages: () => shareSelectedImages(),
+            shareOpenedImage: () => shareOpenedImage(),
+            sendSelectedCustomersToUser: () => sendSelectedCustomersToUser(),
+            saveSecuritySetup: () => saveSecuritySetup(),
+            saveScriptUrl: () => saveScriptUrl(),
+            saveCustomerNotes: () => saveCustomerNotes(),
+            saveCustomer: () => saveCustomer(),
+            saveAsset: () => saveAsset(),
+            refreshWeather: () => refreshWeather(),
+            openSecuritySetup: () => openSecuritySetup(),
+            openGuideModal: () => openGuideModal(),
+            openEditCustomerModal: () => openEditCustomerModal(),
+            openDonateModal: () => openDonateModal(),
+            openBackupManager: () => openBackupManager(),
+            openAssetModal: () => openAssetModal(),
+            locateMe: () => locateMe(),
+            getCurrentGPS: () => getCurrentGPS(),
+            forgotPin: () => forgotPin(),
+            deleteSelectedImages: () => deleteSelectedImages(),
+            deleteSelectedCustomers: () => deleteSelectedCustomers(),
+            deleteOpenedImage: () => deleteOpenedImage(),
+            deleteCurrentCustomer: () => deleteCurrentCustomer(),
+            createBackupFileNow: () => createBackupFileNow(),
+            copyDonateAccount: () => copyDonateAccount(),
+            confirmApproval: () => confirmApproval(),
+            closeSetupModal: () => closeSetupModal(),
+            closeRefModal: () => closeRefModal(),
+            closeModal: () => closeModal(),
+            closeLightbox: () => closeLightbox(),
+            closeGuideModal: () => closeGuideModal(),
+            closeForgotModal: () => closeForgotModal(),
+            closeFolder: () => closeFolder(),
+            closeDonateModal: () => closeDonateModal(),
+            closeCustomerList: () => closeCustomerList(),
+            closeCamera: () => closeCamera(),
+            closeAssetModal: () => closeAssetModal(),
+            closeAssetGallery: () => closeAssetGallery(),
+            closeApproveModal: () => closeApproveModal(),
+            clearPin: () => clearPin(),
+            checkRecovery: () => checkRecovery(),
+            capturePhoto: () => capturePhoto(),
+            activateApp: () => activateApp(),
+            reconnectDriveFolder: () => reconnectDriveFolder(),
+            reconnectAssetDriveFolder: () => reconnectAssetDriveFolder(),
+
+            // --- 1 tham số literal, lấy từ data-arg ---
+            setTheme: (el) => setTheme(el.dataset.arg),
+            openCustomerList: (el) => openCustomerList(el.dataset.arg),
+            switchTab: (el) => switchTab(el.dataset.arg),
+            tryOpenCamera: (el) => tryOpenCamera(el.dataset.arg),
+            enterPin: (el) => enterPin(Number(el.dataset.arg)),
+            navigateLightbox: (el) => navigateLightbox(Number(el.dataset.arg)),
+
+            // --- namespace ---
+            'DriveBackup.performNow': () => DriveBackup.performNow(),
+            'CloudTransferUI.showTab': (el) => CloudTransferUI.showTab(el.dataset.arg),
+          };
+
+          const CHANGE_ACTIONS = {
+            handleFileUpload: (el) => handleFileUpload(el, el.dataset.arg),
+            restoreData: (el) => restoreData(el),
+          };
+
+          function dispatch(map, ev) {
+            const target = ev.target.closest && ev.target.closest('[data-action]');
+            if (!target) return;
+            const name = target.dataset.action;
+            const handler = map[name];
+            if (!handler) {
+              console.warn('[data-action] Không tìm thấy handler cho:', name, target);
+              return;
+            }
+            try { handler(target, ev); }
+            catch (e) { console.error('[data-action] Lỗi khi chạy', name, e); }
+          }
+
+          document.addEventListener('click', (ev) => dispatch(CLICK_ACTIONS, ev));
+          document.addEventListener('change', (ev) => dispatch(CHANGE_ACTIONS, ev));
+        })();

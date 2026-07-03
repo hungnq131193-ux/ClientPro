@@ -22,9 +22,12 @@
     <!-- CryptoJS library for hashing and encryption -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
-    <script defer src="./assets/head.js?v=CSP_FIX_20260703"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=CSP_FIX_20260703">
+    <script defer src="./assets/head.js?v=CSP_INLINE_CLEANUP_20260703"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=CSP_INLINE_CLEANUP_20260703">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
+    <!-- style-src vẫn giữ 'unsafe-inline' trong vercel.json: hàng trăm thuộc tính style="..."
+         và nhiều chỗ .style.cssText/.style.x trong assets/*.js dùng cho theme động, vị trí
+         tooltip/marker... Dọn dẹp riêng ở đợt sau, ngoài phạm vi đợt siết script-src này. -->
     <style>
         html,
         body {
@@ -79,25 +82,25 @@
     <div id="cust-selection-bar"
         class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
         <div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button
-                onclick="toggleCustSelectionMode()" class="p-2 rounded-full hover:bg-white/10 transition"><i
+                data-action="toggleCustSelectionMode" class="p-2 rounded-full hover:bg-white/10 transition"><i
                     data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count"
                     class="text-lg font-bold" style="color: var(--accent)">0</span></span></div>
-        <div class="flex gap-3"><button onclick="sendSelectedCustomersToUser()"
+        <div class="flex gap-3"><button data-action="sendSelectedCustomersToUser"
                 class="bg-blue-500/10 text-blue-300 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-blue-500/20 active:bg-blue-500/20 transition-colors text-sm"><i
-                    data-lucide="send" class="w-4 h-4"></i> Gửi</button><button onclick="deleteSelectedCustomers()"
+                    data-lucide="send" class="w-4 h-4"></i> Gửi</button><button data-action="deleteSelectedCustomers"
                 class="bg-red-500/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-500/20 transition-colors text-sm"><i
                     data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div>
     </div>
     <div id="selection-bar"
         class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
         <div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button
-                onclick="toggleSelectionMode()" class="p-2 rounded-full hover:bg-white/10 transition"><i
+                data-action="toggleSelectionMode" class="p-2 rounded-full hover:bg-white/10 transition"><i
                     data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="selection-count"
                 class="text-blue-400 font-bold text-lg">0</span> ảnh</span></div>
-        <div class="flex gap-3"><button onclick="shareSelectedImages()"
+        <div class="flex gap-3"><button data-action="shareSelectedImages"
                 class="text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 active:opacity-90 transition-opacity shadow-lg text-sm"
                 style="background: var(--accent-gradient)"><i data-lucide="share-2" class="w-4 h-4"></i>
-                Gửi</button><button onclick="deleteSelectedImages()"
+                Gửi</button><button data-action="deleteSelectedImages"
                 class="bg-red-600/10 text-red-400 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border border-red-500/20 active:bg-red-600/20 text-sm"><i
                     data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div>
     </div>
@@ -109,7 +112,7 @@
             style="color: var(--text-main)">Loading...</p>
     </div>
 
-    <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleMenu()">
+    <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" data-action="toggleMenu">
     </div>
     <div id="settings-menu"
         class="fixed top-16 right-4 w-80 glass-panel rounded-xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
@@ -121,47 +124,47 @@
             <p class="text-[10px] font-bold uppercase mb-2 opacity-60 tracking-wider" style="color: var(--text-sub)">
                 Giao diện</p>
             <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
-                <button onclick="setTheme('theme-vietinbank')" class="theme-btn-sm" title="VietinBank Light">
+                <button data-action="setTheme" data-arg="theme-vietinbank" class="theme-btn-sm" title="VietinBank Light">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #ffffff 0%, #cfe4f7 45%, #005b9f 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-midnight')" class="theme-btn-sm" title="Midnight">
+                <button data-action="setTheme" data-arg="theme-midnight" class="theme-btn-sm" title="Midnight">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #005b9f 50%, #00aaff 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-sunset')" class="theme-btn-sm" title="Sunset">
+                <button data-action="setTheme" data-arg="theme-sunset" class="theme-btn-sm" title="Sunset">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #da251d 50%, #ff6b6b 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-ocean')" class="theme-btn-sm" title="Ocean">
+                <button data-action="setTheme" data-arg="theme-ocean" class="theme-btn-sm" title="Ocean">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #005b9f 0%, #00c8ff 50%, #00ffcc 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-mint')" class="theme-btn-sm" title="Mint">
+                <button data-action="setTheme" data-arg="theme-mint" class="theme-btn-sm" title="Mint">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #00ffcc 50%, #10b981 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-royal')" class="theme-btn-sm" title="Royal">
+                <button data-action="setTheme" data-arg="theme-royal" class="theme-btn-sm" title="Royal">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #c8a86b 50%, #fde047 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-aurora')" class="theme-btn-sm" title="Aurora">
+                <button data-action="setTheme" data-arg="theme-aurora" class="theme-btn-sm" title="Aurora">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #005b9f 0%, #00ffcc 50%, #22d3ee 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-violet')" class="theme-btn-sm" title="Violet">
+                <button data-action="setTheme" data-arg="theme-violet" class="theme-btn-sm" title="Violet">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #8b5cf6 50%, #a855f7 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-emerald')" class="theme-btn-sm" title="Emerald">
+                <button data-action="setTheme" data-arg="theme-emerald" class="theme-btn-sm" title="Emerald">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #10b981 50%, #34d399 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-sakura')" class="theme-btn-sm" title="Sakura">
+                <button data-action="setTheme" data-arg="theme-sakura" class="theme-btn-sm" title="Sakura">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #005b9f 0%, #fb7185 50%, #fda4af 100%);"></div>
                 </button>
-                <button onclick="setTheme('theme-solar')" class="theme-btn-sm" title="Solar">
+                <button data-action="setTheme" data-arg="theme-solar" class="theme-btn-sm" title="Solar">
                     <div class="absolute inset-0"
                         style="background: linear-gradient(135deg, #00346e 0%, #ffb800 50%, #fde047 100%);"></div>
                 </button>
@@ -169,10 +172,10 @@
         </div>
         <!-- Action Buttons - dashboard now hosts backup/drive/restore/reset-related entry points -->
         <div class="grid grid-cols-2 gap-1 p-2 border-b border-white/5">
-            <button onclick="openSecuritySetup()" class="settings-btn text-indigo-400">
+            <button data-action="openSecuritySetup" class="settings-btn text-indigo-400">
                 <i data-lucide="shield" class="w-3.5 h-3.5"></i> Bảo mật
             </button>
-            <button onclick="openDonateModal()" class="settings-btn text-pink-400">
+            <button data-action="openDonateModal" class="settings-btn text-pink-400">
                 <i data-lucide="heart" class="w-3.5 h-3.5"></i> Donate
             </button>
         </div>
@@ -205,7 +208,7 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button onclick="toggleMenu()"
+                    <button id="btn-open-menu" data-action="toggleMenu"
                         class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
                         style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
                         <i data-lucide="settings-2" class="w-6 h-6"></i>
@@ -215,7 +218,7 @@
 
 
             <div class="flex justify-end mb-2 text-[11px] font-medium">
-                <button onclick="refreshWeather()"
+                <button data-action="refreshWeather"
                     class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-slate-200 hover:bg-white/10 active:scale-95 transition">
                     <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i>
                     <span id="current-weather" class="max-w-[160px] truncate">Đang tải thời tiết...</span>
@@ -241,12 +244,12 @@
                         <strong id="count-assets">0</strong>
                         <span>Tài sản bảo đảm</span>
                     </div>
-                    <button class="overview-stat overview-stat-wide" onclick="openCustomerList('approved')">
+                    <button class="overview-stat overview-stat-wide" data-action="openCustomerList" data-arg="approved">
                         <span class="overview-icon"><i data-lucide="badge-check" class="w-5 h-5"></i></span>
                         <strong id="count-approved">0</strong>
                         <span>Khách hàng đã vay</span>
                     </button>
-                    <button class="overview-stat overview-stat-wide" onclick="openCustomerList('pending')">
+                    <button class="overview-stat overview-stat-wide" data-action="openCustomerList" data-arg="pending">
                         <span class="overview-icon"><i data-lucide="clock-3" class="w-5 h-5"></i></span>
                         <strong id="count-pending">0</strong>
                         <span>Khách hàng đang thẩm định</span>
@@ -259,19 +262,19 @@
                     <h2>Thao tác nhanh</h2>
                 </div>
                 <div class="quick-action-grid">
-                    <button class="quick-action-btn" onclick="openModal()">
+                    <button id="btn-quick-add" class="quick-action-btn" data-action="openModal">
                         <span><i data-lucide="plus" class="w-6 h-6"></i></span>
                         <strong>Thêm khách hàng</strong>
                     </button>
-                    <button class="quick-action-btn" onclick="toggleMap()">
+                    <button id="btn-quick-map" class="quick-action-btn" data-action="toggleMap">
                         <span><i data-lucide="map-pin" class="w-6 h-6"></i></span>
                         <strong>Bản đồ</strong>
                     </button>
-                    <button class="quick-action-btn" onclick="openBackupManager()">
+                    <button class="quick-action-btn" data-action="openBackupManager">
                         <span><i data-lucide="archive-restore" class="w-6 h-6"></i></span>
                         <strong>Sao lưu & khôi phục</strong>
                     </button>
-                    <button class="quick-action-btn" onclick="toggleDashboardDriveConfig()">
+                    <button class="quick-action-btn" data-action="toggleDashboardDriveConfig">
                         <span><i data-lucide="cloud" class="w-6 h-6"></i></span>
                         <strong>Cài đặt Google Drive</strong>
                     </button>
@@ -280,7 +283,7 @@
                     <label for="dashboard-drive-url">Link GAS cá nhân</label>
                     <div class="dashboard-drive-row">
                         <input id="dashboard-drive-url" type="text" placeholder="https://script.google.com/...">
-                        <button onclick="saveScriptUrl()"><i data-lucide="save" class="w-4 h-4"></i> Lưu</button>
+                        <button data-action="saveScriptUrl"><i data-lucide="save" class="w-4 h-4"></i> Lưu</button>
                     </div>
                 </div>
             </section>
@@ -294,14 +297,14 @@
 
         <header class="glass-header px-4 py-4 flex-none w-full">
             <div class="flex items-center justify-between mb-4">
-                <button onclick="closeCustomerList()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
+                <button data-action="closeCustomerList" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
                     style="color: var(--text-main)">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
                 <h2 id="customer-list-title" class="font-bold text-lg" style="color: var(--text-main)">
                     Danh sách KH
                 </h2>
-                <button onclick="openModal()" class="p-2 -mr-2 rounded-full hover:bg-white/10 transition"
+                <button data-action="openModal" class="p-2 -mr-2 rounded-full hover:bg-white/10 transition"
                     style="color: var(--accent)">
                     <i data-lucide="plus" class="w-6 h-6"></i>
                 </button>
@@ -324,10 +327,10 @@
     <div id="screen-map"
         class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black">
         <div id="map-container"></div>
-        <button onclick="toggleMap()"
+        <button data-action="toggleMap"
             class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i
                 data-lucide="arrow-left" class="w-6 h-6"></i></button>
-        <button onclick="locateMe()"
+        <button data-action="locateMe"
             class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i
                 data-lucide="crosshair" class="w-6 h-6"></i></button>
     </div>
@@ -336,12 +339,12 @@
         style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
         <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
             <div class="flex items-center justify-between mb-4">
-                <button onclick="closeFolder()" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
+                <button data-action="closeFolder" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
                     style="color: var(--text-main)">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
                 <div class="flex gap-2">
-                    <button onclick="deleteCurrentCustomer()"
+                    <button data-action="deleteCurrentCustomer"
                         class="glass-btn p-2 text-red-400 rounded-full active:scale-90 transition-transform">
                         <i data-lucide="trash-2" class="w-5 h-5"></i>
                     </button>
@@ -349,7 +352,7 @@
             </div>
 
             <div class="profile-glass-box">
-                <button onclick="openEditCustomerModal()"
+                <button data-action="openEditCustomerModal"
                     class="absolute top-3 right-3 p-2 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition">
                     <i data-lucide="pencil" class="w-4 h-4"></i>
                 </button>
@@ -376,7 +379,7 @@
                     class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 text-blue-400 hover:text-white transition">
                     <span class="font-black text-[10px] border border-current px-1 rounded-[3px]">Z</span> Zalo
                 </a>
-                <button onclick="toggleCustomerStatus()" id="detail-status-badge"
+                <button data-action="toggleCustomerStatus" id="detail-status-badge"
                     class="glass-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 active:scale-95 transition-transform"
                     style="color: var(--text-sub)">
                     <span>Trạng thái</span>
@@ -384,13 +387,13 @@
             </div>
 
             <div class="p-1 rounded-xl bg-black/20 border border-white/5 mx-0 mb-3 flex gap-1">
-                <button onclick="switchTab('info')" id="tab-btn-info"
+                <button data-action="switchTab" data-arg="info" id="tab-btn-info"
                     class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Thông
                     Tin</button>
-                <button onclick="switchTab('images')" id="tab-btn-images"
+                <button data-action="switchTab" data-arg="images" id="tab-btn-images"
                     class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Hồ
                     Sơ Ảnh</button>
-                <button onclick="switchTab('assets')" id="tab-btn-assets"
+                <button data-action="switchTab" data-arg="assets" id="tab-btn-assets"
                     class="flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all border border-transparent">Tài
                     Sản</button>
             </div>
@@ -426,7 +429,7 @@
                         <i data-lucide="file-text" class="w-5 h-5" style="color: var(--accent)"></i>
                         <span class="font-bold text-sm" style="color: var(--text-main)">Ghi chú</span>
                     </div>
-                    <button onclick="saveCustomerNotes()" class="px-3 py-1 rounded-lg text-xs font-bold"
+                    <button data-action="saveCustomerNotes" class="px-3 py-1 rounded-lg text-xs font-bold"
                         style="background: var(--accent); color: white;">
                         <i data-lucide="save" class="w-3 h-3 inline mr-1"></i> Lưu
                     </button>
@@ -444,31 +447,31 @@
                 <div id="drive-status-area" class="hidden w-full"></div>
 
                 <div class="flex gap-2 w-full">
-                    <button onclick="tryOpenCamera('profile')"
+                    <button data-action="tryOpenCamera" data-arg="profile"
                         class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20"
                         style="background: var(--accent-gradient);">
                         <i data-lucide="camera" class="w-5 h-5"></i> Chụp
                     </button>
 
-                    <button onclick="uploadToGoogleDrive()" id="btn-upload-drive"
+                    <button data-action="uploadToGoogleDrive" id="btn-upload-drive"
                         class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
                         <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up Drive
                     </button>
 
                     <input type="file" id="native-camera-profile" accept="image/*" capture="environment" class="hidden"
-                        onchange="handleFileUpload(this, 'profile')">
+                        data-action="handleFileUpload" data-arg="profile">
                     <label
                         class="w-12 glass-btn py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]"
                         style="color: var(--text-sub)">
                         <i data-lucide="upload" class="w-5 h-5"></i>
                         <input type="file" id="upload-input" multiple accept="image/*" class="hidden"
-                            onchange="handleFileUpload(this, 'profile')">
+                            data-action="handleFileUpload" data-arg="profile">
                     </label>
                 </div>
             </div>
 
             <div id="actions-assets" class="w-full hidden">
-                <button onclick="openAssetModal()"
+                <button data-action="openAssetModal"
                     class="w-full text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20"
                     style="background: var(--accent-gradient);">
                     <i data-lucide="plus-square" class="w-5 h-5"></i> Thêm TSBĐ Mới
@@ -480,7 +483,7 @@
         class="app-container z-30 transform translate-x-full transition-transform duration-300"
         style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
         <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full">
-            <div class="flex items-center justify-between"><button onclick="closeAssetGallery()"
+            <div class="flex items-center justify-between"><button data-action="closeAssetGallery"
                     class="p-2 -ml-2 rounded-full hover:bg-white/10" style="color: var(--text-main)"><i
                         data-lucide="arrow-left" class="w-6 h-6"></i></button>
                 <div class="flex items-center gap-3">
@@ -501,26 +504,26 @@
             <div id="asset-drive-status-area" class="hidden w-full"></div>
 
             <div class="flex gap-2 w-full">
-                <button onclick="tryOpenCamera('asset')"
+                <button data-action="tryOpenCamera" data-arg="asset"
                     class="flex-1 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] border border-white/20"
                     style="background: var(--accent-gradient);">
                     <i data-lucide="camera" class="w-5 h-5"></i> Chụp
                 </button>
 
-                <button onclick="uploadAssetToDrive()" id="btn-asset-upload"
+                <button data-action="uploadAssetToDrive" id="btn-asset-upload"
                     class="glass-btn w-1/3 text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
                     <i data-lucide="cloud-upload" class="w-5 h-5"></i> Up
                 </button>
 
                 <input type="file" id="native-camera-asset" accept="image/*" capture="environment" class="hidden"
-                    onchange="handleFileUpload(this, 'asset')">
+                    data-action="handleFileUpload" data-arg="asset">
 
                 <label
                     class="glass-btn w-12 py-3.5 rounded-xl font-bold flex justify-center items-center cursor-pointer active:scale-[0.98]"
                     style="color: var(--text-sub)">
                     <i data-lucide="upload" class="w-5 h-5"></i>
                     <input type="file" multiple accept="image/*" class="hidden"
-                        onchange="handleFileUpload(this, 'asset')">
+                        data-action="handleFileUpload" data-arg="asset">
                 </label>
             </div>
         </div>
@@ -531,19 +534,19 @@
         class="fixed inset-0 z-[60] bg-black/95 hidden flex flex-col justify-center items-center touch-none backdrop-blur-xl">
         <button
             class="lightbox-nav left-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute"
-            onclick="navigateLightbox(-1)"><i data-lucide="chevron-left" class="w-8 h-8 text-white"></i></button><img
+            data-action="navigateLightbox" data-arg="-1"><i data-lucide="chevron-left" class="w-8 h-8 text-white"></i></button><img
             id="lightbox-img"
             class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform"><button
             class="lightbox-nav right-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute"
-            onclick="navigateLightbox(1)"><i data-lucide="chevron-right" class="w-8 h-8 text-white"></i></button><button
-            onclick="closeLightbox()"
+            data-action="navigateLightbox" data-arg="1"><i data-lucide="chevron-right" class="w-8 h-8 text-white"></i></button><button
+            data-action="closeLightbox"
             class="absolute top-6 right-6 text-white p-3 z-[70] bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20"><i
                 data-lucide="x" class="w-6 h-6"></i></button>
         <div class="absolute bottom-12 text-white text-xs font-bold bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 tracking-widest"
             id="lightbox-counter">1/1</div>
-        <div class="absolute bottom-12 right-6 flex gap-4"><button onclick="shareOpenedImage()"
+        <div class="absolute bottom-12 right-6 flex gap-4"><button data-action="shareOpenedImage"
                 class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20"><i data-lucide="share-2"
-                    class="w-5 h-5"></i></button><button onclick="deleteOpenedImage()"
+                    class="w-5 h-5"></i></button><button data-action="deleteOpenedImage"
                 class="p-3 bg-red-500/20 rounded-full text-red-400 hover:bg-red-500/30"><i data-lucide="trash-2"
                     class="w-5 h-5"></i></button></div>
     </div>
@@ -552,31 +555,31 @@
     <div id="ui-modals-root"></div>
     <script src="./assets/ui/load_modals.js" defer></script>
 
-    <script src="./assets/00_globals.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/01_config.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/02_security.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/12_backup_core.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/13_ui_select_customers.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/15_auth_gate.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/03_map.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/04_ui_common.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/05_customers.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/06_assets.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/08_images_camera.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/09_menu.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/09_backup_manager.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/09_donate.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/09_weather.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/07_drive.js?v=CSP_FIX_20260703" defer></script>
+    <script src="./assets/00_globals.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/01_config.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/02_security.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/12_backup_core.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/13_ui_select_customers.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/15_auth_gate.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/03_map.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/04_ui_common.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/05_customers.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/06_assets.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/08_images_camera.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/09_menu.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/09_backup_manager.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/09_donate.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/09_weather.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/07_drive.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=CSP_FIX_20260703" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=CSP_FIX_20260703" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
     <!-- Onboarding tour for new users -->
-    <script src="./assets/17_onboarding_tour.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/10_bootstrap.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/11_edge_back_swipe.js?v=CSP_FIX_20260703" defer></script>
-    <script src="./assets/pwa.js?v=CSP_FIX_20260703" defer></script>
+    <script src="./assets/17_onboarding_tour.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/10_bootstrap.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
+    <script src="./assets/pwa.js?v=CSP_INLINE_CLEANUP_20260703" defer></script>
 </body>
 
 </html>
