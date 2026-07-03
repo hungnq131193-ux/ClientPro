@@ -32,3 +32,10 @@ const DONATE_ACCOUNT_NO = '888886838888';
 const DONATE_ACCOUNT_NAME = 'NGUYEN QUOC HUNG';
 const DONATE_DEFAULT_DESC = 'Ung ho tac gia ClientPro';
 // --- END DONATE CONFIG ---
+// --- ROAD DISTANCE CONFIG (OSRM demo server: không cần API key) ---
+const OSRM_TABLE_URL = 'https://router.project-osrm.org/table/v1/driving/';
+const ROAD_DIST_TIMEOUT_MS = 8000;
+const ROAD_DIST_CACHE_KEY = 'app_road_dist_cache_v1';
+const ROAD_DIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 ngày
+const ROAD_DIST_CACHE_MAX = 600; // số cặp tọa độ tối đa trong cache
+// --- END ROAD DISTANCE CONFIG ---

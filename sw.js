@@ -1,10 +1,10 @@
-// BUILD: 2026-07-03_STABILITY_FIX
+// BUILD: 2026-07-03_ROAD_DIST
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
 // v5.1.0: PIN 6 số + PBKDF2/AES-GCM, lockout brute-force, dọn dẹp code
-const VERSION = 'v5.5.3-stability-fix-20260703';
+const VERSION = 'v5.6.0-road-distance-20260703';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -22,7 +22,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'STABILITY_FIX_20260703';
+const ASSET_V = 'ROAD_DIST_20260703';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -285,6 +285,10 @@ self.addEventListener('fetch', (event) => {
   // Cross-origin (CDN/tiles): stale-while-revalidate
   try {
     const url = new URL(req.url);
+    // OSRM routing API: URL chứa tọa độ nên gần như mỗi lần mỗi khác -> không cache
+    // vào CDN cache (tránh đẩy các entry maplibre/lucide cần cho offline ra khỏi limit).
+    // Return không respondWith = trình duyệt fetch thẳng, SW không can thiệp.
+    if (url.hostname === 'router.project-osrm.org') return;
     if (isTileRequest(url, req)) {
       event.respondWith(staleWhileRevalidate(event, req, RUNTIME_TILE_CACHE, LIMITS.tiles));
       return;

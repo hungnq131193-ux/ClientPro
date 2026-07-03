@@ -1,4 +1,9 @@
 // --- ĐÃ SỬA: GIẢI MÃ DỮ LIỆU TRƯỚC KHI TÍNH TOÁN KHOẢNG CÁCH ---
+// Guard cho phần khoảng cách đường bộ: seq chống response cũ đè modal của tài sản khác,
+// cờ in-flight chống bắn request OSRM chồng nhau khi bấm liên tiếp.
+let __refPriceSeq = 0;
+let __refRoadInFlight = false;
+
 function referenceAssetPrice(assetIndex) {
   // 1. Lấy tài sản đang chọn
   const targetAsset = currentCustomerData.assets[assetIndex];
@@ -60,6 +65,8 @@ function referenceAssetPrice(assetIndex) {
             assetName: assetName,
             valuation: val,
             distance: dist,
+            lat: loc.lat,
+            lng: loc.lng,
             area: assetArea,
             width: assetWidth,
           });
@@ -78,9 +85,43 @@ function referenceAssetPrice(assetIndex) {
     // Sắp xếp: Gần nhất lên đầu
     candidates.sort((a, b) => a.distance - b.distance);
 
-    // Hiển thị top 20 kết quả
-    showRefModal(candidates.slice(0, 20));
+    // Hiển thị top 20 kết quả (haversine) ngay lập tức
+    const top = candidates.slice(0, 30);
+    showRefModal(top.slice(0, 20));
+
+    // Nâng cấp bất đồng bộ: thay bằng quãng đường đường bộ khi lấy được.
+    // Gửi top 30 để sau khi sort theo đường bộ, top 20 hiển thị chính xác hơn.
+    enhanceRefWithRoadDistances(targetLoc, top, ++__refPriceSeq);
   };
+}
+
+async function enhanceRefWithRoadDistances(targetLoc, results, seq) {
+  if (typeof fetchRoadDistances !== "function") return;
+  if (__refRoadInFlight) return;
+  __refRoadInFlight = true;
+
+  let dists = null;
+  try {
+    dists = await fetchRoadDistances(targetLoc, results);
+  } catch (e) {
+    dists = null; // fetchRoadDistances không reject, nhưng phòng hờ
+  } finally {
+    __refRoadInFlight = false;
+  }
+
+  // Thất bại toàn phần -> giữ nguyên haversine, không thông báo gì
+  if (!dists) return;
+
+  // Modal đã đóng hoặc user đã mở tham khảo cho tài sản khác -> bỏ kết quả
+  if (seq !== __refPriceSeq) return;
+  const modal = getEl("ref-price-modal");
+  if (!modal || modal.classList.contains("hidden")) return;
+
+  results.forEach((item, i) => {
+    if (typeof dists[i] === "number") item.distance = dists[i];
+  });
+  results.sort((a, b) => a.distance - b.distance);
+  showRefModal(results.slice(0, 20));
 }
 
 function showRefModal(results) {
