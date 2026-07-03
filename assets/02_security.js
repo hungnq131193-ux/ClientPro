@@ -1,20 +1,12 @@
-// ---- Security & Encryption Helpers ----
-// --- Security & Encryption Helpers (ADVANCED RECOVERY MODE) ---
+// --- Security & Encryption Helpers ---
 // Sử dụng masterKey cho cơ chế mã hóa toàn bộ dữ liệu và khôi phục bằng mã nhân viên.
 let masterKey = null;
-/** * Hằng số bí mật dùng để mã hóa/giải mã dữ liệu backup. * Cần giữ bí mật chuỗi này để đảm bảo file backup không thể đọc được nếu không có khóa. */
-// Legacy secret (passphrase) for old backups. New backups use global KDATA issued by GAS.
+// Legacy secret (passphrase) chỉ để đọc backup .cpb định dạng cũ.
+// Backup mới dùng global KDATA do GAS cấp (base64url, no padding) làm AES-GCM key.
 let APP_BACKUP_SECRET = "";
-// New: Global KDATA from GAS (base64url, no padding). This is the material for AES-GCM key.
 let APP_BACKUP_KDATA_B64U = "";
 const BACKUP_KDATA_CACHE_KEY = "app_backup_kdata_cache_v1";
 const BACKUP_KDATA_CACHE_TTL_MS = 30 * 60 * 1000; // 30 phút
-
-function _diagBackupAuth(stage, details) {
-  try {
-    console.log("[backup-auth]", stage, details || {});
-  } catch (e) {}
-}
 
 function _backupAuthIdentity(employeeId, deviceId) {
   const scopeUrl = (typeof ADMIN_SERVER_URL !== "undefined" && ADMIN_SERVER_URL) ? String(ADMIN_SERVER_URL) : "";
@@ -52,7 +44,7 @@ function _writeCachedKdata(employeeId, deviceId, kdata_b64u) {
   } catch (e) {}
 }
 
-/** * Compute a SHA-256 hash of the provided PIN string and return it as a hex string. * Uses the Web Crypto API for consistent hashing. * @param {string} pin * @returns {Promise<string>} */
+/** Compute a SHA-256 hash of a string and return it as a hex string (Web Crypto API). */
 async function hashString(str) {
   const encoder = new TextEncoder();
   const data = encoder.encode(str);
@@ -160,7 +152,6 @@ async function decryptBackupPayload(content, kdata_b64u) {
     }
   }
 
-  // Legacy format: CryptoJS.AES(passphrase)
   // Legacy format: CryptoJS.AES(passphrase) - only works if you still provide the legacy secret.
   if (typeof CryptoJS !== "undefined" && CryptoJS.AES && APP_BACKUP_SECRET) {
     try {
@@ -549,9 +540,6 @@ async function checkSecurity() {
         result = txt;
       }
 
-      // NOTE: GAS v6+ no longer returns a fixed "secret" for backup.
-      // Backup/restore will fetch GLOBAL KDATA on-demand via ensureBackupSecret() (issue_kdata).
-
       const status =
         result && typeof result === "object" && result.status
           ? String(result.status).toLowerCase()
@@ -595,7 +583,6 @@ async function ensureBackupSecret() {
 
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     if (APP_BACKUP_KDATA_B64U) {
-      _diagBackupAuth("offline-cache-hit", { employeeId, hasKdata: true });
       return { ok: true, source: "cache", message: "Đang offline, dùng khóa KDATA đã lưu tạm." };
     }
     return { ok: false, message: "Thiết bị đang Offline và chưa có khóa KDATA tạm." };
@@ -643,13 +630,12 @@ async function ensureBackupSecret() {
 
     const kdStatus = (kd && typeof kd === "object" && kd.status) ? String(kd.status).toLowerCase() : "";
     const kdMsg = (kd && typeof kd === "object" && kd.message) ? String(kd.message) : "";
-    _diagBackupAuth("issue-kdata-failed", {
-      employeeId,
-      deviceId,
-      status: kdStatus,
-      msg: kdMsg,
-      sample: kdTxt && kdTxt.length > 300 ? kdTxt.slice(0, 300) + "..." : kdTxt,
-    });
+
+    // Rate-limit của issue_kdata (GAS giới hạn 30s/lần) là giới hạn tần suất, KHÔNG phải
+    // từ chối quyền -> dùng khóa đã cache (vd AuthGate.preflight vừa lấy lúc mở app).
+    if (/rate.?limited/i.test(kdMsg) && APP_BACKUP_KDATA_B64U) {
+      return { ok: true, source: "cache", message: "Server đang giới hạn tần suất, dùng khóa KDATA đã lưu tạm." };
+    }
 
     // Trường hợp server trả về denial rõ ràng thì KHÔNG dùng cache để vượt quyền.
     if (kdStatus === "locked") {
@@ -673,7 +659,6 @@ async function ensureBackupSecret() {
     }
     return { ok: false, message: "Không lấy được khóa KDATA từ server." };
   } catch (e) {
-    _diagBackupAuth("ensure-exception", { employeeId, deviceId, err: String(e && e.message ? e.message : e) });
     if (APP_BACKUP_KDATA_B64U) {
       return { ok: true, source: "cache", message: "Lỗi kết nối tạm thời, đang dùng khóa KDATA đã lưu." };
     }
@@ -883,8 +868,8 @@ async function activateApp() {
         String(result.status).toLowerCase() === "success") ||
       String(result).toLowerCase().includes("success")
     ) {
-      // Thành công: xử lý tùy theo máy mới hay tái kích hoạt
-      // NOTE: GAS v6+ does not return backup secret on activation. Backup/restore will fetch KDATA on-demand.
+      // Thành công: xử lý tùy theo máy mới hay tái kích hoạt.
+      // Server không trả secret khi kích hoạt; backup/restore tự lấy KDATA qua ensureBackupSecret().
       const hasOldData = !!localStorage.getItem(SEC_KEY);
       if (!hasOldData) {
         // Trường hợp máy mới: Lưu trạng thái kích hoạt và yêu cầu tạo PIN mới

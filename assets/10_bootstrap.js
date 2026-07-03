@@ -19,8 +19,6 @@ function parseMoneyToNumber(str) {
   return parseInt(str.toString().replace(/\D/g, "")) || 0;
 }
 
-// --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
-
 document.addEventListener("DOMContentLoaded", async () => {
   // Ensure modal partials are present before any UX/security flows attempt to open them.
   // (load_modals.js is async; this await keeps behavior consistent with the previous sync XHR.)
@@ -114,13 +112,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!bkStore.indexNames.contains("deviceId")) {
       bkStore.createIndex("deviceId", "deviceId", { unique: false });
     }
-
-    // Reminders (Calendar feature)
-    if (!db.objectStoreNames.contains("reminders")) {
-      const remStore = db.createObjectStore("reminders", { keyPath: "id" });
-      remStore.createIndex("datetime", "datetime", { unique: false });
-      remStore.createIndex("customerId", "customerId", { unique: false });
-    }
   };
   req.onsuccess = (e) => {
     db = e.target.result;
@@ -131,9 +122,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     getEl("loader").classList.add("hidden");
     checkSecurity();
 
-    // NOTE: Disable periodic auth re-check on app open.
-    // Activation + backup/restore authorization are handled in dedicated flows.
-
+    // Auth gate: kiểm tra ngầm quyền + thiết bị với Admin GAS (issue_kdata, TTL 24h).
+    // Fire-and-forget: offline/lỗi mạng không chặn UI, chỉ chặn khi server xác nhận
+    // tài khoản bị khóa hoặc sai thiết bị (xem 15_auth_gate.js).
+    try {
+      if (window.AuthGate && typeof window.AuthGate.preflight === "function") {
+        window.AuthGate.preflight();
+      }
+    } catch (err) { }
 
     // Cloud transfer inbox polling (notify when other users send backups)
     try {
