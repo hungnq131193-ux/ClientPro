@@ -240,6 +240,78 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// --- QUÃNG ĐƯỜNG ĐƯỜNG BỘ (OSRM Table service, 1 request cho cả batch) ---
+// origin: {lat,lng}; points: Array<{lat,lng}>
+// Resolve: Array<number|null> cùng độ dài points (mét đường bộ; null = không định tuyến được)
+//          hoặc null nếu toàn bộ request thất bại -> caller giữ khoảng cách haversine.
+// Không bao giờ reject. Tọa độ (đã giải mã) được gửi tới server OSRM công cộng,
+// tương đương việc app đã gửi GPS tới Open-Meteo cho thời tiết.
+async function fetchRoadDistances(origin, points) {
+    const r5 = (v) => Math.round(v * 1e5) / 1e5;
+    const oLat = r5(origin.lat), oLng = r5(origin.lng);
+    const pts = points.map((p) => ({ lat: r5(p.lat), lng: r5(p.lng) }));
+
+    let cache = {};
+    try {
+        cache = JSON.parse(localStorage.getItem(ROAD_DIST_CACHE_KEY)) || {};
+    } catch (e) { cache = {}; }
+
+    const now = Date.now();
+    const results = new Array(pts.length).fill(undefined);
+    const pending = []; // các index chưa có cache
+
+    pts.forEach((p, i) => {
+        const entry = cache[`${oLat},${oLng}|${p.lat},${p.lng}`];
+        if (entry && (now - entry.t) < ROAD_DIST_CACHE_TTL) {
+            results[i] = entry.d; // number hoặc null (cặp không định tuyến được)
+        } else {
+            pending.push(i);
+        }
+    });
+
+    if (pending.length > 0) {
+        const coords = [`${oLng},${oLat}`]
+            .concat(pending.map((i) => `${pts[i].lng},${pts[i].lat}`))
+            .join(';');
+        const url = `${OSRM_TABLE_URL}${coords}?sources=0&annotations=distance`;
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), ROAD_DIST_TIMEOUT_MS);
+        try {
+            const res = await fetch(url, { signal: controller.signal });
+            if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
+            const json = await res.json();
+            const row = json && json.code === 'Ok' && json.distances && json.distances[0];
+            if (!Array.isArray(row)) throw new Error('OSRM response không hợp lệ');
+
+            pending.forEach((i, k) => {
+                const d = row[k + 1]; // index 0 là chính origin
+                results[i] = (typeof d === 'number') ? d : null;
+                cache[`${oLat},${oLng}|${pts[i].lat},${pts[i].lng}`] = { d: results[i], t: now };
+            });
+
+            try {
+                const keys = Object.keys(cache);
+                if (keys.length > ROAD_DIST_CACHE_MAX) {
+                    keys.sort((a, b) => (cache[a].t || 0) - (cache[b].t || 0))
+                        .slice(0, keys.length - ROAD_DIST_CACHE_MAX)
+                        .forEach((k) => delete cache[k]);
+                }
+                localStorage.setItem(ROAD_DIST_CACHE_KEY, JSON.stringify(cache));
+            } catch (e) { /* quota đầy -> chạy không cache */ }
+        } catch (err) {
+            console.warn('fetchRoadDistances:', err && err.message ? err.message : err);
+            // Không cache lỗi: nếu không có gì từ cache thì báo thất bại toàn phần
+            if (pending.length === pts.length) return null;
+            pending.forEach((i) => { results[i] = null; });
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    return results;
+}
+
 // parseMoneyToNumber canonical implementation is loaded from assets/10_bootstrap.js.
 
 // --- AI-LITE CHO ẢNH TÀI LIỆU (giảm noise, nền trắng, chữ nét) ---
