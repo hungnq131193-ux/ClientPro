@@ -42,7 +42,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (ld) ld.classList.add("hidden");
   } catch (e) { }
 
-  lucide.createIcons();
+  // Không để lỗi CDN (lucide chưa tải được) chặn toàn bộ boot — nếu throw ở đây,
+  // IndexedDB không bao giờ được mở và app đứng im.
+  try { lucide.createIcons(); } catch (e) { }
   const setAppHeight = () =>
     document.documentElement.style.setProperty(
       "--app-height",

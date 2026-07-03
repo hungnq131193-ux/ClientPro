@@ -4,9 +4,7 @@ function openAssetGallery(id, name, idx) {
     id = "asset_" + Date.now();
     if (currentCustomerData.assets[idx]) {
       currentCustomerData.assets[idx].id = id;
-      db.transaction(["customers"], "readwrite")
-        .objectStore("customers")
-        .put(currentCustomerData);
+      persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; });
     }
   }
 
@@ -259,6 +257,10 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
       }
       const grid = getEl(targetId);
       if (!grid) return;
+      // Token chống render chồng: khi lưu nhiều ảnh liên tiếp, mỗi ảnh lưu xong lại
+      // gọi refresh — nếu 2 lượt render chunk chạy song song sẽ append trùng ảnh.
+      const renderToken = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      grid.dataset.renderToken = renderToken;
       grid.innerHTML = "";
       if (imgs.length === 0) {
         grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
@@ -270,6 +272,7 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
       let i = 0;
       const CHUNK = 24;
       const renderChunk = () => {
+        if (grid.dataset.renderToken !== renderToken) return; // có lượt render mới hơn
         const frag = document.createDocumentFragment();
         const end = Math.min(i + CHUNK, imgs.length);
         for (; i < end; i++) {
@@ -327,6 +330,9 @@ function loadAssetImages(id) {
       imgs.sort((a, b) => b.createdAt - a.createdAt);
       currentLightboxList = imgs;
       const grid = getEl("asset-gallery-grid");
+      // Token chống render chồng (xem loadImagesFiltered)
+      const renderToken = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      grid.dataset.renderToken = renderToken;
       grid.innerHTML = "";
       if (imgs.length === 0) {
         grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
@@ -338,6 +344,7 @@ function loadAssetImages(id) {
       let i = 0;
       const CHUNK = 24;
       const renderChunk = () => {
+        if (grid.dataset.renderToken !== renderToken) return; // có lượt render mới hơn
         const frag = document.createDocumentFragment();
         const end = Math.min(i + CHUNK, imgs.length);
         for (; i < end; i++) {

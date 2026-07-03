@@ -123,6 +123,49 @@ function openLightbox(src, id, idx, list) {
 function closeLightbox() { getEl('lightbox').classList.add('hidden'); }
 
 let currentCustomerId = null; let currentCustomerData = null; let currentAssetId = null;
+
+// =======================
+// SAFE PERSIST (chống lưu plaintext)
+// openFolder() giải mã name/phone/cccd/driveLink TRỰC TIẾP trên currentCustomerData,
+// nên tuyệt đối không put() nguyên object đó vào DB — sẽ ghi đè ciphertext bằng
+// plaintext và làm mất mã hóa dữ liệu ở IndexedDB.
+// Helper này đọc lại bản ghi gốc (còn nguyên ciphertext) rồi chỉ áp các thay đổi
+// cần thiết qua hàm mutate(rec). Đồng thời "chữa" các bản ghi đã lỡ bị lưu
+// plaintext bởi bản cũ (mã hóa lại name/phone/cccd nếu phát hiện chưa mã hóa).
+// =======================
+function persistCurrentCustomer(mutate, onDone) {
+    try {
+        if (!db || !currentCustomerData || !currentCustomerData.id) {
+            if (typeof onDone === 'function') onDone(false);
+            return;
+        }
+        const id = currentCustomerData.id;
+        const tx = db.transaction(['customers'], 'readwrite');
+        const store = tx.objectStore('customers');
+        let ok = false;
+        store.get(id).onsuccess = (e) => {
+            const rec = e.target.result;
+            if (!rec) return;
+            try { if (typeof mutate === 'function') mutate(rec); } catch (err) { console.error('persistCurrentCustomer mutate error:', err); return; }
+            // Healing: bản cũ có thể đã lưu plaintext — mã hóa lại các trường nhạy cảm.
+            try {
+                if (typeof masterKey !== 'undefined' && masterKey && typeof encryptText === 'function') {
+                    ['name', 'phone', 'cccd'].forEach((k) => {
+                        const v = rec[k];
+                        if (v && typeof v === 'string' && !v.startsWith('U2FsdGVkX1')) rec[k] = encryptText(v);
+                    });
+                }
+            } catch (err) { }
+            store.put(rec);
+            ok = true;
+        };
+        tx.oncomplete = () => { if (typeof onDone === 'function') onDone(ok); };
+        tx.onerror = () => { if (typeof onDone === 'function') onDone(false); };
+    } catch (err) {
+        console.error('persistCurrentCustomer error:', err);
+        if (typeof onDone === 'function') onDone(false);
+    }
+}
 let activeListTab = 'pending'; let isSelectionMode = false; let selectedImages = new Set();
 let isCustSelectionMode = false; let selectedCustomers = new Set();
 let captureMode = 'profile'; let stream = null; let currentImageId = null; let currentImageBase64 = null;
