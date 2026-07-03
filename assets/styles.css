@@ -2555,3 +2555,135 @@ body.theme-vietinbank .glass-panel-lite {
   border: 1px solid rgba(0, 74, 143, 0.12) !important;
   box-shadow: 0 10px 24px rgba(0, 51, 102, 0.08) !important;
 }
+
+/* ============================================================
+   PHASE 2 — CUSTOMER LIST + DETAIL (Redesign 2026-07-02)
+   Scoped to body.theme-vietinbank. Matches mockup #2-4.
+   ============================================================ */
+
+/* --- Customer list: KPI summary chips (white, colored numbers) --- */
+body.theme-vietinbank .customer-kpi {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 74, 143, 0.12) !important;
+  box-shadow: 0 6px 16px rgba(0, 51, 102, 0.06);
+}
+body.theme-vietinbank .customer-kpi p { color: #5b7089 !important; }
+body.theme-vietinbank .customer-kpi strong { color: #005b9f !important; }
+body.theme-vietinbank .customer-kpi.approved strong { color: #16a34a !important; }
+body.theme-vietinbank .customer-kpi.pending strong { color: #d97706 !important; }
+
+/* --- Customer cards (white base from glass-panel-lite safety) --- */
+body.theme-vietinbank .cust-card:hover {
+  background: #f8fbff !important;
+}
+body.theme-vietinbank .cust-card.cust-approved::before { background: #16a34a !important; }
+body.theme-vietinbank .cust-card.cust-pending::before { background: #f59e0b !important; }
+
+/* Avatars: solid color, white initials (approved=blue, pending=amber) */
+body.theme-vietinbank .customer-avatar.approved {
+  color: #ffffff !important;
+  background: linear-gradient(145deg, #0072bc, #004a8f) !important;
+  border: none !important;
+}
+body.theme-vietinbank .customer-avatar.pending {
+  color: #ffffff !important;
+  background: linear-gradient(145deg, #f59e0b, #d97706) !important;
+  border: none !important;
+}
+
+/* Card text */
+body.theme-vietinbank .customer-name-line { color: #12284c !important; }
+body.theme-vietinbank .customer-status-line { color: #7a8ba3 !important; }
+body.theme-vietinbank .customer-phone-line { color: #5b7089 !important; }
+
+/* Status chips */
+body.theme-vietinbank .customer-chip.approved {
+  color: #0f7a3d !important;
+  background: rgba(22, 163, 74, 0.12) !important;
+  border: 1px solid rgba(22, 163, 74, 0.30) !important;
+}
+body.theme-vietinbank .customer-chip.pending {
+  color: #b45309 !important;
+  background: rgba(245, 158, 11, 0.14) !important;
+  border: 1px solid rgba(245, 158, 11, 0.34) !important;
+}
+
+/* Action buttons (Gọi / Zalo) */
+body.theme-vietinbank .customer-action-btn {
+  background: #f4f8fd !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+}
+body.theme-vietinbank .customer-action-btn.zalo { color: #0072bc !important; }
+body.theme-vietinbank .customer-action-btn.call { color: #16a34a !important; }
+
+/* Empty state + search wrap */
+body.theme-vietinbank .customer-empty-icon {
+  background: #eef4fb !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  color: #005b9f !important;
+}
+body.theme-vietinbank .customer-empty-state { color: #5b7089 !important; }
+body.theme-vietinbank .customer-search-wrap { background: transparent !important; }
+
+/* --- Customer detail (folder) screen --- */
+/* Profile box + avatar + name sit on the blue header */
+body.theme-vietinbank .profile-glass-box {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+}
+body.theme-vietinbank #folder-avatar {
+  background: #ffffff !important;
+  color: #005b9f !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+}
+body.theme-vietinbank #folder-customer-name { color: #ffffff !important; }
+
+/* Contact pills on the blue header (keep the red delete button red) */
+body.theme-vietinbank #screen-folder .glass-header .glass-btn:not(.text-red-400) {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.30) !important;
+  color: #ffffff !important;
+}
+
+/* Detail tabs on the blue header: active = solid white/blue, inactive = white text */
+body.theme-vietinbank #screen-folder .glass-tab-active {
+  background: #ffffff !important;
+  color: #005b9f !important;
+  border: 1px solid #ffffff !important;
+}
+body.theme-vietinbank #screen-folder .glass-tab-inactive {
+  color: rgba(255, 255, 255, 0.82) !important;
+  opacity: 1 !important;
+}
+body.theme-vietinbank #screen-folder .glass-header .rounded-xl.bg-black\/20 {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+/* Notes textarea -> light input */
+body.theme-vietinbank #info-notes {
+  background: #f4f8fd !important;
+  border: 1px solid rgba(0, 74, 143, 0.14) !important;
+  color: #12284c !important;
+}
+
+/* Bottom action bars (on the white content area): secondary glass buttons -> solid blue */
+body.theme-vietinbank .glass-panel.border-t .glass-btn {
+  background: linear-gradient(135deg, #0072bc, #004a8f) !important;
+  border: none !important;
+  color: #ffffff !important;
+}
+
+/* --- Add / edit customer modal: light input fields (mockup #10) --- */
+body.theme-vietinbank #add-modal input {
+  background: #f4f8fd !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+  color: #12284c !important;
+}
+body.theme-vietinbank #add-modal input::placeholder {
+  color: #9aabbf !important;
+}
+body.theme-vietinbank #add-modal input:focus {
+  border-color: rgba(0, 114, 188, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(0, 114, 188, 0.14) !important;
+}

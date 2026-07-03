@@ -1,10 +1,10 @@
-// BUILD: 2026-07-02_UI_REDESIGN_P1
+// BUILD: 2026-07-02_UI_REDESIGN_P2
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
 // v5.1.0: PIN 6 số + PBKDF2/AES-GCM, lockout brute-force, dọn dẹp code
-const VERSION = 'v5.2.0-ui-redesign-p1-20260702';
+const VERSION = 'v5.3.0-ui-redesign-p2-20260702';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -22,7 +22,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'UIREDESIGN_P1_20260702';
+const ASSET_V = 'UIREDESIGN_P2_20260702';
 const STATIC_ASSETS = [
   './',
   './index.html',
