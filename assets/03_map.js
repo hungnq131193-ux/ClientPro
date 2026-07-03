@@ -335,6 +335,7 @@ function destroyMap() {
     }
     markers.forEach(m => m.remove());
     markers = [];
+    if (typeof __meMarker !== 'undefined' && __meMarker) { try { __meMarker.remove(); } catch (e) { } __meMarker = null; }
     if (map) {
         map.remove();
         map = null;
@@ -471,15 +472,19 @@ function openMapFolder(custId) {
     openFolder(custId);
 }
 
+let __meMarker = null;
 function locateMe() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
+            if (!map) return;
             const lat = pos.coords.latitude; const lng = pos.coords.longitude;
             map.flyTo({ center: [lng, lat], zoom: 15 });
+            // Tái sử dụng 1 marker duy nhất — tránh mỗi lần bấm lại chồng thêm 1 chấm xanh mới
+            if (__meMarker) { try { __meMarker.remove(); } catch (e) { } __meMarker = null; }
             const meEl = document.createElement('div');
             meEl.className = 'me-marker';
             meEl.innerHTML = '<div style="width:16px;height:16px;background:#3b82f6;border-radius:50%;border:2px solid white;box-shadow:0 0 10px #3b82f6;"></div>';
-            new maplibregl.Marker({ element: meEl, anchor: 'center' })
+            __meMarker = new maplibregl.Marker({ element: meEl, anchor: 'center' })
                 .setLngLat([lng, lat])
                 .addTo(map);
         }, () => showToast("Không lấy được vị trí"));

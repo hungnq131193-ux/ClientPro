@@ -184,9 +184,10 @@ async function uploadAssetToDrive() {
             if (result.status === 'success') {
                 // 1. Lưu Link vào đúng đối tượng Asset
                 currentCustomerData.assets[assetIndex].driveLink = result.url;
-                
-                // 2. Cập nhật Database
-                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+
+                // 2. Cập nhật Database (không put() nguyên currentCustomerData vì
+                //    name/phone/cccd trên object đó đã bị giải mã trong openFolder)
+                persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; });
                 
                 getEl('loader').classList.add('hidden');
                 
@@ -381,12 +382,11 @@ async function reconnectDriveFolder() {
     // Nếu tìm thấy thì lưu và cập nhật giao diện, ngược lại báo lỗi
     if (foundUrl) {
         currentCustomerData.driveLink = foundUrl;
-        const tx = db.transaction(['customers'], 'readwrite');
-        tx.objectStore('customers').put(currentCustomerData).onsuccess = () => {
+        persistCurrentCustomer((rec) => { rec.driveLink = foundUrl; }, () => {
             getEl('loader').classList.add('hidden');
             renderDriveStatus(foundUrl);
             showToast("Đã kết nối lại thành công!");
-        };
+        });
     } else {
         getEl('loader').classList.add('hidden');
         alert("Không tìm thấy folder nào khớp với Tên + CCCD hoặc Tên + SĐT.");
@@ -454,9 +454,9 @@ async function uploadToGoogleDrive() {
             const result = await response.json();
 
             if (result.status === 'success') {
-                // Lưu link Folder
+                // Lưu link Folder (ghi an toàn, giữ nguyên ciphertext các trường khác)
                 currentCustomerData.driveLink = result.url;
-                db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData);
+                persistCurrentCustomer((rec) => { rec.driveLink = result.url; });
                 
                 getEl('loader').classList.add('hidden');
                 renderDriveStatus(result.url);

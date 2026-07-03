@@ -851,19 +851,34 @@ function deleteCurrentCustomer() {
 }
 
 function deleteAsset(idx) {
-    if (!confirm("Xóa tài sản này?")) return; currentCustomerData.assets.splice(idx, 1);
-    db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { showToast("Đã xóa TSBĐ"); renderAssets(); };
+    if (!confirm("Xóa tài sản này?")) return;
+    const removed = currentCustomerData.assets.splice(idx, 1)[0];
+    persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, () => {
+        showToast("Đã xóa TSBĐ");
+        renderAssets();
+        // Dọn ảnh của TSBĐ vừa xóa: gallery của nó không còn truy cập được nữa,
+        // nếu giữ lại sẽ thành ảnh mồ côi chiếm bộ nhớ vĩnh viễn.
+        try {
+            if (removed && removed.id) {
+                const txImg = db.transaction(['images'], 'readwrite');
+                const imgStore = txImg.objectStore('images');
+                imgStore.index('customerId').getAll(currentCustomerId).onsuccess = (e) => {
+                    (e.target.result || []).forEach((img) => { if (img.assetId === removed.id) imgStore.delete(img.id); });
+                };
+            }
+        } catch (e) { }
+    });
 }
 
 function toggleCustomerStatus() { if (currentCustomerData.status === 'pending') { getEl('approve-modal').classList.remove('hidden'); getEl('approve-limit').value = ''; } else { if (confirm("Thu hồi trạng thái?")) { currentCustomerData.status = 'pending'; updateCustomerAndReload(); } } }
 function closeApproveModal() { getEl('approve-modal').classList.add('hidden'); }
-function confirmApproval() { const l = getEl('approve-limit').value; if (!l) return alert("Nhập hạn mức!"); currentCustomerData.status = 'approved'; currentCustomerData.creditLimit = l; closeApproveModal(); db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { showToast("Đã duyệt"); renderFolderHeader(currentCustomerData); loadCustomers(getEl('search-input').value); }; }
-function updateCustomerAndReload() { db.transaction(['customers'], 'readwrite').objectStore('customers').put(currentCustomerData).onsuccess = () => { openFolder(currentCustomerData.id); loadCustomers(); }; }
+function confirmApproval() { const l = getEl('approve-limit').value; if (!l) return alert("Nhập hạn mức!"); currentCustomerData.status = 'approved'; currentCustomerData.creditLimit = l; closeApproveModal(); persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = l; }, () => { showToast("Đã duyệt"); renderFolderHeader(currentCustomerData); loadCustomers(getEl('search-input').value); }); }
+function updateCustomerAndReload() { persistCurrentCustomer((rec) => { rec.status = currentCustomerData.status; rec.creditLimit = currentCustomerData.creditLimit; }, () => { openFolder(currentCustomerData.id); loadCustomers(); }); }
 
 function renderFolderHeader(data) {
     getEl('folder-customer-name').textContent = data.name; getEl('folder-avatar').textContent = data.name.charAt(0).toUpperCase(); getEl('btn-detail-call').href = getTelLink(data.phone); getEl('btn-detail-zalo').href = getZaloLink(data.phone); getEl('btn-detail-zalo').onclick = () => { openZaloChat(data.phone); return false; };
     const badge = getEl('detail-status-badge');
-    if (data.status === 'approved') { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10"; badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span>${data.creditLimit}</span>`; }
+    if (data.status === 'approved') { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10"; badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span>${escapeHTML(data.creditLimit)}</span>`; }
     else { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20"; badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`; } lucide.createIcons();
 }
 

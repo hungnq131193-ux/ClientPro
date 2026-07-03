@@ -237,9 +237,7 @@ function renderAssets() {
       clearTimeout(window.__assetNameMigrationTimer);
       window.__assetNameMigrationTimer = setTimeout(() => {
         try {
-          db.transaction(["customers"], "readwrite")
-            .objectStore("customers")
-            .put(currentCustomerData);
+          persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; });
         } catch (e) { }
       }, 80);
     } catch (e) { }
@@ -352,16 +350,14 @@ function saveAsset() {
     currentCustomerData.assets.push(assetObj);
   }
 
-  // Lưu vào DB
-  db
-    .transaction(["customers"], "readwrite")
-    .objectStore("customers")
-    .put(currentCustomerData).onsuccess = () => {
-      closeAssetModal();
-      renderAssets();
-      showToast("Đã lưu TSBĐ");
-      currentAssetId = null;
-    };
+  // Lưu vào DB (chỉ ghi mảng assets; không put() nguyên currentCustomerData
+  // vì name/phone/cccd trên object đó đã bị giải mã trong openFolder)
+  persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, () => {
+    closeAssetModal();
+    renderAssets();
+    showToast("Đã lưu TSBĐ");
+    currentAssetId = null;
+  });
 }
 // --- NEW GUIDE MODAL LOGIC ---
 function openGuideModal() {
