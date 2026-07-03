@@ -139,17 +139,17 @@ function showRefModal(results) {
         ? `${Math.round(item.distance)} m`
         : `${(item.distance / 1000).toFixed(2)} km`;
     const valStr = item.valuation.toLocaleString("vi-VN") + " tr₫";
-    const assetName = escapeHTML(item.assetName || "");
-    const customerName = escapeHTML(item.customerName || "");
-    const area = escapeHTML(item.area || "");
-    const width = escapeHTML(item.width || "");
+    const assetName = item.assetName || "";
+    const customerName = item.customerName || "";
+    const area = item.area || "";
+    const width = item.width || "";
 
-    // Badge diện tích và mặt tiền
+    // Badge diện tích và mặt tiền (khung tĩnh; giá trị số được gán qua textContent bên dưới)
     const areaBadge = area
-      ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[10px] font-bold">${area}m²</span>`
+      ? `<span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[10px] font-bold ref-area"></span>`
       : '';
     const widthBadge = width
-      ? `<span class="bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded text-[10px] font-bold">MT:${width}m</span>`
+      ? `<span class="bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded text-[10px] font-bold ref-width"></span>`
       : '';
     const badges = (areaBadge || widthBadge) ? `<div class="flex gap-1 mt-1">${areaBadge}${widthBadge}</div>` : '';
 
@@ -160,9 +160,15 @@ function showRefModal(results) {
         <span class="text-xs font-bold text-emerald-400">#${idx + 1} • Cách ${distStr}</span>
         <span class="text-sm font-bold text-white">${valStr}</span>
       </div>
-      <h4 class="text-sm font-medium text-slate-300 truncate">${assetName}</h4>
+      <h4 class="text-sm font-medium text-slate-300 truncate ref-asset-name"></h4>
       ${badges}
-      <p class="text-[10px] text-slate-500 mt-1 uppercase">KH: ${customerName}</p>`;
+      <p class="text-[10px] text-slate-500 mt-1 uppercase">KH: <span class="ref-cust-name"></span></p>`;
+    div.querySelector('.ref-asset-name').textContent = assetName;
+    div.querySelector('.ref-cust-name').textContent = customerName;
+    const areaEl = div.querySelector('.ref-area');
+    if (areaEl) areaEl.textContent = `${area}m²`;
+    const widthEl = div.querySelector('.ref-width');
+    if (widthEl) widthEl.textContent = `MT:${width}m`;
     container.appendChild(div);
   });
   modal.classList.remove("hidden");
@@ -236,34 +242,41 @@ function renderAssets() {
     const decYear = decryptText(asset.year) || "";
     const decOnland = decryptText(asset.onland) || "";
 
-    // Escape HTML để an toàn
-    const safeName = escapeHTML(decName);
-    const safeVal = escapeHTML(decVal) || "-";
-    const safeLoan = escapeHTML(decLoan) || "-";
-    const safeArea = escapeHTML(decArea);
-    const safeWidth = escapeHTML(decWidth);
-    const safeYear = escapeHTML(decYear);
-    const safeOnland = escapeHTML(decOnland);
-
     const mapLink = formatLink(decLink);
     const mapBtn = mapLink
-      ? `<a href="${mapLink}" target="_blank" class="glass-btn flex-1 py-2.5 rounded-lg text-xs font-bold text-slate-300 flex items-center justify-center gap-1 hover:text-white"><i data-lucide="map" class="w-3 h-3"></i> Bản đồ</a>`
+      ? `<a data-map-link target="_blank" class="glass-btn flex-1 py-2.5 rounded-lg text-xs font-bold text-slate-300 flex items-center justify-center gap-1 hover:text-white"><i data-lucide="map" class="w-3 h-3"></i> Bản đồ</a>`
       : `<span class="glass-btn flex-1 py-2.5 rounded-lg text-xs text-slate-500 text-center cursor-not-allowed opacity-50">No Map</span>`;
 
-    const areaInfo = safeArea
-      ? `<span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10">${safeArea}m²</span>`
+    // Khung tĩnh (icon/badge rỗng); giá trị tài sản được gán qua textContent bên dưới để tránh chèn qua innerHTML
+    const areaInfo = decArea
+      ? `<span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10 asset-area"></span>`
       : "";
-    const widthInfo = safeWidth
-      ? `<span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10">MT:${safeWidth}m</span>`
+    const widthInfo = decWidth
+      ? `<span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10 asset-width"></span>`
       : "";
-    const yearInfo = safeYear
-      ? `<span class="bg-slate-500/10 text-slate-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10">Năm:${safeYear}</span>`
+    const yearInfo = decYear
+      ? `<span class="bg-slate-500/10 text-slate-300 px-2 py-1 rounded text-[10px] font-bold border border-white/10 asset-year"></span>`
       : "";
-    const onlandInfo = safeOnland
-      ? `<div class="text-xs text-slate-400 mt-1 italic"><i data-lucide="home" class="w-3 h-3 inline mr-1"></i>${safeOnland}</div>`
+    const onlandInfo = decOnland
+      ? `<div class="text-xs text-slate-400 mt-1 italic"><i data-lucide="home" class="w-3 h-3 inline mr-1"></i><span class="asset-onland"></span></div>`
       : "";
 
-    el.innerHTML = ` <div class="flex justify-between items-start mb-1"> <div class="flex gap-3 items-center"> <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-white/10"><i data-lucide="map-pin" class="w-5 h-5"></i></div> <div><h4 class="font-bold text-white text-sm line-clamp-1">${safeName}</h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div> </div> <div class="flex gap-1"> <button data-action="edit" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button> <button data-action="delete" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button> </div> </div> ${onlandInfo} <div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"> <span>ĐG: <b class="text-emerald-400 text-sm">${safeVal}</b></span> <span>Vay: <b class="text-blue-400 text-sm">${safeLoan}</b></span> </div> <div class="flex gap-2"> ${mapBtn} <button data-action="reference" class="glass-btn flex-1 py-2.5 text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button> </div> <button data-action="gallery" class="glass-btn w-full py-2.5 text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white mt-1"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`;
+    el.innerHTML = ` <div class="flex justify-between items-start mb-1"> <div class="flex gap-3 items-center"> <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-white/10"><i data-lucide="map-pin" class="w-5 h-5"></i></div> <div><h4 class="font-bold text-white text-sm line-clamp-1 asset-name"></h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div> </div> <div class="flex gap-1"> <button data-action="edit" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button> <button data-action="delete" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button> </div> </div> ${onlandInfo} <div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"> <span>ĐG: <b class="text-emerald-400 text-sm asset-val"></b></span> <span>Vay: <b class="text-blue-400 text-sm asset-loan"></b></span> </div> <div class="flex gap-2"> ${mapBtn} <button data-action="reference" class="glass-btn flex-1 py-2.5 text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button> </div> <button data-action="gallery" class="glass-btn w-full py-2.5 text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white mt-1"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`;
+
+    el.querySelector('.asset-name').textContent = decName;
+    el.querySelector('.asset-val').textContent = decVal || "-";
+    el.querySelector('.asset-loan').textContent = decLoan || "-";
+    const areaEl = el.querySelector('.asset-area');
+    if (areaEl) areaEl.textContent = `${decArea}m²`;
+    const widthEl = el.querySelector('.asset-width');
+    if (widthEl) widthEl.textContent = `MT:${decWidth}m`;
+    const yearEl = el.querySelector('.asset-year');
+    if (yearEl) yearEl.textContent = `Năm:${decYear}`;
+    const onlandEl = el.querySelector('.asset-onland');
+    if (onlandEl) onlandEl.textContent = decOnland;
+    const mapAnchor = el.querySelector('[data-map-link]');
+    if (mapAnchor) mapAnchor.setAttribute('href', mapLink);
+
     const editBtn = el.querySelector('[data-action="edit"]');
     if (editBtn) editBtn.addEventListener("click", () => openEditAssetModal(index));
     const deleteBtn = el.querySelector('[data-action="delete"]');
