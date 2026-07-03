@@ -231,6 +231,13 @@
             APP_BACKUP_KDATA_B64U = _safeText(js.kdata_b64u);
           }
         } catch (e) {}
+        // Ghi cache KDATA chung (02_security.js) để ensureBackupSecret() dùng lại ngay,
+        // tránh đụng rate-limit 30s của issue_kdata phía GAS khi user backup ngay sau khi mở app.
+        try {
+          if (js.kdata_b64u && typeof _writeCachedKdata === "function") {
+            _writeCachedKdata(employeeId, deviceId, _safeText(js.kdata_b64u));
+          }
+        } catch (e) {}
         try {
           localStorage.setItem(AUTH_GATE_LAST_OK_TS, String(Date.now()));
         } catch (e) {}
@@ -238,7 +245,18 @@
       }
       if (st === "locked") return { ok: false, reason: "locked", message: msg || "Tài khoản đã bị khóa." };
       if (st === "error") {
-        // Soft-fail for periodic check mode: do not block app on generic errors.
+        // Admin GAS v12: issue_kdata KHÔNG trả status:'locked' — khóa/sai thiết bị đều về
+        // status:'error' + message tiếng Việt không dấu ("ISSUE_KDATA FAIL: ..."), nên phải
+        // phân loại theo message thì gate mới chặn được.
+        const lowMsg = msg.toLowerCase();
+        if (/bi khoa|bị khóa/.test(lowMsg)) {
+          return { ok: false, reason: "locked", message: "Tài khoản của bạn đã bị khóa." };
+        }
+        if (/sai thiet bi|khong khop|device id/.test(lowMsg)) {
+          return { ok: false, reason: "device", message: "Sai thiết bị (Device ID không khớp)." };
+        }
+        // "chua kich hoat" / "chua gan thiet bi" / rate-limited / lỗi chung: soft-fail,
+        // không chặn UI (backup/restore vẫn tự giới hạn qua ensureBackupSecret).
         try {
           localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL, String(Date.now() + AUTH_COOLDOWN_MS));
         } catch (e) {}
@@ -303,8 +321,9 @@
           return true;
         }
 
-        // Chỉ chặn cứng + thu hồi khi server báo LOCKED liên tiếp nhiều lần.
-        if (r.reason === "locked") {
+        // Chỉ chặn cứng + thu hồi khi server báo LOCKED / SAI THIẾT BỊ liên tiếp nhiều lần
+        // (2 strike trong 6h) — tránh chặn oan vì lỗi thoáng qua phía server.
+        if (r.reason === "locked" || r.reason === "device") {
           const shouldBlock = _registerLockStrike();
           if (!shouldBlock) {
             try {
@@ -312,20 +331,17 @@
             } catch (e) {}
             return true;
           }
-        } else {
-          _resetLockStrikes();
-          // Non-locked errors are soft-fail in this client policy.
-          return true;
-        }
-
-        // Chỉ thu hồi local activation khi đã xác nhận LOCKED rõ ràng.
-        if (r.reason === "locked") {
+          // Đủ strike: thu hồi kích hoạt local và chặn UI (nút "Thoát và kích hoạt lại"
+          // trên overlay sẽ mở activation-modal để user activate + bind lại thiết bị).
           try {
             if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
           } catch (e) {}
           _block(r.message || "Thiết bị của bạn không còn quyền sử dụng.");
           return false;
         }
+
+        // Các lý do khác (chưa kích hoạt, chưa gắn thiết bị...): soft-fail, không chặn UI.
+        _resetLockStrikes();
         return true;
       })();
       const ok = await _inflight;
