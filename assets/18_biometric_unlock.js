@@ -20,6 +20,9 @@
   let _availableCache = null;
   let _autoTried = false;
   let _unlockInFlight = false;
+  let _unlockIsAuto = false;   // lượt đang chạy là auto-prompt (không có thao tác user)
+  let _unlockAbort = null;     // AbortController của lượt get() đang chạy
+  let _unlockPromise = null;
 
   function _rand(len) {
     return crypto.getRandomValues(new Uint8Array(len));
@@ -213,22 +216,57 @@
     disable();
   }
 
-  /** Thử mở khóa bằng sinh trắc học. Mọi lỗi đều fallback im lặng về bàn phím PIN. */
-  async function tryUnlock() {
+  /**
+   * Thử mở khóa bằng sinh trắc học. auto=true là lượt tự động khi hiện màn khóa
+   * (mọi lỗi im lặng, fallback bàn phím PIN); không có auto là do user bấm nút
+   * (lỗi sẽ báo toast, và được quyền hủy lượt auto đang treo để chạy ngay).
+   */
+  async function tryUnlock(auto) {
+    const isAuto = auto === true;
     if (!isEnrolled()) return false;
 
     // Chặn 2 lời gọi WebAuthn chồng nhau (auto-prompt khi hiện màn khóa + user bấm nút):
     // lời gọi thứ 2 sẽ ném "A request is already pending" và nuốt mất lượt bấm.
-    if (_unlockInFlight) return false;
+    if (_unlockInFlight) {
+      // Lượt auto có thể treo tới 60s (iOS hay để pending khi thiếu user gesture).
+      // User chủ động bấm nút thì hủy lượt auto rồi chạy lượt mới thay vì nuốt cú bấm.
+      if (!isAuto && _unlockIsAuto && _unlockAbort) {
+        try { _unlockAbort.abort(); } catch (e) { }
+        try { await _unlockPromise; } catch (e) { }
+        if (_unlockInFlight) return false;
+      } else {
+        return false;
+      }
+    }
+
     _unlockInFlight = true;
+    _unlockIsAuto = isAuto;
+    _unlockAbort = (typeof AbortController === "function") ? new AbortController() : null;
+    _unlockPromise = _tryUnlockInner(isAuto, _unlockAbort ? _unlockAbort.signal : undefined);
     try {
-      return await _tryUnlockInner();
+      return await _unlockPromise;
     } finally {
       _unlockInFlight = false;
+      _unlockAbort = null;
+      _unlockPromise = null;
     }
   }
 
-  async function _tryUnlockInner() {
+  function _toast(msg) {
+    try {
+      if (typeof showToast === "function") showToast(msg);
+    } catch (e) { }
+  }
+
+  /** Envelope hỏng/PIN đã đổi: tự tắt tính năng để user bật lại, thay vì kẹt im lặng mãi. */
+  function _selfHeal() {
+    disable();
+    const btn = document.querySelector("[data-biometric-btn]");
+    if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
+    _toast("Sinh trắc học không còn hợp lệ, vui lòng nhập PIN và bật lại trong menu.");
+  }
+
+  async function _tryUnlockInner(isAuto, signal) {
     let env = null;
     try {
       env = JSON.parse(localStorage.getItem(ENV_KEY));
@@ -247,10 +285,15 @@
           extensions: { prf: { eval: { first: _b64ToBuf(env.prfSalt) } } },
           timeout: 60000,
         },
+        signal: signal,
       });
     } catch (e) {
       // user hủy / NotAllowedError / iOS chặn vì thiếu user gesture -> fallback PIN
       console.warn("[BiometricUnlock] get() mở khóa lỗi:", e && e.name, e);
+      // AbortError = bị lượt bấm tay chủ động hủy, không phải lỗi thật.
+      if (!isAuto && !(e && e.name === "AbortError")) {
+        _toast("Không xác thực được sinh trắc học. Vui lòng nhập mã PIN.");
+      }
       return false;
     }
 
@@ -261,7 +304,12 @@
       ext = {};
     }
     const prfFirst = ext.prf && ext.prf.results && ext.prf.results.first;
-    if (!prfFirst) return false;
+    if (!prfFirst) {
+      // Xác thực OK nhưng trình duyệt không trả PRF: envelope này không bao giờ
+      // giải mã được trên môi trường hiện tại -> tự tắt để user bật lại.
+      _selfHeal();
+      return false;
+    }
 
     let pin = "";
     try {
@@ -273,9 +321,15 @@
       );
       pin = new TextDecoder().decode(ptBuf);
     } catch (e) {
-      return false; // PIN đã đổi ở nơi khác hoặc giải mã lỗi -> fallback PIN thường
+      // PIN đã đổi ở nơi khác hoặc PRF lệch giữa lúc đăng ký và lúc mở khóa:
+      // envelope vô dụng vĩnh viễn -> tự tắt + báo user bật lại, tránh "kẹt im lặng".
+      _selfHeal();
+      return false;
     }
-    if (!pin) return false;
+    if (!pin) {
+      _selfHeal();
+      return false;
+    }
 
     // QUAN TRỌNG: gán biến toàn cục TRẦN (không phải window.currentPin) — currentPin và
     // masterKey là khai báo `let` cấp top-level trong script cổ điển (00_globals.js /
@@ -309,7 +363,7 @@
     iconWrap.style.background = "rgba(255,255,255,0.08)";
     const icon = document.createElement("i");
     icon.setAttribute("data-lucide", "fingerprint");
-    icon.className = "w-7 h-7";
+    icon.className = "w-6 h-6"; // w-7/h-7 không có trong bản build tailwind.clientpro.css
     iconWrap.appendChild(icon);
 
     const label = document.createElement("span");
@@ -340,7 +394,7 @@
 
     if (!_autoTried && document.hasFocus()) {
       _autoTried = true;
-      tryUnlock();
+      tryUnlock(true);
     }
   }
 
@@ -381,6 +435,10 @@
   function openSetup() {
     const modal = document.getElementById("biometric-setup-modal");
     if (!modal) return;
+    // Đóng menu trước khi mở modal (giống openSecuritySetup trong 02_security.js).
+    try {
+      if (typeof _closeMenuIfOpen === "function") _closeMenuIfOpen();
+    } catch (e) { }
     _refreshSetupModalUI();
     modal.classList.remove("hidden");
   }
