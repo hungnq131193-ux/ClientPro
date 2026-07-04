@@ -12,6 +12,13 @@ function toggleDashboardDriveConfig() {
     panel.setAttribute('aria-hidden', willOpen ? 'false' : 'true');
     if (willOpen && input) setTimeout(() => input.focus(), 80);
 }
+// Mã bảo mật (Access Token) cho Script Drive cá nhân (UserAPI).
+// Server UserAPI bắt buộc token; app gửi kèm mỗi request.
+function getUserToken() {
+    const key = (typeof USER_TOKEN_KEY !== 'undefined') ? USER_TOKEN_KEY : 'app_user_script_token';
+    return (localStorage.getItem(key) || '').trim();
+}
+
 function saveScriptUrl() {
     const input = getEl('dashboard-drive-url') || getEl('user-script-url');
     const url = input ? input.value.trim() : '';
@@ -19,8 +26,17 @@ function saveScriptUrl() {
         alert("Link không đúng định dạng!");
         return;
     }
-    // Lưu link Script cá nhân vào localStorage với key mới
+    const tokenInput = getEl('dashboard-drive-token');
+    const token = tokenInput ? tokenInput.value.trim() : getUserToken();
+    if (!token) {
+        alert("Vui lòng nhập Mã bảo mật (Access Token) của Script cá nhân!");
+        if (tokenInput) tokenInput.focus();
+        return;
+    }
+    // Lưu link Script cá nhân và token vào localStorage
     localStorage.setItem(USER_SCRIPT_KEY, url);
+    const tokenKey = (typeof USER_TOKEN_KEY !== 'undefined') ? USER_TOKEN_KEY : 'app_user_script_token';
+    localStorage.setItem(tokenKey, token);
     showToast("Đã lưu kết nối Drive cá nhân");
 }
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,6 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if(savedUrl) {
         const input = getEl('dashboard-drive-url') || getEl('user-script-url');
         if (input) input.value = savedUrl;
+    }
+    const savedToken = getUserToken();
+    if (savedToken) {
+        const tokenInput = getEl('dashboard-drive-token');
+        if (tokenInput) tokenInput.value = savedToken;
     }
 });
 
@@ -166,6 +187,7 @@ async function uploadAssetToDrive() {
         const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
 
         const payload = {
+            token: getUserToken(),
             folderName: folderName,
             images: imagesToUpload.map((img, idx) => ({
                 name: `asset_img_${Date.now()}_${idx}.jpg`,
@@ -302,7 +324,7 @@ async function reconnectAssetDriveFolder() {
     try {
         const response = await fetch(userUrl, {
             method: "POST",
-            body: JSON.stringify({ action: 'search', folderName: folderName })
+            body: JSON.stringify({ action: 'search', folderName: folderName, token: getUserToken() })
         });
         const result = await response.json();
 
@@ -367,7 +389,7 @@ async function reconnectDriveFolder() {
             getEl('loader-text').textContent = `Đang tìm: ${folderName}...`;
             const response = await fetch(userUrl, {
                 method: "POST",
-                body: JSON.stringify({ action: 'search', folderName: folderName })
+                body: JSON.stringify({ action: 'search', folderName: folderName, token: getUserToken() })
             });
             const result = await response.json();
             if (result.status === 'found') {
@@ -437,6 +459,7 @@ async function uploadToGoogleDrive() {
         // 2. Chuẩn bị gói dữ liệu
         const payload = {
             action: 'upload', // <--- Báo cho Script biết là muốn Upload
+            token: getUserToken(),
             // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
             folderName: `${_displayText(currentCustomerData.name)} - ${_displayText(currentCustomerData.cccd) || _displayText(currentCustomerData.phone)}`,
             images: imagesToUpload.map((img, idx) => ({

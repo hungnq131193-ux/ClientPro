@@ -665,6 +665,65 @@ async function ensureBackupSecret() {
     return { ok: false, message: "Không thể kết nối server để lấy khóa KDATA." };
   }
 }
+// Transfer key cache (in-memory, ngắn hạn) cho luồng gửi/nhận backup giữa các user.
+const _transferKeyCache = {};
+const TRANSFER_KEY_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * Lấy "khóa chuyển" (transfer key) từ AdminAPI để mã hóa/giải mã backup gửi giữa các user.
+ * - targetEmployeeId có giá trị => khóa hộp thư của NGƯỜI NHẬN (luồng gửi).
+ * - Không truyền => khóa hộp thư của CHÍNH MÌNH (luồng nhận).
+ * Khóa này derive theo label "transfer" phía server, KHÁC khóa cá nhân ("personal"),
+ * nên biết transfer key của người nhận cũng không giải mã được backup cá nhân của họ.
+ * @param {string} [targetEmployeeId]
+ * @returns {Promise<string>} base64url 32 byte
+ */
+async function ensureTransferKey(targetEmployeeId) {
+  const employeeId = localStorage.getItem(EMPLOYEE_KEY) || "";
+  if (!employeeId) throw new Error("Chưa có mã nhân viên.");
+  const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
+  const target = String(targetEmployeeId || "").trim();
+  const cacheKey = target || "_self";
+
+  const cached = _transferKeyCache[cacheKey];
+  if (cached && cached.key && (Date.now() - cached.ts) < TRANSFER_KEY_TTL_MS) {
+    return cached.key;
+  }
+
+  const parseKey = (txt) => {
+    let js = null;
+    try { js = JSON.parse(txt); } catch (e) { js = null; }
+    if (js && js.status === "success" && js.kdata_b64u) return String(js.kdata_b64u);
+    return null;
+  };
+
+  // Ưu tiên POST JSON, fallback GET querystring (giống ensureBackupSecret).
+  let key = null;
+  try {
+    const body = { action: "issue_transfer_key", employeeId, deviceId };
+    if (target) body.toEmployeeId = target;
+    const res = await fetch(ADMIN_SERVER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    key = parseKey(await res.text());
+  } catch (e) { /* fallback GET */ }
+
+  if (!key) {
+    let url = `${ADMIN_SERVER_URL}?action=issue_transfer_key&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}`;
+    if (target) url += `&toEmployeeId=${encodeURIComponent(target)}`;
+    try {
+      const res2 = await fetch(url);
+      key = parseKey(await res2.text());
+    } catch (e) { /* ignore */ }
+  }
+
+  if (!key) throw new Error("Không lấy được khóa chuyển (transfer key) từ server.");
+  _transferKeyCache[cacheKey] = { key, ts: Date.now() };
+  return key;
+}
+
 function openSecuritySetup() {
   // Mở giao diện thiết lập bảo mật mới. Không điền sẵn mã nhân viên vì dữ liệu trong localStorage đã được mã hóa.
   toggleMenu();

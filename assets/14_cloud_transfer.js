@@ -378,6 +378,27 @@
       throw new Error('Backup quá lớn để gửi trực tiếp. Hãy Xuất file .cpb và gửi qua Zalo/Email.');
     }
 
+    // BẢO MẬT (khóa theo từng user): bản ghi local được mã hóa bằng khóa CÁ NHÂN của
+    // người gửi — người nhận không có khóa đó nên không giải mã được. Vì vậy phải giải mã
+    // bằng khóa cá nhân rồi MÃ LẠI bằng "khóa chuyển" của người nhận (label "transfer" phía
+    // server), để chỉ đúng người nhận đọc được và không lộ backup cá nhân của họ.
+    if (typeof ensureTransferKey !== 'function' || typeof decryptBackupPayload !== 'function' || typeof encryptBackupPayload !== 'function') {
+      throw new Error('Thiếu cơ chế mã hóa để gửi an toàn.');
+    }
+    let plaintext = '';
+    let reMeta = null;
+    try {
+      const dec = await decryptBackupPayload(cipherPayload, APP_BACKUP_KDATA_B64U);
+      plaintext = dec && dec.plaintext ? dec.plaintext : '';
+      reMeta = dec && dec.envelope ? dec.envelope.meta : null;
+    } catch (e) {
+      plaintext = '';
+    }
+    if (!plaintext) throw new Error('Không giải mã được backup để gửi (khóa cá nhân không khớp).');
+
+    const transferKey = await ensureTransferKey(targetUser.employeeId);
+    cipherPayload = await encryptBackupPayload(plaintext, transferKey, reMeta || { type: 'transfer' });
+
     const payload = {
       action: 'upload_backup',
       employeeId: getEmployeeId(),
@@ -685,9 +706,14 @@
 
     if (loaderText) loaderText.textContent = 'Đang restore...';
 
+    // Bản nhận được mã hóa bằng "khóa chuyển" của CHÍNH MÌNH (không phải khóa cá nhân),
+    // nên phải lấy transfer key của mình để giải mã.
+    if (typeof ensureTransferKey !== 'function') throw new Error('Thiếu cơ chế khóa chuyển');
+    const inboxKey = await ensureTransferKey();
+
     // Reuse existing restore flow
     if (typeof _restoreFromEncryptedContent === 'function') {
-      await _restoreFromEncryptedContent(dl.encrypted);
+      await _restoreFromEncryptedContent(dl.encrypted, inboxKey);
     } else {
       throw new Error('Thiếu hàm restore (_restoreFromEncryptedContent)');
     }

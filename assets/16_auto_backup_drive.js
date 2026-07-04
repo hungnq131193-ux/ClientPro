@@ -38,6 +38,15 @@
         return (localStorage.getItem(key) || '').trim();
     }
 
+    function getUserTokenSafe() {
+        // Access Token cho UserAPI (Script Drive cá nhân). Server bắt buộc token.
+        if (typeof getUserToken === 'function') {
+            try { return getUserToken(); } catch (e) { }
+        }
+        const key = (typeof USER_TOKEN_KEY !== 'undefined') ? USER_TOKEN_KEY : 'app_user_script_token';
+        return (localStorage.getItem(key) || '').trim();
+    }
+
     function getDeviceIdSafe() {
         // Use getDeviceId() function if available
         if (typeof getDeviceId === 'function') {
@@ -264,6 +273,7 @@
 
         const payload = {
             action: 'backup',
+            token: getUserTokenSafe(),
             encrypted: encryptedContent,
             filename: filename
         };
@@ -364,7 +374,7 @@
         }
 
         // Use GET with URL params for GAS CORS compatibility
-        const url = `${serverUrl}?action=list_backups`;
+        const url = `${serverUrl}?action=list_backups&token=${encodeURIComponent(getUserTokenSafe())}`;
         const response = await fetch(url, { method: 'GET' });
         const result = await response.json();
 
@@ -384,7 +394,7 @@
         const serverUrl = getUserScriptUrl();
 
         // Use GET with URL params for GAS CORS compatibility
-        const url = `${serverUrl}?action=download_backup&fileId=${encodeURIComponent(fileId)}`;
+        const url = `${serverUrl}?action=download_backup&fileId=${encodeURIComponent(fileId)}&token=${encodeURIComponent(getUserTokenSafe())}`;
         const response = await fetch(url, { method: 'GET' });
         const result = await response.json();
 
@@ -477,6 +487,7 @@
 
         const payload = {
             action: 'delete_backup',
+            token: getUserTokenSafe(),
             fileId: fileId
         };
 
