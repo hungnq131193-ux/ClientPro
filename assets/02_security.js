@@ -85,14 +85,6 @@ function _b64uDecodeToBytes(b64u) {
   return _b64DecodeToBytes(s);
 }
 
-// Legacy: derive AES-GCM key from passphrase (old backup format)
-async function _deriveAesGcmKeyFromSecret(secret) {
-  const enc = new TextEncoder();
-  const material = enc.encode(String(secret || ""));
-  const digest = await crypto.subtle.digest("SHA-256", material);
-  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
-}
-
 // New: import AES-GCM key from global KDATA (32 bytes raw)
 async function _deriveAesGcmKeyFromKdataB64u(kdata_b64u) {
   const raw = _b64uDecodeToBytes(kdata_b64u);
@@ -573,6 +565,29 @@ async function checkSecurity() {
  *   (1) issue_kdata (POST/GET fallback): nhận GLOBAL KDATA (base64url) để derive AES-GCM key
  * Nếu không nhận được kdata_b64u => coi như không đủ quyền backup/restore.
  */
+// Helper dùng chung: xác thực & lấy GLOBAL KDATA trước khi backup/khôi phục.
+// Trả về true nếu đã có khóa; nếu không thì hiện alert lý do và trả về false.
+// Gom logic từng lặp lại nguyên khối ở backupData()/restoreData()/restoreBackupFromApp().
+async function requireBackupSecretOrAlert() {
+  if (typeof ensureBackupSecret === "function") {
+    const sec = await ensureBackupSecret();
+    if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
+      alert(
+        `BẢO MẬT: ${sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật."}\n\nVui lòng kết nối mạng và thử lại.`
+      );
+      return false;
+    }
+    return true;
+  }
+  if (!APP_BACKUP_KDATA_B64U) {
+    alert(
+      "BẢO MẬT: Không thể backup khi đang Offline hoặc chưa xác thực với Server.\n\nVui lòng kết nối mạng và mở lại App để hệ thống tải khóa bảo mật."
+    );
+    return false;
+  }
+  return true;
+}
+
 async function ensureBackupSecret() {
   const employeeId = localStorage.getItem(EMPLOYEE_KEY) || "";
   if (!employeeId) return { ok: false, message: "Chưa có mã nhân viên." };

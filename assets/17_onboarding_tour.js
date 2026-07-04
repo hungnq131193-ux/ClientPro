@@ -277,14 +277,6 @@
         renderStep();
     }
 
-    // Public API
-    window.OnboardingTour = {
-        start: startTour,
-        reset: () => {
-            localStorage.removeItem(TOUR_KEY);
-        }
-    };
-
     // Auto-start tour after app loads (if first time) - MUST wait for PIN unlock
     function checkAndStartTour() {
         // Wait for customer list to exist (app loaded)

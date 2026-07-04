@@ -22,8 +22,8 @@
     <!-- CryptoJS library for hashing and encryption -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
-    <script defer src="./assets/head.js?v=FIX_BIOMETRIC_MODAL_20260704"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=FIX_BIOMETRIC_MODAL_20260704">
+    <script defer src="./assets/head.js?v=CLEANUP_20260704"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=CLEANUP_20260704">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <!-- style-src vẫn giữ 'unsafe-inline' trong vercel.json: hàng trăm thuộc tính style="..."
          và nhiều chỗ .style.cssText/.style.x trong assets/*.js dùng cho theme động, vị trí
@@ -47,17 +47,6 @@
 
 
 
-    <!-- Modal kích hoạt thiết bị: hiển thị khi lần đầu sử dụng ứng dụng -->
-
-
-
-
-
-
-
-
-
-    <!-- ASSET MODAL UPDATED WITH GPS -->
 
 
 
@@ -69,10 +58,15 @@
 
 
 
-    <!-- DONATE MODAL -->
 
 
-    <!-- END DONATE MODAL -->
+
+
+
+
+
+
+
     <div id="toast"
         class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 transform -translate-y-40 opacity-0 pointer-events-none border border-white/20 z-[400]">
         <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i><span id="toast-msg"
@@ -562,33 +556,33 @@
     <div id="ui-modals-root"></div>
     <script src="./assets/ui/load_modals.js" defer></script>
 
-    <script src="./assets/00_globals.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/01_config.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
-    <script src="./assets/02_security.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
-    <script src="./assets/12_backup_core.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/13_ui_select_customers.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/15_auth_gate.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/03_map.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/04_ui_common.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/05_customers.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/06_assets.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/08_images_camera.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/09_menu.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/09_backup_manager.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
-    <script src="./assets/09_donate.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/09_weather.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/07_drive.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
+    <script src="./assets/00_globals.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/01_config.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/02_security.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/12_backup_core.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/13_ui_select_customers.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/15_auth_gate.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/03_map.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/04_ui_common.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/05_customers.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/06_assets.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/08_images_camera.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/09_menu.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/09_backup_manager.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/09_donate.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/09_weather.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/07_drive.js?v=CLEANUP_20260704" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=CLEANUP_20260704" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=CLEANUP_20260704" defer></script>
     <!-- Onboarding tour for new users -->
-    <script src="./assets/17_onboarding_tour.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
+    <script src="./assets/17_onboarding_tour.js?v=CLEANUP_20260704" defer></script>
     <!-- Mở khóa sinh trắc học (Face ID / vân tay) - tính năng bổ sung, không thay đổi luồng PIN -->
-    <script src="./assets/18_biometric_unlock.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/10_bootstrap.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/11_edge_back_swipe.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/pwa.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
+    <script src="./assets/18_biometric_unlock.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/10_bootstrap.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=CLEANUP_20260704" defer></script>
+    <script src="./assets/pwa.js?v=CLEANUP_20260704" defer></script>
 </body>
 
 </html>

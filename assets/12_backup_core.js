@@ -46,6 +46,7 @@
     cust.name = safeDecrypt(cust.name);
     cust.phone = safeDecrypt(cust.phone);
     cust.cccd = safeDecrypt(cust.cccd);
+    cust.notes = safeDecrypt(cust.notes);
     cust.driveLink = null;
 
     if (cust.assets && Array.isArray(cust.assets)) {
@@ -72,6 +73,7 @@
     cust.name = safeEncrypt(cust.name);
     cust.phone = safeEncrypt(cust.phone);
     cust.cccd = safeEncrypt(cust.cccd);
+    cust.notes = safeEncrypt(cust.notes);
 
     if (cust.assets && Array.isArray(cust.assets)) {
       cust.assets = cust.assets.map((a) => {
@@ -188,6 +190,9 @@
     exportAll,
     exportCustomersByIds,
     restoreAllTransactional,
-    restoreCustomersTransactional
+    restoreCustomersTransactional,
+    // Per-customer normalizers (dùng lại ở luồng có shape đóng gói riêng, vd auto-backup 16)
+    normalizeCustomerForExport,
+    normalizeCustomerForRestore
   };
 })();

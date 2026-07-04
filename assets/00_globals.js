@@ -17,6 +17,44 @@
         let currentLightboxList = [];
 
         // =======================
+        // SHARED PURE HELPERS
+        // Nguồn duy nhất — thay cho các bản sao từng nằm rải rác ở 09/14/16.
+        // =======================
+        function getEmployeeId() {
+          return (localStorage.getItem(typeof EMPLOYEE_KEY !== 'undefined' ? EMPLOYEE_KEY : 'app_employee_id') || '').trim();
+        }
+
+        function getDeviceIdSafe() {
+          try {
+            return (typeof getDeviceId === 'function') ? getDeviceId() : (localStorage.getItem('app_device_unique_id') || '');
+          } catch (e) {
+            return localStorage.getItem('app_device_unique_id') || '';
+          }
+        }
+
+        function formatDateTime(ts) {
+          const d = new Date(ts);
+          const dd = String(d.getDate()).padStart(2, "0");
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const yy = d.getFullYear();
+          const hh = String(d.getHours()).padStart(2, "0");
+          const mi = String(d.getMinutes()).padStart(2, "0");
+          return `${dd}/${mm}/${yy} ${hh}:${mi}`;
+        }
+
+        function formatBytes(bytes) {
+          if (!bytes && bytes !== 0) return "-";
+          const units = ["B", "KB", "MB", "GB"];
+          let v = bytes;
+          let i = 0;
+          while (v >= 1024 && i < units.length - 1) {
+            v /= 1024;
+            i += 1;
+          }
+          return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+        }
+
+        // =======================
         // UI PERF HELPERS
         // =======================
         // Standard slide transition in this app uses: transition-transform duration-300

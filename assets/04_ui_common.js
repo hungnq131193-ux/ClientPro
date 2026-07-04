@@ -296,14 +296,6 @@ function getTelLink(phone) {
     const p = normalizePhoneForLink(phone);
     return p ? `tel:+${p}` : '#';
 }
-function isAndroidDevice() {
-    return /Android/i.test(navigator.userAgent || '');
-}
-function isIOSDevice() {
-    const ua = navigator.userAgent || '';
-    // iPadOS mới báo UA là "Macintosh" nên phải kiểm tra thêm cảm ứng
-    return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
-}
 function openZaloChat(phone) {
     const p = normalizePhoneForLink(phone);
     const fallback = getZaloLink(phone);
