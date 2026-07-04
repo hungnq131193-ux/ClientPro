@@ -30,19 +30,6 @@ function toggleCustomerSelection(id, div) {
     if (selectedCustomers.has(id)) { selectedCustomers.delete(id); div.classList.remove('selected'); } else { selectedCustomers.add(id); div.classList.add('selected'); }
     getEl('cust-selection-count').textContent = selectedCustomers.size;
 }
-async function backupSelectedCustomers() {
-    if (selectedCustomers.size === 0) return alert("Chưa chọn KH");
-    getEl('loader').classList.remove('hidden'); getEl('loader-text').textContent = "Đóng gói...";
-    const custIds = Array.from(selectedCustomers); const exportData = { customers: [], images: [] };
-    const tx = db.transaction(['customers', 'images'], 'readonly'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
-    for (const id of custIds) { const cust = await new Promise(r => { const req = custStore.get(id); req.onsuccess = e => r(e.target.result); req.onerror = () => r(null); }); if (cust) exportData.customers.push(cust); }
-    const allImages = await new Promise(r => { const req = imgStore.getAll(); req.onsuccess = e => r(e.target.result || []); req.onerror = () => r([]); });
-    exportData.images = allImages.filter(img => custIds.includes(img.customerId));
-    const blob = new Blob([JSON.stringify({ v: 1.0, ...exportData })], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `QLKH_Export_${selectedCustomers.size}_KH.json`; a.click();
-    getEl('loader').classList.add('hidden'); setCustSelectionMode(false);
-}
-
 // Gửi dữ liệu KH đã chọn sang user khác (gói .cpb được mã hóa, không lộ dữ liệu)
 async function sendSelectedCustomersToUser() {
     if (selectedCustomers.size === 0) return alert('Chưa chọn KH');
@@ -157,11 +144,6 @@ function deleteSelectedCustomers() {
     const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
     selectedCustomers.forEach(custId => { custStore.delete(custId); imgStore.index('customerId').getAllKeys(custId).onsuccess = e => { e.target.result.forEach(imgId => imgStore.delete(imgId)); }; });
     tx.oncomplete = () => { showToast("Đã xóa"); setCustSelectionMode(false); };
-}
-
-function switchListTab(tab) {
-    activeListTab = tab;
-    loadCustomers(getEl('search-input').value);
 }
 
 // ============================================================

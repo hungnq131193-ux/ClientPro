@@ -12,27 +12,6 @@ function _formatYYYYMMDD(ts) {
   return `${y}${m}${day}`;
 }
 
-function _formatDateTime(ts) {
-  const d = new Date(ts);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${dd}/${mm}/${yy} ${hh}:${mi}`;
-}
-
-function _formatBytes(bytes) {
-  if (!bytes && bytes !== 0) return "-";
-  const units = ["B", "KB", "MB", "GB"];
-  let v = bytes;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i += 1;
-  }
-  return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
-}
 
 async function _idbGetAllBackups() {
   return await new Promise((resolve) => {
@@ -132,7 +111,7 @@ async function renderBackupList() {
     const meta = document.createElement("div");
     meta.className = "text-[11px] mt-1 opacity-70";
     meta.style.color = "var(--text-sub)";
-    meta.textContent = `Ngày tạo: ${_formatDateTime(b.createdAt || Date.now())} • Dung lượng: ${_formatBytes(b.size || 0)}`;
+    meta.textContent = `Ngày tạo: ${formatDateTime(b.createdAt || Date.now())} • Dung lượng: ${formatBytes(b.size || 0)}`;
     info.append(title, meta);
 
     const actions = document.createElement("div");
@@ -207,15 +186,7 @@ async function restoreBackupFromApp(id) {
   }
 
   // Phương án 1: mỗi lần Restore sẽ verify lại và xin secret từ server
-  if (typeof ensureBackupSecret === "function") {
-    const sec = await ensureBackupSecret();
-    if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
-      alert(
-        `BẢO MẬT: ${sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật."}\n\nVui lòng kết nối mạng và thử lại.`
-      );
-      return;
-    }
-  }
+  if (!(await requireBackupSecretOrAlert())) return;
 
   const all = await _idbGetAllBackups();
   const rec = all.find((x) => x.id === id);
@@ -265,43 +236,9 @@ async function _restoreFromEncryptedContent(encryptedContent, keyOverrideB64u) {
 
   const data = JSON.parse(decryptedStr);
 
-  // Ghi vào DB
-  const tx = db.transaction(["customers", "images"], "readwrite");
-  const customerStore = tx.objectStore("customers");
-  const imageStore = tx.objectStore("images");
-
-  const enc = (txt) => (txt && String(txt).trim().length > 0 ? encryptText(txt) : "");
-
-  (data.customers || []).forEach((c) => {
-    const cust = JSON.parse(JSON.stringify(c));
-    cust.name = enc(cust.name);
-    cust.phone = enc(cust.phone);
-    cust.cccd = enc(cust.cccd);
-    cust.notes = enc(cust.notes);
-
-    if (cust.assets && Array.isArray(cust.assets)) {
-      cust.assets = cust.assets.map((a) => {
-        const asset = JSON.parse(JSON.stringify(a));
-        asset.name = enc(asset.name);
-        asset.link = enc(asset.link);
-        asset.valuation = enc(asset.valuation);
-        asset.loanValue = enc(asset.loanValue);
-        asset.area = enc(asset.area);
-        asset.width = enc(asset.width);
-        asset.onland = enc(asset.onland);
-        asset.year = enc(asset.year);
-        return asset;
-      });
-    }
-    customerStore.put(cust);
-  });
-
-  (data.images || []).forEach((i) => imageStore.put(i));
-
-  await new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(new Error("DB_WRITE_FAILED"));
-  });
+  // Ghi vào DB qua BackupCore: mã hóa lại các trường (name/phone/cccd/notes + tài sản)
+  // và upsert customers/images trong 1 transaction. Nguồn logic duy nhất ở 12_backup_core.js.
+  await BackupCore.restoreAllTransactional(data);
 }
 
 
@@ -315,20 +252,7 @@ async function backupData() {
     return;
   }
   // Phương án 1: mỗi lần bấm Backup sẽ verify lại và xin secret từ server
-  if (typeof ensureBackupSecret === "function") {
-    const sec = await ensureBackupSecret();
-    if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
-      alert(
-        `BẢO MẬT: ${sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật."}\n\nVui lòng kết nối mạng và thử lại.`
-      );
-      return;
-    }
-  } else if (!APP_BACKUP_KDATA_B64U) {
-    alert(
-      "BẢO MẬT: Không thể backup khi đang Offline hoặc chưa xác thực với Server.\n\nVui lòng kết nối mạng và mở lại App để hệ thống tải khóa bảo mật."
-    );
-    return;
-  }
+  if (!(await requireBackupSecretOrAlert())) return;
 
   // Đóng menu nếu đang mở
   _closeMenuIfOpen();
@@ -337,47 +261,9 @@ async function backupData() {
   getEl("loader-text").textContent = "Đóng gói (Bảo mật)...";
 
   try {
-    // Đọc toàn bộ khách hàng từ IndexedDB
-    const customers = await new Promise((resolve, reject) => {
-      const tx = db.transaction(["customers"], "readonly");
-      const store = tx.objectStore("customers");
-      const req = store.getAll();
-      req.onsuccess = (e) => resolve(e.target.result || []);
-      req.onerror = (e) => reject(e);
-    });
-
-    // Chuẩn hoá dữ liệu: giải mã các trường cần thiết và loại bỏ driveLink
-    const cleanCustomers = customers.map((c) => {
-      const cust = JSON.parse(JSON.stringify(c));
-      cust.name = decryptText(cust.name);
-      cust.phone = decryptText(cust.phone);
-      cust.cccd = decryptText(cust.cccd);
-      cust.notes = decryptText(cust.notes);
-      cust.driveLink = null;
-
-      if (cust.assets && Array.isArray(cust.assets)) {
-        cust.assets = cust.assets.map((a) => {
-          const asset = JSON.parse(JSON.stringify(a));
-          asset.name = decryptText(asset.name);
-          asset.link = decryptText(asset.link);
-          asset.valuation = decryptText(asset.valuation);
-          asset.loanValue = decryptText(asset.loanValue);
-          asset.area = decryptText(asset.area);
-          asset.width = decryptText(asset.width);
-          asset.onland = decryptText(asset.onland);
-          asset.year = decryptText(asset.year);
-          asset.driveLink = null;
-          return asset;
-        });
-      }
-      return cust;
-    });
-
-    const dataToExport = {
-      v: 1.1,
-      customers: cleanCustomers,
-      images: [],
-    };
+    // Đọc + chuẩn hoá qua BackupCore: giải mã name/phone/cccd/notes + tài sản, bỏ driveLink,
+    // loại ảnh. Trả về shape { v:1.1, customers:[...], images:[] } — nguồn logic duy nhất ở 12.
+    const dataToExport = await BackupCore.exportAll();
 
     // Anti-spam backup: hash dữ liệu, nếu không đổi thì bỏ qua
     const rawStr = JSON.stringify(dataToExport);
@@ -449,16 +335,7 @@ async function restoreData(input) {
   getEl("loader-text").textContent = "Xác thực bảo mật...";
 
   // Phương án 1: mỗi lần bấm Restore sẽ verify lại và xin secret từ server
-  if (typeof ensureBackupSecret === "function") {
-    const sec = await ensureBackupSecret();
-    if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
-      getEl("loader").classList.add("hidden");
-      alert(
-        `BẢO MẬT: ${sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật."}\n\nVui lòng kết nối mạng và thử lại.`
-      );
-      return;
-    }
-  }
+  if (!(await requireBackupSecretOrAlert())) { getEl("loader").classList.add("hidden"); return; }
 
   getEl("loader-text").textContent = "Đồng bộ...";
   const r = new FileReader();
@@ -475,13 +352,4 @@ async function restoreData(input) {
     }
   };
   r.readAsText(f);
-}
-function resetAppData() {
-  if (confirm("XÓA SẠCH dữ liệu?")) {
-    localStorage.clear();
-    indexedDB.deleteDatabase(DB_NAME).onsuccess = () => {
-      alert("Đã reset.");
-      window.location.reload();
-    };
-  }
 }

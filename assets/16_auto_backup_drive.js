@@ -32,11 +32,7 @@
         return (localStorage.getItem(key) || '').trim();
     }
 
-    function getEmployeeId() {
-        // Use EMPLOYEE_KEY if defined, fallback to 'app_employee_id'
-        const key = (typeof EMPLOYEE_KEY !== 'undefined') ? EMPLOYEE_KEY : 'app_employee_id';
-        return (localStorage.getItem(key) || '').trim();
-    }
+    // getEmployeeId() dùng chung từ 00_globals.js
 
     function getUserTokenSafe() {
         // Access Token cho UserAPI (Script Drive cá nhân). Server bắt buộc token.
@@ -47,14 +43,7 @@
         return (localStorage.getItem(key) || '').trim();
     }
 
-    function getDeviceIdSafe() {
-        // Use getDeviceId() function if available
-        if (typeof getDeviceId === 'function') {
-            try { return getDeviceId(); } catch (e) { }
-        }
-        // Fallback to localStorage
-        return (localStorage.getItem('app_device_unique_id') || '').trim();
-    }
+    // getDeviceIdSafe() dùng chung từ 00_globals.js
 
     function isAutoBackupEnabled() {
         const val = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
@@ -205,35 +194,14 @@
                 return;
             }
 
-            // Prepare backup data (decrypt for export)
-            const cleanCustomers = customers.map((c) => {
-                const cust = JSON.parse(JSON.stringify(c));
-                if (typeof decryptText === 'function') {
-                    cust.name = decryptText(cust.name);
-                    cust.phone = decryptText(cust.phone);
-                    cust.cccd = decryptText(cust.cccd);
-                }
-                cust.driveLink = null;
-
-                if (cust.assets && Array.isArray(cust.assets)) {
-                    cust.assets = cust.assets.map((a) => {
-                        const asset = JSON.parse(JSON.stringify(a));
-                        if (typeof decryptText === 'function') {
-                            asset.name = decryptText(asset.name);
-                            asset.link = decryptText(asset.link);
-                            asset.valuation = decryptText(asset.valuation);
-                            asset.loanValue = decryptText(asset.loanValue);
-                            asset.area = decryptText(asset.area);
-                            asset.width = decryptText(asset.width);
-                            asset.onland = decryptText(asset.onland);
-                            asset.year = decryptText(asset.year);
-                        }
-                        asset.driveLink = null;
-                        return asset;
-                    });
-                }
-                return cust;
-            });
+            // Chuẩn hoá qua BackupCore (nguồn logic duy nhất ở 12_backup_core.js): giải mã
+            // name/phone/cccd/notes + tài sản, bỏ driveLink. Khối cũ BỎ SÓT 'notes' nên notes
+            // giữ nguyên ciphertext rồi bị mã hóa lại lần nữa lúc restore (double-encrypt, hỏng
+            // notes). Dùng chung normalizer để auto-backup nhất quán với backup thủ công (09).
+            if (!window.BackupCore || typeof BackupCore.normalizeCustomerForExport !== 'function') {
+                throw new Error('BackupCore chưa sẵn sàng.');
+            }
+            const cleanCustomers = customers.map((c) => BackupCore.normalizeCustomerForExport(c));
 
             const dataToExport = {
                 v: 1.1,

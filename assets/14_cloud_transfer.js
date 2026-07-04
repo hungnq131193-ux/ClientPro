@@ -41,17 +41,7 @@
 
   function now() { return Date.now(); }
 
-  function getEmployeeId() {
-    return (localStorage.getItem(typeof EMPLOYEE_KEY !== 'undefined' ? EMPLOYEE_KEY : 'app_employee_id') || '').trim();
-  }
-
-  function getDeviceIdSafe() {
-    try {
-      return (typeof getDeviceId === 'function') ? getDeviceId() : (localStorage.getItem('app_device_unique_id') || '');
-    } catch (e) {
-      return localStorage.getItem('app_device_unique_id') || '';
-    }
-  }
+  // getEmployeeId() và getDeviceIdSafe() dùng chung từ 00_globals.js
 
   function serverUrl() {
     return (typeof ADMIN_SERVER_URL !== 'undefined' && ADMIN_SERVER_URL) ? ADMIN_SERVER_URL : '';
@@ -132,20 +122,7 @@
     return p.toString();
   }
 
-  function formatDateTime(ts) {
-    if (typeof _formatDateTime === 'function') return _formatDateTime(ts);
-    const d = new Date(ts);
-    return d.toLocaleString();
-  }
-
-  function formatBytes(bytes) {
-    if (typeof _formatBytes === 'function') return _formatBytes(bytes);
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let v = bytes || 0;
-    let i = 0;
-    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-    return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
-  }
+  // formatDateTime() và formatBytes() dùng chung từ 00_globals.js
 
   async function listUsers(opts) {
     const o = opts || {};
