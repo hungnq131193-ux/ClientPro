@@ -5,6 +5,7 @@ const SCRIPT_KEY = 'app_script_url';
 // --- CẤU HÌNH SERVER TRUNG TÂM ---
 const ADMIN_SERVER_URL = "https://script.google.com/macros/s/AKfycbyXsfCbZTaRTTM5nEmwA6YS6PS2lRFp3yxEI-d5I4UQgIB45CRYAuNWa0Y98kEB9oxK-g/exec"; 
 const USER_SCRIPT_KEY = 'app_user_script_url';
+const USER_TOKEN_KEY = 'app_user_script_token';
 // map weathercode -> text tiếng Việt đơn giản
 const WEATHER_CODE_TEXT = {
     0: 'Trời quang',

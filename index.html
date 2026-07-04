@@ -286,6 +286,10 @@
                     <label for="dashboard-drive-url">Link GAS cá nhân</label>
                     <div class="dashboard-drive-row">
                         <input id="dashboard-drive-url" type="text" placeholder="https://script.google.com/...">
+                    </div>
+                    <label for="dashboard-drive-token">Mã bảo mật (Access Token)</label>
+                    <div class="dashboard-drive-row">
+                        <input id="dashboard-drive-token" type="password" autocomplete="off" placeholder="Dán token từ Script cá nhân">
                         <button data-action="saveScriptUrl"><i data-lucide="save" class="w-4 h-4"></i> Lưu</button>
                     </div>
                 </div>
@@ -559,8 +563,8 @@
     <script src="./assets/ui/load_modals.js" defer></script>
 
     <script src="./assets/00_globals.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/01_config.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/02_security.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
+    <script src="./assets/01_config.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
+    <script src="./assets/02_security.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
     <script src="./assets/12_backup_core.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
     <script src="./assets/13_ui_select_customers.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
     <script src="./assets/15_auth_gate.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
@@ -570,14 +574,14 @@
     <script src="./assets/06_assets.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
     <script src="./assets/08_images_camera.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
     <script src="./assets/09_menu.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/09_backup_manager.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
+    <script src="./assets/09_backup_manager.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
     <script src="./assets/09_donate.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
     <script src="./assets/09_weather.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
-    <script src="./assets/07_drive.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
+    <script src="./assets/07_drive.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=SEC_PERUSER_KEY_TOKEN_20260704" defer></script>
     <!-- Onboarding tour for new users -->
     <script src="./assets/17_onboarding_tour.js?v=FIX_BIOMETRIC_MODAL_20260704" defer></script>
     <!-- Mở khóa sinh trắc học (Face ID / vân tay) - tính năng bổ sung, không thay đổi luồng PIN -->

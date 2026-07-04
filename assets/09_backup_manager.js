@@ -239,18 +239,22 @@ async function restoreBackupFromApp(id) {
   }
 }
 
-async function _restoreFromEncryptedContent(encryptedContent) {
+async function _restoreFromEncryptedContent(encryptedContent, keyOverrideB64u) {
   if (typeof requireUnlockedForRestore === "function" && !requireUnlockedForRestore()) throw new Error("App locked");
   if ((typeof isAppUnlocked === "function" && !isAppUnlocked()) || typeof masterKey === "undefined" || !masterKey) {
     alert("Vui lòng mở khóa dữ liệu trước khi khôi phục.");
     throw new Error("App locked");
   }
 
+  // Khóa giải mã: mặc định khóa cá nhân; cho phép override (vd transfer key khi nhận
+  // backup từ user khác — bản mã được mã hóa bằng khóa hộp thư của người nhận).
+  const decKey = keyOverrideB64u || APP_BACKUP_KDATA_B64U;
+
   // Giải mã (AES-GCM envelope v2 + tương thích legacy CryptoJS v1)
   let decryptedStr = "";
   try {
     if (typeof decryptBackupPayload === 'function') {
-      const out = await decryptBackupPayload(String(encryptedContent || ''), APP_BACKUP_KDATA_B64U);
+      const out = await decryptBackupPayload(String(encryptedContent || ''), decKey);
       decryptedStr = out && out.plaintext ? out.plaintext : '';
     }
   } catch (e) {

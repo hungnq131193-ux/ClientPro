@@ -1,9 +1,9 @@
-// BUILD: 2026-07-04_FIX_BIOMETRIC_MODAL
+// BUILD: 2026-07-04_SECURITY_PERUSER_KEY_TOKEN
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v5.8.0-fix-biometric-modal-20260704';
+const VERSION = 'v5.9.0-security-peruser-key-token-20260704';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
