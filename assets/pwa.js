@@ -14,7 +14,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v5.7.5-csp-inline-cleanup-20260703';
+  var SW_BUILD = 'v5.7.6-fix-screen-transition-20260703';
 
   function sendSkipWaiting(sw) {
     try {
