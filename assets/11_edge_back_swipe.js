@@ -244,7 +244,10 @@
       return callIfFn('closeForgotModal') || (get('forgot-pin-modal').classList.add('hidden'), true);
     }
     if (isVisibleModal('backup-manager-modal')) {
-      return callIfFn('closeBackupManagerModal') || (get('backup-manager-modal').classList.add('hidden'), true);
+      // NB: the real function in 09_backup_manager.js is closeBackupManager
+      // (no "Modal" suffix) — calling the wrong name silently fell through
+      // to the raw class toggle.
+      return callIfFn('closeBackupManager') || (get('backup-manager-modal').classList.add('hidden'), true);
     }
 
     // Settings/hamburger dropdown (menu-overlay + settings-menu). Not a modal or
@@ -274,16 +277,16 @@
   }
 
   // Pop the history entry a tracked screen/modal/selection-layer pushed when
-  // it opened, but only when this close is happening OUTSIDE our own back
-  // gesture handling (suppressDepthPush is true while runBackAction() is
-  // running from a touch swipe or a popstate — in both of those cases the
-  // entry is already being/was already consumed, so popping again here would
-  // double-consume and skip a step). Other modules (e.g. the selection-mode
-  // toggle buttons in 04_ui_common.js) call this when they close something
-  // that pushed history via a plain tap, so that entry doesn't linger as a
-  // phantom step the Dashboard's real back-swipe has to burn through later.
+  // it opened, so opens and closes stay 1:1. The ONLY close that must NOT
+  // pop here is a popstate-driven one (hardware/system back): the browser
+  // already consumed that entry before our handler ran, so popping again
+  // would double-consume and silently burn an extra step. Every other
+  // origin — our own touch swipe, or a plain tap on Cancel/"X"/back-arrow
+  // (e.g. the selection-mode toggles in 04_ui_common.js call this) — leaves
+  // the entry on the stack and DOES need it consumed here, otherwise it
+  // lingers as a phantom step the Dashboard's real back has to burn through.
   function consumeTrackedHistoryStep() {
-    if (suppressDepthPush) return;
+    if (viaPopstateBack) return;
     try {
       if (history.state && (history.state.__clientpro_edge_back || history.state.clientProSelectionLayer)) {
         lastTouchBackAt = Date.now(); // dedupe the resulting popstate; already handled
@@ -306,6 +309,24 @@
   const POPSTATE_DEDUPE_MS = 600;   // if popstate fires this soon after, treat as the same physical gesture
   const SENTINEL_STATE = { __clientpro_edge_back: 1 };
   let suppressDepthPush = false;    // true while we're closing something, so that doesn't get miscounted as an "open"
+  let viaPopstateBack = false;      // true while a close cascade was started by a popstate (browser already popped the entry)
+
+  // The MutationObserver scan runs on a rAF queued from the observer
+  // microtask AFTER the handler that mutated the DOM — i.e. LATER in the
+  // same frame than any rAF queued inside that handler. A single-rAF reset
+  // therefore fires BEFORE the scan ever sees the flags (that was the bug:
+  // hardware/system back cleared the flags too early, the scan then treated
+  // the close like a tap-close and popped a SECOND history entry — every
+  // hardware back burned two steps, so the app exited far too early).
+  // Double-rAF defers the reset to the next frame, safely after the scan.
+  function clearBackFlagsAfterScan() {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        suppressDepthPush = false;
+        viaPopstateBack = false;
+      });
+    });
+  }
 
   // PERF: Chỉ gắn touchmove (passive:false) khi thật sự bắt đầu edge-swipe.
   // Tránh ảnh hưởng scroll performance toàn app.
@@ -401,7 +422,7 @@
       const ok = runBackAction();
       lastTouchBackAt = Date.now();
       if (ok) cooldownUntil = Date.now() + COOLDOWN_MS;
-      requestAnimationFrame(function () { suppressDepthPush = false; });
+      clearBackFlagsAfterScan();
     }
   }
 
@@ -461,13 +482,15 @@
         return;
       }
       // A screen/modal just closed via a normal tap (header back-arrow, "X",
-      // cancel button, etc.) rather than through our own back-gesture flow
-      // (that path already carries suppressDepthPush=true). Without this,
-      // the history entry pushed when it opened is never consumed, so it
-      // sits there as a phantom step — the Dashboard's real back-swipe later
-      // has to burn through all these leftovers before it actually exits,
-      // and each one it burns re-runs the back cascade for nothing (looks
-      // like a stray screen transition). Pop it here so open/close stay 1:1.
+      // cancel button, etc.) or via our own touch swipe — in both cases the
+      // history entry pushed when it opened is still on the stack. Without
+      // this, that entry is never consumed, so it sits there as a phantom
+      // step — the Dashboard's real back later has to burn through all these
+      // leftovers before it actually exits, and each one it burns re-runs
+      // the back cascade for nothing (looks like a stray screen transition).
+      // Pop it here so open/close stay 1:1. consumeTrackedHistoryStep()
+      // itself skips the one case where popping is wrong: a popstate-driven
+      // close, where the browser already consumed the entry.
       if (closed) consumeTrackedHistoryStep();
     }
 
@@ -496,9 +519,12 @@
         // count as a fresh "open" in the very same tick.
         suppressDepthPush = true;
         if (!justHandledByTouch) {
+          // The browser already popped one history entry for this event;
+          // flag it so the close-scan doesn't pop a second one on top.
+          viaPopstateBack = true;
           runBackAction();
         }
-        requestAnimationFrame(function () { suppressDepthPush = false; });
+        clearBackFlagsAfterScan();
       });
     } catch (_) { }
 

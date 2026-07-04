@@ -14,7 +14,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v5.7.6-fix-screen-transition-20260703';
+  var SW_BUILD = 'v5.7.7-fix-back-double-pop-20260704';
 
   function sendSkipWaiting(sw) {
     try {
