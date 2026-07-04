@@ -1,9 +1,9 @@
-// BUILD: 2026-07-04_FIX_BACK_DOUBLE_POP
+// BUILD: 2026-07-04_ADD_BIOMETRIC_UNLOCK
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v5.7.7-fix-back-double-pop-20260704';
+const VERSION = 'v5.7.8-add-biometric-unlock-20260704';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -21,7 +21,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'FIX_BACK_DOUBLE_POP_20260704';
+const ASSET_V = 'ADD_BIOMETRIC_UNLOCK_20260704';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -58,6 +58,7 @@ const STATIC_ASSETS = [
   `./assets/15_auth_gate.js?v=${ASSET_V}`,
   `./assets/16_auto_backup_drive.js?v=${ASSET_V}`,
   `./assets/17_onboarding_tour.js?v=${ASSET_V}`,
+  `./assets/18_biometric_unlock.js?v=${ASSET_V}`,
 
   './assets/ui/load_modals.js',
 
@@ -65,6 +66,7 @@ const STATIC_ASSETS = [
   './assets/ui/modals/setup-lock-modal.html',
   './assets/ui/modals/activation-modal.html',
   './assets/ui/modals/forgot-pin-modal.html',
+  './assets/ui/modals/biometric-setup-modal.html',
   './assets/ui/modals/add-modal.html',
   './assets/ui/modals/asset-modal.html',
   './assets/ui/modals/guide-modal.html',
