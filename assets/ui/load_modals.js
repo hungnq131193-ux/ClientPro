@@ -17,6 +17,7 @@
     'assets/ui/modals/setup-lock-modal.html',
     'assets/ui/modals/activation-modal.html',
     'assets/ui/modals/forgot-pin-modal.html',
+    'assets/ui/modals/biometric-setup-modal.html',
     'assets/ui/modals/add-modal.html',
     'assets/ui/modals/asset-modal.html',
     'assets/ui/modals/guide-modal.html',

@@ -714,6 +714,8 @@ async function saveSecuritySetup() {
     if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
   }
   resetPinFailures();
+  // PIN vừa đổi: enrollment sinh trắc học cũ (nếu có) mã hóa PIN cũ nên không còn hợp lệ.
+  try { if (window.BiometricUnlock) window.BiometricUnlock.onPinChanged(); } catch (e) { }
   // Ẩn hộp thoại và thông báo
   const note = getEl("setup-pin-note");
   if (note) note.classList.add("hidden");

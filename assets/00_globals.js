@@ -146,6 +146,11 @@
             // --- namespace ---
             'DriveBackup.performNow': () => DriveBackup.performNow(),
             'CloudTransferUI.showTab': (el) => CloudTransferUI.showTab(el.dataset.arg),
+            'BiometricUnlock.openSetup': () => BiometricUnlock.openSetup(),
+            'BiometricUnlock.closeSetup': () => BiometricUnlock.closeSetup(),
+            'BiometricUnlock.confirmEnable': () => BiometricUnlock.confirmEnable(),
+            'BiometricUnlock.requestDisable': () => BiometricUnlock.requestDisable(),
+            'BiometricUnlock.tryUnlock': () => BiometricUnlock.tryUnlock(),
           };
 
           const CHANGE_ACTIONS = {
