@@ -14,7 +14,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v5.9.0-security-peruser-key-token-20260704';
+  var SW_BUILD = 'v1.0.0';
 
   function sendSkipWaiting(sw) {
     try {

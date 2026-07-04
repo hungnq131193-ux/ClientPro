@@ -1,9 +1,9 @@
-// BUILD: 2026-07-04_SECURITY_PERUSER_KEY_TOKEN
+// BUILD: 2026-07-04_v1.0.0_LAUNCH
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v5.9.0-security-peruser-key-token-20260704';
+const VERSION = 'v1.0.0';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
