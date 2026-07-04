@@ -1,0 +1,802 @@
+// =========================================================
+// CLIENTPRO GAS - ADMIN VERSION (Auth, KDATA, Transfers)
+// v12 - Security hardening, backward-compatible with v11 clients
+//
+// TƯƠNG THÍCH NGƯỢC (QUAN TRỌNG):
+//   - Giữ NGUYÊN GLOBAL_KDATA cũ  -> mọi backup/transfer cũ vẫn giải mã được.
+//   - Giữ NGUYÊN mọi action, alias field, và cấu trúc response mà app đang đọc.
+//   - User đang hoạt động (đã bind deviceId) KHÔNG bị ảnh hưởng.
+//
+// THAY ĐỔI CHÍNH SO VỚI v11:
+//   1. Vá lỗ hổng chiếm tài khoản: chỉ 'activate' (có key hợp lệ) mới được
+//      bind deviceId cho tài khoản chưa bind. Các action khác KHÔNG tự bind nữa,
+//      và từ chối nếu tài khoản chưa có deviceId (tránh bị người lạ chiếm chỗ).
+//   2. Bật lại rate-limit cho issue_kdata (mặc định 30s).
+//   3. Chống brute-force key khi activate (lockout theo IP-less: employeeId).
+//   4. Lock chỉ áp cho action GHI dữ liệu -> action đọc không nghẽn lẫn nhau.
+//   5. Không lộ exception thô ra client (log lại bằng Logger).
+//   6. Tùy chọn tắt debug_echo trên production.
+// =========================================================
+const BUILD_TAG = 'CLIENTPRO_GAS_BUILD_2026-07-03_v12_ADMIN';
+
+// =======================
+// CONFIG
+// =======================
+const SHEET_ID = '1qiQydeo8LmEQ02EElKN4DUi_U_Wa9061fiusEI33stg';
+const TAB_NAME = 'Keys';
+
+// Transfers
+const TRANSFERS_SHEET = 'Transfers';
+const TRANSFER_FOLDER_NAME = 'CLIENTPRO_TRANSFERS';
+const TTL_HOURS = 24;
+const TRANSFER_KEEP_LAST = 30;
+
+// ScriptProperties keys
+const PROP_GLOBAL_KDATA_B64U = 'GLOBAL_KDATA_B64U';
+const PROP_TRANSFER_FOLDER_ID = 'TRANSFER_FOLDER_ID';
+
+// --- SECURITY TUNABLES ---
+// issue_kdata cooldown (seconds). Đặt 0 để TẮT rate limit. Khuyến nghị 30.
+const ISSUE_KDATA_COOLDOWN_SEC = 30;
+// Chống brute-force khi activate: số lần thử sai key tối đa trong cửa sổ, và thời gian khóa.
+const ACTIVATE_MAX_FAILS = 8;
+const ACTIVATE_FAIL_WINDOW_SEC = 600;   // 10 phút
+// Cho phép debug_echo? Đặt false trên production để không lộ nội dung request.
+const ALLOW_DEBUG_ECHO = false;
+// Cache danh sách Keys trong bộ nhớ (giây) để giảm số lần đọc Sheet. 0 = tắt.
+const KEYS_CACHE_TTL_SEC = 20;
+
+// =========================================================
+// WEB APP ENTRY
+// =========================================================
+function doGet(e) { return handleRequest_(e); }
+function doPost(e) { return handleRequest_(e); }
+
+// Các action có GHI dữ liệu -> cần khóa để tránh race. Action đọc không cần khóa.
+const WRITE_ACTIONS_ = {
+  activate: 1,
+  issue_kdata: 1,       // có thể bind deviceId + tạo KDATA lần đầu
+  upload_backup: 1,
+  download_backup: 1,   // có set trạng thái 'received'/'expired'
+  delete_backup: 1
+};
+
+function handleRequest_(e) {
+  let raw = {};
+  let data = {};
+  let action = '';
+
+  // Parse trước để biết có cần lock hay không.
+  try {
+    raw = parseRequestData_(e);
+    data = normalizeData_(raw);
+    action = String(data.action || '').trim().toLowerCase();
+  } catch (errParse) {
+    Logger.log('parse error: ' + errParse);
+    return outputJSON_({ status: 'error', message: 'Yeu cau khong hop le', build: BUILD_TAG });
+  }
+
+  const needLock = !!WRITE_ACTIONS_[action];
+  let lock = null;
+  if (needLock) {
+    lock = LockService.getScriptLock();
+    try { lock.waitLock(10000); } catch (eLock) {
+      return outputJSON_({ status: 'error', message: 'May chu ban, thu lai sau', build: BUILD_TAG });
+    }
+  }
+
+  try {
+    if (action === 'debug_echo') {
+      if (!ALLOW_DEBUG_ECHO) {
+        return outputJSON_({ status: 'error', message: 'Disabled', build: BUILD_TAG });
+      }
+      return outputJSON_({ status: 'success', build: BUILD_TAG, data: data, raw: raw });
+    }
+    if (action === 'ping') {
+      return outputJSON_({ status: 'success', message: 'Connected', build: BUILD_TAG });
+    }
+
+    // Auth
+    if (action === 'activate') return handleActivation_(data);
+    if (action === 'check_status') return handleCheckStatus_(data);
+
+    // Global KDATA
+    if (action === 'issue_kdata') return handleIssueKdata_(data);
+
+    // Transfer (P2P)
+    if (action === 'list_users') return handleListUsers_(data);
+    if (action === 'upload_backup') return handleUploadBackup_(data);
+    if (action === 'list_inbox') return handleListInbox_(data);
+    if (action === 'download_backup') return handleDownloadBackup_(data);
+    if (action === 'delete_backup') return handleDeleteBackup_(data);
+
+    return outputJSON_({ status: 'error', message: 'Action khong hop le', build: BUILD_TAG });
+  } catch (err) {
+    // Không lộ chi tiết exception cho client; log lại để admin xem.
+    Logger.log('handleRequest_ error [' + action + ']: ' + String(err) + '\n' + (err && err.stack ? err.stack : ''));
+    return outputJSON_({ status: 'error', message: 'Loi Server. Vui long thu lai.', build: BUILD_TAG });
+  } finally {
+    if (lock) { try { lock.releaseLock(); } catch (e2) { } }
+  }
+}
+
+// =========================================================
+// AUTH - Keys sheet columns:
+// A:Key B:Status C:EmployeeId D:DeviceInfo E:Date F:DeviceId
+// =========================================================
+function handleActivation_(data) {
+  const keyInput = String(data.key || '').trim();
+  const empIdInput = String(data.employeeId || '').trim();
+  const deviceInfo = String(data.deviceInfo || 'Unknown');
+  const deviceIdInput = String(data.deviceId || '').trim();
+
+  if (!keyInput || !empIdInput) {
+    return outputJSON_({ status: 'error', message: 'Thieu thong tin (Key / Ma NV)', build: BUILD_TAG });
+  }
+
+  // Chống brute-force: khóa tạm nếu thử sai quá nhiều lần.
+  if (isActivateLocked_(empIdInput)) {
+    return outputJSON_({ status: 'error', message: 'Ban da thu sai qua nhieu lan. Vui long doi vai phut.', build: BUILD_TAG });
+  }
+
+  const sheet = getKeysSheet_();
+  if (!sheet) return outputJSON_({ status: 'error', message: 'Khong tim thay Sheet: ' + TAB_NAME, build: BUILD_TAG });
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return outputJSON_({ status: 'error', message: 'Sheet Keys chua co du lieu', build: BUILD_TAG });
+
+  const rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+
+  let foundIndex = -1;
+  let errorMsg = '';
+
+  for (let i = 0; i < rows.length; i++) {
+    const rowKey = String(rows[i][0]).trim();
+    const rowStatus = String(rows[i][1]).trim().toLowerCase();
+    const rowEmp = String(rows[i][2]).trim();
+    const rowDeviceId = String(rows[i][5] || '').trim();
+
+    if (rowKey.toUpperCase() === keyInput.toUpperCase()) {
+      if (rowStatus === 'locked') {
+        errorMsg = 'Key nay da bi KHOA boi Admin';
+      } else if (rowStatus === 'used' || rowStatus === 'active') {
+        if (rowEmp.toUpperCase() !== empIdInput.toUpperCase()) {
+          errorMsg = 'Key nay thuoc ve nhan vien khac!';
+        } else if (rowDeviceId && deviceIdInput && rowDeviceId !== deviceIdInput) {
+          errorMsg = 'Key da kich hoat tren thiet bi khac. Vui long mua moi!';
+        } else {
+          foundIndex = i;
+        }
+      } else {
+        foundIndex = i;
+      }
+      break;
+    }
+  }
+
+  if (errorMsg) {
+    // Sai key/thiết bị -> tính là 1 lần thất bại.
+    registerActivateFail_(empIdInput);
+    return outputJSON_({ status: 'error', message: errorMsg, build: BUILD_TAG });
+  }
+
+  if (foundIndex !== -1) {
+    const realRow = foundIndex + 2;
+    const existingDeviceId = String(rows[foundIndex][5] || '').trim();
+
+    sheet.getRange(realRow, 2).setValue('Used');
+    sheet.getRange(realRow, 3).setValue(empIdInput);
+    sheet.getRange(realRow, 4).setValue(deviceInfo);
+    sheet.getRange(realRow, 5).setValue(new Date());
+    // BIND deviceId ngay tại activate (nơi DUY NHẤT có key hợp lệ). Ghi khi:
+    //  - chưa bind (máy mới lần đầu), hoặc
+    //  - trùng với deviceId cũ (tái kích hoạt cùng máy).
+    // Không ghi đè khi khác máy vì đã chặn ở khối errorMsg phía trên.
+    if (deviceIdInput) {
+      if (!existingDeviceId || existingDeviceId === deviceIdInput) {
+        sheet.getRange(realRow, 6).setValue(deviceIdInput);
+      }
+    }
+
+    clearActivateFails_(empIdInput);
+    invalidateKeysCache_();
+    return outputJSON_({ status: 'success', message: 'Kich hoat thanh cong', build: BUILD_TAG });
+  }
+
+  registerActivateFail_(empIdInput);
+  return outputJSON_({ status: 'error', message: 'Ma Key khong ton tai hoac sai', build: BUILD_TAG });
+}
+
+function handleCheckStatus_(data) {
+  const emp = String(data.employeeId || '').trim();
+  if (!emp) return outputJSON_({ status: 'error', message: 'Thieu Ma Nhan Vien', build: BUILD_TAG });
+
+  const rows = getKeysRowsCached_();
+  if (!rows) return outputJSON_({ status: 'error', message: 'Loi Sheet Keys', build: BUILD_TAG });
+  if (rows.length === 0) return outputJSON_({ status: 'error', message: 'Sheet Keys khong co du lieu', build: BUILD_TAG });
+
+  let isActive = false;
+  let isLocked = false;
+  const target = emp.toUpperCase();
+
+  for (let i = 0; i < rows.length; i++) {
+    const status = String(rows[i][1] || '').trim().toLowerCase();
+    const rowEmp = String(rows[i][2] || '').trim();
+    if (rowEmp.toUpperCase() === target) {
+      if (status === 'locked') { isLocked = true; break; }
+      else if (status === 'used' || status === 'active') isActive = true;
+    }
+  }
+
+  if (isLocked) return outputJSON_({ status: 'locked', message: 'Tai khoan cua ban da bi KHOA', build: BUILD_TAG });
+  if (isActive) return outputJSON_({ status: 'active', build: BUILD_TAG });
+  return outputJSON_({ status: 'error', message: 'Tai khoan chua kich hoat', build: BUILD_TAG });
+}
+
+// Xác thực user cho các action nhạy cảm.
+// VÁ BẢO MẬT: nếu tài khoản CHƯA bind deviceId thì TỪ CHỐI (thay vì ok:true như v11),
+// buộc user phải 'activate' trước để bind máy. Điều này chặn người lạ dùng nhờ
+// một employeeId hợp lệ nhưng chưa kích hoạt để chiếm quyền.
+// User đang hoạt động đều đã bind deviceId nên KHÔNG bị ảnh hưởng.
+function validateActiveUser_(data) {
+  const emp = String(data.employeeId || '').trim();
+  const deviceIdInput = String(data.deviceId || '').trim();
+  if (!emp) return { ok: false, message: 'Thieu Ma Nhan Vien' };
+
+  const rows = getKeysRowsCached_();
+  if (!rows) return { ok: false, message: 'Loi Sheet' };
+  if (rows.length === 0) return { ok: false, message: 'Sheet khong co du lieu' };
+
+  const target = emp.toUpperCase();
+  for (let i = 0; i < rows.length; i++) {
+    const status = String(rows[i][1] || '').trim().toLowerCase();
+    const rowEmp = String(rows[i][2] || '').trim();
+    const storedDeviceId = String(rows[i][5] || '').trim();
+
+    if (rowEmp.toUpperCase() !== target) continue;
+    if (status === 'locked') return { ok: false, message: 'Tai khoan cua ban da bi KHOA' };
+    if (status === 'used' || status === 'active') {
+      if (!storedDeviceId) {
+        // Chưa bind máy -> chưa hoàn tất kích hoạt an toàn. Từ chối.
+        return { ok: false, message: 'Tai khoan chua gan thiet bi. Vui long kich hoat lai tren thiet bi nay.' };
+      }
+      if (!deviceIdInput) return { ok: false, message: 'Thieu deviceId' };
+      if (storedDeviceId !== deviceIdInput) return { ok: false, message: 'Sai thiet bi (Device ID khong khop)' };
+      return { ok: true, employeeId: rowEmp };
+    }
+  }
+  return { ok: false, message: 'Tai khoan chua kich hoat' };
+}
+
+function resolveEmployeeIdCanonical_(empId) {
+  empId = String(empId || '').trim();
+  if (!empId) return '';
+  const rows = getKeysRowsCached_();
+  if (!rows || rows.length === 0) return '';
+  const target = empId.toUpperCase();
+  for (let i = 0; i < rows.length; i++) {
+    const status = String(rows[i][1] || '').trim().toLowerCase();
+    const rowEmp = String(rows[i][2] || '').trim();
+    if (!rowEmp) continue;
+    if (status === 'locked') continue;
+    if (status !== 'used' && status !== 'active') continue;
+    if (rowEmp.toUpperCase() === target) return rowEmp;
+  }
+  return '';
+}
+
+// =========================================================
+// GLOBAL KDATA (SYSTEM-WIDE)
+// GIỮ NGUYÊN giá trị KDATA cũ để backup/transfer cũ vẫn giải mã được.
+// =========================================================
+function handleIssueKdata_(data) {
+  const auth = validateActiveUser_(data);
+  if (!auth.ok) return outputJSON_({ status: 'error', message: 'ISSUE_KDATA FAIL: ' + auth.message, build: BUILD_TAG });
+
+  const deviceId = String(data.deviceId || '').trim();
+  if (!deviceId) return outputJSON_({ status: 'error', message: 'ISSUE_KDATA FAIL: Thieu deviceId', build: BUILD_TAG });
+
+  if (ISSUE_KDATA_COOLDOWN_SEC && ISSUE_KDATA_COOLDOWN_SEC > 0) {
+    const cache = CacheService.getScriptCache();
+    const rlKey = 'RL_ISSUE_KDATA_' + auth.employeeId.toUpperCase() + '_' + deviceId;
+    if (cache.get(rlKey)) {
+      return outputJSON_({ status: 'error', message: 'ISSUE_KDATA rate-limited, try later', build: BUILD_TAG });
+    }
+    cache.put(rlKey, '1', ISSUE_KDATA_COOLDOWN_SEC);
+  }
+
+  // v12: KHÔNG còn tự bind deviceId ở đây nữa (validateActiveUser_ đã yêu cầu bind sẵn).
+  const kdataB64u = getOrCreateGlobalKdataB64u_();
+  return outputJSON_({
+    status: 'success',
+    message: 'KDATA issued',
+    kdata_b64u: kdataB64u,
+    build: BUILD_TAG
+  });
+}
+
+function getOrCreateGlobalKdataB64u_() {
+  const props = PropertiesService.getScriptProperties();
+  const existing = props.getProperty(PROP_GLOBAL_KDATA_B64U);
+  if (existing && String(existing).length > 20) return String(existing);
+
+  const entropy = Utilities.getUuid() + '|' + Utilities.getUuid() + '|' + new Date().toISOString();
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, entropy, Utilities.Charset.UTF_8);
+  const bytes = Array.from(digest).map(function (x) { return (x < 0 ? x + 256 : x); });
+  const b64u = b64uEncodeNoPad_(bytes);
+  props.setProperty(PROP_GLOBAL_KDATA_B64U, b64u);
+  return b64u;
+}
+
+// =========================================================
+// TRANSFERS (P2P - KEEP LAST 30)
+// =========================================================
+function handleListUsers_(data) {
+  const auth = validateActiveUser_(data);
+  if (!auth.ok) return outputJSON_({ status: 'error', message: 'LIST_USERS FAIL: ' + auth.message, build: BUILD_TAG });
+
+  const rows = getKeysRowsCached_();
+  if (!rows || rows.length === 0) return outputJSON_({ status: 'success', users: [], build: BUILD_TAG });
+
+  const users = [];
+  const me = auth.employeeId.toUpperCase();
+  for (let i = 0; i < rows.length; i++) {
+    const status = String(rows[i][1] || '').trim().toLowerCase();
+    const emp = String(rows[i][2] || '').trim();
+    const devInfo = String(rows[i][3] || '').trim();
+    const devId = String(rows[i][5] || '').trim();
+
+    if (!emp) continue;
+    if (status === 'locked') continue;
+    if (status !== 'used' && status !== 'active') continue;
+    if (emp.toUpperCase() === me) continue;
+
+    users.push({
+      employeeId: emp,
+      deviceInfo: devInfo,
+      deviceIdHint: devId ? (devId.substring(0, 4) + '...' + devId.substring(Math.max(0, devId.length - 4))) : ''
+    });
+  }
+  return outputJSON_({ status: 'success', users: users, build: BUILD_TAG });
+}
+
+function handleUploadBackup_(data) {
+  const auth = validateActiveUser_(data);
+  if (!auth.ok) return outputJSON_({ status: 'error', message: 'UPLOAD FAIL: ' + auth.message, build: BUILD_TAG });
+
+  const toRaw = String(data.toEmployeeId || '').trim();
+  if (!toRaw) return outputJSON_({ status: 'error', message: 'UPLOAD FAIL: Thieu toEmployeeId', build: BUILD_TAG });
+
+  const toEmp = resolveEmployeeIdCanonical_(toRaw);
+  if (!toEmp) return outputJSON_({ status: 'error', message: 'UPLOAD FAIL: Nguoi nhan khong hop le: ' + toRaw, build: BUILD_TAG });
+
+  const cipherB64 = String(data.cipher_b64 || '').trim();
+  if (!cipherB64) return outputJSON_({ status: 'error', message: 'UPLOAD FAIL: Thieu cipher_b64', build: BUILD_TAG });
+
+  var filename = String(data.filename || 'CLIENTPRO_TRANSFER.cpb').trim();
+  if (!/\.cpb$/i.test(filename)) filename = (filename.replace(/\.[a-z0-9]+$/i, '') || 'CLIENTPRO_TRANSFER') + '.cpb';
+
+  const size = Number(data.size || 0);
+  const hash = String(data.hash || '').trim();
+
+  const tSheet = getOrCreateTransfersSheet_();
+  const folderId = getOrCreateTransferFolderId_();
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + TTL_HOURS * 3600 * 1000);
+  const transferId = 'T' + now.getTime() + '_' + Math.floor(Math.random() * 1000000);
+
+  const blob = createTransferBlobFromCipher_(cipherB64, filename);
+  const folder = DriveApp.getFolderById(folderId);
+  const file = folder.createFile(blob);
+  file.setName('CLIENTPRO_TRANSFER_' + transferId + '.cpb');
+
+  tSheet.appendRow([transferId, auth.employeeId, toEmp, now, expiresAt, file.getId(), filename, size, hash, 'new']);
+  trimTransfersKeepLastN_(tSheet, TRANSFER_KEEP_LAST);
+
+  return outputJSON_({
+    status: 'success',
+    message: 'Uploaded',
+    transferId: transferId,
+    expiresAt: expiresAt.toISOString(),
+    build: BUILD_TAG
+  });
+}
+
+function handleListInbox_(data) {
+  const auth = validateActiveUser_(data);
+  if (!auth.ok) return outputJSON_({ status: 'error', message: 'INBOX FAIL: ' + auth.message, build: BUILD_TAG });
+
+  const tSheet = getOrCreateTransfersSheet_();
+  const lastRow = tSheet.getLastRow();
+  if (lastRow < 2) return outputJSON_({ status: 'success', inbox: [], build: BUILD_TAG });
+
+  const rows = tSheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  const now = new Date();
+  const inbox = [];
+  const me = auth.employeeId.toUpperCase();
+
+  for (let i = 0; i < rows.length; i++) {
+    const transferId = String(rows[i][0] || '').trim();
+    const fromEmp = String(rows[i][1] || '').trim();
+    const toEmp = String(rows[i][2] || '').trim();
+    const createdAt = rows[i][3];
+    const expiresAt = rows[i][4];
+    const filename = String(rows[i][6] || '').trim();
+    const size = Number(rows[i][7] || 0);
+    const hash = String(rows[i][8] || '').trim();
+    const status = String(rows[i][9] || '').trim();
+
+    if (!transferId) continue;
+    if (toEmp.toUpperCase() !== me) continue;
+    if (status === 'deleted' || status === 'expired') continue;
+    if (expiresAt instanceof Date && expiresAt.getTime() <= now.getTime()) continue;
+
+    inbox.push({
+      transferId: transferId,
+      fromEmployeeId: fromEmp,
+      filename: filename,
+      size: size,
+      hash: hash,
+      createdAt: (createdAt instanceof Date) ? createdAt.toISOString() : String(createdAt),
+      expiresAt: (expiresAt instanceof Date) ? expiresAt.toISOString() : String(expiresAt),
+      status: status
+    });
+  }
+
+  inbox.sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+  return outputJSON_({ status: 'success', inbox: inbox, build: BUILD_TAG });
+}
+
+function handleDownloadBackup_(data) {
+  const auth = validateActiveUser_(data);
+  if (!auth.ok) return outputJSON_({ status: 'error', message: 'DOWNLOAD FAIL: ' + auth.message, build: BUILD_TAG });
+
+  const transferId = String(data.transferId || '').trim();
+  if (!transferId) return outputJSON_({ status: 'error', message: 'DOWNLOAD FAIL: Thieu transferId', build: BUILD_TAG });
+
+  const tSheet = getOrCreateTransfersSheet_();
+  const found = findTransferRow_(tSheet, transferId);
+  if (!found) return outputJSON_({ status: 'error', message: 'DOWNLOAD FAIL: Khong tim thay transfer', build: BUILD_TAG });
+
+  const row = found.row;
+  const rowIndex = found.rowIndex;
+  const fromEmp = String(row[1] || '').trim();
+  const toEmp = String(row[2] || '').trim();
+  const expiresAt = row[4];
+  const fileId = String(row[5] || '').trim();
+  const filename = String(row[6] || '').trim();
+  const size = Number(row[7] || 0);
+  const hash = String(row[8] || '').trim();
+  const status = String(row[9] || '').trim();
+
+  if (toEmp.toUpperCase() !== auth.employeeId.toUpperCase()) {
+    return outputJSON_({ status: 'error', message: 'DOWNLOAD FAIL: Khong co quyen', build: BUILD_TAG });
+  }
+
+  const now = new Date();
+  if (expiresAt instanceof Date && expiresAt.getTime() <= now.getTime()) {
+    tSheet.getRange(rowIndex, 10).setValue('expired');
+    safeTrashDriveFile_(fileId);
+    trimTransfersKeepLastN_(tSheet, TRANSFER_KEEP_LAST);
+    return outputJSON_({ status: 'error', message: 'DOWNLOAD FAIL: Ban ghi da het han', build: BUILD_TAG });
+  }
+
+  const file = DriveApp.getFileById(fileId);
+  const textCipher = tryReadFileAsText_(file);
+  let cipherB64 = '';
+  if (!textCipher) {
+    const bytes = file.getBlob().getBytes();
+    cipherB64 = Utilities.base64Encode(bytes);
+  }
+
+  if (status === 'new') tSheet.getRange(rowIndex, 10).setValue('received');
+
+  return outputJSON_({
+    status: 'success',
+    transferId: transferId,
+    fromEmployeeId: fromEmp,
+    filename: filename,
+    size: size,
+    hash: hash,
+    cipher_b64: textCipher ? '' : cipherB64,
+    encrypted: textCipher || '',
+    build: BUILD_TAG
+  });
+}
+
+function handleDeleteBackup_(data) {
+  const auth = validateActiveUser_(data);
+  if (!auth.ok) return outputJSON_({ status: 'error', message: 'DELETE FAIL: ' + auth.message, build: BUILD_TAG });
+
+  const transferId = String(data.transferId || '').trim();
+  if (!transferId) return outputJSON_({ status: 'error', message: 'DELETE FAIL: Thieu transferId', build: BUILD_TAG });
+
+  const tSheet = getOrCreateTransfersSheet_();
+  const found = findTransferRow_(tSheet, transferId);
+  if (!found) return outputJSON_({ status: 'error', message: 'DELETE FAIL: Khong tim thay transfer', build: BUILD_TAG });
+
+  const row = found.row;
+  const rowIndex = found.rowIndex;
+  const fromEmp = String(row[1] || '').trim();
+  const toEmp = String(row[2] || '').trim();
+  const fileId = String(row[5] || '').trim();
+
+  const me = auth.employeeId.toUpperCase();
+  if (toEmp.toUpperCase() !== me && fromEmp.toUpperCase() !== me) {
+    return outputJSON_({ status: 'error', message: 'DELETE FAIL: Khong co quyen', build: BUILD_TAG });
+  }
+
+  tSheet.getRange(rowIndex, 10).setValue('deleted');
+  safeTrashDriveFile_(fileId);
+  trimTransfersKeepLastN_(tSheet, TRANSFER_KEEP_LAST);
+  return outputJSON_({ status: 'success', message: 'Deleted', build: BUILD_TAG });
+}
+
+// =========================================================
+// ANTI-BRUTE-FORCE (activate)
+// =========================================================
+function activateFailKey_(emp) {
+  return 'RL_ACT_FAIL_' + String(emp || '').trim().toUpperCase();
+}
+function isActivateLocked_(emp) {
+  if (!ACTIVATE_MAX_FAILS || ACTIVATE_MAX_FAILS <= 0) return false;
+  const cache = CacheService.getScriptCache();
+  const n = Number(cache.get(activateFailKey_(emp)) || 0);
+  return n >= ACTIVATE_MAX_FAILS;
+}
+function registerActivateFail_(emp) {
+  if (!ACTIVATE_MAX_FAILS || ACTIVATE_MAX_FAILS <= 0) return;
+  const cache = CacheService.getScriptCache();
+  const k = activateFailKey_(emp);
+  const n = Number(cache.get(k) || 0) + 1;
+  cache.put(k, String(n), ACTIVATE_FAIL_WINDOW_SEC);
+}
+function clearActivateFails_(emp) {
+  try { CacheService.getScriptCache().remove(activateFailKey_(emp)); } catch (e) { }
+}
+
+// =========================================================
+// KEYS SHEET CACHE (read-only rows A..F)
+// =========================================================
+function getKeysRowsCached_() {
+  if (KEYS_CACHE_TTL_SEC && KEYS_CACHE_TTL_SEC > 0) {
+    try {
+      const cache = CacheService.getScriptCache();
+      const cached = cache.get('KEYS_ROWS_V1');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) { }
+  }
+  const sheet = getKeysSheet_();
+  if (!sheet) return null;
+  const lastRow = sheet.getLastRow();
+  const rows = (lastRow < 2) ? [] : sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  // Chuẩn hóa Date -> string để JSON hóa cache được (chỉ dùng cột A..F, không có Date quan trọng).
+  const plain = rows.map(function (r) {
+    return [
+      String(r[0] == null ? '' : r[0]),
+      String(r[1] == null ? '' : r[1]),
+      String(r[2] == null ? '' : r[2]),
+      String(r[3] == null ? '' : r[3]),
+      (r[4] instanceof Date) ? r[4].toISOString() : String(r[4] == null ? '' : r[4]),
+      String(r[5] == null ? '' : r[5])
+    ];
+  });
+  if (KEYS_CACHE_TTL_SEC && KEYS_CACHE_TTL_SEC > 0) {
+    try { CacheService.getScriptCache().put('KEYS_ROWS_V1', JSON.stringify(plain), KEYS_CACHE_TTL_SEC); } catch (e) { }
+  }
+  return plain;
+}
+function invalidateKeysCache_() {
+  try { CacheService.getScriptCache().remove('KEYS_ROWS_V1'); } catch (e) { }
+}
+
+// =========================================================
+// CLEANUP TTL + SETUP/TRIGGERS
+// =========================================================
+function cleanupExpiredTransfers() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const tSheet = getOrCreateTransfersSheet_();
+    const lastRow = tSheet.getLastRow();
+    if (lastRow < 2) return;
+
+    const now = new Date();
+    const range = tSheet.getRange(2, 1, lastRow - 1, 10);
+    const rows = range.getValues();
+    let modified = false;
+
+    for (let i = 0; i < rows.length; i++) {
+      const expiresAt = rows[i][4];
+      const fileId = String(rows[i][5] || '').trim();
+      const status = String(rows[i][9] || '').trim();
+      if (!(expiresAt instanceof Date)) continue;
+      if (expiresAt.getTime() <= now.getTime()) {
+        if (status !== 'expired' && status !== 'deleted') {
+          rows[i][9] = 'expired';
+          modified = true;
+        }
+        safeTrashDriveFile_(fileId);
+      }
+    }
+
+    if (modified) range.setValues(rows);
+    trimTransfersKeepLastN_(tSheet, TRANSFER_KEEP_LAST);
+  } finally {
+    try { lock.releaseLock(); } catch (e2) { }
+  }
+}
+
+function setupStorage() {
+  getOrCreateTransfersSheet_();
+  getOrCreateTransferFolderId_();
+  getOrCreateGlobalKdataB64u_();
+}
+
+function setupTriggers() {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'cleanupExpiredTransfers') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('cleanupExpiredTransfers').timeBased().everyHours(1).create();
+}
+
+// =========================================================
+// HELPERS
+// =========================================================
+function parseRequestData_(e) {
+  let data = {};
+  if (e && e.parameter) data = e.parameter;
+  if (e && e.postData && e.postData.contents) {
+    try {
+      const jsonData = JSON.parse(e.postData.contents);
+      for (const k in jsonData) data[k] = jsonData[k];
+    } catch (err) { }
+  }
+  return data;
+}
+
+function normalizeData_(data) {
+  data = data || {};
+  const act = String(data.action || data.act || data.cmd || data.action_name || '').trim().toLowerCase();
+
+  const strict = {
+    'activate': 1, 'check_status': 1, 'ping': 1, 'debug_echo': 1,
+    'list_users': 1, 'upload_backup': 1, 'list_inbox': 1,
+    'download_backup': 1, 'delete_backup': 1, 'issue_kdata': 1
+  };
+
+  if (strict[act]) data.action = act;
+  else {
+    const hasCipher = !!(data.cipher_b64 || data.cipher || data.payload || data.data || data.file_b64 || data.backup_b64);
+    const hasTo = !!(data.toEmployeeId || data.toEmp || data.to_emp || data.to || data.receiver || data.receiverId || data.targetEmp);
+    if (act.indexOf('kdata') !== -1 || act.indexOf('issue') !== -1) data.action = 'issue_kdata';
+    else if (act.indexOf('user') !== -1) data.action = 'list_users';
+    else if (act.indexOf('inbox') !== -1 || act.indexOf('receive') !== -1) data.action = 'list_inbox';
+    else if (act.indexOf('send') !== -1 || act.indexOf('upload') !== -1 || act.indexOf('share') !== -1 || (hasCipher && hasTo)) data.action = 'upload_backup';
+    else if (act.indexOf('download') !== -1 || act.indexOf('getfile') !== -1) data.action = 'download_backup';
+    else if (act.indexOf('delete') !== -1 || act.indexOf('remove') !== -1) data.action = 'delete_backup';
+    else data.action = act;
+  }
+
+  // aliases (GIỮ NGUYÊN như v11)
+  if (!data.employeeId) data.employeeId = data.empId || data.emp_id || data.emp || data.manv || data.ma_nv || data.user || '';
+  if (!data.deviceId) data.deviceId = data.device_id || data.deviceID || data.devId || data.devid || '';
+  if (!data.deviceInfo) data.deviceInfo = data.device_info || data.devInfo || data.info || data.ua || '';
+  if (!data.key) data.key = data.keyCode || data.key_code || data.license || data.licenseKey || '';
+  if (!data.toEmployeeId) data.toEmployeeId = data.toEmp || data.to_emp || data.to || data.receiver || data.receiverId || data.targetEmp || '';
+  if (!data.transferId) data.transferId = data.transfer_id || data.id || data.tid || data.transfer || '';
+  if (!data.cipher_b64) data.cipher_b64 = data.cipher || data.payload || data.data || data.file_b64 || data.backup_b64 || '';
+  if (!data.filename) data.filename = data.name || data.fileName || data.file_name || '';
+  if (!data.size) data.size = data.fileSize || data.filesize || data.len || 0;
+  if (!data.hash) data.hash = data.sha || data.sha256 || data.md5 || '';
+  if (!data.fileId) data.fileId = data.file_id || data.fileid || '';
+
+  // trim
+  data.employeeId = String(data.employeeId || '').trim();
+  data.deviceId = String(data.deviceId || '').trim();
+  data.toEmployeeId = String(data.toEmployeeId || '').trim();
+  data.transferId = String(data.transferId || '').trim();
+  data.cipher_b64 = String(data.cipher_b64 || '').trim();
+  data.deviceInfo = String(data.deviceInfo || '').trim();
+  data.fileId = String(data.fileId || '').trim();
+
+  return data;
+}
+
+function outputJSON_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function getKeysSheet_() {
+  try {
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+    return ss.getSheetByName(TAB_NAME);
+  } catch (e) {
+    return null;
+  }
+}
+
+function getOrCreateTransfersSheet_() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sheet = ss.getSheetByName(TRANSFERS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(TRANSFERS_SHEET);
+    sheet.appendRow(['TransferId', 'FromEmp', 'ToEmp', 'CreatedAt', 'ExpiresAt', 'FileId', 'Filename', 'Size', 'Hash', 'Status']);
+  }
+  return sheet;
+}
+
+function getOrCreateTransferFolderId_() {
+  const props = PropertiesService.getScriptProperties();
+  const existingId = props.getProperty(PROP_TRANSFER_FOLDER_ID);
+  if (existingId) {
+    try { DriveApp.getFolderById(existingId); return existingId; } catch (e) { }
+  }
+  const folders = DriveApp.getFoldersByName(TRANSFER_FOLDER_NAME);
+  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(TRANSFER_FOLDER_NAME);
+  props.setProperty(PROP_TRANSFER_FOLDER_ID, folder.getId());
+  return folder.getId();
+}
+
+function findTransferRow_(tSheet, transferId) {
+  const lastRow = tSheet.getLastRow();
+  if (lastRow < 2) return null;
+  const rows = tSheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i][0]).trim() === transferId) {
+      return { row: rows[i], rowIndex: i + 2 };
+    }
+  }
+  return null;
+}
+
+function trimTransfersKeepLastN_(tSheet, keepN) {
+  const lastRow = tSheet.getLastRow();
+  if (lastRow <= keepN + 1) return;
+  const deleteCount = lastRow - keepN - 1;
+  if (deleteCount > 0) {
+    try {
+      const rangeToDelete = tSheet.getRange(2, 1, deleteCount, 10);
+      const rowsToDelete = rangeToDelete.getValues();
+      for (let i = 0; i < rowsToDelete.length; i++) {
+        const fileId = String(rowsToDelete[i][5] || '').trim();
+        safeTrashDriveFile_(fileId);
+      }
+    } catch (e) {
+      Logger.log('Loi don dep file chuyen giao truoc khi xoa hang: ' + e);
+    }
+    tSheet.deleteRows(2, deleteCount);
+  }
+}
+
+function createTransferBlobFromCipher_(cipherB64, filename) {
+  return Utilities.newBlob(cipherB64, 'text/plain;charset=utf-8', filename);
+}
+
+function tryReadFileAsText_(file) {
+  try {
+    return file.getBlob().getDataAsString('UTF-8');
+  } catch (e) {
+    return '';
+  }
+}
+
+function safeTrashDriveFile_(fileId) {
+  if (!fileId) return;
+  try {
+    DriveApp.getFileById(fileId).setTrashed(true);
+  } catch (e) { }
+}
+
+function b64uEncodeNoPad_(bytes) {
+  const b64 = Utilities.base64Encode(bytes);
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
