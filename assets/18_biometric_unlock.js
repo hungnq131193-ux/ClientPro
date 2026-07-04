@@ -19,6 +19,7 @@
 
   let _availableCache = null;
   let _autoTried = false;
+  let _unlockInFlight = false;
 
   function _rand(len) {
     return crypto.getRandomValues(new Uint8Array(len));
@@ -85,13 +86,16 @@
       return { ok: false, message: "Thiết bị này không hỗ trợ mở khóa sinh trắc học." };
     }
 
+    const prfSalt = _rand(32);
     let cred;
     try {
       cred = await navigator.credentials.create({
         publicKey: {
           rp: { name: RP_NAME },
           user: {
-            id: _rand(16),
+            // ID cố định: đăng ký lại sẽ ghi đè passkey cũ của app trên thiết bị
+            // thay vì tích thêm passkey rác trong iCloud Keychain / Google Password Manager.
+            id: new TextEncoder().encode("clientpro-local-user"),
             name: "clientpro-user",
             displayName: "ClientPro",
           },
@@ -101,17 +105,27 @@
           ],
           authenticatorSelection: {
             authenticatorAttachment: "platform",
+            // Android (Google Password Manager) chỉ hỗ trợ PRF với passkey discoverable;
+            // thiếu residentKey:"required" thì prf.enabled trả về false trên Chrome Android.
+            residentKey: "required",
+            requireResidentKey: true,
             userVerification: "required",
           },
-          extensions: { prf: {} },
+          // Eval PRF ngay tại create(): Safari/iOS 18 (và Chrome mới) trả kết quả luôn,
+          // chỉ cần 1 lần Face ID / vân tay — tránh lượt get() thứ 2 vốn hay bị iOS
+          // chặn vì user gesture đã bị create() tiêu mất.
+          extensions: { prf: { eval: { first: prfSalt } } },
           challenge: _rand(CHALLENGE_LEN),
           timeout: 60000,
         },
       });
     } catch (e) {
+      console.warn("[BiometricUnlock] create() lỗi:", e && e.name, e);
       return { ok: false, message: "Đăng ký sinh trắc học đã bị hủy hoặc gặp lỗi." };
     }
     if (!cred) return { ok: false, message: "Không thể đăng ký sinh trắc học." };
+
+    const credId = cred.rawId;
 
     let ext = {};
     try {
@@ -119,41 +133,50 @@
     } catch (e) {
       ext = {};
     }
-    if (!ext.prf || ext.prf.enabled !== true) {
-      return {
-        ok: false,
-        message: "Trình duyệt/thiết bị này chưa hỗ trợ mở khóa sinh trắc học an toàn.",
-      };
-    }
 
-    const credId = cred.rawId;
-    const prfSalt = _rand(32);
+    let prfFirst = ext.prf && ext.prf.results && ext.prf.results.first;
 
-    // Cần thêm một lượt get() để thực sự lấy giá trị PRF (create() chỉ báo là "enabled").
-    let assertion;
-    try {
-      assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge: _rand(CHALLENGE_LEN),
-          allowCredentials: [{ id: credId, type: "public-key" }],
-          userVerification: "required",
-          extensions: { prf: { eval: { first: prfSalt } } },
-          timeout: 60000,
-        },
-      });
-    } catch (e) {
-      return { ok: false, message: "Xác nhận sinh trắc học lần 2 thất bại. Vui lòng thử lại." };
-    }
-
-    let assertExt = {};
-    try {
-      assertExt = (assertion && assertion.getClientExtensionResults()) || {};
-    } catch (e) {
-      assertExt = {};
-    }
-    const prfFirst = assertExt.prf && assertExt.prf.results && assertExt.prf.results.first;
     if (!prfFirst) {
-      return { ok: false, message: "Không lấy được khóa sinh trắc học. Vui lòng thử lại." };
+      // enabled === false là từ chối tường minh; enabled thiếu/không chuẩn (một số bản
+      // Safari) thì vẫn thử get() bên dưới thay vì kết luận vội "không hỗ trợ".
+      if (ext.prf && ext.prf.enabled === false) {
+        return {
+          ok: false,
+          message: "Trình duyệt/thiết bị này chưa hỗ trợ mở khóa sinh trắc học an toàn.",
+        };
+      }
+
+      // Chrome Android (bản cũ) chỉ báo prf.enabled tại create(), phải thêm một lượt
+      // get() mới lấy được giá trị PRF thật.
+      let assertion;
+      try {
+        assertion = await navigator.credentials.get({
+          publicKey: {
+            challenge: _rand(CHALLENGE_LEN),
+            allowCredentials: [{ id: credId, type: "public-key" }],
+            userVerification: "required",
+            extensions: { prf: { eval: { first: prfSalt } } },
+            timeout: 60000,
+          },
+        });
+      } catch (e) {
+        console.warn("[BiometricUnlock] get() xác nhận lỗi:", e && e.name, e);
+        return { ok: false, message: "Xác nhận sinh trắc học lần 2 thất bại. Vui lòng thử lại." };
+      }
+
+      let assertExt = {};
+      try {
+        assertExt = (assertion && assertion.getClientExtensionResults()) || {};
+      } catch (e) {
+        assertExt = {};
+      }
+      prfFirst = assertExt.prf && assertExt.prf.results && assertExt.prf.results.first;
+      if (!prfFirst) {
+        return {
+          ok: false,
+          message: "Trình duyệt/thiết bị này chưa hỗ trợ mở khóa sinh trắc học an toàn.",
+        };
+      }
     }
 
     try {
@@ -194,6 +217,18 @@
   async function tryUnlock() {
     if (!isEnrolled()) return false;
 
+    // Chặn 2 lời gọi WebAuthn chồng nhau (auto-prompt khi hiện màn khóa + user bấm nút):
+    // lời gọi thứ 2 sẽ ném "A request is already pending" và nuốt mất lượt bấm.
+    if (_unlockInFlight) return false;
+    _unlockInFlight = true;
+    try {
+      return await _tryUnlockInner();
+    } finally {
+      _unlockInFlight = false;
+    }
+  }
+
+  async function _tryUnlockInner() {
     let env = null;
     try {
       env = JSON.parse(localStorage.getItem(ENV_KEY));
@@ -214,7 +249,9 @@
         },
       });
     } catch (e) {
-      return false; // user hủy / NotAllowedError / thiết bị không sẵn sàng -> fallback PIN
+      // user hủy / NotAllowedError / iOS chặn vì thiếu user gesture -> fallback PIN
+      console.warn("[BiometricUnlock] get() mở khóa lỗi:", e && e.name, e);
+      return false;
     }
 
     let ext = {};

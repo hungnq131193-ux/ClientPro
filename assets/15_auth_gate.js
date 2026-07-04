@@ -128,6 +128,8 @@
         // Thu hồi kích hoạt để buộc user phải activate lại.
         if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
         if (typeof PIN_KEY !== "undefined") localStorage.removeItem(PIN_KEY);
+        // PIN bị thu hồi thì envelope sinh trắc học (mã hóa PIN cũ) cũng phải bỏ
+        if (window.BiometricUnlock) window.BiometricUnlock.disable();
         // Không xóa dữ liệu khách hàng (IndexedDB) để tránh mất dữ liệu.
       } catch (e) {}
       try {
