@@ -7,8 +7,6 @@
 
 **ClientPro** là ứng dụng web/PWA quản lý khách hàng và tài sản bảo đảm, tối ưu cho trải nghiệm di động. Đây là ứng dụng tĩnh thuần (vanilla JavaScript, không cần build step), chạy trực tiếp từ `index.html`, có Service Worker hỗ trợ cài đặt như app và sử dụng ngoại tuyến. Toàn bộ dữ liệu được **lưu cục bộ và mã hóa trên thiết bị**.
 
-> 📖 **Người dùng cuối:** xem [Hướng dẫn sử dụng chi tiết](docs/HUONG_DAN_SU_DUNG.md).
-
 ## Tính năng
 
 - 👥 **Quản lý khách hàng & tài sản** — danh sách, tìm kiếm, phân loại trạng thái, hình ảnh đính kèm, ghi chú.
@@ -17,7 +15,7 @@
 - ☁️ **Sao lưu & khôi phục** — sao lưu mã hóa (`.cpb`) trong máy, tự động sao lưu lên Google Drive cá nhân, chuyển dữ liệu giữa các thiết bị qua cloud.
 - 🗺️ **Bản đồ** — hiển thị vị trí khách hàng/tài sản bằng MapLibre GL, tính khoảng cách đường đi qua OSRM.
 - 📷 **Camera & lightbox** — chụp ảnh trực tiếp trong app, xem ảnh phóng to.
-- 🎨 **4 giao diện ngân hàng** — 1 nền sáng + 3 sắc xanh (Sáng, Xanh Đêm, Đại Dương, Thiên Thanh).
+- 🎨 **4 giao diện** — 1 nền sáng + 3 nền tối sắc xanh (Sáng, Xanh Đêm, Đại Dương, Thiên Thanh).
 - 🌤️ **Tiện ích** — thời tiết (Open-Meteo), tour hướng dẫn người dùng mới, ủng hộ tác giả qua VietQR.
 - 👆 **Tối ưu mobile** — điều hướng bằng cử chỉ, xử lý edge back-swipe, chuyển màn hình mượt.
 
@@ -43,13 +41,11 @@
 ├── sw.js                        # Service Worker (precache + runtime cache)
 ├── vercel.json                  # Header bảo mật (CSP, Permissions-Policy…)
 ├── LICENSE                      # Giấy phép độc quyền (All Rights Reserved)
-├── docs/
-│   └── HUONG_DAN_SU_DUNG.md     # Hướng dẫn sử dụng chi tiết cho người dùng
 ├── assets/
 │   ├── 00_globals.js …          # Các module JS đánh số theo thứ tự load
 │   ├── pwa.js                   # Đăng ký/cập nhật Service Worker
 │   ├── head.js                  # Script chạy sớm trong <head>
-│   ├── styles.css               # CSS chính (gồm 4 theme ngân hàng)
+│   ├── styles.css               # CSS chính (gồm 4 theme giao diện)
 │   ├── css/                     # Tailwind build tĩnh + lớp redesign + CSS vá
 │   └── ui/
 │       ├── load_modals.js       # Loader nạp modal động
@@ -59,14 +55,14 @@
 
 ## Giao diện
 
-ClientPro có **4 giao diện** theo tông ngân hàng VietinBank (1 sáng + 3 xanh):
+ClientPro có **4 giao diện** (1 nền sáng + 3 nền tối sắc xanh):
 
-| Giao diện | Lớp CSS | Mô tả |
-|---|---|---|
-| Sáng (VietinBank) | `theme-vietinbank` | Nền sáng, thẻ trắng — mặc định |
-| Xanh Đêm | `theme-midnight` | Nền tối xanh VietinBank đậm |
-| Đại Dương | `theme-ocean` | Nền tối sắc lam biển sâu |
-| Thiên Thanh | `theme-aurora` | Nền tối sắc xanh trời tươi |
+| Giao diện | Mô tả |
+|---|---|
+| Sáng | Nền sáng, thẻ trắng — giao diện mặc định |
+| Xanh Đêm | Nền tối sắc xanh đậm |
+| Đại Dương | Nền tối sắc lam biển sâu |
+| Thiên Thanh | Nền tối sắc xanh trời tươi |
 
 Ba giao diện tối dùng chung lớp thiết kế trong `assets/css/redesign.clientpro.css`,
 chỉ khác gradient nhấn (`--accent-gradient`).
