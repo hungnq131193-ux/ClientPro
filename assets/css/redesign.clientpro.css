@@ -1,12 +1,15 @@
 /* =============================================================================
-   ClientPro — REDESIGN LAYER (Banking / Vietinbank style)
+   ClientPro — REDESIGN LAYER (Banking / VietinBank style)
    -----------------------------------------------------------------------------
    • File này NẠP CUỐI CÙNG, chỉ đè lớp GIAO DIỆN. Không đụng chạm JavaScript,
      không đổi cấu trúc HTML, không thay đổi chức năng.
    • Muốn quay lại giao diện cũ: chỉ cần xoá 1 dòng <link ...redesign...> trong
      index.html là xong.
    • Font: Be Vietnam Pro (thiết kế riêng cho tiếng Việt).
-   • Hỗ trợ đồng bộ cả CHẾ ĐỘ SÁNG (theme-vietinbank) và CHẾ ĐỘ TỐI (theme-midnight).
+   • Bộ 4 giao diện ngân hàng:
+       - CHẾ ĐỘ SÁNG:  theme-vietinbank
+       - CHẾ ĐỘ TỐI :  theme-midnight, theme-ocean, theme-aurora (cùng sắc xanh)
+     Ba theme tối dùng chung một lớp thiết kế, chỉ khác gradient nhấn.
    ============================================================================= */
 
 @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap");
@@ -34,7 +37,7 @@ select,
 }
 
 /* -----------------------------------------------------------------------------
-   2. HEADER GRADIENT (thay nền phẳng bằng gradient Vietinbank sang trọng)
+   2. HEADER GRADIENT (thay nền phẳng bằng gradient VietinBank sang trọng)
    --------------------------------------------------------------------------- */
 body.theme-vietinbank .glass-header {
   background: linear-gradient(135deg, #004a8f 0%, #0072bc 55%, #00a0e3 100%) !important;
@@ -44,8 +47,10 @@ body.theme-vietinbank .glass-header {
   -webkit-backdrop-filter: none !important;
 }
 
-body.theme-midnight .glass-header {
-  background: linear-gradient(135deg, #00223f 0%, #005b9f 60%, #0088cc 100%) !important;
+body.theme-midnight .glass-header,
+body.theme-ocean .glass-header,
+body.theme-aurora .glass-header {
+  background: var(--accent-gradient) !important;
   border-bottom: none !important;
   box-shadow: 0 8px 28px rgba(0, 20, 45, 0.5) !important;
   backdrop-filter: none !important;
@@ -61,7 +66,15 @@ body.theme-vietinbank .glass-header [style*="--text-main"],
 body.theme-midnight .glass-header,
 body.theme-midnight .glass-header .dash-hi,
 body.theme-midnight .glass-header .dash-date,
-body.theme-midnight .glass-header h2 {
+body.theme-midnight .glass-header h2,
+body.theme-ocean .glass-header,
+body.theme-ocean .glass-header .dash-hi,
+body.theme-ocean .glass-header .dash-date,
+body.theme-ocean .glass-header h2,
+body.theme-aurora .glass-header,
+body.theme-aurora .glass-header .dash-hi,
+body.theme-aurora .glass-header .dash-date,
+body.theme-aurora .glass-header h2 {
   color: #ffffff !important;
 }
 
@@ -77,8 +90,7 @@ body.theme-midnight .glass-header h2 {
 }
 
 /* Nút cài đặt / back trong header */
-body.theme-vietinbank #btn-open-menu,
-body.theme-midnight #btn-open-menu {
+#btn-open-menu {
   background: rgba(255, 255, 255, 0.12) !important;
   border-color: rgba(255, 255, 255, 0.22) !important;
   color: #ffffff !important;
@@ -134,9 +146,11 @@ body.theme-vietinbank .dashboard-card {
   box-shadow: 0 8px 24px rgba(0, 74, 143, 0.08) !important;
 }
 
-body.theme-midnight .dashboard-card {
-  background: rgba(15, 30, 60, 0.65) !important;
-  border: 1px solid rgba(0, 170, 255, 0.25) !important;
+body.theme-midnight .dashboard-card,
+body.theme-ocean .dashboard-card,
+body.theme-aurora .dashboard-card {
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border-panel) !important;
   box-shadow: 0 10px 30px rgba(0, 20, 45, 0.35) !important;
 }
 
@@ -178,23 +192,37 @@ body.theme-vietinbank .overview-stat-wide[data-arg="pending"] .overview-icon {
 body.theme-vietinbank .overview-stat-wide[data-arg="approved"] strong { color: #16a34a !important; }
 body.theme-vietinbank .overview-stat-wide[data-arg="pending"] strong { color: #d97706 !important; }
 
-/* Tối */
-body.theme-midnight .overview-stat .overview-icon {
-  background: rgba(0, 170, 255, 0.15) !important;
-  color: #00aaff !important;
+/* Tối (dùng chung cho midnight / ocean / aurora, nhấn theo --accent) */
+body.theme-midnight .overview-stat .overview-icon,
+body.theme-ocean .overview-stat .overview-icon,
+body.theme-aurora .overview-stat .overview-icon {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--accent) !important;
 }
-body.theme-midnight .overview-stat-wide[data-arg="approved"] .overview-icon {
+body.theme-midnight .overview-stat-wide[data-arg="approved"] .overview-icon,
+body.theme-ocean .overview-stat-wide[data-arg="approved"] .overview-icon,
+body.theme-aurora .overview-stat-wide[data-arg="approved"] .overview-icon {
   background: rgba(52, 211, 153, 0.15) !important;
   color: #34d399 !important;
 }
-body.theme-midnight .overview-stat-wide[data-arg="pending"] .overview-icon {
+body.theme-midnight .overview-stat-wide[data-arg="pending"] .overview-icon,
+body.theme-ocean .overview-stat-wide[data-arg="pending"] .overview-icon,
+body.theme-aurora .overview-stat-wide[data-arg="pending"] .overview-icon {
   background: rgba(165, 180, 252, 0.15) !important;
   color: #a5b4fc !important;
 }
-body.theme-midnight .overview-stat strong { color: #00aaff !important; }
-body.theme-midnight .overview-stat-wide[data-arg="approved"] strong { color: #34d399 !important; }
-body.theme-midnight .overview-stat-wide[data-arg="pending"] strong { color: #a5b4fc !important; }
-body.theme-midnight .overview-stat span:not(.overview-icon) { color: #cbd5e1 !important; }
+body.theme-midnight .overview-stat strong,
+body.theme-ocean .overview-stat strong,
+body.theme-aurora .overview-stat strong { color: var(--accent) !important; }
+body.theme-midnight .overview-stat-wide[data-arg="approved"] strong,
+body.theme-ocean .overview-stat-wide[data-arg="approved"] strong,
+body.theme-aurora .overview-stat-wide[data-arg="approved"] strong { color: #34d399 !important; }
+body.theme-midnight .overview-stat-wide[data-arg="pending"] strong,
+body.theme-ocean .overview-stat-wide[data-arg="pending"] strong,
+body.theme-aurora .overview-stat-wide[data-arg="pending"] strong { color: #a5b4fc !important; }
+body.theme-midnight .overview-stat span:not(.overview-icon),
+body.theme-ocean .overview-stat span:not(.overview-icon),
+body.theme-aurora .overview-stat span:not(.overview-icon) { color: #cbd5e1 !important; }
 
 .overview-stat strong {
   font-size: clamp(28px, 8.5vw, 40px) !important;
@@ -210,11 +238,15 @@ body.theme-vietinbank .quick-action-btn {
   background: rgba(0, 91, 159, 0.05) !important;
   border: 1px solid rgba(0, 91, 159, 0.10) !important;
 }
-body.theme-midnight .quick-action-btn {
-  background: rgba(0, 170, 255, 0.06) !important;
-  border: 1px solid rgba(0, 170, 255, 0.14) !important;
+body.theme-midnight .quick-action-btn,
+body.theme-ocean .quick-action-btn,
+body.theme-aurora .quick-action-btn {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--border-panel) !important;
 }
-body.theme-midnight .quick-action-btn strong { color: #e2e8f0 !important; }
+body.theme-midnight .quick-action-btn strong,
+body.theme-ocean .quick-action-btn strong,
+body.theme-aurora .quick-action-btn strong { color: #e2e8f0 !important; }
 
 .quick-action-btn span {
   width: 50px !important;
@@ -242,13 +274,19 @@ body.theme-vietinbank .cust-card.cust-approved { border-left: 4px solid #16a34a 
 body.theme-vietinbank .cust-card.cust-pending  { border-left: 4px solid #d97706 !important; }
 body.theme-vietinbank .cust-card:hover { background: #f8fbff !important; }
 
-body.theme-midnight .cust-card {
-  background: rgba(15, 30, 60, 0.6) !important;
-  border: 1px solid rgba(0, 170, 255, 0.16) !important;
+body.theme-midnight .cust-card,
+body.theme-ocean .cust-card,
+body.theme-aurora .cust-card {
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border-panel) !important;
   box-shadow: 0 6px 18px rgba(0, 20, 45, 0.3) !important;
 }
-body.theme-midnight .cust-card.cust-approved { border-left: 4px solid #34d399 !important; }
-body.theme-midnight .cust-card.cust-pending  { border-left: 4px solid #a5b4fc !important; }
+body.theme-midnight .cust-card.cust-approved,
+body.theme-ocean .cust-card.cust-approved,
+body.theme-aurora .cust-card.cust-approved { border-left: 4px solid #34d399 !important; }
+body.theme-midnight .cust-card.cust-pending,
+body.theme-ocean .cust-card.cust-pending,
+body.theme-aurora .cust-card.cust-pending { border-left: 4px solid #a5b4fc !important; }
 
 /* Ẩn dải ::before cũ (đã thay bằng border-left) */
 .cust-card::before { display: none !important; }
@@ -267,8 +305,12 @@ body.theme-vietinbank .customer-avatar.pending {
   color: #ffffff !important;
 }
 body.theme-midnight .customer-avatar.approved,
-body.theme-midnight .customer-avatar.pending {
-  background: linear-gradient(135deg, #005b9f, #22d3ee) !important;
+body.theme-midnight .customer-avatar.pending,
+body.theme-ocean .customer-avatar.approved,
+body.theme-ocean .customer-avatar.pending,
+body.theme-aurora .customer-avatar.approved,
+body.theme-aurora .customer-avatar.pending {
+  background: var(--accent-gradient) !important;
   color: #ffffff !important;
 }
 
@@ -285,10 +327,12 @@ body.theme-vietinbank .customer-action-btn {
   border: 1px solid rgba(0, 91, 159, 0.12) !important;
   color: #005b9f !important;
 }
-body.theme-midnight .customer-action-btn {
-  background: rgba(0, 170, 255, 0.10) !important;
-  border: 1px solid rgba(0, 170, 255, 0.18) !important;
-  color: #00aaff !important;
+body.theme-midnight .customer-action-btn,
+body.theme-ocean .customer-action-btn,
+body.theme-aurora .customer-action-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid var(--border-panel) !important;
+  color: var(--accent) !important;
 }
 
 /* KPI mini đầu danh sách */
@@ -297,9 +341,11 @@ body.theme-vietinbank .customer-kpi {
   border: 1px solid #e3ecf7 !important;
   border-radius: 14px !important;
 }
-body.theme-midnight .customer-kpi {
-  background: rgba(15, 30, 60, 0.6) !important;
-  border: 1px solid rgba(0, 170, 255, 0.16) !important;
+body.theme-midnight .customer-kpi,
+body.theme-ocean .customer-kpi,
+body.theme-aurora .customer-kpi {
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border-panel) !important;
   border-radius: 14px !important;
 }
 
@@ -309,12 +355,13 @@ body.theme-midnight .customer-kpi {
 body.theme-vietinbank #screen-folder .glass-header {
   background: linear-gradient(135deg, #004a8f 0%, #0072bc 55%, #00a0e3 100%) !important;
 }
-body.theme-midnight #screen-folder .glass-header {
-  background: linear-gradient(135deg, #00223f 0%, #005b9f 60%, #0088cc 100%) !important;
+body.theme-midnight #screen-folder .glass-header,
+body.theme-ocean #screen-folder .glass-header,
+body.theme-aurora #screen-folder .glass-header {
+  background: var(--accent-gradient) !important;
 }
 
-body.theme-vietinbank .profile-glass-box,
-body.theme-midnight .profile-glass-box {
+.profile-glass-box {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -348,9 +395,11 @@ body.theme-midnight .profile-glass-box {
   border: 1px solid #e3ecf7 !important;
   border-radius: 14px !important;
 }
-body.theme-midnight #screen-folder .glass-header .p-1.rounded-xl {
-  background: rgba(15, 30, 60, 0.7) !important;
-  border: 1px solid rgba(0, 170, 255, 0.2) !important;
+body.theme-midnight #screen-folder .glass-header .p-1.rounded-xl,
+body.theme-ocean #screen-folder .glass-header .p-1.rounded-xl,
+body.theme-aurora #screen-folder .glass-header .p-1.rounded-xl {
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border-panel) !important;
 }
 
 .glass-tab-active {
@@ -372,9 +421,11 @@ body.theme-vietinbank #content-info .glass-panel {
   border-radius: 18px !important;
   box-shadow: 0 4px 14px rgba(0, 74, 143, 0.06) !important;
 }
-body.theme-midnight #content-info .glass-panel {
-  background: rgba(15, 30, 60, 0.6) !important;
-  border: 1px solid rgba(0, 170, 255, 0.16) !important;
+body.theme-midnight #content-info .glass-panel,
+body.theme-ocean #content-info .glass-panel,
+body.theme-aurora #content-info .glass-panel {
+  background: var(--bg-panel) !important;
+  border: 1px solid var(--border-panel) !important;
   border-radius: 18px !important;
 }
 

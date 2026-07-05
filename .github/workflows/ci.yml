@@ -43,3 +43,29 @@ jobs:
             echo "::error file=assets/11_edge_back_swipe.js::Debug scaffold detected — remove it before merging."
             exit 1
           fi
+
+      - name: Verify version is synchronized across files
+        run: |
+          set -euo pipefail
+          MANIFEST_VER=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' manifest.json | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          SW_VERSION=$(grep -oE "VERSION[[:space:]]*=[[:space:]]*'v?[0-9.]+'" sw.js | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          ASSET_V=$(grep -oE "ASSET_V[[:space:]]*=[[:space:]]*'[^']+'" sw.js | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          PWA_BUILD=$(grep -oE "SW_BUILD[[:space:]]*=[[:space:]]*'v?[0-9.]+'" assets/pwa.js | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "manifest=$MANIFEST_VER  sw.VERSION=$SW_VERSION  sw.ASSET_V=$ASSET_V  pwa.SW_BUILD=$PWA_BUILD"
+
+          for pair in "manifest:$MANIFEST_VER" "sw.VERSION:$SW_VERSION" "sw.ASSET_V:$ASSET_V" "pwa.SW_BUILD:$PWA_BUILD"; do
+            name=${pair%%:*}; val=${pair#*:}
+            if [ "$val" != "$MANIFEST_VER" ]; then
+              echo "::error::Version mismatch: $name=$val nhưng manifest=$MANIFEST_VER"
+              exit 1
+            fi
+          done
+
+          # Mọi query ?v= trong index.html phải trùng ASSET_V (đồng bộ precache SW)
+          INDEX_TOKENS=$(grep -oE '\?v=[0-9]+\.[0-9]+\.[0-9]+' index.html | sed 's/?v=//' | sort -u)
+          COUNT=$(printf '%s\n' "$INDEX_TOKENS" | grep -c .)
+          if [ "$COUNT" -ne 1 ] || [ "$INDEX_TOKENS" != "$ASSET_V" ]; then
+            echo "::error file=index.html::Query ?v= trong index.html phải đồng nhất và bằng ASSET_V ($ASSET_V). Tìm thấy: $INDEX_TOKENS"
+            exit 1
+          fi
+          echo "✅ Phiên bản đồng bộ ở tất cả các file: $MANIFEST_VER"
