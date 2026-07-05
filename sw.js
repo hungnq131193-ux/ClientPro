@@ -1,9 +1,10 @@
-// BUILD: 2026-07-05_v1.1.0
+// BUILD: 2026-07-05_v1.2.0_redesign_selfhost
 // ClientPro Service Worker (runtime-first, PWA-safe)
-// NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
+// v1.2.0: đồng bộ redesign (tag REDESIGN_20260705) + self-host vendor (lucide,
+// crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.1.0';
+const VERSION = 'v1.2.0';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -21,13 +22,22 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = '1.1.0';
+const ASSET_V = 'REDESIGN_20260705';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
+
+  // Vendor (self-host, không còn CDN ngoài)
+  `./assets/vendor/lucide.min.js?v=${ASSET_V}`,
+  `./assets/vendor/crypto-js.min.js?v=${ASSET_V}`,
+  `./assets/vendor/maplibre-gl.js?v=${ASSET_V}`,
+  `./assets/vendor/maplibre-gl.css?v=${ASSET_V}`,
+
+  // Fonts (self-host; woff2 được request từ fonts.css nên KHÔNG có query)
+  `./assets/css/fonts.css?v=${ASSET_V}`,
 
   // Tailwind (self-host)
   './assets/css/tailwind.clientpro.css',
@@ -75,6 +85,44 @@ const STATIC_ASSETS = [
   './assets/ui/modals/donate-modal.html',
   './assets/ui/modals/camera-modal.html',
   './assets/ui/modals/backup-manager-modal.html',
+
+  // Font woff2 (self-host) — precache để chữ hiển thị đúng khi offline
+  './assets/fonts/be-vietnam-pro-400-latin-ext.woff2',
+  './assets/fonts/be-vietnam-pro-400-latin.woff2',
+  './assets/fonts/be-vietnam-pro-400-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-500-latin-ext.woff2',
+  './assets/fonts/be-vietnam-pro-500-latin.woff2',
+  './assets/fonts/be-vietnam-pro-500-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-600-latin-ext.woff2',
+  './assets/fonts/be-vietnam-pro-600-latin.woff2',
+  './assets/fonts/be-vietnam-pro-600-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-700-latin-ext.woff2',
+  './assets/fonts/be-vietnam-pro-700-latin.woff2',
+  './assets/fonts/be-vietnam-pro-700-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-800-latin-ext.woff2',
+  './assets/fonts/be-vietnam-pro-800-latin.woff2',
+  './assets/fonts/be-vietnam-pro-800-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-900-latin-ext.woff2',
+  './assets/fonts/be-vietnam-pro-900-latin.woff2',
+  './assets/fonts/be-vietnam-pro-900-vietnamese.woff2',
+  './assets/fonts/inter-300-latin-ext.woff2',
+  './assets/fonts/inter-300-latin.woff2',
+  './assets/fonts/inter-300-vietnamese.woff2',
+  './assets/fonts/inter-400-latin-ext.woff2',
+  './assets/fonts/inter-400-latin.woff2',
+  './assets/fonts/inter-400-vietnamese.woff2',
+  './assets/fonts/inter-500-latin-ext.woff2',
+  './assets/fonts/inter-500-latin.woff2',
+  './assets/fonts/inter-500-vietnamese.woff2',
+  './assets/fonts/inter-600-latin-ext.woff2',
+  './assets/fonts/inter-600-latin.woff2',
+  './assets/fonts/inter-600-vietnamese.woff2',
+  './assets/fonts/inter-700-latin-ext.woff2',
+  './assets/fonts/inter-700-latin.woff2',
+  './assets/fonts/inter-700-vietnamese.woff2',
+  './assets/fonts/inter-800-latin-ext.woff2',
+  './assets/fonts/inter-800-latin.woff2',
+  './assets/fonts/inter-800-vietnamese.woff2',
 ];
 
 self.addEventListener('install', (event) => {

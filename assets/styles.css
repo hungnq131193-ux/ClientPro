@@ -1,5 +1,4 @@
-/* --- Thay dòng @import cũ bằng dòng này --- */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+/* Font Inter tự host: khai báo @font-face nằm ở assets/css/fonts.css (nạp từ index.html). */
 
 :root {
   --app-height: 100dvh;
