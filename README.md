@@ -25,9 +25,10 @@
 |---|---|
 | Frontend | Vanilla JavaScript (ES6+), HTML, CSS |
 | CSS | Tailwind CSS (bản build tĩnh self-hosted) + lớp redesign |
-| Bản đồ | [MapLibre GL JS](https://maplibre.org/) |
-| Icon | [Lucide](https://lucide.dev/) |
-| Mã hóa | [CryptoJS](https://cryptojs.gitbook.io/) |
+| Bản đồ | [MapLibre GL JS](https://maplibre.org/) (self-host trong `assets/vendor/`) |
+| Icon | [Lucide](https://lucide.dev/) (self-host trong `assets/vendor/`) |
+| Mã hóa | [CryptoJS](https://cryptojs.gitbook.io/) (self-host trong `assets/vendor/`) |
+| Font | Inter + Be Vietnam Pro (self-host trong `assets/fonts/`) |
 | Sinh trắc học | WebAuthn (PRF extension) |
 | Sao lưu cloud | Google Drive + Google Apps Script |
 | Hosting | Vercel (static, cấu hình trong `vercel.json`) |
@@ -46,7 +47,9 @@
 │   ├── pwa.js                   # Đăng ký/cập nhật Service Worker
 │   ├── head.js                  # Script chạy sớm trong <head>
 │   ├── styles.css               # CSS chính (gồm 4 theme giao diện)
-│   ├── css/                     # Tailwind build tĩnh + lớp redesign + CSS vá
+│   ├── css/                     # Tailwind build tĩnh + lớp redesign + fonts.css + CSS vá
+│   ├── vendor/                  # Thư viện self-host (lucide, crypto-js, maplibre-gl)
+│   ├── fonts/                   # Font woff2 self-host (Inter, Be Vietnam Pro)
 │   └── ui/
 │       ├── load_modals.js       # Loader nạp modal động
 │       └── modals/              # Các modal HTML tách file
@@ -116,11 +119,15 @@ GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) chạy t
 
 App được deploy dạng static trên Vercel. File `vercel.json` cấu hình các header bảo mật cho mọi response:
 
-- `Content-Security-Policy` — giới hạn nguồn script/style/ảnh/kết nối về danh sách CDN và API tin cậy.
+- `Content-Security-Policy` — `script-src`/`style-src`/`font-src` chỉ cho phép `'self'`
+  (toàn bộ thư viện và font đã self-host, không còn CDN ngoài); `img-src`/`connect-src`
+  giới hạn về danh sách API tin cậy (GAS, tiles bản đồ, thời tiết, VietQR…).
 - `Permissions-Policy` — chỉ cho phép camera và geolocation từ chính origin.
 - `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
 
-Khi thêm CDN hoặc API mới, cần cập nhật CSP trong `vercel.json` tương ứng.
+Khi thêm API mới, cần cập nhật CSP trong `vercel.json` tương ứng. KHÔNG thêm CDN
+script/style/font ngoài — tải thư viện về `assets/vendor/` (xem `assets/vendor/README.md`);
+CI sẽ chặn nếu phát hiện tham chiếu CDN.
 
 ## Giấy phép
 

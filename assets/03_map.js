@@ -75,19 +75,14 @@ async function ensureMapLibreLoaded() {
     if (__mapLibreLoadPromise) return __mapLibreLoadPromise;
 
     __mapLibreLoadPromise = (async () => {
-        const css1 = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
-        const js1 = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
-        const css2 = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css';
-        const js2 = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+        // Self-host (maplibre-gl 4.7.1, xem assets/vendor/README.md) — không dùng CDN ngoài.
+        // Query ?v= phải khớp STATIC_ASSETS trong sw.js để precache dùng lại được.
+        const MAPLIBRE_V = 'REDESIGN_20260705';
+        const cssLocal = `./assets/vendor/maplibre-gl.css?v=${MAPLIBRE_V}`;
+        const jsLocal = `./assets/vendor/maplibre-gl.js?v=${MAPLIBRE_V}`;
 
-        await __loadCss(css1, 'maplibre-css');
-
-        try {
-            await __loadScript(js1, 'maplibre-js', 15000);
-        } catch (e1) {
-            await __loadCss(css2, 'maplibre-css-fallback');
-            await __loadScript(js2, 'maplibre-js-fallback', 15000);
-        }
+        await __loadCss(cssLocal, 'maplibre-css');
+        await __loadScript(jsLocal, 'maplibre-js', 15000);
 
         if (!(window.maplibregl && window.maplibregl.Map)) {
             throw new Error('MapLibre GL JS not available after load');

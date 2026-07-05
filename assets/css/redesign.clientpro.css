@@ -12,7 +12,7 @@
      Ba theme tối dùng chung một lớp thiết kế, chỉ khác gradient nhấn.
    ============================================================================= */
 
-@import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap");
+/* Font Be Vietnam Pro tự host: khai báo @font-face nằm ở assets/css/fonts.css (nạp từ index.html). */
 
 /* -----------------------------------------------------------------------------
    1. FONT TOÀN CỤC
