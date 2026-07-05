@@ -1,0 +1,440 @@
+/* =============================================================================
+   ClientPro — REDESIGN LAYER (Banking / Vietinbank style)
+   -----------------------------------------------------------------------------
+   • File này NẠP CUỐI CÙNG, chỉ đè lớp GIAO DIỆN. Không đụng chạm JavaScript,
+     không đổi cấu trúc HTML, không thay đổi chức năng.
+   • Muốn quay lại giao diện cũ: chỉ cần xoá 1 dòng <link ...redesign...> trong
+     index.html là xong.
+   • Font: Be Vietnam Pro (thiết kế riêng cho tiếng Việt).
+   • Hỗ trợ đồng bộ cả CHẾ ĐỘ SÁNG (theme-vietinbank) và CHẾ ĐỘ TỐI (theme-midnight).
+   ============================================================================= */
+
+@import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap");
+
+/* -----------------------------------------------------------------------------
+   1. FONT TOÀN CỤC
+   --------------------------------------------------------------------------- */
+body,
+button,
+input,
+textarea,
+select,
+.vietin-brand,
+.customer-name-line,
+.dashboard-section-head h2 {
+  font-family: "Be Vietnam Pro", "Inter", system-ui, -apple-system, sans-serif !important;
+}
+
+/* Số điện thoại giữ dạng số đều để dễ đọc, nhưng vẫn dùng Be Vietnam Pro */
+.customer-phone-line,
+.phone-value {
+  font-family: "Be Vietnam Pro", ui-monospace, monospace !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* -----------------------------------------------------------------------------
+   2. HEADER GRADIENT (thay nền phẳng bằng gradient Vietinbank sang trọng)
+   --------------------------------------------------------------------------- */
+body.theme-vietinbank .glass-header {
+  background: linear-gradient(135deg, #004a8f 0%, #0072bc 55%, #00a0e3 100%) !important;
+  border-bottom: none !important;
+  box-shadow: 0 8px 28px rgba(0, 74, 143, 0.28) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.theme-midnight .glass-header {
+  background: linear-gradient(135deg, #00223f 0%, #005b9f 60%, #0088cc 100%) !important;
+  border-bottom: none !important;
+  box-shadow: 0 8px 28px rgba(0, 20, 45, 0.5) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Chữ và icon trong header luôn trắng để nổi trên nền gradient */
+body.theme-vietinbank .glass-header,
+body.theme-vietinbank .glass-header .dash-hi,
+body.theme-vietinbank .glass-header .dash-date,
+body.theme-vietinbank .glass-header h2,
+body.theme-vietinbank .glass-header [style*="--text-main"],
+body.theme-midnight .glass-header,
+body.theme-midnight .glass-header .dash-hi,
+body.theme-midnight .glass-header .dash-date,
+body.theme-midnight .glass-header h2 {
+  color: #ffffff !important;
+}
+
+.glass-header .dash-hi {
+  font-size: 21px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+}
+
+.glass-header .dash-date {
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-weight: 500 !important;
+}
+
+/* Nút cài đặt / back trong header */
+body.theme-vietinbank #btn-open-menu,
+body.theme-midnight #btn-open-menu {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+}
+
+.glass-header [data-action="closeCustomerList"],
+.glass-header [data-action="closeFolder"] {
+  color: #ffffff !important;
+}
+
+#customer-list-title {
+  color: #ffffff !important;
+}
+
+/* Ô tìm kiếm trên header (danh sách KH) */
+#screen-customer-list .customer-search-wrap input,
+#screen-customer-list #search-input {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  border-radius: 14px !important;
+}
+
+#screen-customer-list #search-input::placeholder {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+#screen-customer-list .customer-search-wrap [data-lucide="search"] {
+  color: rgba(255, 255, 255, 0.85) !important;
+  opacity: 1 !important;
+}
+
+/* Pill thời tiết */
+.glass-header [data-action="refreshWeather"] {
+  background: rgba(0, 0, 0, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: #eaf4ff !important;
+}
+
+/* -----------------------------------------------------------------------------
+   3. DASHBOARD — thẻ tổng quan & thao tác nhanh
+   --------------------------------------------------------------------------- */
+#folder-view .dashboard-card,
+.dashboard-card {
+  border-radius: 22px !important;
+  padding: 16px !important;
+}
+
+body.theme-vietinbank #folder-view .dashboard-card,
+body.theme-vietinbank .dashboard-card {
+  background: #ffffff !important;
+  border: 1px solid #e3ecf7 !important;
+  box-shadow: 0 8px 24px rgba(0, 74, 143, 0.08) !important;
+}
+
+body.theme-midnight .dashboard-card {
+  background: rgba(15, 30, 60, 0.65) !important;
+  border: 1px solid rgba(0, 170, 255, 0.25) !important;
+  box-shadow: 0 10px 30px rgba(0, 20, 45, 0.35) !important;
+}
+
+/* Ô thống kê tổng quan */
+.dashboard-overview-grid {
+  border-radius: 16px !important;
+  gap: 2px !important;
+}
+
+.overview-stat {
+  min-height: 108px !important;
+  gap: 6px !important;
+}
+
+/* Bọc icon thành ô tròn màu theo ngữ nghĩa */
+.overview-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-bottom: 2px;
+}
+
+/* Sáng: icon xanh, số đã-vay xanh lá, số thẩm-định cam */
+body.theme-vietinbank .overview-stat .overview-icon {
+  background: rgba(0, 91, 159, 0.10) !important;
+  color: #005b9f !important;
+}
+body.theme-vietinbank .overview-stat-wide[data-arg="approved"] .overview-icon {
+  background: rgba(22, 163, 74, 0.12) !important;
+  color: #16a34a !important;
+}
+body.theme-vietinbank .overview-stat-wide[data-arg="pending"] .overview-icon {
+  background: rgba(217, 119, 6, 0.12) !important;
+  color: #d97706 !important;
+}
+body.theme-vietinbank .overview-stat-wide[data-arg="approved"] strong { color: #16a34a !important; }
+body.theme-vietinbank .overview-stat-wide[data-arg="pending"] strong { color: #d97706 !important; }
+
+/* Tối */
+body.theme-midnight .overview-stat .overview-icon {
+  background: rgba(0, 170, 255, 0.15) !important;
+  color: #00aaff !important;
+}
+body.theme-midnight .overview-stat-wide[data-arg="approved"] .overview-icon {
+  background: rgba(52, 211, 153, 0.15) !important;
+  color: #34d399 !important;
+}
+body.theme-midnight .overview-stat-wide[data-arg="pending"] .overview-icon {
+  background: rgba(165, 180, 252, 0.15) !important;
+  color: #a5b4fc !important;
+}
+body.theme-midnight .overview-stat strong { color: #00aaff !important; }
+body.theme-midnight .overview-stat-wide[data-arg="approved"] strong { color: #34d399 !important; }
+body.theme-midnight .overview-stat-wide[data-arg="pending"] strong { color: #a5b4fc !important; }
+body.theme-midnight .overview-stat span:not(.overview-icon) { color: #cbd5e1 !important; }
+
+.overview-stat strong {
+  font-size: clamp(28px, 8.5vw, 40px) !important;
+}
+
+/* Ô thao tác nhanh — icon gradient nổi bật */
+.quick-action-btn {
+  min-height: 96px !important;
+  border-radius: 16px !important;
+}
+
+body.theme-vietinbank .quick-action-btn {
+  background: rgba(0, 91, 159, 0.05) !important;
+  border: 1px solid rgba(0, 91, 159, 0.10) !important;
+}
+body.theme-midnight .quick-action-btn {
+  background: rgba(0, 170, 255, 0.06) !important;
+  border: 1px solid rgba(0, 170, 255, 0.14) !important;
+}
+body.theme-midnight .quick-action-btn strong { color: #e2e8f0 !important; }
+
+.quick-action-btn span {
+  width: 50px !important;
+  height: 50px !important;
+  border-radius: 15px !important;
+  background: var(--accent-gradient) !important;
+  box-shadow: 0 8px 18px rgba(0, 91, 159, 0.28) !important;
+}
+
+/* -----------------------------------------------------------------------------
+   4. DANH SÁCH KHÁCH HÀNG — thẻ có viền trái theo trạng thái
+   --------------------------------------------------------------------------- */
+.cust-card {
+  border-radius: 18px !important;
+  padding: 14px !important;
+  border-left: 4px solid transparent !important;
+}
+
+body.theme-vietinbank .cust-card {
+  background: #ffffff !important;
+  border: 1px solid #e3ecf7 !important;
+  box-shadow: 0 4px 14px rgba(0, 74, 143, 0.06) !important;
+}
+body.theme-vietinbank .cust-card.cust-approved { border-left: 4px solid #16a34a !important; }
+body.theme-vietinbank .cust-card.cust-pending  { border-left: 4px solid #d97706 !important; }
+body.theme-vietinbank .cust-card:hover { background: #f8fbff !important; }
+
+body.theme-midnight .cust-card {
+  background: rgba(15, 30, 60, 0.6) !important;
+  border: 1px solid rgba(0, 170, 255, 0.16) !important;
+  box-shadow: 0 6px 18px rgba(0, 20, 45, 0.3) !important;
+}
+body.theme-midnight .cust-card.cust-approved { border-left: 4px solid #34d399 !important; }
+body.theme-midnight .cust-card.cust-pending  { border-left: 4px solid #a5b4fc !important; }
+
+/* Ẩn dải ::before cũ (đã thay bằng border-left) */
+.cust-card::before { display: none !important; }
+
+/* Avatar chữ cái bo tròn mềm */
+.customer-avatar {
+  width: 46px !important;
+  height: 46px !important;
+  border-radius: 14px !important;
+  font-size: 19px !important;
+  font-weight: 800 !important;
+}
+body.theme-vietinbank .customer-avatar.approved,
+body.theme-vietinbank .customer-avatar.pending {
+  background: linear-gradient(135deg, #004a8f, #00a0e3) !important;
+  color: #ffffff !important;
+}
+body.theme-midnight .customer-avatar.approved,
+body.theme-midnight .customer-avatar.pending {
+  background: linear-gradient(135deg, #005b9f, #22d3ee) !important;
+  color: #ffffff !important;
+}
+
+.customer-name-line { font-weight: 700 !important; font-size: 16px !important; }
+
+/* Nút gọi / nhắn tin trên thẻ */
+.customer-action-btn {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 11px !important;
+}
+body.theme-vietinbank .customer-action-btn {
+  background: rgba(0, 91, 159, 0.08) !important;
+  border: 1px solid rgba(0, 91, 159, 0.12) !important;
+  color: #005b9f !important;
+}
+body.theme-midnight .customer-action-btn {
+  background: rgba(0, 170, 255, 0.10) !important;
+  border: 1px solid rgba(0, 170, 255, 0.18) !important;
+  color: #00aaff !important;
+}
+
+/* KPI mini đầu danh sách */
+body.theme-vietinbank .customer-kpi {
+  background: #ffffff !important;
+  border: 1px solid #e3ecf7 !important;
+  border-radius: 14px !important;
+}
+body.theme-midnight .customer-kpi {
+  background: rgba(15, 30, 60, 0.6) !important;
+  border: 1px solid rgba(0, 170, 255, 0.16) !important;
+  border-radius: 14px !important;
+}
+
+/* -----------------------------------------------------------------------------
+   5. CHI TIẾT HỒ SƠ — header gradient + avatar nổi + tab pill
+   --------------------------------------------------------------------------- */
+body.theme-vietinbank #screen-folder .glass-header {
+  background: linear-gradient(135deg, #004a8f 0%, #0072bc 55%, #00a0e3 100%) !important;
+}
+body.theme-midnight #screen-folder .glass-header {
+  background: linear-gradient(135deg, #00223f 0%, #005b9f 60%, #0088cc 100%) !important;
+}
+
+body.theme-vietinbank .profile-glass-box,
+body.theme-midnight .profile-glass-box {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Avatar hồ sơ: ô trắng chữ xanh nổi trên header */
+#folder-avatar {
+  border-radius: 22px !important;
+  background: #ffffff !important;
+  color: #005b9f !important;
+  border: none !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
+  font-weight: 900 !important;
+}
+
+#folder-customer-name { color: #ffffff !important; }
+
+.profile-glass-box [data-action="openEditCustomerModal"] { color: rgba(255, 255, 255, 0.85) !important; }
+
+/* Nút Gọi / Zalo / Trạng thái dưới avatar */
+#screen-folder .glass-header .glass-btn {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+  border-radius: 12px !important;
+}
+
+/* Thanh tab */
+#screen-folder .glass-header .p-1.rounded-xl {
+  background: #ffffff !important;
+  border: 1px solid #e3ecf7 !important;
+  border-radius: 14px !important;
+}
+body.theme-midnight #screen-folder .glass-header .p-1.rounded-xl {
+  background: rgba(15, 30, 60, 0.7) !important;
+  border: 1px solid rgba(0, 170, 255, 0.2) !important;
+}
+
+.glass-tab-active {
+  background: var(--accent-gradient) !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 91, 159, 0.25) !important;
+}
+
+body.theme-vietinbank #screen-folder [data-action="switchTab"]:not(.glass-tab-active) {
+  color: #5b7089 !important;
+  opacity: 1 !important;
+}
+
+/* Khối thông tin trong tab */
+body.theme-vietinbank #content-info .glass-panel {
+  background: #ffffff !important;
+  border: 1px solid #e3ecf7 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 4px 14px rgba(0, 74, 143, 0.06) !important;
+}
+body.theme-midnight #content-info .glass-panel {
+  background: rgba(15, 30, 60, 0.6) !important;
+  border: 1px solid rgba(0, 170, 255, 0.16) !important;
+  border-radius: 18px !important;
+}
+
+body.theme-vietinbank #info-notes {
+  background: #f4f8fd !important;
+  border: 1px solid #e3ecf7 !important;
+  color: #12284c !important;
+  border-radius: 12px !important;
+}
+
+/* -----------------------------------------------------------------------------
+   6. MÀN HÌNH KHÓA — bàn phím tròn kiểu ngân hàng
+   --------------------------------------------------------------------------- */
+#screen-lock {
+  background: radial-gradient(ellipse 120% 70% at 50% 0%, rgba(0, 91, 159, 0.55) 0%, transparent 60%), #0a1628 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.keypad-btn {
+  width: 66px !important;
+  height: 66px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  color: #e8f1fb !important;
+  backdrop-filter: none !important;
+  font-weight: 600 !important;
+}
+.keypad-btn:active { background: rgba(255, 255, 255, 0.16) !important; }
+
+.keypad-btn.text-red-400 {
+  background: rgba(218, 37, 29, 0.12) !important;
+  border-color: rgba(218, 37, 29, 0.25) !important;
+  color: #ff6b63 !important;
+}
+
+.pin-dot { width: 15px !important; height: 15px !important; }
+.pin-dot.filled {
+  background: #00a0e3 !important;
+  border-color: #00a0e3 !important;
+}
+
+#screen-lock h2 { color: #ffffff !important; }
+#pin-subtitle { color: #8fa8c4 !important; opacity: 1 !important; }
+#screen-lock [data-action="forgotPin"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  color: #8fa8c4 !important;
+}
+
+/* -----------------------------------------------------------------------------
+   7. NÚT HÀNH ĐỘNG CHÍNH (Chụp ảnh / Thêm TSBĐ / Lưu…) — gradient đồng bộ
+   --------------------------------------------------------------------------- */
+[style*="var(--accent-gradient)"] {
+  border-radius: 14px !important;
+}
+
+/* Bo góc mềm mại hơn cho input trên toàn app */
+input:not(.keypad-btn),
+textarea,
+select {
+  border-radius: 12px !important;
+}
