@@ -17,7 +17,7 @@
 - ☁️ **Sao lưu & khôi phục** — sao lưu mã hóa (`.cpb`) trong máy, tự động sao lưu lên Google Drive cá nhân, chuyển dữ liệu giữa các thiết bị qua cloud.
 - 🗺️ **Bản đồ** — hiển thị vị trí khách hàng/tài sản bằng MapLibre GL, tính khoảng cách đường đi qua OSRM.
 - 📷 **Camera & lightbox** — chụp ảnh trực tiếp trong app, xem ảnh phóng to.
-- 🎨 **4 giao diện ngân hàng** — 1 nền sáng + 3 sắc xanh VietinBank (Sáng, Xanh Đêm, Đại Dương, Thiên Thanh).
+- 🎨 **4 giao diện ngân hàng** — 1 nền sáng + 3 sắc xanh (Sáng, Xanh Đêm, Đại Dương, Thiên Thanh).
 - 🌤️ **Tiện ích** — thời tiết (Open-Meteo), tour hướng dẫn người dùng mới, ủng hộ tác giả qua VietQR.
 - 👆 **Tối ưu mobile** — điều hướng bằng cử chỉ, xử lý edge back-swipe, chuyển màn hình mượt.
 
