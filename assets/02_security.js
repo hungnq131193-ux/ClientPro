@@ -483,10 +483,8 @@ function isSafeDriveUrl(url) {
 function setTheme(themeName) {
   document.body.className = themeName;
   localStorage.setItem(THEME_KEY, themeName);
-  document.querySelectorAll(".theme-btn").forEach((btn) => {
-    if (btn.getAttribute("onclick").includes(themeName))
-      btn.classList.add("active");
-    else btn.classList.remove("active");
+  document.querySelectorAll(".theme-btn-sm").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.arg === themeName);
   });
 }
 /** * Kiểm tra trạng thái kích hoạt và bảo mật của ứng dụng. * Trình tự: * 1. Nếu chưa kích hoạt (không có app_activated), hiển thị modal kích hoạt. * 2. Nếu đã kích hoạt nhưng chưa tạo PIN, hiển thị màn hình thiết lập PIN. * Mã nhân viên sẽ được điền sẵn từ localStorage để người dùng không cần nhập lại. * 3. Nếu đã có PIN, hiển thị màn hình khóa để nhập PIN. */

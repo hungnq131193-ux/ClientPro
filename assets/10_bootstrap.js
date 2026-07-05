@@ -51,19 +51,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("resize", setAppHeight);
   setAppHeight();
   let savedTheme = localStorage.getItem(THEME_KEY);
-  // Danh sách các theme hợp lệ hiện tại
+  // Danh sách 4 theme hợp lệ (1 sáng + 3 sắc xanh ngân hàng)
   const validThemes = [
     "theme-vietinbank",
     "theme-midnight",
-    "theme-sunset",
     "theme-ocean",
-    "theme-mint",
-    "theme-royal",
     "theme-aurora",
-    "theme-violet",
-    "theme-emerald",
-    "theme-sakura",
-    "theme-solar",
   ];
 
   // Nếu theme trong bộ nhớ không nằm trong danh sách mới (do code cũ), ép về VietinBank Light

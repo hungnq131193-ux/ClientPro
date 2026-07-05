@@ -1,9 +1,9 @@
-// BUILD: 2026-07-04_v1.0.1_CLEANUP
+// BUILD: 2026-07-05_v1.1.0
 // ClientPro Service Worker (runtime-first, PWA-safe)
 // NOTE: Không cache cứng CDN bằng addAll để tránh lỗi cài đặt SW khi CDN thay đổi.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.0.1';
+const VERSION = 'v1.1.0';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -21,7 +21,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'CLEANUP_20260704';
+const ASSET_V = '1.1.0';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -32,6 +32,7 @@ const STATIC_ASSETS = [
   // Tailwind (self-host)
   './assets/css/tailwind.clientpro.css',
   './assets/css/app.patch.css',
+  `./assets/css/redesign.clientpro.css?v=${ASSET_V}`,
   `./assets/styles.css?v=${ASSET_V}`,
   `./assets/head.js?v=${ASSET_V}`,
   `./assets/pwa.js?v=${ASSET_V}`,

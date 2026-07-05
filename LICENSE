@@ -1,21 +1,41 @@
-MIT License
+Bản quyền độc quyền — All Rights Reserved
 
-Copyright (c) 2026 hungnq131193-ux and ClientPro contributors
+Copyright (c) 2026 hungnq131193-ux (ClientPro). Bảo lưu mọi quyền.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+TIẾNG VIỆT
+------------------------------------------------------------------------------
+Phần mềm "ClientPro" cùng toàn bộ mã nguồn, tài nguyên, thiết kế giao diện và
+tài liệu đi kèm (gọi chung là "Phần mềm") là tài sản độc quyền của tác giả.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Nếu không có văn bản cho phép trước của tác giả, KHÔNG được phép:
+  1. Sao chép, phân phối, công bố hoặc chia sẻ lại Phần mềm dưới mọi hình thức;
+  2. Chỉnh sửa, dịch ngược, biên dịch ngược hoặc tạo sản phẩm phái sinh;
+  3. Sử dụng Phần mềm cho mục đích thương mại hoặc bán lại;
+  4. Gỡ bỏ hay che giấu các thông báo bản quyền trong Phần mềm.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Việc cấp quyền sử dụng cho người dùng cuối được thực hiện thông qua cơ chế kích
+hoạt (activation) chính thức của tác giả và chỉ giới hạn trong phạm vi được cấp.
+
+ENGLISH
+------------------------------------------------------------------------------
+The "ClientPro" software, together with all of its source code, assets, user
+interface design and accompanying documentation (collectively, the "Software"),
+is the exclusive and proprietary property of the author.
+
+Without the prior written permission of the author, you may NOT:
+  1. Copy, distribute, publish or otherwise redistribute the Software;
+  2. Modify, reverse-engineer, decompile or create derivative works;
+  3. Use the Software for any commercial purpose or resale;
+  4. Remove or obscure any copyright notices contained in the Software.
+
+End-user rights are granted solely through the author's official activation
+mechanism and are limited to the scope so granted.
+
+TỪ CHỐI TRÁCH NHIỆM / DISCLAIMER
+------------------------------------------------------------------------------
+PHẦN MỀM ĐƯỢC CUNG CẤP "NGUYÊN TRẠNG", KHÔNG KÈM BẤT KỲ BẢO ĐẢM NÀO. TÁC GIẢ
+KHÔNG CHỊU TRÁCH NHIỆM CHO BẤT KỲ THIỆT HẠI NÀO PHÁT SINH TỪ VIỆC SỬ DỤNG
+PHẦN MỀM. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+Mọi yêu cầu cấp phép, vui lòng liên hệ tác giả qua kho mã nguồn chính thức:
+https://github.com/hungnq131193-ux/ClientPro
