@@ -40,7 +40,11 @@
             try { return getUserToken(); } catch (e) { }
         }
         const key = (typeof USER_TOKEN_KEY !== 'undefined') ? USER_TOKEN_KEY : 'app_user_script_token';
-        return (localStorage.getItem(key) || '').trim();
+        const raw = (localStorage.getItem(key) || '').trim();
+        // Token đã niêm phong bằng masterKey (xem 07_drive.js): fallback này không giải mã
+        // được thì trả rỗng, KHÔNG gửi ciphertext lên server như token.
+        if (raw.indexOf('sealed.v1:') === 0) return '';
+        return raw;
     }
 
     // getDeviceIdSafe() dùng chung từ 00_globals.js
@@ -341,9 +345,12 @@
             throw new Error('User script URL not configured');
         }
 
-        // Use GET with URL params for GAS CORS compatibility
-        const url = `${serverUrl}?action=list_backups&token=${encodeURIComponent(getUserTokenSafe())}`;
-        const response = await fetch(url, { method: 'GET' });
+        // POST với token trong body (không đưa token vào query URL để tránh lộ qua
+        // log/history). Cùng pattern POST-JSON đã dùng ổn định với GAS ở uploadAutoBackupToServer.
+        const response = await fetch(serverUrl, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'list_backups', token: getUserTokenSafe() })
+        });
         const result = await response.json();
 
         if (result.status !== 'success') {
@@ -361,9 +368,12 @@
     async function downloadDriveBackup(fileId) {
         const serverUrl = getUserScriptUrl();
 
-        // Use GET with URL params for GAS CORS compatibility
-        const url = `${serverUrl}?action=download_backup&fileId=${encodeURIComponent(fileId)}&token=${encodeURIComponent(getUserTokenSafe())}`;
-        const response = await fetch(url, { method: 'GET' });
+        // POST với token trong body (không đưa token vào query URL để tránh lộ qua
+        // log/history).
+        const response = await fetch(serverUrl, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'download_backup', fileId: String(fileId), token: getUserTokenSafe() })
+        });
         const result = await response.json();
 
         if (result.status !== 'success') {

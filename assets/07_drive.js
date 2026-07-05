@@ -10,13 +10,72 @@ function toggleDashboardDriveConfig() {
     const willOpen = panel.classList.contains('hidden');
     panel.classList.toggle('hidden', !willOpen);
     panel.setAttribute('aria-hidden', willOpen ? 'false' : 'true');
-    if (willOpen && input) setTimeout(() => input.focus(), 80);
+    if (willOpen) {
+        // Prefill token tại thời điểm mở panel (app đã mở khóa nên đọc được token niêm phong).
+        const tokenInput = getEl('dashboard-drive-token');
+        if (tokenInput && !tokenInput.value) {
+            const savedToken = getUserToken();
+            if (savedToken) tokenInput.value = savedToken;
+        }
+        if (input) setTimeout(() => input.focus(), 80);
+    }
 }
 // Mã bảo mật (Access Token) cho Script Drive cá nhân (UserAPI).
-// Server UserAPI bắt buộc token; app gửi kèm mỗi request.
+// Server UserAPI bắt buộc token; app gửi kèm mỗi request (trong body, KHÔNG qua query URL).
+//
+// BẢO MẬT: token được "niêm phong" trong localStorage bằng masterKey (AES qua
+// encryptText/decryptText của 02_security.js) dưới dạng:
+//     'sealed.v1:' + <ciphertext>
+// - Chưa mở khóa app (chưa có masterKey) -> getUserToken() trả '' (server sẽ từ chối,
+//   không lộ token khi localStorage bị đọc trộm qua XSS lúc app còn khóa).
+// - Token cũ dạng plaintext: tự niêm phong lại ở lần đọc đầu tiên sau khi mở khóa
+//   (lazy migration, không bắt user nhập lại).
+const USER_TOKEN_SEALED_PREFIX = 'sealed.v1:';
+
+function _userTokenStorageKey() {
+    return (typeof USER_TOKEN_KEY !== 'undefined') ? USER_TOKEN_KEY : 'app_user_script_token';
+}
+
+function _hasMasterKeyForToken() {
+    return typeof masterKey !== 'undefined' && !!masterKey;
+}
+
+/** Niêm phong token bằng masterKey. Không có masterKey thì trả plaintext như cũ. */
+function sealUserToken(token) {
+    const t = String(token || '').trim();
+    if (!t || !_hasMasterKeyForToken() || typeof encryptText !== 'function') return t;
+    try {
+        const ct = encryptText(t);
+        // encryptText trả lại nguyên bản khi mã hóa thất bại -> chỉ dán prefix khi thực sự đổi.
+        if (typeof ct === 'string' && ct && ct !== t) return USER_TOKEN_SEALED_PREFIX + ct;
+    } catch (e) { }
+    return t;
+}
+
 function getUserToken() {
-    const key = (typeof USER_TOKEN_KEY !== 'undefined') ? USER_TOKEN_KEY : 'app_user_script_token';
-    return (localStorage.getItem(key) || '').trim();
+    const key = _userTokenStorageKey();
+    const raw = (localStorage.getItem(key) || '').trim();
+    if (!raw) return '';
+
+    if (raw.startsWith(USER_TOKEN_SEALED_PREFIX)) {
+        if (!_hasMasterKeyForToken() || typeof decryptText !== 'function') return '';
+        const ct = raw.slice(USER_TOKEN_SEALED_PREFIX.length);
+        try {
+            const pt = decryptText(ct);
+            // decryptText trả lại input khi giải mã thất bại (sai khóa) -> coi như không có token.
+            if (typeof pt === 'string' && pt && pt !== ct) return pt.trim();
+        } catch (e) { }
+        return '';
+    }
+
+    // Token cũ dạng plaintext: niêm phong lại ngay khi masterKey sẵn sàng.
+    if (_hasMasterKeyForToken()) {
+        try {
+            const sealed = sealUserToken(raw);
+            if (sealed !== raw) localStorage.setItem(key, sealed);
+        } catch (e) { }
+    }
+    return raw;
 }
 
 function saveScriptUrl() {
@@ -33,10 +92,9 @@ function saveScriptUrl() {
         if (tokenInput) tokenInput.focus();
         return;
     }
-    // Lưu link Script cá nhân và token vào localStorage
+    // Lưu link Script cá nhân và token (niêm phong bằng masterKey nếu app đã mở khóa)
     localStorage.setItem(USER_SCRIPT_KEY, url);
-    const tokenKey = (typeof USER_TOKEN_KEY !== 'undefined') ? USER_TOKEN_KEY : 'app_user_script_token';
-    localStorage.setItem(tokenKey, token);
+    localStorage.setItem(_userTokenStorageKey(), sealUserToken(token));
     showToast("Đã lưu kết nối Drive cá nhân");
 }
 document.addEventListener('DOMContentLoaded', () => {
@@ -45,11 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const input = getEl('dashboard-drive-url') || getEl('user-script-url');
         if (input) input.value = savedUrl;
     }
-    const savedToken = getUserToken();
-    if (savedToken) {
-        const tokenInput = getEl('dashboard-drive-token');
-        if (tokenInput) tokenInput.value = savedToken;
-    }
+    // KHÔNG prefill token ở đây: lúc DOMContentLoaded app còn khóa (masterKey chưa có)
+    // nên token niêm phong chưa đọc được. Prefill khi mở panel (toggleDashboardDriveConfig).
 });
 
 // =============================
