@@ -534,7 +534,7 @@ select,
 textarea {
   color: var(--text-main) !important;
   background: var(--input-bg) !important;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 input:focus {
@@ -628,7 +628,7 @@ input::placeholder {
   height: 14px;
   border-radius: 50%;
   border: 2px solid var(--text-sub);
-  transition: all 0.2s;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
 }
 
 .pin-dot.filled {
@@ -731,7 +731,7 @@ input::placeholder {
 .select-ring svg {
   opacity: 0;
   transform: scale(0.5);
-  transition: all 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
 }
 
 .selected .select-ring {
@@ -879,6 +879,11 @@ input::placeholder {
   }
 }
 
+/* Perf: dừng pulse của marker khi màn hình bản đồ đã trượt ra khỏi khung nhìn */
+#screen-map.translate-x-full .marker-glow::after {
+  animation-play-state: paused;
+}
+
 .map-style-control {
   display: flex;
   flex-direction: column;
@@ -919,7 +924,7 @@ input::placeholder {
   backdrop-filter: blur(10px);
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
     0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s;
+  transition: background-color 0.2s, transform 0.2s;
 }
 
 .glass-btn:active {
@@ -1266,7 +1271,7 @@ input::placeholder {
   border: 1px solid var(--border-panel);
   border-radius: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
@@ -1742,6 +1747,13 @@ input::placeholder {
 @keyframes dashboardTicker {
   from { transform: translateX(0); }
   to { transform: translateX(-100%); }
+}
+
+/* Perf: dừng ticker khi có màn hình khác trượt đè lên dashboard
+   (dashboard vẫn được paint phía dưới nên animation chạy nền tốn GPU vô ích).
+   Trình duyệt cũ không hỗ trợ :has() sẽ bỏ qua rule này — hành vi như cũ. */
+body:has(.app-container:not(#screen-dashboard):not(.translate-x-full):not(.hidden)) .dashboard-date-ticker span {
+  animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {

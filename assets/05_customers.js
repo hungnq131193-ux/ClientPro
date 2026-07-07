@@ -196,11 +196,12 @@ function closeCustomerList() {
 }
 
 // Update folder counts on home screen
-async function updateFolderCounts() {
-    if (!db) return;
+// customersOpt: mảng customers đã đọc sẵn (vd từ loadCustomers) để khỏi getAll lần nữa
+async function updateFolderCounts(customersOpt) {
+    if (!db && !Array.isArray(customersOpt)) return;
 
     try {
-        const list = await new Promise((resolve) => {
+        const list = Array.isArray(customersOpt) ? customersOpt : await new Promise((resolve) => {
             const tx = db.transaction(['customers'], 'readonly');
             const req = tx.objectStore('customers').getAll();
             req.onsuccess = (e) => resolve(e.target.result || []);
@@ -226,7 +227,11 @@ async function updateFolderCounts() {
         if (approvedEl) approvedEl.textContent = approvedCount;
         if (pendingEl) pendingEl.textContent = pendingCount;
         if (assetsEl) assetsEl.textContent = assetCount;
-        try { lucide.createIcons(); } catch (e) { }
+        // Chỉ scan lại icon ở đường gọi cũ (boot/đóng màn hình); đường gọi từ
+        // loadCustomers chạy theo từng keystroke search nên bỏ qua cho nhẹ.
+        if (!Array.isArray(customersOpt)) {
+            try { lucide.createIcons(); } catch (e) { }
+        }
     } catch (e) { }
 }
 
@@ -324,11 +329,28 @@ async function loadCustomers(query = '') {
         return acc;
     }, { approved: 0, pending: 0 });
 
-    if (list.length === 0) {
-        renderList([], { append: false, done: true, summaryCounts });
-    } else {
+    // Đồng bộ luôn số liệu folder ở home từ dữ liệu vừa đọc (khỏi getAll lần nữa)
+    updateFolderCounts(all);
+
+    // Render theo chunk: chunk đầu hiện ngay, phần còn lại rải qua rAF
+    // để không block main thread khi danh sách dài.
+    const CHUNK_SIZE = 25;
+    if (list.length <= CHUNK_SIZE) {
         renderList(list, { append: false, done: true, summaryCounts });
+        return;
     }
+
+    renderList(list.slice(0, CHUNK_SIZE), { append: false, done: false, summaryCounts });
+    let renderedCount = CHUNK_SIZE;
+    const renderNextChunk = () => {
+        // Có lượt load mới (search/đổi tab) -> bỏ các chunk còn lại của lượt cũ
+        if (window.__customerListLoadToken !== loadToken) return;
+        const chunk = list.slice(renderedCount, renderedCount + CHUNK_SIZE);
+        renderedCount += chunk.length;
+        renderList(chunk, { append: true, done: renderedCount >= list.length, summaryCounts });
+        if (renderedCount < list.length) requestAnimationFrame(renderNextChunk);
+    };
+    requestAnimationFrame(renderNextChunk);
 }
 
 function renderList(list, opts = {}) {

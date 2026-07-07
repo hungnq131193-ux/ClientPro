@@ -28,24 +28,28 @@
     'assets/ui/modals/backup-manager-modal.html'
   ];
 
-  async function loadAllModalsSequentially() {
-    for (var i = 0; i < files.length; i++) {
-      var url = files[i];
+  async function loadAllModals() {
+    // Fetch song song (SW đã cache-first cho /assets/ nên không cần no-cache),
+    // nhưng insert theo đúng thứ tự mảng `files` để giữ cấu trúc DOM như cũ.
+    var results = await Promise.all(files.map(async function (url) {
       try {
-        var res = await fetch(url, { cache: 'no-cache' });
+        var res = await fetch(url);
         if (!res.ok) {
           console.warn('[ClientPro] Failed to load modal partial:', url, 'status:', res.status);
-          continue;
+          return '';
         }
-        var html = await res.text();
-        if (html) root.insertAdjacentHTML('beforeend', html + '\n');
+        return await res.text();
       } catch (e) {
         console.warn('[ClientPro] Error loading modal partial:', url, e);
+        return '';
       }
+    }));
+    for (var i = 0; i < results.length; i++) {
+      if (results[i]) root.insertAdjacentHTML('beforeend', results[i] + '\n');
     }
     document.dispatchEvent(new CustomEvent('clientpro:modals-loaded'));
     return true;
   }
 
-  window.__clientpro_modals_ready = loadAllModalsSequentially();
+  window.__clientpro_modals_ready = loadAllModals();
 })();

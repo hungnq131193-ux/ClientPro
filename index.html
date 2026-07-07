@@ -12,7 +12,12 @@
     <meta name="theme-color" content="#005b9f">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <!-- Fonts (self-host: Inter + Be Vietnam Pro, subset latin/latin-ext/vietnamese) -->
+    <!-- Fonts (self-host: Inter + Be Vietnam Pro, subset latin/vietnamese) -->
+    <!-- Preload font chính (Be Vietnam Pro 400/700) để chữ hiện sớm, giảm FOUT -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-latin.woff2">
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-vietnamese.woff2">
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-latin.woff2">
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-vietnamese.woff2">
     <link rel="stylesheet" href="./assets/css/fonts.css?v=REDESIGN_20260705">
     <!-- Tailwind (self-host) -->
     <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
