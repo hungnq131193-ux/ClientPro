@@ -28,7 +28,7 @@ const BUILD_TAG = 'CLIENTPRO_USER_GAS_2026-07-04_v3_token';
 // =======================
 const IMAGES_FOLDER = 'CLIENTPRO_IMAGES';
 const BACKUP_FOLDER = 'CLIENTPRO_BACKUPS';
-const BACKUP_KEEP_LAST = 5; // Giữ 5 bản backup gần nhất
+const BACKUP_KEEP_LAST = 3; // Giữ 3 bản backup gần nhất
 
 // ScriptProperties keys
 const PROP_IMAGES_FOLDER_ID = 'CLIENTPRO_IMAGES_FOLDER_ID';
