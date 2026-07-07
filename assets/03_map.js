@@ -77,7 +77,7 @@ async function ensureMapLibreLoaded() {
     __mapLibreLoadPromise = (async () => {
         // Self-host (maplibre-gl 4.7.1, xem assets/vendor/README.md) — không dùng CDN ngoài.
         // Query ?v= phải khớp STATIC_ASSETS trong sw.js để precache dùng lại được.
-        const MAPLIBRE_V = 'REDESIGN_20260705';
+        const MAPLIBRE_V = 'ROADDIST_20260707';
         const cssLocal = `./assets/vendor/maplibre-gl.css?v=${MAPLIBRE_V}`;
         const jsLocal = `./assets/vendor/maplibre-gl.js?v=${MAPLIBRE_V}`;
 
@@ -255,13 +255,19 @@ async function __osrmFetchTable(baseUrl, coordsStr) {
 }
 
 // origin: {lat,lng}; points: Array<{lat,lng}>
-// Resolve: Array<number|null> cùng độ dài points (mét đường bộ; null = không định tuyến được
-//          hoặc kết quả không đáng tin) hoặc null nếu toàn bộ request thất bại
-//          -> caller giữ khoảng cách haversine.
+// Resolve: Array<{d, conf}|null> cùng độ dài points, trong đó:
+//   - d:    mét đường bộ (number)
+//   - conf: 'high' (điểm bám đường <= ROAD_DIST_SNAP_GOOD_M ở cả 2 đầu)
+//           | 'med' (bám xa hơn nhưng vẫn <= ROAD_DIST_SNAP_MAX_M — kết quả tương đối)
+//   - null: không định tuyến được hoặc kết quả không đáng tin -> caller giữ haversine
+// hoặc resolve null nếu toàn bộ request thất bại -> caller giữ nguyên haversine.
 // Kiểm tra chất lượng kết quả: OSRM "bám" tọa độ vào đường gần nhất KHÔNG giới hạn bán kính,
 // nên nơi bản đồ thiếu đường (khu mới, ngõ nhỏ) điểm bám có thể cách tọa độ thật rất xa
 // -> quãng đường sai hoàn toàn. Ta đọc khoảng cách bám (waypoint.distance) để loại các
-// kết quả đó, và loại luôn kết quả ngắn hơn đường chim bay (phi lý).
+// kết quả đó, loại kết quả ngắn hơn đường chim bay (phi lý), và loại kết quả vòng vèo
+// quá tỉ lệ ROAD_DIST_MAX_DETOUR_RATIO so với chim bay (thường do bản đồ thiếu đường nối).
+// Không dùng option `radiuses` của OSRM để giới hạn bán kính bám: chỉ cần 1 tọa độ không
+// bám được là cả batch trả lỗi NoSegment -> mất luôn kết quả của các điểm còn lại.
 // Không bao giờ reject. Tọa độ (đã giải mã) được gửi tới server OSRM công cộng,
 // tương đương việc app đã gửi GPS tới Open-Meteo cho thời tiết.
 async function fetchRoadDistances(origin, points) {
@@ -284,7 +290,10 @@ async function fetchRoadDistances(origin, points) {
     pts.forEach((p, i) => {
         const entry = cache[`${oLat},${oLng}|${p.lat},${p.lng}`];
         if (entry && (now - entry.t) < ROAD_DIST_CACHE_TTL) {
-            results[i] = entry.d; // number hoặc null (cặp không định tuyến được)
+            // entry: {d: number|null, c?: 'high'|'med', t} — null = cặp không định tuyến được
+            results[i] = (typeof entry.d === 'number')
+                ? { d: entry.d, conf: entry.c === 'high' ? 'high' : 'med' }
+                : null;
         } else {
             pending.push(i);
         }
@@ -317,23 +326,27 @@ async function fetchRoadDistances(origin, points) {
         const originSnap = (srcWp && typeof srcWp.distance === 'number') ? srcWp.distance : 0;
 
         pending.forEach((i, k) => {
-            let d = row[k + 1]; // index 0 là chính origin
-            if (typeof d !== 'number') {
-                d = null;
-            } else {
+            const d = row[k + 1]; // index 0 là chính origin
+            let out = null;
+            if (typeof d === 'number') {
                 const wp = dstWps[k + 1];
                 const destSnap = (wp && typeof wp.distance === 'number') ? wp.distance : 0;
+                const snapWorst = Math.max(originSnap, destSnap);
                 const straight = distanceMeters(oLat, oLng, pts[i].lat, pts[i].lng);
-                if (originSnap > ROAD_DIST_SNAP_MAX_M || destSnap > ROAD_DIST_SNAP_MAX_M) {
+                if (snapWorst > ROAD_DIST_SNAP_MAX_M) {
                     // Điểm bám đường quá xa tọa độ thật -> quãng đường không đáng tin
-                    d = null;
                 } else if (d + originSnap + destSnap + 50 < straight) {
                     // Đường bộ ngắn hơn đường chim bay (đã trừ sai số điểm bám) là phi lý
-                    d = null;
+                } else if (straight >= ROAD_DIST_DETOUR_MIN_STRAIGHT_M && d > straight * ROAD_DIST_MAX_DETOUR_RATIO) {
+                    // Vòng vèo phi lý so với chim bay -> thường do bản đồ thiếu đường nối
+                } else {
+                    out = { d: d, conf: snapWorst <= ROAD_DIST_SNAP_GOOD_M ? 'high' : 'med' };
                 }
             }
-            results[i] = d;
-            cache[`${oLat},${oLng}|${pts[i].lat},${pts[i].lng}`] = { d: results[i], t: now };
+            results[i] = out;
+            cache[`${oLat},${oLng}|${pts[i].lat},${pts[i].lng}`] = out
+                ? { d: out.d, c: out.conf, t: now }
+                : { d: null, t: now };
         });
 
         try {
