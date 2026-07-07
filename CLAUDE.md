@@ -206,18 +206,28 @@ Mục tiêu của section này là cung cấp **mental model + chi tiết thực
 
 - MapLibre GL JS self-hosted, lazy load khi vào màn hình map.
 - Markers cho customer + asset (dùng lat/lng từ DB).
-- **Core feature — Road Distance**:
-  1. Lấy 2 tọa độ (customer/asset hoặc current GPS + điểm đến).
-  2. Gọi OSRM `/table/v1/driving/` (ưu tiên routing.openstreetmap.de).
-  3. Nhận kết quả → validate:
-     - Kiểm tra snap distance ≤ 150m.
-     - Kiểm tra detour ratio.
-  4. Nếu pass → cache kết quả (7 ngày) → hiển thị khoảng cách thực tế.
-  5. Nếu fail validation hoặc timeout → fallback sang router thứ 2 hoặc tính straight-line.
-- `locateMe()`, `getCurrentGPS()` — dùng Geolocation API (đã whitelist trong Permissions-Policy).
-- Cache giúp giảm gọi API lặp lại và tăng tốc UX.
+- **Core feature — Road Distance (khoảng cách đường thực tế)**:
 
-**Mục tiêu thiết kế**: Độ chính xác cao cho "khoảng cách đường thực tế" mà vẫn hoàn toàn miễn phí và reliable.
+  **Cơ chế hoạt động**:
+  1. Lấy 2 tọa độ (ví dụ: vị trí khách hàng + vị trí tài sản, hoặc GPS hiện tại + điểm đến).
+  2. Gọi OSRM Table API `/table/v1/driving/` (ưu tiên server `routing.openstreetmap.de/routed-car` vì dữ liệu cập nhật tốt).
+  3. OSRM sẽ **snap** (kéo) 2 điểm vào mạng lưới đường gần nhất và tính khoảng cách thực tế theo đường.
+  4. **Validation sau khi snap** (rất quan trọng, được siết chặt từ v1.4.0):
+     - `ROAD_DIST_SNAP_MAX_M = 150`: Nếu khoảng cách từ điểm gốc đến điểm snapped > 150m → kết quả bị coi là kém tin cậy (điểm nằm quá xa đường thực tế) → loại bỏ hoặc fallback.
+     - `ROAD_DIST_SNAP_GOOD_M = 50`: Nếu cả 2 điểm snap ≤ 50m → mức tin cậy cao.
+     - `ROAD_DIST_MAX_DETOUR_RATIO = 8` + `ROAD_DIST_DETOUR_MIN_STRAIGHT_M = 120`: So sánh khoảng cách đường bộ với straight-line distance. Nếu đường bộ dài hơn quá 8 lần (và straight-line đủ lớn) → coi là bất thường → dùng straight-line thay thế.
+  5. Nếu pass validation → lưu vào cache (7 ngày, max 600 entries) → hiển thị kết quả.
+  6. Nếu fail (timeout 8s, snap quá xa, hoặc detour ratio quá lớn) → fallback sang router thứ 2 (`router.project-osrm.org`) hoặc tính straight-line distance.
+
+  **Giải thích rõ về Snapping tolerance 150m**:
+  - Đây **không phải** chỉ đơn giản "nếu marker nằm trong 150m từ road network thì snap".
+  - Đây là **post-snapping validation**: OSRM đã snap xong → app kiểm tra chất lượng của việc snap đó. Nếu snapped point cách vị trí gốc quá 150m → nghĩa là điểm gốc nằm ở vị trí khó snap (xa đường, vùng nông thôn thưa đường...), kết quả routing có thể không chính xác → bị loại.
+  - Mục tiêu: Đảm bảo kết quả khoảng cách đường thực tế mà OSRM trả về là **đáng tin cậy**, không phải chỉ snap cho có.
+
+- `locateMe()`, `getCurrentGPS()` — dùng Geolocation API (đã whitelist trong Permissions-Policy và CSP).
+- Cache giúp giảm gọi API lặp lại, tăng tốc UX và giảm rate limit của public router.
+
+**Mục tiêu thiết kế**: Cung cấp khoảng cách đường thực tế **chính xác cao** cho nhu cầu thực tế (thẩm định tài sản, đi thực địa...) mà vẫn hoàn toàn miễn phí, không cần API key, và reliable nhờ validation + cache + fallback.
 
 ### 4.6 Camera, Ảnh & Lightbox (08_images_camera.js)
 
@@ -229,14 +239,26 @@ Mục tiêu của section này là cung cấp **mental model + chi tiết thực
 
 ### 4.7 Backup, Restore & Cloud Sync (12_backup_core.js, 07_drive.js, 14_cloud_transfer.js, 16_auto_backup_drive.js, 09_backup_manager.js)
 
-- **Local .cpb backup** (12_backup_core.js): `createBackupFileNow()` → export toàn bộ DB đã encrypt thành file `.cpb` (có thể download).
-- **Google Drive**:
-  - `uploadToGoogleDrive()`, `uploadAssetToDrive()`
-  - Auto backup: `16_auto_backup_drive.js` + `DriveBackup.performNow`
-  - Reconnect folder: `reconnectDriveFolder()`, `reconnectAssetDriveFolder()`
-  - Cấu hình script URL trong settings.
-- **Cloud Transfer** (14_cloud_transfer.js): Gửi dữ liệu (encrypted) giữa các thiết bị qua Google Apps Script endpoint (`ADMIN_SERVER_URL`). Dùng cho sync hoặc chuyển dữ liệu an toàn.
-- Backup Manager modal: `openBackupManager()`, `closeBackupManager()`.
+**Phân biệt rõ 2 hệ thống backup/sync**:
+
+- **Drive Backup (Backup file .cpb lên Google Drive cá nhân)**:
+  - Mục đích: Backup & restore **toàn bộ dữ liệu** của app dưới dạng một file `.cpb` đã mã hóa.
+  - Quy trình: `createBackupFileNow()` (12_backup_core.js) → tạo file `.cpb` → `uploadToGoogleDrive()` / `uploadAssetToDrive()` (07_drive.js) → upload lên Google Drive **cá nhân** của user.
+  - Hỗ trợ: Auto backup định kỳ (`16_auto_backup_drive.js` + `DriveBackup.performNow`), manual backup/restore, reconnect folder nếu thay đổi Drive.
+  - Ưu điểm: User hoàn toàn sở hữu file backup trên Drive cá nhân, dễ khôi phục toàn bộ app trên thiết bị mới.
+  - Dùng khi: Muốn backup toàn bộ, hoặc chuyển dữ liệu sang thiết bị khác bằng cách download file .cpb rồi restore.
+
+- **Cloud Transfer (Gửi dữ liệu qua GAS endpoint)**:
+  - Mục đích: **Gửi / sync / chuyển** một phần hoặc toàn bộ dữ liệu (thường là danh sách khách hàng đã chọn) giữa **các thiết bị khác nhau** của cùng user một cách nhanh chóng, không cần download/upload file thủ công.
+  - Quy trình: Sử dụng selection mode → `sendSelectedCustomersToUser()` hoặc tương tự → dữ liệu (đã encrypt) được gửi qua **Google Apps Script endpoint** (`ADMIN_SERVER_URL` trong 01_config.js). User cần cấu hình `USER_SCRIPT_KEY` và `USER_TOKEN_KEY` trong settings.
+  - Ưu điểm: Nhanh, tiện cho việc sync dữ liệu giữa điện thoại và máy tính, hoặc gửi danh sách khách hàng đã duyệt cho người khác (nếu có quyền).
+  - Khác biệt lớn so với Drive Backup: Không tạo file .cpb, mà gửi data trực tiếp qua server GAS (có authentication qua script URL + token mà user tự quản lý).
+
+**Tóm lại sự khác biệt**:
+- **Drive Backup** = Backup toàn bộ app thành file `.cpb` → lưu trên Google Drive cá nhân (dùng để restore toàn bộ).
+- **Cloud Transfer** = Gửi dữ liệu (khách hàng, tài sản...) qua GAS endpoint để sync giữa các thiết bị (không qua file .cpb).
+
+Cả hai đều tôn trọng triết lý "user-controlled cloud" — không có backend trung tâm của tác giả.
 
 **Triết lý**: User hoàn toàn kiểm soát backup. App chỉ hỗ trợ, không ép buộc cloud.
 
@@ -311,15 +333,48 @@ Phải đồng bộ **đúng 5 nơi**:
 
 CI (`.github/workflows/ci.yml`) sẽ kiểm tra tự động và fail nếu không khớp.
 
-### 6.2 Thêm tính năng / Module mới
-1. Tạo file `assets/NN_ten_chuc_nang.js` (chọn số load order hợp lý).
-2. Thêm `<script defer src="./assets/NN_....js?v=...">` vào đúng vị trí trong `index.html`.
-3. Khai báo handler vào bảng `CLICK_ACTIONS` trong `00_globals.js` (nếu là action mới).
-4. Sử dụng **chỉ** `data-action="..."` trên mọi phần tử UI mới.
-5. Nếu dùng external API → cập nhật CSP trong `vercel.json`.
-6. **Cập nhật CLAUDE.md** (thêm mô tả module, thay đổi architecture, quy ước mới).
-7. Test kỹ: local server + offline mode + PWA install + map routing accuracy + encryption flow.
+### 6.2 Thêm tính năng / Module mới + Cập nhật CLAUDE.md (QUAN TRỌNG)
+
+**Quy trình code**:
+1. Tạo file `assets/NN_ten_chuc_nang.js` (chọn số load order hợp lý, thường theo nhóm chức năng).
+2. Thêm `<script defer src="./assets/NN_....js?v=...">` vào đúng vị trí trong `index.html` (theo dependency).
+3. Khai báo handler vào bảng `CLICK_ACTIONS` / `CHANGE_ACTIONS` trong `00_globals.js` (nếu có action mới).
+4. Sử dụng **chỉ** `data-action="..."` trên mọi phần tử UI mới (không inline handler).
+5. Nếu dùng external API mới → cập nhật CSP trong `vercel.json` (connect-src / img-src).
+6. **Cập nhật CLAUDE.md** theo checklist bên dưới.
+7. Test kỹ: local server + offline + PWA install + map routing + encryption + backup flow.
 8. Commit → CI xanh → deploy.
+
+**Checklist cập nhật CLAUDE.md khi implement feature mới** (bắt buộc):
+
+- **Section 4 (Kiến thức chi tiết)** — **BẮT BUỘC**:
+  - Thêm mô tả module mới vào bảng hoặc subsection tương ứng (ví dụ: nếu là module 19_xxx.js thì thêm vào cuối section 4).
+  - Cập nhật data flow nếu có thay đổi (encrypt → DB → UI).
+  - Bổ sung hằng số mới (nếu có) vào 01_config.js mô tả.
+  - Cập nhật phần liên quan (ví dụ: nếu thêm tính năng mới cho asset → cập nhật 4.4; nếu thêm API → cập nhật 4.5 hoặc 4.7).
+
+- **Section 3 (Kiến trúc & Module System)**:
+  - Cập nhật danh sách load order trong 3.2 nếu thêm module mới.
+  - Cập nhật mô tả data-action delegation nếu có pattern mới.
+
+- **Section 2 (Tech Stack & Ràng buộc)**:
+  - Thêm vào bảng nếu dùng công nghệ/lib mới.
+  - Cập nhật "Các ràng buộc tuyệt đối" nếu có quy tắc mới.
+
+- **Section 6 (Quy trình)**:
+  - Cập nhật checklist hoặc ví dụ nếu workflow thay đổi.
+  - Cập nhật Version Bump (6.1) nếu tính năng ảnh hưởng PWA/versioning.
+
+- **Section 1 (Tổng quan & Triết lý)**:
+  - Chỉ cập nhật nếu thay đổi lớn về triết lý (rất hiếm).
+
+**Nguyên tắc đơn giản**:
+- Mọi thay đổi về **module, data flow, hằng số, pattern code** → cập nhật **Section 4** trước tiên.
+- Thay đổi **architecture, load order, UI pattern** → cập nhật Section 3.
+- Thay đổi **lib, API, constraint** → cập nhật Section 2.
+- Sau khi update xong, tự kiểm tra: "Nếu một AI khác đọc CLAUDE.md này, liệu nó có hiểu được tính năng mới mà tôi vừa thêm mà không cần đọc code không?"
+
+Mục tiêu: Giữ CLAUDE.md luôn là **single source of truth** về toàn bộ dự án.
 
 ### 6.3 Self-hosting Rule
 Bất kỳ thư viện JS/CSS/font nào mới → tải minified về `assets/vendor/` hoặc `assets/fonts/`, **không** để tham chiếu https://unpkg.com hay cdn khác. Cập nhật `index.html` và CSP nếu cần.
