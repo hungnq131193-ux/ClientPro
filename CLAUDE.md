@@ -51,7 +51,7 @@
 | Icon                | Lucide (self-host)                             | - |
 | Font                | Inter + Be Vietnam Pro (self-host woff2)       | Hỗ trợ đầy đủ tiếng Việt |
 | Biometric           | WebAuthn PRF extension                         | Face ID / vân tay mở khóa an toàn |
-| Cloud Backup/Sync   | Google Drive + Google Apps Script (GAS)        | Backup .cpb mã hóa, transfer dữ liệu giữa thiết bị |
+| Cloud Backup/Sync   | Google Drive + Google Apps Script (GAS)        | 2 script độc lập trong `gas/` (nguồn tham khảo, deploy thủ công qua Apps Script editor — không thuộc build tĩnh/CI). Chi tiết: §4.11 |
 | Weather             | Open-Meteo (không cần key)                     | Cache 15 phút, mô tả tiếng Việt |
 | Donate              | VietQR Quick Link                              | vietinbank 888886838888 - NGUYEN QUOC HUNG |
 | Hosting & Security  | Vercel + vercel.json (CSP + Permissions-Policy)| Rất strict, chỉ 'self' cho script/style/font |
@@ -255,10 +255,10 @@ Mục tiêu của section này là cung cấp **mental model + chi tiết thực
   - Khác biệt lớn so với Drive Backup: Không tạo file .cpb, mà gửi data trực tiếp qua server GAS (có authentication qua script URL + token mà user tự quản lý).
 
 **Tóm lại sự khác biệt**:
-- **Drive Backup** = Backup toàn bộ app thành file `.cpb` → lưu trên Google Drive cá nhân (dùng để restore toàn bộ).
-- **Cloud Transfer** = Gửi dữ liệu (khách hàng, tài sản...) qua GAS endpoint để sync giữa các thiết bị (không qua file .cpb).
+- **Drive Backup** = Backup toàn bộ app thành file `.cpb` → lưu trên Google Drive cá nhân (dùng để restore toàn bộ). Backend: `gas/UserDriveAPI.gs` (mỗi user tự deploy).
+- **Cloud Transfer** = Gửi dữ liệu (khách hàng, tài sản...) qua GAS endpoint để sync giữa các thiết bị (không qua file .cpb). Backend: `gas/AdminAPI.gs` (tác giả deploy 1 lần, URL cố định).
 
-Cả hai đều tôn trọng triết lý "user-controlled cloud" — không có backend trung tâm của tác giả.
+Cả hai đều tôn trọng triết lý "user-controlled cloud" — không có backend trung tâm của tác giả nắm giữ dữ liệu (Admin script chỉ trung chuyển ciphertext, không tự giải mã được). Chi tiết implementation 2 script GAS: xem §4.11.
 
 **Triết lý**: User hoàn toàn kiểm soát backup. App chỉ hỗ trợ, không ép buộc cloud.
 
@@ -293,6 +293,27 @@ Cả hai đều tôn trọng triết lý "user-controlled cloud" — không có 
 - Chạy sau khi các module nền tảng load xong.
 - Khởi tạo DB (IndexedDB), restore theme, check auth gate, load initial data (customers/assets), init map nếu cần, register PWA.
 - Thứ tự init rất quan trọng (đã sắp xếp qua load order trong index.html).
+
+### 4.11 GAS Backend (`gas/`) — AdminAPI.gs & UserDriveAPI.gs
+
+Nguồn của 2 Google Apps Script web app đứng sau mục 4.7, lưu trong `gas/` **chỉ để tham khảo/version control** — mỗi file được deploy thủ công qua Apps Script editor (Extensions → Apps Script → dán code → Deploy → Web app), **không** thuộc build tĩnh, không chạy CI, không self-host được (Google chạy trên server của họ). Cả hai dùng chung khung sườn: `doGet`/`doPost` → `handleRequest_()`, response luôn qua `outputJSON_()` (JSON kèm field `build` để debug version), `LockService.getScriptLock()` chỉ cho action **ghi**, lỗi exception không lộ ra client (chỉ `Logger.log`).
+
+**`gas/AdminAPI.gs`** (v13, `BUILD_TAG` chứa `_v13_ADMIN`) — tác giả deploy **một lần duy nhất**, URL cố định hardcode ở `ADMIN_SERVER_URL` trong `assets/01_config.js`. Đọc/ghi Google Sheet `SHEET_ID` (tab `Keys`: cột A-F = Key|Status|EmployeeId|DeviceInfo|Date|DeviceId; tab `Transfers` tự tạo). Chức năng:
+- **Licensing/activate**: `activate` (kích hoạt key + bind `deviceId` vào Sheet, chống brute-force 8 lần sai/10 phút/employeeId), `check_status`.
+- **Auth gate cho mọi action nhạy cảm**: `validateActiveUser_(data)` — bắt buộc employeeId có status `used`/`active` **và** `deviceId` gửi lên khớp `deviceId` đã bind lúc activate. Chưa bind máy → từ chối (chặn chiếm quyền bằng employeeId hợp lệ nhưng chưa activate).
+- **Cấp khóa mã hóa per-user** (v13, không còn khóa dùng chung): `issue_kdata` → khóa cá nhân `HMAC_SHA256(MASTER_SECRET, "personal:"+employeeId)` dùng cho Drive Backup của chính user (MASTER_SECRET nằm trong Script Properties, sinh bằng `setupMasterSecret()`). `issue_transfer_key` → khóa hộp thư `HMAC_SHA256(MASTER_SECRET, "transfer:"+targetEmployeeId)` dùng cho Cloud Transfer (label khác "personal" nên không giải mã chéo được).
+- **Cloud Transfer P2P**: `list_users`, `upload_backup` (ghi Sheet `Transfers` + file Drive folder `CLIENTPRO_TRANSFERS`, TTL 24h, giữ tối đa 30 bản, `transferId` dạng `T<timestamp>_<rand>`), `list_inbox`, `download_backup` (chỉ người nhận đọc được, hết hạn thì tự xóa + đánh dấu `expired`), `delete_backup`. Cleanup tự động mỗi giờ qua trigger `cleanupExpiredTransfers` (đăng ký 1 lần bằng `setupTriggers()`).
+- Cache Keys sheet trong `CacheService` 20s để giảm đọc Sheet; `debug_echo` mặc định **tắt** (`ALLOW_DEBUG_ECHO = false`).
+- Setup 1 lần sau deploy: `setupStorage()` (Transfers sheet + folder + MASTER_SECRET), `setupTriggers()`.
+
+**`gas/UserDriveAPI.gs`** (v3, `BUILD_TAG` chứa `_v3_token`) — **mỗi user tự deploy trên Google account của họ**, dán URL + token vào Cài đặt Google Drive trong app (lưu ở `localStorage[USER_SCRIPT_KEY]` / `localStorage[USER_TOKEN_KEY]`, xem §01_config.js). Không đụng tới Sheet của Admin, hoàn toàn độc lập trên Drive cá nhân từng người. Chức năng:
+- **Upload ảnh**: `upload`/`upload_images` — lưu vào `CLIENTPRO_IMAGES/<folderName>/`, ép `DriveApp.Access.PRIVATE` (không share công khai); `search_folder` để list ảnh theo folder khách hàng/tài sản.
+- **Backup/Restore** (`.cpb`, dữ liệu client đã mã hóa sẵn — script chỉ lưu blob, không tự giải mã được): `backup`/`create_backup` (ghi `CLIENTPRO_BACKUPS/*.cpb`, tự trim giữ 5 bản mới nhất), `list_backups`, `download_backup`/`restore`, `delete_backup`. Hai action cuối validate fileId thực sự nằm trong folder `CLIENTPRO_BACKUPS` (`isFileInBackupFolder_`) trước khi đọc/xóa — chặn dùng id lộ/đoán để đọc file Drive bất kỳ.
+- **Auth fail-closed**: token bắt buộc cho MỌI action trừ `ping` (nếu server chưa từng chạy `setupToken()` thì từ chối tất cả thay vì mở cửa). So khớp token bằng `constantTimeEquals_()` (hằng thời gian, tránh timing attack). Token sinh ngẫu nhiên mạnh bởi `setupToken()`/`resetToken()`, lưu Script Properties (không hardcode).
+- Giới hạn chống lạm dụng: ≤30 ảnh/request, ảnh base64 ≤ ~12MB (~9MB gốc), backup base64 ≤ ~40MB (~30MB gốc).
+- Setup 1 lần sau deploy: `setupToken()` (bắt buộc trước khi dùng), tùy chọn `setupFolders()`; `revokePublicSharing()` là tiện ích migrate 1 lần để gỡ share công khai của ảnh upload bởi bản trước v3 (idempotent, chạy lại an toàn).
+
+**Khi sửa 2 file này**: giữ nguyên mọi action/alias field/response mà `assets/07_drive.js` và `assets/14_cloud_transfer.js` đang đọc (đặc biệt `url`/`folderUrl`/`encrypted`/`kdata_b64u`/`cipher_b64`) — đây là hợp đồng ngầm giữa client và 2 script. Sau khi deploy lại trên Google, cập nhật URL mới vào `ADMIN_SERVER_URL` (AdminAPI) hoặc hướng dẫn user tự cập nhật (UserDriveAPI).
 
 ---
 
