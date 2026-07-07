@@ -1,5 +1,7 @@
-// BUILD: 2026-07-05_v1.2.0_redesign_selfhost
+// BUILD: 2026-07-07_v1.3.0_perf
 // ClientPro Service Worker (runtime-first, PWA-safe)
+// v1.3.0: navigation chuyển sang stale-while-revalidate (mở app từ cache,
+// cập nhật ngầm) + cắt font latin-ext/Inter 300 khỏi precache.
 // v1.2.0: đồng bộ redesign (tag REDESIGN_20260705) + self-host vendor (lucide,
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
