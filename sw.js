@@ -1,12 +1,15 @@
-// BUILD: 2026-07-07_v1.3.0_perf
+// BUILD: 2026-07-07_v1.4.0_roaddist
 // ClientPro Service Worker (runtime-first, PWA-safe)
+// v1.4.0: cải thiện độ chính xác khoảng cách đường bộ (siết ngưỡng bám đường
+// 500m -> 150m, thêm sanity check tỉ lệ vòng vèo, modal Tham khảo giá hiển thị
+// kèm chim bay + chỉ báo độ tin cậy).
 // v1.3.0: navigation chuyển sang stale-while-revalidate (mở app từ cache,
 // cập nhật ngầm) + cắt font latin-ext/Inter 300 khỏi precache.
 // v1.2.0: đồng bộ redesign (tag REDESIGN_20260705) + self-host vendor (lucide,
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.4.0';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -24,7 +27,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'REDESIGN_20260705';
+const ASSET_V = 'ROADDIST_20260707';
 const STATIC_ASSETS = [
   './',
   './index.html',

@@ -42,12 +42,24 @@ const OSRM_TABLE_URLS = [
     'https://router.project-osrm.org/table/v1/driving/'
 ];
 const ROAD_DIST_TIMEOUT_MS = 8000;
-// v2: đổi key để loại bỏ các quãng đường sai đã cache từ bản cũ (chưa kiểm tra điểm bám đường)
-const ROAD_DIST_CACHE_KEY = 'app_road_dist_cache_v2';
-const ROAD_DIST_CACHE_OLD_KEYS = ['app_road_dist_cache_v1'];
+// v3: đổi key vì format entry mới (kèm độ tin cậy) + validation chặt hơn bản v2
+// -> loại bỏ các quãng đường đã cache với ngưỡng bám đường lỏng (500m) của bản cũ.
+const ROAD_DIST_CACHE_KEY = 'app_road_dist_cache_v3';
+const ROAD_DIST_CACHE_OLD_KEYS = ['app_road_dist_cache_v1', 'app_road_dist_cache_v2'];
 const ROAD_DIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 ngày
 const ROAD_DIST_CACHE_MAX = 600; // số cặp tọa độ tối đa trong cache
 // Tọa độ bị OSRM "bám" vào đường xa hơn mức này (mét) -> bản đồ thiếu đường quanh đó,
 // quãng đường trả về không đáng tin -> bỏ, giữ khoảng cách đường chim bay.
-const ROAD_DIST_SNAP_MAX_M = 500;
+// v1.4.0: siết 500 -> 150. Sai số GPS điện thoại thường ~10-30m, cộng thêm nhà nằm
+// sâu trong ngõ ~50-100m; điểm bám xa hơn 150m gần như chắc chắn là OSRM bám nhầm
+// sang tuyến đường khác (bản đồ thiếu đường quanh đó) -> quãng đường sai hoàn toàn.
+const ROAD_DIST_SNAP_MAX_M = 150;
+// Điểm bám <= mức này ở CẢ 2 đầu -> kết quả tin cậy cao (chấm xanh trong modal tham khảo);
+// nằm giữa mức này và SNAP_MAX -> tin cậy trung bình (chấm vàng, ghi "tương đối").
+const ROAD_DIST_SNAP_GOOD_M = 50;
+// Sanity check: đường bộ dài hơn đường chim bay quá tỉ lệ này (với 2 điểm đủ xa nhau)
+// gần như chắc chắn do bám nhầm đường / bản đồ thiếu đường nối -> bỏ, giữ chim bay.
+// Không áp cho cặp điểm quá gần nhau (ngõ cụt, đường 1 chiều vòng lại là hợp lệ).
+const ROAD_DIST_MAX_DETOUR_RATIO = 8;
+const ROAD_DIST_DETOUR_MIN_STRAIGHT_M = 120;
 // --- END ROAD DISTANCE CONFIG ---
