@@ -5,6 +5,8 @@
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 [![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](manifest.json)
 
+## Dành cho AI Assistant (Claude, Grok…)
+Trước khi làm việc với dự án, hãy đọc file `CLAUDE.md` ở root để hiểu toàn bộ kiến trúc, quy ước và triết lý.
 **ClientPro** là ứng dụng web/PWA quản lý khách hàng và tài sản bảo đảm, tối ưu cho trải nghiệm di động. Đây là ứng dụng tĩnh thuần (vanilla JavaScript, không cần build step), chạy trực tiếp từ `index.html`, có Service Worker hỗ trợ cài đặt như app và sử dụng ngoại tuyến. Toàn bộ dữ liệu được **lưu cục bộ và mã hóa trên thiết bị**.
 
 ## Tính năng
