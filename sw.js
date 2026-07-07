@@ -4,7 +4,7 @@
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.3.0';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -86,41 +86,28 @@ const STATIC_ASSETS = [
   './assets/ui/modals/camera-modal.html',
   './assets/ui/modals/backup-manager-modal.html',
 
-  // Font woff2 (self-host) — precache để chữ hiển thị đúng khi offline
-  './assets/fonts/be-vietnam-pro-400-latin-ext.woff2',
+  // Font woff2 (self-host) — precache để chữ hiển thị đúng khi offline.
+  // Chỉ còn subset latin + vietnamese (đã bỏ latin-ext và Inter 300 khỏi fonts.css).
   './assets/fonts/be-vietnam-pro-400-latin.woff2',
   './assets/fonts/be-vietnam-pro-400-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-500-latin-ext.woff2',
   './assets/fonts/be-vietnam-pro-500-latin.woff2',
   './assets/fonts/be-vietnam-pro-500-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-600-latin-ext.woff2',
   './assets/fonts/be-vietnam-pro-600-latin.woff2',
   './assets/fonts/be-vietnam-pro-600-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-700-latin-ext.woff2',
   './assets/fonts/be-vietnam-pro-700-latin.woff2',
   './assets/fonts/be-vietnam-pro-700-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-800-latin-ext.woff2',
   './assets/fonts/be-vietnam-pro-800-latin.woff2',
   './assets/fonts/be-vietnam-pro-800-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-900-latin-ext.woff2',
   './assets/fonts/be-vietnam-pro-900-latin.woff2',
   './assets/fonts/be-vietnam-pro-900-vietnamese.woff2',
-  './assets/fonts/inter-300-latin-ext.woff2',
-  './assets/fonts/inter-300-latin.woff2',
-  './assets/fonts/inter-300-vietnamese.woff2',
-  './assets/fonts/inter-400-latin-ext.woff2',
   './assets/fonts/inter-400-latin.woff2',
   './assets/fonts/inter-400-vietnamese.woff2',
-  './assets/fonts/inter-500-latin-ext.woff2',
   './assets/fonts/inter-500-latin.woff2',
   './assets/fonts/inter-500-vietnamese.woff2',
-  './assets/fonts/inter-600-latin-ext.woff2',
   './assets/fonts/inter-600-latin.woff2',
   './assets/fonts/inter-600-vietnamese.woff2',
-  './assets/fonts/inter-700-latin-ext.woff2',
   './assets/fonts/inter-700-latin.woff2',
   './assets/fonts/inter-700-vietnamese.woff2',
-  './assets/fonts/inter-800-latin-ext.woff2',
   './assets/fonts/inter-800-latin.woff2',
   './assets/fonts/inter-800-vietnamese.woff2',
 ];
@@ -283,6 +270,33 @@ async function networkFirst(event, request, cacheName, policy) {
   }
 }
 
+// Navigations: trả cache ngay (mở app tức thì), revalidate ngầm phía sau.
+// Bản deploy mới sẽ áp dụng ở lần mở tiếp theo. Revalidate dùng cache:'reload'
+// để xuyên qua HTTP cache trung gian (giữ hành vi cũ của networkFirst).
+async function navigationStaleWhileRevalidate(event, request, cacheName, policy) {
+  const cache = await caches.open(cacheName);
+  const cached =
+    (await cache.match(request)) ||
+    (await caches.match(request)) ||
+    (await caches.match('./index.html'));
+
+  const preload = event && event.preloadResponse ? event.preloadResponse : null;
+  const revalidate = (async () => {
+    const preloaded = preload ? await preload : null;
+    const res = preloaded || (await fetch(new Request(request, { cache: 'reload' })));
+    const toStore = stampResponseIfPossible(res.clone());
+    try { await cache.put(request, toStore); } catch (e) { }
+    await cleanupCache(cacheName, policy);
+    return res;
+  })().catch(() => null);
+
+  if (cached) {
+    if (event && event.waitUntil) event.waitUntil(revalidate);
+    return cached;
+  }
+  return (await revalidate) || caches.match('./index.html');
+}
+
 async function staleWhileRevalidate(event, request, cacheName, policy) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
@@ -305,9 +319,10 @@ self.addEventListener('fetch', (event) => {
   // Only handle GET. Never interfere with POST/PUT (e.g., transfer endpoints).
   if (req.method !== 'GET') return;
 
-  // Navigations: ưu tiên mạng để nhận bản mới, fallback cache khi offline
+  // Navigations: mở ngay từ cache (app shell đã precache), tải bản mới ngầm
+  // phía sau — bản mới áp dụng ở lần mở kế tiếp (stale-while-revalidate).
   if (req.mode === 'navigate') {
-    event.respondWith(networkFirst(event, req, RUNTIME_SAMEORIGIN_CACHE, LIMITS.sameOrigin));
+    event.respondWith(navigationStaleWhileRevalidate(event, req, RUNTIME_SAMEORIGIN_CACHE, LIMITS.sameOrigin));
     return;
   }
 
