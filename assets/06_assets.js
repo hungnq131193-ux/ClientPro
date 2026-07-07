@@ -67,8 +67,8 @@ function referenceAssetPrice(assetIndex) {
             customerName: custName,
             assetName: assetName,
             valuation: val,
-            distance: dist, // khóa sort: haversine ban đầu, thay bằng đường bộ khi có
-            straight: dist, // luôn giữ khoảng cách chim bay gốc để hiển thị kèm
+            distance: dist, // khóa sort/hiển thị: haversine ban đầu, thay bằng đường bộ khi có
+            straight: dist, // giữ haversine gốc để fallback khi không lấy được đường bộ
             lat: loc.lat,
             lng: loc.lng,
             area: assetArea,
@@ -92,7 +92,6 @@ function referenceAssetPrice(assetIndex) {
     // Hiển thị top 20 kết quả (haversine) ngay lập tức
     const top = candidates.slice(0, 30);
     showRefModal(top.slice(0, 20));
-    __refSetRoadStatus("pending");
 
     // Nâng cấp bất đồng bộ: thay bằng quãng đường đường bộ khi lấy được.
     // Gửi top 30 để sau khi sort theo đường bộ, top 20 hiển thị chính xác hơn.
@@ -100,27 +99,8 @@ function referenceAssetPrice(assetIndex) {
   };
 }
 
-// Cập nhật dòng trạng thái đường bộ trong modal tham khảo giá.
-// state: 'pending' (đang gọi OSRM) | 'done' (ok = số kết quả đường bộ / total điểm)
-//        | 'failed' (OSRM lỗi toàn phần hoặc không có kết quả nào đáng tin)
-function __refSetRoadStatus(state, ok, total) {
-  const el = getEl("ref-road-status");
-  if (!el) return;
-  el.classList.remove("hidden");
-  if (state === "pending") {
-    el.textContent = "Đang tính quãng đường đường bộ (OSRM)…";
-  } else if (state === "done") {
-    el.textContent = `Đường bộ (OSRM): ${ok}/${total} kết quả • còn lại hiển thị chim bay`;
-  } else {
-    el.textContent = "Không lấy được đường bộ đáng tin — hiển thị khoảng cách chim bay";
-  }
-}
-
 async function enhanceRefWithRoadDistances(targetLoc, results, seq) {
-  if (typeof fetchRoadDistances !== "function") {
-    __refSetRoadStatus("failed");
-    return;
-  }
+  if (typeof fetchRoadDistances !== "function") return;
   const reqKey =
     `${targetLoc.lat},${targetLoc.lng}|` +
     results.map((r) => `${r.lat},${r.lng}`).join(";");
@@ -147,29 +127,19 @@ async function enhanceRefWithRoadDistances(targetLoc, results, seq) {
   const modal = getEl("ref-price-modal");
   if (!modal || modal.classList.contains("hidden")) return;
 
-  // Thất bại toàn phần -> giữ nguyên haversine, chỉ cập nhật dòng trạng thái
-  if (!dists) {
-    __refSetRoadStatus("failed");
-    return;
-  }
+  // Thất bại toàn phần -> giữ nguyên haversine
+  if (!dists) return;
 
-  let okCount = 0;
   results.forEach((item, i) => {
     const r = dists[i];
     if (r && typeof r.d === "number") {
-      item.roadDist = r.d;
-      item.roadConf = r.conf; // 'high' | 'med'
-      item.distance = r.d; // sort theo đường bộ khi có
-      okCount++;
+      item.distance = r.d; // sort/hiển thị theo đường bộ khi có
     } else {
-      item.roadDist = null;
       item.distance = item.straight; // giữ haversine làm khóa sort
     }
   });
   results.sort((a, b) => a.distance - b.distance);
   showRefModal(results.slice(0, 20));
-  if (okCount > 0) __refSetRoadStatus("done", okCount, results.length);
-  else __refSetRoadStatus("failed");
 }
 
 function showRefModal(results) {
@@ -179,16 +149,7 @@ function showRefModal(results) {
   const fmtDist = (m) =>
     m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
   results.forEach((item, idx) => {
-    const hasRoad = typeof item.roadDist === "number";
-    const straight = typeof item.straight === "number" ? item.straight : item.distance;
-    const distStr = fmtDist(hasRoad ? item.roadDist : straight);
-    // Chấm độ tin cậy của quãng đường đường bộ (theo khoảng cách bám đường OSRM)
-    const confDot = hasRoad
-      ? `<span title="${item.roadConf === "high" ? "Đường bộ — độ tin cậy cao" : "Đường bộ — tương đối (điểm bám đường hơi xa tọa độ)"}" style="display:inline-block;width:6px;height:6px;border-radius:9999px;margin-left:4px;vertical-align:middle;background:${item.roadConf === "high" ? "#34d399" : "#fbbf24"}"></span>`
-      : "";
-    const distNote = hasRoad
-      ? `Đường bộ${item.roadConf === "high" ? "" : " (tương đối)"} • Chim bay ${fmtDist(straight)}`
-      : "Khoảng cách chim bay";
+    const distStr = fmtDist(item.distance);
     const valStr = item.valuation.toLocaleString("vi-VN") + " tr₫";
     const assetName = item.assetName || "";
     const customerName = item.customerName || "";
@@ -208,10 +169,9 @@ function showRefModal(results) {
     div.className = "bg-white/5 border border-white/10 rounded-lg p-3";
     div.innerHTML = `
       <div class="flex justify-between items-center mb-1">
-        <span class="text-xs font-bold text-emerald-400">#${idx + 1} • Cách ${distStr}${confDot}</span>
+        <span class="text-xs font-bold text-emerald-400">#${idx + 1} • Cách ${distStr}</span>
         <span class="text-sm font-bold text-white">${valStr}</span>
       </div>
-      <p class="text-[10px] text-slate-500 mb-1">${distNote}</p>
       <h4 class="text-sm font-medium text-slate-300 truncate ref-asset-name"></h4>
       ${badges}
       <p class="text-[10px] text-slate-500 mt-1 uppercase">KH: <span class="ref-cust-name"></span></p>`;
