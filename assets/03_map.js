@@ -77,7 +77,7 @@ async function ensureMapLibreLoaded() {
     __mapLibreLoadPromise = (async () => {
         // Self-host (maplibre-gl 4.7.1, xem assets/vendor/README.md) — không dùng CDN ngoài.
         // Query ?v= phải khớp STATIC_ASSETS trong sw.js để precache dùng lại được.
-        const MAPLIBRE_V = 'REFUI_20260707';
+        const MAPLIBRE_V = 'REFUI_20260708';
         const cssLocal = `./assets/vendor/maplibre-gl.css?v=${MAPLIBRE_V}`;
         const jsLocal = `./assets/vendor/maplibre-gl.js?v=${MAPLIBRE_V}`;
 

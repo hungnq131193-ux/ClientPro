@@ -489,3 +489,167 @@ textarea,
 select {
   border-radius: 12px !important;
 }
+
+/* ============================================================
+   ERROR & LOADING STATES (module 19_error_loading.js)
+   Toast 4 loại, skeleton, button spinner, global progress.
+   Tối ưu mobile: chạm để đóng, an toàn safe-area, giảm animation.
+   ============================================================ */
+
+/* --- Toast container (xếp chồng, giữa trên cùng) --- */
+#app-toast-container {
+  position: fixed;
+  top: calc(0.75rem + var(--sat, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: min(92vw, 440px);
+  pointer-events: none;
+}
+
+.app-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 14px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 4px solid var(--toast-accent, #38bdf8);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-14px) scale(0.98);
+  transition: opacity 0.25s ease, transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  will-change: transform, opacity;
+}
+
+.app-toast.app-toast-in {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.app-toast.app-toast-out {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
+}
+
+.app-toast-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--toast-accent, #38bdf8);
+}
+
+.app-toast-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* Nền theo loại cho tương phản tốt hơn trên mobile ngoài trời */
+.app-toast-error { background: rgba(69, 10, 10, 0.94); border-color: rgba(239, 68, 68, 0.35); }
+.app-toast-warning { background: rgba(69, 45, 3, 0.94); border-color: rgba(245, 158, 11, 0.35); }
+.app-toast-success { background: rgba(6, 46, 33, 0.94); border-color: rgba(16, 185, 129, 0.35); }
+.app-toast-info { background: rgba(12, 40, 61, 0.94); border-color: rgba(56, 189, 248, 0.35); }
+
+/* --- Global overlay progress bar (dùng chung #loader) --- */
+.global-progress-bar {
+  position: absolute;
+  bottom: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(70vw, 260px);
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+.global-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: var(--accent, #38bdf8);
+  transition: width 0.3s ease;
+}
+
+/* --- Button loading spinner --- */
+.btn-loading {
+  position: relative;
+  opacity: 0.85;
+  cursor: progress !important;
+  pointer-events: none;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-spinner {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: cp-spin 0.7s linear infinite;
+}
+.btn-loading-label:empty { display: none; }
+
+@keyframes cp-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- Skeleton loading (danh sách) --- */
+.skeleton-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+.skeleton-card {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  animation: cp-shimmer 1.3s infinite;
+}
+.skeleton-line { height: 12px; }
+.skeleton-line-lg { width: 65%; margin-bottom: 10px; }
+.skeleton-line-sm { width: 40%; }
+
+@keyframes cp-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Giảm chuyển động cho người dùng bật reduce-motion */
+@media (prefers-reduced-motion: reduce) {
+  .app-toast { transition: opacity 0.2s ease; transform: none; }
+  .app-toast.app-toast-in { transform: none; }
+  .skeleton::after { animation: none; }
+  .btn-spinner { animation-duration: 1.2s; }
+}
