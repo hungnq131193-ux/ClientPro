@@ -31,11 +31,11 @@
     }
   }
 
-  function safeEncrypt(v) {
+  async function safeEncrypt(v) {
     const t = (v === null || typeof v === 'undefined') ? '' : String(v);
     if (!t.trim()) return '';
     try {
-      return encryptText(t);
+      return await encryptText(t);
     } catch (e) {
       return '';
     }
@@ -68,28 +68,32 @@
     return cust;
   }
 
-  function normalizeCustomerForRestore(c) {
+  // ASYNC: mã hóa lại (AES-GCM) toàn bộ trường -> record ở định dạng mới (cryptoV:2).
+  async function normalizeCustomerForRestore(c) {
     const cust = deepClone(c);
-    cust.name = safeEncrypt(cust.name);
-    cust.phone = safeEncrypt(cust.phone);
-    cust.cccd = safeEncrypt(cust.cccd);
-    cust.notes = safeEncrypt(cust.notes);
+    cust.name = await safeEncrypt(cust.name);
+    cust.phone = await safeEncrypt(cust.phone);
+    cust.cccd = await safeEncrypt(cust.cccd);
+    cust.notes = await safeEncrypt(cust.notes);
 
     if (cust.assets && Array.isArray(cust.assets)) {
-      cust.assets = cust.assets.map((a) => {
+      const out = [];
+      for (const a of cust.assets) {
         const asset = deepClone(a);
-        asset.name = safeEncrypt(asset.name);
-        asset.link = safeEncrypt(asset.link);
-        asset.valuation = safeEncrypt(asset.valuation);
-        asset.loanValue = safeEncrypt(asset.loanValue);
-        asset.area = safeEncrypt(asset.area);
-        asset.width = safeEncrypt(asset.width);
-        asset.onland = safeEncrypt(asset.onland);
-        asset.year = safeEncrypt(asset.year);
-        return asset;
-      });
+        asset.name = await safeEncrypt(asset.name);
+        asset.link = await safeEncrypt(asset.link);
+        asset.valuation = await safeEncrypt(asset.valuation);
+        asset.loanValue = await safeEncrypt(asset.loanValue);
+        asset.area = await safeEncrypt(asset.area);
+        asset.width = await safeEncrypt(asset.width);
+        asset.onland = await safeEncrypt(asset.onland);
+        asset.year = await safeEncrypt(asset.year);
+        out.push(asset);
+      }
+      cust.assets = out;
     }
 
+    cust.cryptoV = 2; // vừa mã hóa AES-GCM -> migration bỏ qua
     return cust;
   }
 
@@ -162,19 +166,22 @@
     assertDeps();
     if (!payload || !Array.isArray(payload.customers)) throw new Error('Payload restore không hợp lệ');
 
+    // Mã hóa lại TẤT CẢ customer TRƯỚC khi mở transaction (safeEncrypt/AES-GCM async —
+    // không được await giữa một transaction IndexedDB).
+    const normalizedCustomers = [];
+    for (const c of (payload.customers || [])) normalizedCustomers.push(await normalizeCustomerForRestore(c));
+
     const tx = db.transaction(['customers', 'images'], 'readwrite');
     const customerStore = tx.objectStore('customers');
     const imageStore = tx.objectStore('images');
 
-    (payload.customers || []).forEach((c) => {
-      customerStore.put(normalizeCustomerForRestore(c));
-    });
-
-    (payload.images || []).forEach((i) => {
-      imageStore.put(i);
-    });
+    normalizedCustomers.forEach((c) => customerStore.put(c));
+    (payload.images || []).forEach((i) => imageStore.put(i));
 
     await waitTx(tx);
+
+    // Nạp lại cache field cho dữ liệu vừa khôi phục (để decryptText đọc đồng bộ ngay).
+    try { if (typeof primeFieldCache === 'function') await primeFieldCache(); } catch (e) {}
     return true;
   }
 

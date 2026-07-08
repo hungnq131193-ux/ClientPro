@@ -40,12 +40,12 @@ function _hasMasterKeyForToken() {
     return typeof masterKey !== 'undefined' && !!masterKey;
 }
 
-/** Niêm phong token bằng masterKey. Không có masterKey thì trả plaintext như cũ. */
-function sealUserToken(token) {
+/** Niêm phong token bằng masterKey (ASYNC — AES-GCM). Không có masterKey thì trả plaintext như cũ. */
+async function sealUserToken(token) {
     const t = String(token || '').trim();
     if (!t || !_hasMasterKeyForToken() || typeof encryptText !== 'function') return t;
     try {
-        const ct = encryptText(t);
+        const ct = await encryptText(t);
         // encryptText trả lại nguyên bản khi mã hóa thất bại -> chỉ dán prefix khi thực sự đổi.
         if (typeof ct === 'string' && ct && ct !== t) return USER_TOKEN_SEALED_PREFIX + ct;
     } catch (e) { }
@@ -68,17 +68,20 @@ function getUserToken() {
         return '';
     }
 
-    // Token cũ dạng plaintext: niêm phong lại ngay khi masterKey sẵn sàng.
+    // Token cũ dạng plaintext: niêm phong lại NỀN (không chặn trả về) khi masterKey sẵn sàng.
+    // sealUserToken nay async (AES-GCM) nên chạy fire-and-forget, vẫn trả plaintext ngay.
     if (_hasMasterKeyForToken()) {
-        try {
-            const sealed = sealUserToken(raw);
-            if (sealed !== raw) localStorage.setItem(key, sealed);
-        } catch (e) { }
+        (async () => {
+            try {
+                const sealed = await sealUserToken(raw);
+                if (sealed !== raw) localStorage.setItem(key, sealed);
+            } catch (e) { }
+        })();
     }
     return raw;
 }
 
-function saveScriptUrl() {
+async function saveScriptUrl() {
     const input = getEl('dashboard-drive-url') || getEl('user-script-url');
     const url = input ? input.value.trim() : '';
     if (!url.startsWith('https://script.google.com/')) {
@@ -92,9 +95,9 @@ function saveScriptUrl() {
         if (tokenInput) tokenInput.focus();
         return;
     }
-    // Lưu link Script cá nhân và token (niêm phong bằng masterKey nếu app đã mở khóa)
+    // Lưu link Script cá nhân và token (niêm phong AES-GCM bằng masterKey nếu app đã mở khóa)
     localStorage.setItem(USER_SCRIPT_KEY, url);
-    localStorage.setItem(_userTokenStorageKey(), sealUserToken(token));
+    localStorage.setItem(_userTokenStorageKey(), await sealUserToken(token));
     ErrorHandler.showSuccess("Đã lưu kết nối Drive cá nhân");
 }
 document.addEventListener('DOMContentLoaded', () => {

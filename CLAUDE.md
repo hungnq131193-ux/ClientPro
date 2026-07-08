@@ -32,7 +32,7 @@
 5. **No Framework, Maximum Control**: Vanilla JS + numbered modules + data-action delegation (để tuân thủ CSP `script-src 'self'` không có `unsafe-inline`).
 6. **Versioning Discipline**: PWA cache busting đòi hỏi đồng bộ version ở nhiều nơi. CI sẽ fail nếu vi phạm.
 
-**Phiên bản hiện tại**: `1.4.3` (manifest + sw.js VERSION)
+**Phiên bản hiện tại**: `1.5.0` (nguồn duy nhất: `package.json` → `sync:version` đồng bộ manifest/sw/pwa/README)
 
 **License**: Proprietary – All Rights Reserved. Chỉ tác giả (Nguyễn Quốc Hưng) được phép sử dụng và sửa đổi.
 
@@ -47,7 +47,7 @@
 | Frontend            | Vanilla JS (ES6+), HTML5, CSS3                 | Không framework, không bundler |
 | Styling             | Tailwind CSS (static build) + redesign layer   | 4 themes: Sáng + Xanh Đêm, Đại Dương, Thiên Thanh |
 | Bản đồ & Routing    | MapLibre GL JS (self-host) + OSRM              | Public routers + cache + validation snap 150m |
-| Mã hóa              | CryptoJS (self-host)                           | Encrypt toàn bộ dữ liệu trước khi lưu IndexedDB |
+| Mã hóa              | WebCrypto AES-256-GCM (field) + PBKDF2; CryptoJS (self-host) chỉ đọc dữ liệu cũ | Field cipher `cpg1:` có auth tag; masterKey CSPRNG. Xem §4.3 |
 | Icon                | Lucide (self-host)                             | - |
 | Font                | Inter + Be Vietnam Pro (self-host woff2)       | Hỗ trợ đầy đủ tiếng Việt |
 | Biometric           | WebAuthn PRF extension                         | Face ID / vân tay mở khóa an toàn |
@@ -133,7 +133,7 @@ Mục tiêu của section này là cung cấp **mental model + chi tiết thực
 
 **IndexedDB** (`DB_NAME = 'QLKH_Pro_V4'`):
 - Bảng chính: `customers`, `assets`, `images` (hoặc metadata ảnh), `notes`.
-- Mỗi object được **mã hóa bằng CryptoJS** trước khi `put` vào DB (thường dùng AES hoặc tương đương với key từ PIN/biometric).
+- Mỗi field nhạy cảm được **mã hóa AES-256-GCM (WebCrypto)** — envelope `"cpg1:..."` — trước khi `put` vào DB (key = masterKey CSPRNG, xem §4.3). Dữ liệu cũ định dạng CryptoJS `"U2FsdGVk..."` vẫn đọc được và được migrate dần. Record có `cryptoV:2` sau khi đã ở định dạng GCM.
 - **Customer object** (điển hình):
   - `id`, `name`, `phone`, `address`, `lat`, `lng`, `status` (active/inactive/approved?), `approved` (boolean hoặc trạng thái phê duyệt), `notes` (string hoặc array), `images` (array metadata hoặc dataURL), `assets` (array id tài sản liên kết), `createdAt`, `updatedAt`, `employeeId`?
 - **Asset (tài sản bảo đảm) object**:
@@ -178,14 +178,34 @@ Mục tiêu của section này là cung cấp **mental model + chi tiết thực
 
 ### 4.3 Bảo mật & Authentication Flow (02_security.js, 15_auth_gate.js, 18_biometric_unlock.js)
 
-- **Encryption**: Toàn bộ record (customer, asset, image metadata, notes) được encrypt bằng CryptoJS trước khi lưu IndexedDB. Key thường derive từ PIN hoặc từ WebAuthn PRF (rất mạnh).
-- **WebAuthn PRF** (18_biometric_unlock.js): Sử dụng extension PRF để tạo high-entropy key từ Face ID / vân tay credential. Key này dùng để encrypt/decrypt data. Rất an toàn, không lưu key trên server.
+> **Cập nhật v1.5.0 — Security Core overhaul (AES-256-GCM + CSPRNG masterKey + migration).**
+> Field-level encryption đã chuyển từ CryptoJS.AES (CBC, MD5-KDF, KHÔNG auth tag) sang
+> **WebCrypto AES-256-GCM** (có xác thực chống giả mạo). masterKey nay sinh bằng **CSPRNG**
+> thay cho chuỗi timestamp yếu. Có migration một lần, resume-safe, không mất dữ liệu.
+
+- **masterKey (sentinel string)**: nội bộ vẫn là chuỗi để mọi check `!!masterKey`/`isAppUnlocked()` giữ nguyên.
+  - Mới: `"MK2:" + base64(32 byte crypto.getRandomValues)` → phái sinh `masterCryptoKey` (AES-GCM CryptoKey **non-extractable**) + `masterKeyBytes`.
+  - Cũ (legacy): `"mk_..."` → giữ ở `masterKeyLegacy` để đọc dữ liệu CryptoJS cũ + kích hoạt migration.
+  - `generateMasterKey()` = CSPRNG MK2. `_installMasterKey(mkStr)` (async) cài khóa vào phiên (gọi sau MỌI unwrap thành công); `clearMasterKeyMaterial()` xóa sạch khi wipe.
+- **Field cipher — `encryptText`/`decryptText`**:
+  - `encryptText(text)` **BẤT ĐỒNG BỘ** (WebCrypto) → trả envelope `"cpg1:" + base64url(iv[12] ‖ ct+tag)` và **seed cache**. Gọi ở điểm GHI phải `await` và mã hóa **TRƯỚC** khi mở transaction IndexedDB (không await giữa 1 transaction — IDB tự commit).
+  - `decryptText(cipher)` **ĐỒNG BỘ**, phân biệt 3 dạng: `cpg1:` → đọc `__fieldPlainCache`; `U2FsdGVk…` → CryptoJS legacy (đọc bằng `masterKeyLegacy`); còn lại → plaintext passthrough.
+  - **Bulk-decrypt cache** `__fieldPlainCache` (ciphertext→plaintext): nạp 1 lần qua `primeFieldCache()` **sau unlock + sau migration/restore**, cho phép render đồng bộ. `_installMasterKey` xóa cache khi đổi khóa (chống rò rỉ chéo khóa).
+- **Migration một lần** (`runFieldCryptoMigrationIfNeeded(pin, employeeId)`): cờ `localStorage['app_crypto_schema_v']='2'` + marker per-record `cryptoV:2`. **KHÔNG** gắn vào `indexedDB.open` version (onupgradeneeded chạy trước unlock). Đúc MK2 mới → niêm phong tạm vào `app_pin_v2_stage`/`app_sec_v2_stage` → re-encrypt từng record (đọc tx1 → crypto → ghi tx2, atomic) → **chỉ khi 100% xong mới swap `PIN_KEY`/`SEC_KEY` sang MK2 rồi set schema='2'**. Resume-safe qua mọi điểm crash; legacy key vẫn mở được từ `PIN_KEY` gốc tới lúc swap. Chạy trong `validatePin` (unlock hằng ngày) và `saveSecuritySetup` (idempotent).
+- **WebAuthn PRF** (18_biometric_unlock.js): PRF bọc **PIN** (không phải masterKey) rồi gọi `validatePin()` → PIN không đổi ⇒ sinh trắc học **không cần re-seal** sau migration, tự mở envelope MK2 mới.
+- **Niêm phong masterKey (đã có từ trước, giữ nguyên)**: `sealMasterKey`/`openMasterKeyV2` dùng PBKDF2-SHA256 (150k, `iter` lưu trong envelope nên nâng được không cần migration) + AES-GCM. Sanity-check chấp nhận cả `MK2:` lẫn `mk_`.
+- **Backup `.cpb` độc lập**: payload chứa field **plaintext** bọc trong KDATA-GCM (do GAS cấp) → đổi masterKey **vô hình** với backup; restore re-encrypt bằng khóa thiết bị hiện tại (`normalizeCustomerForRestore` async, đặt `cryptoV:2`, gọi lại `primeFieldCache`).
 - **PIN + Security Question**: `PIN_KEY`, `SEC_KEY` trong localStorage. Có flow `forgotPin` + `checkRecovery`.
 - **Activation & Employee**: `ACTIVATED_KEY`, `EMPLOYEE_KEY`. App có thể yêu cầu "kích hoạt thiết bị" với mã nhân viên.
-- **Auth Gate** (15_auth_gate.js): Kiểm soát toàn bộ app. Hiển thị lock screen, yêu cầu PIN/biometric trước khi vào dashboard. Có `enterPin`, `clearPin`, `saveSecuritySetup`.
-- Flow điển hình mở app: Check activation → Auth gate (PIN/biometric) → Decrypt data → Load dashboard.
+- **Auth Gate** (15_auth_gate.js): Kiểm soát toàn bộ app. Hiển thị lock screen, yêu cầu PIN/biometric trước khi vào dashboard.
+- Flow điển hình mở app: Check activation → Auth gate (PIN/biometric) → `_installMasterKey` → migration (nếu cần) → `primeFieldCache` → Load dashboard.
 
-**Quy tắc**: Không bao giờ bypass auth gate. Mọi thay đổi sensitive phải qua encrypt.
+**Threat model (tóm tắt)**:
+- **XSS**: khi mở khóa, `__fieldPlainCache` + `masterCryptoKey` nằm trong RAM → script chèn có thể đọc/oracle. Giảm thiểu: CSP `script-src 'self'`, `escapeHTML`/`isSafe*Url`, render `textContent`; `masterCryptoKey` non-extractable. Giới hạn cố hữu của local-first.
+- **Dump localStorage → brute PIN offline**: chỉ lấy envelope PBKDF2/150k+GCM; PIN 6 số → PBKDF2 là phòng tuyến (khuyến nghị nâng iter ≥310k khi cần, không cần migration).
+- **Giả mạo ciphertext**: AES-GCM tag từ chối (vá lỗ CBC-no-auth cũ) → `decryptText` trả nguyên ciphertext thay vì plaintext giả.
+
+**Quy tắc**: Không bao giờ bypass auth gate. Mọi thay đổi sensitive phải qua encrypt. **Điểm GHI dùng `await encryptText(...)` và mã hóa TRƯỚC transaction; đọc dùng `decryptText` đồng bộ (đảm bảo đã `primeFieldCache`).**
 
 ### 4.4 Quản lý Khách hàng & Tài sản (05_customers.js + 06_assets.js + 13_ui_select_customers.js)
 
@@ -265,12 +285,9 @@ Cả hai đều tôn trọng triết lý "user-controlled cloud" — không có 
 
 ### 4.8 PWA, Service Worker & Versioning (sw.js, pwa.js, manifest.json)
 
-- **Versioning Discipline** (rất nghiêm ngặt):
-  - `manifest.json` → `"version": "1.4.3"`
-  - `sw.js` → `VERSION = 'v1.4.3'`, `ASSET_V = 'REFUI_20260709'`
-  - `assets/pwa.js` → `SW_BUILD`
-  - Tất cả asset link trong `index.html` có `?v=REFUI_20260709` (cache busting)
-  - `assets/03_map.js` → `MAPLIBRE_V` (lazy-load maplibre) **cũng phải bằng ASSET_V** (CI kiểm tra).
+- **Versioning Discipline** (rất nghiêm ngặt) — xem §6.1 cho quy trình 1-nguồn:
+  - Semver (nguồn `package.json`, đồng bộ bằng `npm run sync:version`): `manifest.json` `version` = `1.5.0`, `sw.js` `VERSION = 'v1.5.0'`, `assets/pwa.js` `SW_BUILD = 'v1.5.0'`, badge README.
+  - Cache-buster (nguồn `sw.js` `ASSET_V = 'SECGCM_20260708'`): mọi `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js` **phải bằng ASSET_V** (CI kiểm tra).
 - **sw.js behavior**:
   - Precache toàn bộ shell + vendor + fonts + tất cả JS modules + một số modal HTML.
   - Runtime: same-origin cacheFirst/networkFirst, map tiles stale-while-revalidate (30 ngày), OSRM **không cache** (vì dynamic).
@@ -475,10 +492,10 @@ Bộ test tự động, **ưu tiên cao nhất cho tính toàn vẹn dữ liệu
 ### 9.2 Cấu trúc & phạm vi
 | File | Phạm vi |
 |------|---------|
-| `tests/helpers/load-security.js` | Loader `vm` nạp `02_security.js` + `randomKdataB64u()`. |
-| `tests/crypto.test.js` | `encryptText`/`decryptText`: roundtrip tiếng Việt, salt ngẫu nhiên, sai key không rò rỉ, đặc tính chuỗi rỗng (biết trước: `decryptText` dùng `plaintext \|\| cipher`). |
+| `tests/helpers/load-security.js` | Loader `vm` nạp `02_security.js` + `randomKdataB64u()` + `makeFakeDb()` (IndexedDB in-memory zero-dep cho test migration). Epilogue phơi cả API async mới (`setMasterKey` async, `setLegacyMasterKey`, `primeFieldCache`, `runFieldCryptoMigrationIfNeeded`, `_gcmEncrypt/DecryptField`, `setDb`). |
+| `tests/crypto.test.js` | `encryptText`(async)/`decryptText`(đồng bộ) AES-GCM `cpg1:`: roundtrip tiếng Việt, IV ngẫu nhiên, **tamper rejection** (GCM tag), **sai khóa không rò rỉ**, đọc legacy CryptoJS, chuỗi rỗng, MK2 CSPRNG. |
 | `tests/backup.test.js` | Envelope `.cpb` AES-256-GCM: roundtrip payload (KH+tài sản+ghi chú+ảnh), checksum SHA-256, chống giả mạo (GCM tag), từ chối sai khóa / thiếu khóa / KDATA sai độ dài. |
-| `tests/data-integrity.test.js` | Giải mã cấp đối tượng Customer + Asset bảo đảm (đúng schema `05_customers.js`), niêm phong masterKey bằng PIN (PBKDF2+AES-GCM), `escapeHTML`. |
+| `tests/data-integrity.test.js` | Giải mã cấp đối tượng Customer + Asset (AES-GCM), **migration CryptoJS→GCM idempotent + resume-safe** (dùng `makeFakeDb`), niêm phong masterKey bằng PIN (PBKDF2+AES-GCM, chấp nhận MK2/mk_), `escapeHTML`. |
 | `tests/pwa.test.js` | Kiểm tra tĩnh `sw.js`/`manifest.json`: vòng đời install/activate/fetch + skipWaiting, precache đủ **mọi** module `assets/NN_*.js` + vendor sống còn, đồng bộ version (bổ trợ job version-sync). |
 
 ### 9.3 Chạy & xem kết quả
@@ -490,12 +507,14 @@ Bộ test tự động, **ưu tiên cao nhất cho tính toàn vẹn dữ liệu
 
 ## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-08)
 
-- **Phiên bản**: 1.4.3 (ASSET_V: REFUI_20260709) — **không đổi** khi thêm testing (test nằm ngoài `assets/`).
-- **Recent change (2026-07-08b)**: **Thêm Automated Testing** (`tests/`, xem §9) ưu tiên data-integrity. Zero-dependency (`node --test` + WebCrypto + crypto-js self-host), test **code thật** của `02_security.js` qua `node:vm`, **không** thêm asset/CDN/`package.json` nên **không** phá versioning. Thêm job `tests` vào `ci.yml` (song song `static-checks`).
+- **Phiên bản**: 1.5.0 (ASSET_V: SECGCM_20260708). Nguồn semver: `package.json` (dùng `npm run sync:version`).
+- **Recent change (2026-07-08d — P2 Security Core)**: **Chuyển field-level encryption sang WebCrypto AES-256-GCM** (envelope `cpg1:`, có auth tag) + **masterKey CSPRNG (MK2)** thay chuỗi timestamp yếu. `encryptText` async (mã hóa trước transaction), `decryptText` đồng bộ đọc `__fieldPlainCache` (nạp bằng `primeFieldCache` sau unlock). **Migration một lần resume-safe** (`runFieldCryptoMigrationIfNeeded`, cờ `app_crypto_schema_v`, marker `cryptoV:2`) chuyển CryptoJS→GCM không mất dữ liệu; biometric/backup không cần đụng. Cập nhật writer (05/06/07/12), bỏ healing double-encrypt ở `persistCurrentCustomer` (04). Tests cập nhật + thêm tamper/wrong-key/migration idempotency+resume. Xem §4.3.
+- **Recent change (2026-07-08c — P1 CSP/Version)**: `package.json` làm single-source cho semver + `scripts/sync-version.mjs` (đồng bộ manifest/sw/pwa/README), CI thêm bước `--check`. Siết `vercel.json`: HSTS + COOP + CORP + CSP `upgrade-insecure-requests`/`manifest-src`/`form-action`/`frame-src 'none'`.
+- **Recent change (2026-07-08b)**: **Thêm Automated Testing** (`tests/`, xem §9) ưu tiên data-integrity. Zero-dependency (`node --test` + WebCrypto + crypto-js self-host), test **code thật** của `02_security.js` qua `node:vm`. (Từ P5 sẽ có thêm devDeps CI-only cho Playwright/Lighthouse — app shipped vẫn zero-dep.)
 - **Recent change**: **Hoàn tất migration error & loading toàn ứng dụng** — mở rộng `assets/19_error_loading.js` (thêm `ErrorHandler.confirm()` thay `confirm()` gốc, `logError()` + ring buffer, `installGlobalHandlers()` bắt `window.onerror`/`unhandledrejection`, và empty/error-state renderer trong `LoadingManager`), gắn global error handling ở `10_bootstrap.js`, refactor nốt toàn bộ module còn lại (Backup/Drive/Cloud Transfer, Security/Auth, và các module nhỏ). **Không còn `alert()` / `confirm()` / `console.error` thô** trong codebase. Xem §4.12.
 - **Điểm mạnh hiện tại**:
   - Hệ thống OSRM + cache + validation chặt → khoảng cách đường thực tế khá chính xác dù dùng free public router.
-  - Bảo mật biometric WebAuthn PRF + CryptoJS + local-only.
+  - Bảo mật biometric WebAuthn PRF + **AES-256-GCM (WebCrypto) có auth tag** + masterKey CSPRNG + local-only.
   - PWA mượt, offline tốt, self-contained hoàn toàn.
   - Code tổ chức rõ ràng theo numbered modules + delegation.
 - **Lưu ý khi làm việc**:

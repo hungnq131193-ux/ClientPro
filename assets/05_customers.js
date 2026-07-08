@@ -239,11 +239,11 @@ async function updateFolderCounts(customersOpt) {
 // - Chỉ gọi lucide.createIcons() 1 lần sau khi render xong
 // =======================
 const __custSummaryCache = window.__custSummaryCache || (window.__custSummaryCache = new Map());
-// CryptoJS.AES.encrypt(passphrase) thường tạo ciphertext base64 bắt đầu bằng "U2FsdGVk".
-// Khi app chưa unlock masterKey, decryptText() sẽ trả nguyên ciphertext.
-// Nếu cache nhầm ciphertext, UI sẽ hiển thị chuỗi mã hóa ngay cả sau khi unlock.
+// Ciphertext có 2 dạng: legacy CryptoJS "U2FsdGVk..." và mới AES-GCM "cpg1:...".
+// decryptText() trả nguyên ciphertext khi chưa unlock / cache chưa nạp -> UI phải coi là
+// "chưa giải mã" để không cache nhầm và hiện đúng trạng thái "Đang tải...".
 function _looksEncrypted(v) {
-    return (typeof v === 'string') && v.startsWith('U2FsdGVk');
+    return (typeof v === 'string') && (v.startsWith('U2FsdGVk') || v.startsWith('cpg1:'));
 }
 function _custSig(c) {
     // Dùng ciphertext làm signature để không cần decrypt khi so sánh
@@ -788,8 +788,10 @@ async function saveCustomer() {
     }
 }
 
-// Internal save function (called after duplicate check passes or user ignores warning)
-function _doSaveCustomer(name, phoneNorm, cccd, editId) {
+// Internal save function (called after duplicate check passes or user ignores warning).
+// ASYNC: mã hóa (AES-GCM/WebCrypto) chạy TRƯỚC khi mở transaction IndexedDB —
+// không được await giữa một transaction (IDB tự commit/close khi hàng đợi microtask rỗng).
+async function _doSaveCustomer(name, phoneNorm, cccd, editId) {
     try {
         // Safety check: ensure db is ready before attempting transaction
         if (!db) {
@@ -798,14 +800,6 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
         }
 
         const makeId = () => `cust_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-        const tx = db.transaction(['customers'], 'readwrite');
-        const store = tx.objectStore('customers');
-
-        tx.onerror = (e) => {
-            ErrorHandler.showError('STORAGE', 'Lỗi lưu hồ sơ. Vui lòng thử lại.', e);
-        };
-
 
         const finalize = (savedId) => {
             closeModal();
@@ -822,54 +816,58 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
             }
         };
 
+        // 1) Mã hóa các trường TRƯỚC transaction (await an toàn ở đây).
+        const encName = await encryptText(name);
+        const encPhone = await encryptText(phoneNorm);
+        const encCccd = await encryptText(cccd);
+
         if (editId) {
-            // Update existing record: giữ lại assets/status/creditLimit/driveLink/createdAt...
-            const req = store.get(editId);
-            req.onsuccess = (e) => {
-                const old = e.target.result;
-                if (!old) {
-                    ErrorHandler.showError('STORAGE', 'Không tìm thấy hồ sơ để cập nhật.');
-                    return;
-                }
+            // 2a) Đọc record cũ (transaction đọc riêng), giữ lại assets/status/creditLimit/driveLink/createdAt...
+            const old = await new Promise((resolve, reject) => {
+                const g = db.transaction(['customers'], 'readonly').objectStore('customers').get(editId);
+                g.onsuccess = () => resolve(g.result);
+                g.onerror = () => reject(g.error);
+            });
+            if (!old) {
+                ErrorHandler.showError('STORAGE', 'Không tìm thấy hồ sơ để cập nhật.');
+                return;
+            }
+            old.name = encName;
+            old.phone = encPhone;
+            old.cccd = encCccd;
+            // Defensive defaults
+            if (!old.status) old.status = 'pending';
+            if (!old.assets) old.assets = [];
+            if (old.creditLimit === undefined) old.creditLimit = '';
+            if (old.driveLink === undefined) old.driveLink = null;
 
-                old.name = encryptText(name);
-                old.phone = encryptText(phoneNorm);
-                old.cccd = encryptText(cccd);
-                // Defensive defaults
-                if (!old.status) old.status = 'pending';
-                if (!old.assets) old.assets = [];
-                if (old.creditLimit === undefined) old.creditLimit = '';
-                if (old.driveLink === undefined) old.driveLink = null;
-
-                const putReq = store.put(old);
-                putReq.onsuccess = () => finalize(editId);
-                putReq.onerror = (err) => {
-                    ErrorHandler.showError('STORAGE', 'Lỗi cập nhật hồ sơ.', err);
-                };
-            };
-            req.onerror = () => ErrorHandler.showError('STORAGE', 'Lỗi đọc hồ sơ để cập nhật.');
+            // 3a) Ghi (transaction thuần đồng bộ).
+            const wtx = db.transaction(['customers'], 'readwrite');
+            wtx.onerror = (e) => ErrorHandler.showError('STORAGE', 'Lỗi lưu hồ sơ. Vui lòng thử lại.', e);
+            const putReq = wtx.objectStore('customers').put(old);
+            putReq.onsuccess = () => finalize(editId);
+            putReq.onerror = (err) => ErrorHandler.showError('STORAGE', 'Lỗi cập nhật hồ sơ.', err);
         } else {
-            // Create new record
+            // 2b/3b) Tạo record mới (đã ở định dạng GCM -> cryptoV:2 để migration bỏ qua).
             const newId = makeId();
             const rec = {
                 id: newId,
-                name: encryptText(name),
-                phone: encryptText(phoneNorm),
-                cccd: encryptText(cccd),
+                name: encName,
+                phone: encPhone,
+                cccd: encCccd,
                 createdAt: Date.now(),
                 status: 'pending',
                 creditLimit: '',
                 assets: [],
                 driveLink: null,
+                cryptoV: 2,
             };
 
-            const putReq = store.put(rec);
-            putReq.onsuccess = () => {
-                finalize(newId);
-            };
-            putReq.onerror = (err) => {
-                ErrorHandler.showError('STORAGE', 'Lỗi tạo hồ sơ mới. Vui lòng thử lại.', err);
-            };
+            const wtx = db.transaction(['customers'], 'readwrite');
+            wtx.onerror = (e) => ErrorHandler.showError('STORAGE', 'Lỗi lưu hồ sơ. Vui lòng thử lại.', e);
+            const putReq = wtx.objectStore('customers').put(rec);
+            putReq.onsuccess = () => finalize(newId);
+            putReq.onerror = (err) => ErrorHandler.showError('STORAGE', 'Lỗi tạo hồ sơ mới. Vui lòng thử lại.', err);
         }
     } catch (err) {
         ErrorHandler.showError('STORAGE', 'Có lỗi xảy ra khi lưu hồ sơ. Vui lòng thử lại.', err);
@@ -1124,25 +1122,29 @@ async function saveCustomerNotes() {
     const notesEl = getEl('info-notes');
     const notesText = notesEl ? notesEl.value.trim() : '';
 
-    const tx = db.transaction(['customers'], 'readwrite');
-    const store = tx.objectStore('customers');
-    const req = store.get(currentCustomerId);
+    // Mã hóa TRƯỚC transaction (AES-GCM async).
+    const encNotes = await encryptText(notesText);
 
-    req.onsuccess = (e) => {
-        const c = e.target.result;
-        if (!c) return;
+    // Đọc record (transaction đọc riêng).
+    const c = await new Promise((resolve, reject) => {
+        const g = db.transaction(['customers'], 'readonly').objectStore('customers').get(currentCustomerId);
+        g.onsuccess = () => resolve(g.result);
+        g.onerror = () => reject(g.error);
+    });
+    if (!c) return;
 
-        // Encrypt notes before saving
-        c.notes = encryptText(notesText);
-        c.updatedAt = Date.now();
+    c.notes = encNotes;
+    c.updatedAt = Date.now();
 
-        const putReq = store.put(c);
-        putReq.onsuccess = () => {
-            if (currentCustomerData && currentCustomerData.id === currentCustomerId) {
-                currentCustomerData.notes = c.notes;
-                currentCustomerData.updatedAt = c.updatedAt;
-            }
-            ErrorHandler.showSuccess('Đã lưu ghi chú');
-        };
+    // Ghi (transaction thuần đồng bộ).
+    const wtx = db.transaction(['customers'], 'readwrite');
+    const putReq = wtx.objectStore('customers').put(c);
+    putReq.onsuccess = () => {
+        if (currentCustomerData && currentCustomerData.id === currentCustomerId) {
+            currentCustomerData.notes = c.notes;
+            currentCustomerData.updatedAt = c.updatedAt;
+        }
+        ErrorHandler.showSuccess('Đã lưu ghi chú');
     };
+    putReq.onerror = (err) => ErrorHandler.showError('STORAGE', 'Lỗi lưu ghi chú.', err);
 }

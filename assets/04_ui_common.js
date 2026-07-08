@@ -178,15 +178,10 @@ function persistCurrentCustomer(mutate, onDone) {
             const rec = e.target.result;
             if (!rec) return;
             try { if (typeof mutate === 'function') mutate(rec); } catch (err) { if (window.ErrorHandler) ErrorHandler.logError('persistCurrentCustomer mutate error', err); return; }
-            // Healing: bản cũ có thể đã lưu plaintext — mã hóa lại các trường nhạy cảm.
-            try {
-                if (typeof masterKey !== 'undefined' && masterKey && typeof encryptText === 'function') {
-                    ['name', 'phone', 'cccd'].forEach((k) => {
-                        const v = rec[k];
-                        if (v && typeof v === 'string' && !v.startsWith('U2FsdGVkX1')) rec[k] = encryptText(v);
-                    });
-                }
-            } catch (err) { }
+            // Lưu ý: KHÔNG "heal" mã hóa ở đây nữa. encryptText() giờ BẤT ĐỒNG BỘ (AES-GCM)
+            // nên không thể chạy trong transaction; ngoài ra check cũ sẽ mã hóa NHẦM giá trị
+            // "cpg1:" (double-encrypt). Các luồng ghi (saveCustomer/saveAsset/notes) đã mã hóa
+            // trường nhạy cảm TRƯỚC khi persist; migration lo phần dữ liệu CryptoJS cũ.
             store.put(rec);
             ok = true;
         };

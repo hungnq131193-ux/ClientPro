@@ -1,7 +1,7 @@
 {
   "name": "ClientPro Quản Lý Khách Hàng",
   "short_name": "ClientPro",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "start_url": "./index.html",
   "description": "Ứng dụng PWA quản lý khách hàng và tài sản bảo đảm, hoạt động ngoại tuyến, dữ liệu lưu cục bộ trên thiết bị.",
   "lang": "vi",
