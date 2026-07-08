@@ -32,7 +32,7 @@
 5. **No Framework, Maximum Control**: Vanilla JS + numbered modules + data-action delegation (để tuân thủ CSP `script-src 'self'` không có `unsafe-inline`).
 6. **Versioning Discipline**: PWA cache busting đòi hỏi đồng bộ version ở nhiều nơi. CI sẽ fail nếu vi phạm.
 
-**Phiên bản hiện tại**: `1.4.1` (manifest + sw.js VERSION)
+**Phiên bản hiện tại**: `1.4.2` (manifest + sw.js VERSION)
 
 **License**: Proprietary – All Rights Reserved. Chỉ tác giả (Nguyễn Quốc Hưng) được phép sử dụng và sửa đổi.
 
@@ -94,6 +94,7 @@ Tất cả script được load bằng `<script defer>` trong `index.html` theo 
 7. `assets/15_auth_gate.js`
 8. `assets/03_map.js`
 9. `assets/04_ui_common.js`
+9b. `assets/19_error_loading.js` — Chuẩn hóa error & loading (ErrorHandler / LoadingManager / AppToast). Nạp ngay sau 04 để các module nghiệp vụ phía sau dùng được.
 10. `assets/05_customers.js`
 11. `assets/06_assets.js`
 12. `assets/08_images_camera.js`
@@ -265,10 +266,11 @@ Cả hai đều tôn trọng triết lý "user-controlled cloud" — không có 
 ### 4.8 PWA, Service Worker & Versioning (sw.js, pwa.js, manifest.json)
 
 - **Versioning Discipline** (rất nghiêm ngặt):
-  - `manifest.json` → `"version": "1.4.1"`
-  - `sw.js` → `VERSION = 'v1.4.1'`, `ASSET_V = 'REFUI_20260707'`
+  - `manifest.json` → `"version": "1.4.2"`
+  - `sw.js` → `VERSION = 'v1.4.2'`, `ASSET_V = 'REFUI_20260708'`
   - `assets/pwa.js` → `SW_BUILD`
-  - Tất cả asset link trong `index.html` có `?v=REFUI_20260707` (cache busting)
+  - Tất cả asset link trong `index.html` có `?v=REFUI_20260708` (cache busting)
+  - `assets/03_map.js` → `MAPLIBRE_V` (lazy-load maplibre) **cũng phải bằng ASSET_V** (CI kiểm tra).
 - **sw.js behavior**:
   - Precache toàn bộ shell + vendor + fonts + tất cả JS modules + một số modal HTML.
   - Runtime: same-origin cacheFirst/networkFirst, map tiles stale-while-revalidate (30 ngày), OSRM **không cache** (vì dynamic).
@@ -315,6 +317,31 @@ Nguồn của 2 Google Apps Script web app đứng sau mục 4.7, lưu trong `ga
 
 **Khi sửa 2 file này**: giữ nguyên mọi action/alias field/response mà `assets/07_drive.js` và `assets/14_cloud_transfer.js` đang đọc (đặc biệt `url`/`folderUrl`/`encrypted`/`kdata_b64u`/`cipher_b64`) — đây là hợp đồng ngầm giữa client và 2 script. Sau khi deploy lại trên Google, cập nhật URL mới vào `ADMIN_SERVER_URL` (AdminAPI) hoặc hướng dẫn user tự cập nhật (UserDriveAPI).
 
+### 4.12 Chuẩn hóa Error & Loading (`assets/19_error_loading.js`)
+
+Tầng dùng chung để (1) báo lỗi thân thiện tiếng Việt có gợi ý hành động, phân loại rõ ràng, và (2) hiển thị trạng thái loading nhất quán. Nạp **ngay sau `04_ui_common.js`** (index.html) và **trước** các module nghiệp vụ (05, 06, 08…), khởi tạo trong `10_bootstrap.js` (`LoadingManager.init()`). Precache trong `sw.js`. Không thêm CDN, không inline handler — mọi element tạo bằng DOM API, icon là inline SVG tự vẽ (không lệ thuộc lucide re-render), tuân thủ CSP.
+
+Export ra global: `window.ErrorHandler`, `window.LoadingManager`, `window.AppToast`, cùng alias tiện dụng `showError/showSuccess/showWarning/startLoading/stopLoading`.
+
+- **AppToast** — toast xếp chồng 4 loại (`success`/`error`/`warning`/`info`), chạm để đóng, tự đóng theo loại (error 6s, warning 5s, còn lại ~3.5s), container `#app-toast-container` tự tạo. `show(msg, type, {duration, icon})`. Lỗi nghiêm trọng có thể đặt `duration:0` để không tự đóng.
+- **`showToast(msg[, type])` cũ** được **route qua AppToast** (mặc định `success` để giữ cảm giác quen thuộc) → ~60 lời gọi cũ vẫn chạy, không phải sửa hàng loạt.
+- **ErrorHandler**:
+  - `ERROR_CODES`: `NETWORK`, `OFFLINE`, `TIMEOUT`, `VALIDATION`, `AUTH`, `STORAGE`, `MAP`, `BACKUP`, `CAMERA`, `UNKNOWN` — mỗi mã có `userMessage` (hiện cho user) + `technicalMessage` (console) + `type` (màu toast). **Thêm mã mới chỉ cần cập nhật bảng này.**
+  - `showError(codeOrMessage, customMessage?, technicalDetail?)`: nếu gọi `NETWORK` khi thật sự offline (`navigator.onLine === false`) → tự chuyển sang thông điệp `OFFLINE` (phân biệt rõ mất mạng thật vs ngoại tuyến). `technicalDetail` chỉ `console.error`, không lộ ra user.
+  - `showSuccess/showWarning/showInfo`, `isOffline()`, `classify(err)` (đoán mã từ `err.name`/message: `AbortError`→TIMEOUT, `NotAllowedError`…→CAMERA, `QuotaExceededError`→STORAGE…).
+  - `wrapAsync(fn, {loading, errorCode, errorMessage, successMessage, rethrow})`: bọc async — tự bật/tắt loading (`'global'` hoặc `{type:'button', el}`), tự catch + `showError` phân loại.
+- **LoadingManager** (tái sử dụng `#loader` sẵn có, đếm ref chống chồng chéo):
+  - `showGlobal(msg)` / `hideGlobal(force)` — overlay toàn màn hình; `hideGlobal(true)` reset cứng ref-count (dùng ở `finally`).
+  - `showProgress(msg, percent)` — thanh tiến trình `%` trong overlay (vd "Đang sao lưu… 67%").
+  - `showButtonLoading(btn, text)` / `hideButtonLoading(btn, restoreText?)` — spinner trên nút + tự `disable` + `aria-busy`, phục hồi HTML gốc.
+  - `showSkeleton(container, count)` / `hideSkeleton(container)` — skeleton card cho danh sách.
+
+**CSS** đi kèm ở cuối `assets/css/redesign.clientpro.css` (`.app-toast*`, `.btn-loading/.btn-spinner`, `.skeleton*`, `.global-progress-*`), tôn trọng `prefers-reduced-motion`, an toàn safe-area.
+
+**Đã refactor sang tầng này** (không đổi logic nghiệp vụ, chỉ chuẩn hóa báo lỗi/loading): `05_customers.js` (CRUD KH, gửi Cloud Transfer, xóa/duyệt/ghi chú), `06_assets.js` (lưu TSBĐ + tham khảo giá), `03_map.js` (GPS/định vị/khởi tạo bản đồ, mã `MAP`/`NETWORK`), `08_images_camera.js` (chia sẻ/lưu ảnh; bỏ báo lỗi khi user bấm Hủy `AbortError`; giữ fallback camera gốc khi `getUserMedia` lỗi), `18_biometric_unlock.js`. Các module còn lại (đặc biệt `02_security.js`, luồng backup Drive) vẫn dùng `alert()` cũ — có thể refactor dần theo cùng pattern.
+
+**Khi thêm luồng/async mới**: ưu tiên `ErrorHandler.showError('MÃ', 'thông điệp cụ thể', err)` cho lỗi, `LoadingManager` cho loading, `ErrorHandler.showSuccess(...)` cho thành công — **không** dùng `alert()`/`console.error` thô lộ ra user. Cần mã lỗi mới → thêm vào `ERROR_CODES`.
+
 ---
 
 **Tóm lại section 4**: Với những chi tiết trên, AI có thể:
@@ -345,12 +372,13 @@ File `vercel.json` áp dụng header cho toàn bộ route:
 ## 6. Quy trình Làm việc & Quy ước Code (BẮT BUỘC TUÂN THỦ)
 
 ### 6.1 Version Bump (khi thay đổi PWA assets hoặc logic quan trọng)
-Phải đồng bộ **đúng 5 nơi**:
-1. `"version": "1.4.1"` trong `manifest.json`
-2. `VERSION = 'v1.4.1'` trong `sw.js`
-3. `ASSET_V = 'REFUI_20260707'` trong `sw.js` (thường đổi thành ngày mới hoặc semantic)
+Phải đồng bộ **đúng 6 nơi**:
+1. `"version": "1.4.2"` trong `manifest.json`
+2. `VERSION = 'v1.4.2'` trong `sw.js`
+3. `ASSET_V = 'REFUI_20260708'` trong `sw.js` (thường đổi thành ngày mới hoặc semantic)
 4. `SW_BUILD` trong `assets/pwa.js`
-5. Tất cả query string `?v=...` và `?v=REFUI_...` trong `index.html` (CSS, JS, vendor scripts)
+5. Tất cả query string `?v=...` và `?v=REFUI_...` trong `index.html` (CSS, JS, vendor scripts) — phải **đồng nhất** và bằng `ASSET_V`.
+6. `MAPLIBRE_V` trong `assets/03_map.js` (lazy-load maplibre) — phải bằng `ASSET_V`.
 
 CI (`.github/workflows/ci.yml`) sẽ kiểm tra tự động và fail nếu không khớp.
 
@@ -424,10 +452,10 @@ Khi dự án có thay đổi lớn, yêu cầu Claude:
 
 ---
 
-## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-07)
+## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-08)
 
-- **Phiên bản**: 1.4.1 (ASSET_V: REFUI_20260707)
-- **Recent change**: Gọn UI cho tính năng "tham khảo giá" (asset price reference / valuation).
+- **Phiên bản**: 1.4.2 (ASSET_V: REFUI_20260708)
+- **Recent change**: Thêm tầng chuẩn hóa error & loading (`assets/19_error_loading.js`: ErrorHandler / LoadingManager / AppToast 4 loại) và refactor các luồng ưu tiên (customers, assets, map, camera, biometric) — xem §4.12.
 - **Điểm mạnh hiện tại**:
   - Hệ thống OSRM + cache + validation chặt → khoảng cách đường thực tế khá chính xác dù dùng free public router.
   - Bảo mật biometric WebAuthn PRF + CryptoJS + local-only.
@@ -443,5 +471,5 @@ Khi dự án có thay đổi lớn, yêu cầu Claude:
 **File CLAUDE.md này là tài liệu sống của dự án.**  
 Hãy giữ nó chính xác, cập nhật và dễ hiểu để bất kỳ AI nào (Claude, Grok, v.v.) khi đọc dự án đều có thể làm việc hiệu quả, nhất quán với tầm nhìn của tác giả.
 
-*Last updated: 2026-07-07 20:17 (ICT) bởi Grok — Enhanced module details để AI có thể làm việc hiệu quả mà ít cần đọc file code gốc*  
-*Phiên bản skill: 1.1*
+*Last updated: 2026-07-08 (ICT) — Thêm §4.12 (chuẩn hóa error & loading, module 19), cập nhật load order §3.2 và version bump §6.1 (1.4.2 / REFUI_20260708).*  
+*Phiên bản skill: 1.2*
