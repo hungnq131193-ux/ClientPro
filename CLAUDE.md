@@ -437,8 +437,9 @@ Bất kỳ thư viện JS/CSS/font nào mới → tải minified về `assets/ve
 python3 -m json.tool manifest.json vercel.json
 node --check sw.js
 find assets -name '*.js' -print0 | xargs -0 -n1 node --check
+node --test 'tests/**/*.test.js'   # bộ test tự động (crypto & data integrity) — xem §9
 ```
-CI cũng chạy các check này.
+CI cũng chạy các check này (2 job song song trong `.github/workflows/ci.yml`: `static-checks` + `tests`).
 
 ---
 
@@ -456,9 +457,35 @@ Khi dự án có thay đổi lớn, yêu cầu Claude:
 
 ---
 
+## 9. Automated Testing (`tests/`) — Ưu tiên Data Integrity
+
+Bộ test tự động, **ưu tiên cao nhất cho tính toàn vẹn dữ liệu (banking data integrity)**, chạy chủ yếu trên **GitHub Actions** để người dùng chỉ-dùng-điện-thoại xem được kết quả ✅/❌ ngay trên GitHub mà không phải test tay.
+
+### 9.1 Triết lý & Ràng buộc (quan trọng với versioning)
+- **Zero-dependency, zero-build, KHÔNG đụng versioning**: test chạy bằng **test runner tích hợp của Node** (`node --test`, cần Node ≥ 20; CI dùng Node 22) + `node:crypto` (WebCrypto) + `assets/vendor/crypto-js.min.js` đã self-host. **Không** `npm install`, **không** `node_modules`, **không** thêm CDN, **không** thêm `package.json`.
+- **Nằm NGOÀI `assets/`** (thư mục `tests/` ở root) → **không** cần bump version, **không** cần cache-buster (`ASSET_V`), **không** ảnh hưởng precache Service Worker hay job version-sync trong CI. Đây là lý do đặt test ở `tests/` thay vì `assets/`.
+- **Test CODE THẬT, không reimplement**: `tests/helpers/load-security.js` nạp **nguyên bản** `assets/02_security.js` vào sandbox `node:vm` (cấp CryptoJS + WebCrypto + `localStorage` giả lập + vài hằng cấu hình), rồi nối một "epilogue" cùng phạm vi từ vựng để phơi ra các hàm production (`encryptText`, `decryptText`, `encryptBackupPayload`, `decryptBackupPayload`, `sealMasterKey`, `openMasterKeyV2`, `unwrapMasterKeyAny`, `decryptCustomerObject`, …) và setter cho `masterKey`. **Khi refactor `02_security.js`, nếu đổi tên/chữ ký các hàm này phải cập nhật epilogue trong helper.**
+
+### 9.2 Cấu trúc & phạm vi
+| File | Phạm vi |
+|------|---------|
+| `tests/helpers/load-security.js` | Loader `vm` nạp `02_security.js` + `randomKdataB64u()`. |
+| `tests/crypto.test.js` | `encryptText`/`decryptText`: roundtrip tiếng Việt, salt ngẫu nhiên, sai key không rò rỉ, đặc tính chuỗi rỗng (biết trước: `decryptText` dùng `plaintext \|\| cipher`). |
+| `tests/backup.test.js` | Envelope `.cpb` AES-256-GCM: roundtrip payload (KH+tài sản+ghi chú+ảnh), checksum SHA-256, chống giả mạo (GCM tag), từ chối sai khóa / thiếu khóa / KDATA sai độ dài. |
+| `tests/data-integrity.test.js` | Giải mã cấp đối tượng Customer + Asset bảo đảm (đúng schema `05_customers.js`), niêm phong masterKey bằng PIN (PBKDF2+AES-GCM), `escapeHTML`. |
+| `tests/pwa.test.js` | Kiểm tra tĩnh `sw.js`/`manifest.json`: vòng đời install/activate/fetch + skipWaiting, precache đủ **mọi** module `assets/NN_*.js` + vendor sống còn, đồng bộ version (bổ trợ job version-sync). |
+
+### 9.3 Chạy & xem kết quả
+- Local: `node --test 'tests/**/*.test.js'` (output TAP: mỗi `ok N - <tên>` là 1 phép kiểm).
+- CI: job **"Automated tests (crypto & data integrity)"** trong `ci.yml` (song song với `static-checks`). Trên điện thoại: mở PR → tab **Checks** → chạm job để đọc log.
+- **Khi thêm hàm crypto/luồng dữ liệu mới** → thêm test tương ứng vào `tests/` (ưu tiên roundtrip + chống giả mạo + từ chối sai khóa). Không cần chạm version.
+
+---
+
 ## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-08)
 
-- **Phiên bản**: 1.4.3 (ASSET_V: REFUI_20260709)
+- **Phiên bản**: 1.4.3 (ASSET_V: REFUI_20260709) — **không đổi** khi thêm testing (test nằm ngoài `assets/`).
+- **Recent change (2026-07-08b)**: **Thêm Automated Testing** (`tests/`, xem §9) ưu tiên data-integrity. Zero-dependency (`node --test` + WebCrypto + crypto-js self-host), test **code thật** của `02_security.js` qua `node:vm`, **không** thêm asset/CDN/`package.json` nên **không** phá versioning. Thêm job `tests` vào `ci.yml` (song song `static-checks`).
 - **Recent change**: **Hoàn tất migration error & loading toàn ứng dụng** — mở rộng `assets/19_error_loading.js` (thêm `ErrorHandler.confirm()` thay `confirm()` gốc, `logError()` + ring buffer, `installGlobalHandlers()` bắt `window.onerror`/`unhandledrejection`, và empty/error-state renderer trong `LoadingManager`), gắn global error handling ở `10_bootstrap.js`, refactor nốt toàn bộ module còn lại (Backup/Drive/Cloud Transfer, Security/Auth, và các module nhỏ). **Không còn `alert()` / `confirm()` / `console.error` thô** trong codebase. Xem §4.12.
 - **Điểm mạnh hiện tại**:
   - Hệ thống OSRM + cache + validation chặt → khoảng cách đường thực tế khá chính xác dù dùng free public router.
@@ -475,5 +502,5 @@ Khi dự án có thay đổi lớn, yêu cầu Claude:
 **File CLAUDE.md này là tài liệu sống của dự án.**  
 Hãy giữ nó chính xác, cập nhật và dễ hiểu để bất kỳ AI nào (Claude, Grok, v.v.) khi đọc dự án đều có thể làm việc hiệu quả, nhất quán với tầm nhìn của tác giả.
 
-*Last updated: 2026-07-08 (ICT) — Hoàn tất migration error & loading toàn app: mở rộng §4.12 (module 19 thêm `confirm()`, `logError()`, global error handling, empty/error state), version bump §6.1 (1.4.3 / REFUI_20260709), loại bỏ hoàn toàn `alert()`/`confirm()`/`console.error` thô.*  
-*Phiên bản skill: 1.3*
+*Last updated: 2026-07-08 (ICT) — Thêm §9 Automated Testing (thư mục `tests/`, ưu tiên data integrity): zero-dependency `node --test` + `node:vm` nạp code thật `02_security.js`, thêm job `tests` vào `ci.yml`, cập nhật §6.4. Không đụng versioning (test ngoài `assets/`).*  
+*Phiên bản skill: 1.4*
