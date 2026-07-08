@@ -84,3 +84,23 @@ jobs:
             exit 1
           fi
           echo "✅ Phiên bản đồng bộ: app=$MANIFEST_VER, asset tag=$ASSET_V"
+
+  tests:
+    name: Automated tests (crypto & data integrity)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Không cần `npm install`: bộ test chạy bằng test runner tích hợp của Node
+      # (node --test) + node:crypto (WebCrypto) + crypto-js.min.js self-host sẵn.
+      # Không thêm dependency, không thêm asset -> không đụng versioning/cache-buster.
+      - name: Run test suite (Node built-in runner)
+        run: node --test 'tests/**/*.test.js'
