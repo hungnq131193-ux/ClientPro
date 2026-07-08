@@ -432,16 +432,29 @@ const ModalA11y = (function () {
     const ACTION_LABELS = {
         toggleMenu: 'Mở menu', locateMe: 'Định vị vị trí của tôi', closeFolder: 'Đóng hồ sơ',
         refreshWeather: 'Làm mới thời tiết', toggleCustSelectionMode: 'Chọn nhiều khách hàng',
+        toggleSelectionMode: 'Chọn nhiều ảnh', toggleMap: 'Mở bản đồ', closeAssetGallery: 'Đóng thư viện ảnh',
+        deleteCurrentCustomer: 'Xóa hồ sơ', backToList: 'Quay lại danh sách', goBack: 'Quay lại',
         openModal: 'Thêm khách hàng mới', closeModal: 'Đóng', closeLightbox: 'Đóng ảnh',
         navigateLightbox: 'Ảnh khác', shareSelectedImages: 'Chia sẻ ảnh đã chọn',
         deleteSelectedImages: 'Xóa ảnh đã chọn', deleteOpenedImage: 'Xóa ảnh này',
         openEditCustomerModal: 'Sửa hồ sơ', tryOpenCamera: 'Chụp ảnh',
     };
+    // Dự phòng theo icon Lucide -> đảm bảo KHÔNG nút icon-only nào thiếu tên (WCAG button-name).
+    const ICON_LABELS = {
+        'x': 'Đóng', 'arrow-left': 'Quay lại', 'chevron-left': 'Quay lại', 'trash-2': 'Xóa',
+        'trash': 'Xóa', 'save': 'Lưu', 'camera': 'Chụp ảnh', 'search': 'Tìm kiếm', 'plus': 'Thêm',
+        'edit': 'Sửa', 'edit-2': 'Sửa', 'edit-3': 'Sửa', 'share-2': 'Chia sẻ', 'map': 'Bản đồ',
+        'menu': 'Menu', 'settings': 'Cài đặt', 'check': 'Xác nhận', 'refresh-cw': 'Làm mới',
+    };
     function labelIconButtons(root) {
         (root || document).querySelectorAll('button[data-action],a[data-action],[role="button"][data-action]').forEach((btn) => {
             if (btn.getAttribute('aria-label')) return;
             if ((btn.textContent || '').trim().length > 0) return; // đã có chữ hiển thị
-            const label = ACTION_LABELS[btn.dataset.action];
+            let label = ACTION_LABELS[btn.dataset.action];
+            if (!label) {
+                const icon = btn.querySelector('[data-lucide]');
+                if (icon) label = ICON_LABELS[icon.getAttribute('data-lucide')];
+            }
             if (label) btn.setAttribute('aria-label', label);
         });
     }

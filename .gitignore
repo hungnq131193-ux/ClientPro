@@ -1,0 +1,6 @@
+# CI-only test tooling artifacts (app shipped vẫn zero-dependency)
+node_modules/
+package-lock.json
+test-results/
+playwright-report/
+.lighthouseci/

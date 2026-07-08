@@ -486,8 +486,9 @@ Khi dự án có thay đổi lớn, yêu cầu Claude:
 Bộ test tự động, **ưu tiên cao nhất cho tính toàn vẹn dữ liệu (banking data integrity)**, chạy chủ yếu trên **GitHub Actions** để người dùng chỉ-dùng-điện-thoại xem được kết quả ✅/❌ ngay trên GitHub mà không phải test tay.
 
 ### 9.1 Triết lý & Ràng buộc (quan trọng với versioning)
-- **Zero-dependency, zero-build, KHÔNG đụng versioning**: test chạy bằng **test runner tích hợp của Node** (`node --test`, cần Node ≥ 20; CI dùng Node 22) + `node:crypto` (WebCrypto) + `assets/vendor/crypto-js.min.js` đã self-host. **Không** `npm install`, **không** `node_modules`, **không** thêm CDN, **không** thêm `package.json`.
-- **Nằm NGOÀI `assets/`** (thư mục `tests/` ở root) → **không** cần bump version, **không** cần cache-buster (`ASSET_V`), **không** ảnh hưởng precache Service Worker hay job version-sync trong CI. Đây là lý do đặt test ở `tests/` thay vì `assets/`.
+- **App shipped vẫn ZERO-DEPENDENCY, zero-build**: `index.html` + `assets/` không import npm, không bundler, không node_modules lúc runtime. Bộ `tests/` chạy bằng **test runner tích hợp của Node** (`node --test`, Node ≥ 20; CI Node 22) + `node:crypto` (WebCrypto) + `assets/vendor/crypto-js.min.js` self-host — **không** cần `npm install`.
+- **Ngoại lệ CI-only (từ P5)**: `package.json` có `devDependencies` (`@playwright/test`, `@axe-core/playwright`, `@lhci/cli`) **CHỈ** cho E2E/Lighthouse chạy trên GitHub Actions. `node_modules/` và `package-lock.json` **không commit** (đã `.gitignore`); job CI `e2e` tự `npm install` + `npx playwright install chromium`. **Tuyệt đối không** để app runtime phụ thuộc các gói này. Bộ `node --test` vẫn zero-dep như cũ.
+- **Nằm NGOÀI `assets/`** (thư mục `tests/`, `e2e/` ở root) → **không** cần bump version, **không** cần cache-buster (`ASSET_V`), **không** ảnh hưởng precache Service Worker hay job version-sync. Đây là lý do đặt test ngoài `assets/`.
 - **Test CODE THẬT, không reimplement**: `tests/helpers/load-security.js` nạp **nguyên bản** `assets/02_security.js` vào sandbox `node:vm` (cấp CryptoJS + WebCrypto + `localStorage` giả lập + vài hằng cấu hình), rồi nối một "epilogue" cùng phạm vi từ vựng để phơi ra các hàm production (`encryptText`, `decryptText`, `encryptBackupPayload`, `decryptBackupPayload`, `sealMasterKey`, `openMasterKeyV2`, `unwrapMasterKeyAny`, `decryptCustomerObject`, …) và setter cho `masterKey`. **Khi refactor `02_security.js`, nếu đổi tên/chữ ký các hàm này phải cập nhật epilogue trong helper.**
 
 ### 9.2 Cấu trúc & phạm vi
@@ -498,17 +499,30 @@ Bộ test tự động, **ưu tiên cao nhất cho tính toàn vẹn dữ liệu
 | `tests/backup.test.js` | Envelope `.cpb` AES-256-GCM: roundtrip payload (KH+tài sản+ghi chú+ảnh), checksum SHA-256, chống giả mạo (GCM tag), từ chối sai khóa / thiếu khóa / KDATA sai độ dài. |
 | `tests/data-integrity.test.js` | Giải mã cấp đối tượng Customer + Asset (AES-GCM), **migration CryptoJS→GCM idempotent + resume-safe** (dùng `makeFakeDb`), niêm phong masterKey bằng PIN (PBKDF2+AES-GCM, chấp nhận MK2/mk_), `escapeHTML`. |
 | `tests/pwa.test.js` | Kiểm tra tĩnh `sw.js`/`manifest.json`: vòng đời install/activate/fetch + skipWaiting, precache đủ **mọi** module `assets/NN_*.js` + vendor sống còn, đồng bộ version (bổ trợ job version-sync). |
+| `tests/schema.test.js` | **Data-contract**: khóa cứng SHAPE record Customer/Asset ở tầng lưu trữ (id/status/assets/createdAt, trường nhạy cảm phải `cpg1:`, `cryptoV:2`). Validate cả record tạo mới lẫn sau migration; bắt record hỏng. Chống migration/refactor phá cấu trúc. |
+
+**E2E + Lighthouse (CI-only, `e2e/` + `playwright.config.js` + `lighthouserc.json`)** — devDeps chỉ chạy trên CI (xem §9.1):
+| File | Phạm vi |
+|------|---------|
+| `e2e/smoke.spec.js` | App tải, Service Worker đăng ký, cổng bảo mật hiện, không lỗi JS chưa bắt. |
+| `e2e/a11y.spec.js` | Viewport cho phép pinch-zoom + **axe-core** quét màn hình (chặn ở vi phạm `critical`, log `serious`). |
+| `e2e/offline.spec.js` | Ngắt mạng → app shell vẫn tải từ SW cache (offline-first). |
+| `e2e/crud.spec.js` | **Kịch bản thật**: seed activation+PIN envelope (sinh bằng `tests/helpers`), mở khóa qua bàn phím, tạo KH, kiểm chứng IndexedDB lưu **AES-GCM `cpg1:`** + `cryptoV:2` + giải mã đúng — chứng minh đường ống mã hóa P2 chạy trong Chromium thật. |
+
+`playwright.config.js` tự dùng Chromium cài sẵn của môi trường nếu có (`/opt/pw-browsers`), CI thì `npx playwright install chromium`. `lighthouserc.json` gate **accessibility ≥ 0.9** (error), perf/best-practices chỉ cảnh báo; report lưu `.lighthouseci/` (không upload public — tôn trọng privacy).
 
 ### 9.3 Chạy & xem kết quả
-- Local: `node --test 'tests/**/*.test.js'` (output TAP: mỗi `ok N - <tên>` là 1 phép kiểm).
-- CI: job **"Automated tests (crypto & data integrity)"** trong `ci.yml` (song song với `static-checks`). Trên điện thoại: mở PR → tab **Checks** → chạm job để đọc log.
-- **Khi thêm hàm crypto/luồng dữ liệu mới** → thêm test tương ứng vào `tests/` (ưu tiên roundtrip + chống giả mạo + từ chối sai khóa). Không cần chạm version.
+- Local (zero-dep): `node --test 'tests/**/*.test.js'` (TAP).
+- Local (E2E, cần devDeps): `npm install` → `npm run test:e2e` (Playwright+axe) / `npm run test:lh` (Lighthouse).
+- CI (`ci.yml`): job **"Automated tests"** (zero-dep, song song `static-checks`) + job **"E2E + a11y + Lighthouse"** (`e2e`). Trên điện thoại: mở PR → tab **Checks**.
+- **Khi thêm hàm crypto/luồng dữ liệu mới** → thêm test `tests/` (roundtrip + chống giả mạo + từ chối sai khóa). Thêm flow UI quan trọng → thêm spec `e2e/`. Không cần chạm version cho test.
 
 ---
 
 ## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-08)
 
-- **Phiên bản**: 1.5.2 (ASSET_V: SECGCM_20260708). Nguồn semver: `package.json` (dùng `npm run sync:version`).
+- **Phiên bản**: 1.5.3 (ASSET_V: SECGCM_20260708). Nguồn semver: `package.json` (dùng `npm run sync:version`).
+- **Recent change (2026-07-08g — P5 Production Testing)**: thêm `tests/schema.test.js` (data-contract, zero-dep) + hạ tầng E2E CI-only: `e2e/` (Playwright: smoke/a11y-axe/offline/crud) + `playwright.config.js` + `lighthouserc.json` + devDeps trong `package.json` (không commit node_modules/lock). CI thêm job `e2e`. `crud.spec.js` xác minh đường ống mã hóa AES-GCM chạy trong Chromium thật. a11y: thêm fallback nhãn icon (ICON_LABELS) trong `labelIconButtons` -> 0 vi phạm axe `critical`. Xem §9.
 - **Recent change (2026-07-08f — P4 Scalability)**: tìm kiếm KH không dấu (`_normVi`) + khớp CCCD/SĐT, chỉ số chuẩn hóa cache trong `__custSummaryCache` (không tính lại mỗi keystroke; decrypt cache-hit nhờ P2). Virtual list & viewport marker culling **cố ý bỏ** ở quy mô vài trăm KH. Xem §4.4.
 - **Recent change (2026-07-08e — P3 Accessibility)**: bỏ `user-scalable=no` (pinch-zoom); thêm `ModalA11y` (focus trap + aria-modal/dialog/labelledby + Esc + khôi phục focus cho mọi modal, không sửa từng open/close) + `labelIconButtons`; CSS `:focus-visible` + `@media (prefers-reduced-motion)`. Xem §4.9.
 - **Recent change (2026-07-08d — P2 Security Core)**: **Chuyển field-level encryption sang WebCrypto AES-256-GCM** (envelope `cpg1:`, có auth tag) + **masterKey CSPRNG (MK2)** thay chuỗi timestamp yếu. `encryptText` async (mã hóa trước transaction), `decryptText` đồng bộ đọc `__fieldPlainCache` (nạp bằng `primeFieldCache` sau unlock). **Migration một lần resume-safe** (`runFieldCryptoMigrationIfNeeded`, cờ `app_crypto_schema_v`, marker `cryptoV:2`) chuyển CryptoJS→GCM không mất dữ liệu; biometric/backup không cần đụng. Cập nhật writer (05/06/07/12), bỏ healing double-encrypt ở `persistCurrentCustomer` (04). Tests cập nhật + thêm tamper/wrong-key/migration idempotency+resume. Xem §4.3.
