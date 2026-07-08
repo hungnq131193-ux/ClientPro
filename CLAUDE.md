@@ -376,15 +376,21 @@ File `vercel.json` áp dụng header cho toàn bộ route:
 ## 6. Quy trình Làm việc & Quy ước Code (BẮT BUỘC TUÂN THỦ)
 
 ### 6.1 Version Bump (khi thay đổi PWA assets hoặc logic quan trọng)
-Phải đồng bộ **đúng 6 nơi**:
-1. `"version": "1.4.3"` trong `manifest.json`
-2. `VERSION = 'v1.4.3'` trong `sw.js`
-3. `ASSET_V = 'REFUI_20260709'` trong `sw.js` (thường đổi thành ngày mới hoặc semantic)
-4. `SW_BUILD` trong `assets/pwa.js`
-5. Tất cả query string `?v=...` và `?v=REFUI_...` trong `index.html` (CSS, JS, vendor scripts) — phải **đồng nhất** và bằng `ASSET_V`.
-6. `MAPLIBRE_V` trong `assets/03_map.js` (lazy-load maplibre) — phải bằng `ASSET_V`.
 
-CI (`.github/workflows/ci.yml`) sẽ kiểm tra tự động và fail nếu không khớp.
+**Hai loại định danh, mỗi loại 1 nguồn duy nhất (single source of truth):**
+
+**A. Semver app — nguồn = `package.json` → `version`.** KHÔNG sửa tay manifest/sw/pwa/README nữa. Đổi `package.json` rồi chạy `npm run sync:version` — script `scripts/sync-version.mjs` (zero-dependency) tự ghi ra:
+1. `"version"` trong `manifest.json`
+2. `VERSION = 'v<sem>'` trong `sw.js`
+3. `SW_BUILD = 'v<sem>'` trong `assets/pwa.js`
+4. badge + phần "Quản lý phiên bản" trong `README.md`
+
+**B. Tag cache-buster asset — nguồn = `ASSET_V` trong `sw.js`** (chuỗi tự do, vd `REFUI_20260709`). Đổi tay khi thay asset, phải đồng nhất với:
+5. Mọi query `?v=...` trong `index.html` (CSS/JS/vendor) — một giá trị duy nhất, bằng `ASSET_V`.
+6. `MAPLIBRE_V` trong `assets/03_map.js` (lazy-load maplibre) — phải bằng `ASSET_V`.
+(`sync:version` cũng đọc `ASSET_V` từ `sw.js` và cập nhật phần README nhắc tới nó.)
+
+CI (`.github/workflows/ci.yml`, job `static-checks`) kiểm tra tự động: bước **`node scripts/sync-version.mjs --check`** bắt lệch semver + README (điểm trước đây CI bỏ sót); bước **version-sync** bắt lệch `?v=`/`MAPLIBRE_V`. Trước khi commit: `npm run check:version`.
 
 ### 6.2 Thêm tính năng / Module mới + Cập nhật CLAUDE.md (QUAN TRỌNG)
 

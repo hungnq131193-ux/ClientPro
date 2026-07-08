@@ -3,7 +3,7 @@
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
-[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.4.3-blue.svg)](manifest.json)
 
 > **Live demo:** https://client-pro-beryl.vercel.app
 
@@ -106,19 +106,22 @@ Sau đó mở `http://localhost:8000/`.
 
 Dự án dùng **hai loại định danh phiên bản độc lập** — cần phân biệt rõ khi bump:
 
-**1. Phiên bản app (semver)** — hiện tại **`1.4.1`**. Phải **trùng khít** tại 3 nơi:
+**1. Phiên bản app (semver)** — hiện tại **`1.4.3`**. **Nguồn duy nhất (single source of truth) là `package.json` → `version`.** Sửa ở đó rồi chạy:
 
-- `version` trong `manifest.json` — ví dụ `1.4.1`.
-- `VERSION` trong `sw.js` — ví dụ `v1.4.1`.
-- `SW_BUILD` trong `assets/pwa.js` — ví dụ `v1.4.1`.
+```bash
+npm run sync:version      # ghi semver + ASSET_V ra mọi nơi khác
+npm run check:version     # chỉ kiểm tra (CI dùng lệnh này, lệch => fail)
+```
 
-**2. Tag cache-buster asset (chuỗi tự do)** — hiện tại **`REFUI_20260707`**, thường đặt theo mốc ngày/đợt redesign. Phải **đồng nhất** tại:
+`scripts/sync-version.mjs` (zero-dependency) tự đồng bộ semver tới **3 nơi** — `version` trong `manifest.json`, `VERSION` (`v<sem>`) trong `sw.js`, `SW_BUILD` (`v<sem>`) trong `assets/pwa.js` — **và** cả badge + phần này trong `README.md`. Không sửa tay từng file nữa.
 
-- `ASSET_V` trong `sw.js`.
+**2. Tag cache-buster asset (chuỗi tự do)** — hiện tại **`REFUI_20260709`**, thường đặt theo mốc ngày/đợt redesign. Nguồn là `ASSET_V` trong `sw.js`; phải **đồng nhất** tại:
+
+- `ASSET_V` trong `sw.js` (nguồn — `sync:version` đọc từ đây và cập nhật README).
 - **Mọi** query `?v=` của asset trong `index.html` (CSS, JS, vendor) — tất cả phải là một giá trị duy nhất và bằng `ASSET_V`.
 - `MAPLIBRE_V` trong `assets/03_map.js` (MapLibre được lazy-load với cache-buster riêng).
 
-> Khi thay đổi asset được cache hoặc logic PWA, bump loại phù hợp để người dùng nhận bản mới. CI sẽ tự động kiểm tra tính đồng bộ của **cả hai loại** (xem mục [CI](#ci)).
+> Khi thay đổi asset được cache hoặc logic PWA, bump loại phù hợp để người dùng nhận bản mới. CI kiểm tra **cả hai loại** (xem mục [CI](#ci)): bước `sync-version.mjs --check` bắt lệch semver/README, bước version-sync bắt lệch `?v=`/`MAPLIBRE_V`.
 
 ## Kiểm tra tĩnh trước khi commit
 

@@ -44,6 +44,9 @@ jobs:
             exit 1
           fi
 
+      - name: Verify version single-source (package.json → manifest/sw/pwa/README)
+        run: node scripts/sync-version.mjs --check
+
       - name: Verify version is synchronized across files
         run: |
           set -euo pipefail

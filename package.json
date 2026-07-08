@@ -1,0 +1,12 @@
+{
+  "name": "clientpro",
+  "version": "1.4.3",
+  "private": true,
+  "description": "ClientPro — PWA quản lý khách hàng & tài sản bảo đảm (privacy-first, offline-first, self-hosted). package.json chỉ là nguồn phiên bản (single source of truth) + tooling test/CI; ứng dụng shipped vẫn zero-dependency, không build step.",
+  "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "sync:version": "node scripts/sync-version.mjs",
+    "check:version": "node scripts/sync-version.mjs --check",
+    "test": "node --test \"tests/**/*.test.js\""
+  }
+}
