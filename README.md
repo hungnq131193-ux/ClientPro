@@ -3,7 +3,7 @@
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
-[![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.5.2-blue.svg)](manifest.json)
 
 > **Live demo:** https://client-pro-beryl.vercel.app
 
@@ -106,7 +106,7 @@ Sau đó mở `http://localhost:8000/`.
 
 Dự án dùng **hai loại định danh phiên bản độc lập** — cần phân biệt rõ khi bump:
 
-**1. Phiên bản app (semver)** — hiện tại **`1.5.1`**. **Nguồn duy nhất (single source of truth) là `package.json` → `version`.** Sửa ở đó rồi chạy:
+**1. Phiên bản app (semver)** — hiện tại **`1.5.2`**. **Nguồn duy nhất (single source of truth) là `package.json` → `version`.** Sửa ở đó rồi chạy:
 
 ```bash
 npm run sync:version      # ghi semver + ASSET_V ra mọi nơi khác

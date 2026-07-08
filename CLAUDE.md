@@ -211,7 +211,7 @@ Mục tiêu của section này là cung cấp **mental model + chi tiết thực
 
 - **05_customers.js**: 
   - CRUD: `saveCustomer()`, `deleteCurrentCustomer()`, `toggleCustomerStatus()`
-  - Search, filter theo status/approved.
+  - Search, filter theo status/approved. **Tìm kiếm không dấu (P4)**: `_normVi()` (hạ chữ + bỏ dấu NFD + đ→d) cho tên, khớp cả **CCCD** và SĐT (bỏ khoảng trắng). Chỉ số chuẩn hóa (`nName/nPhone/nCccd`) lưu trong `__custSummaryCache` (light in-memory index) — không tính lại mỗi keystroke; decrypt là cache-hit nhờ P2. **Không** dùng virtual list và **không** cull marker theo viewport — cố ý bỏ ở quy mô vài trăm KH (over-engineering; rAF chunk-render 25 + decrypt-cache đã đủ mượt).
   - Notes: `saveCustomerNotes()`
   - Selection mode (kết hợp 13_ui_select_customers.js): `toggleCustSelectionMode()`, `sendSelectedCustomersToUser()`, `deleteSelectedCustomers()`
 - **06_assets.js**:
@@ -508,7 +508,8 @@ Bộ test tự động, **ưu tiên cao nhất cho tính toàn vẹn dữ liệu
 
 ## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-08)
 
-- **Phiên bản**: 1.5.1 (ASSET_V: SECGCM_20260708). Nguồn semver: `package.json` (dùng `npm run sync:version`).
+- **Phiên bản**: 1.5.2 (ASSET_V: SECGCM_20260708). Nguồn semver: `package.json` (dùng `npm run sync:version`).
+- **Recent change (2026-07-08f — P4 Scalability)**: tìm kiếm KH không dấu (`_normVi`) + khớp CCCD/SĐT, chỉ số chuẩn hóa cache trong `__custSummaryCache` (không tính lại mỗi keystroke; decrypt cache-hit nhờ P2). Virtual list & viewport marker culling **cố ý bỏ** ở quy mô vài trăm KH. Xem §4.4.
 - **Recent change (2026-07-08e — P3 Accessibility)**: bỏ `user-scalable=no` (pinch-zoom); thêm `ModalA11y` (focus trap + aria-modal/dialog/labelledby + Esc + khôi phục focus cho mọi modal, không sửa từng open/close) + `labelIconButtons`; CSS `:focus-visible` + `@media (prefers-reduced-motion)`. Xem §4.9.
 - **Recent change (2026-07-08d — P2 Security Core)**: **Chuyển field-level encryption sang WebCrypto AES-256-GCM** (envelope `cpg1:`, có auth tag) + **masterKey CSPRNG (MK2)** thay chuỗi timestamp yếu. `encryptText` async (mã hóa trước transaction), `decryptText` đồng bộ đọc `__fieldPlainCache` (nạp bằng `primeFieldCache` sau unlock). **Migration một lần resume-safe** (`runFieldCryptoMigrationIfNeeded`, cờ `app_crypto_schema_v`, marker `cryptoV:2`) chuyển CryptoJS→GCM không mất dữ liệu; biometric/backup không cần đụng. Cập nhật writer (05/06/07/12), bỏ healing double-encrypt ở `persistCurrentCustomer` (04). Tests cập nhật + thêm tamper/wrong-key/migration idempotency+resume. Xem §4.3.
 - **Recent change (2026-07-08c — P1 CSP/Version)**: `package.json` làm single-source cho semver + `scripts/sync-version.mjs` (đồng bộ manifest/sw/pwa/README), CI thêm bước `--check`. Siết `vercel.json`: HSTS + COOP + CORP + CSP `upgrade-insecure-requests`/`manifest-src`/`form-action`/`frame-src 'none'`.

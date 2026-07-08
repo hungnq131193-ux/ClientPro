@@ -245,6 +245,13 @@ const __custSummaryCache = window.__custSummaryCache || (window.__custSummaryCac
 function _looksEncrypted(v) {
     return (typeof v === 'string') && (v.startsWith('U2FsdGVk') || v.startsWith('cpg1:'));
 }
+// Chuẩn hóa tiếng Việt cho tìm kiếm: hạ chữ + bỏ dấu (NFD) + đ->d.
+// Cho phép gõ "nguyen" tìm ra "Nguyễn", "da nang" ra "Đà Nẵng".
+function _normVi(s) {
+    return String(s == null ? '' : s).toLowerCase().normalize('NFD')
+        .replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+}
+const _stripSpaces = (s) => String(s == null ? '' : s).replace(/\s+/g, '');
 function _custSig(c) {
     // Dùng ciphertext làm signature để không cần decrypt khi so sánh
     return `${c && c.id ? c.id : ''}|${c && c.name ? c.name : ''}|${c && c.phone ? c.phone : ''}|${c && c.cccd ? c.cccd : ''}|${c && c.status ? c.status : ''}|${c && c.creditLimit ? c.creditLimit : ''}`;
@@ -261,6 +268,8 @@ function _ensureSummaryDecrypted(c) {
         c.name = cached.name;
         c.phone = cached.phone;
         c.cccd = cached.cccd;
+        // Chỉ số tìm kiếm đã chuẩn hóa (bỏ dấu / bỏ khoảng trắng) — dùng lại qua từng keystroke.
+        c._nName = cached.nName; c._nPhone = cached.nPhone; c._nCccd = cached.nCccd;
         return c;
     }
 
@@ -269,7 +278,9 @@ function _ensureSummaryDecrypted(c) {
 
     const ok = !_looksEncrypted(c.name) && !_looksEncrypted(c.phone) && !_looksEncrypted(c.cccd);
     if (ok) {
-        __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd, ok: true });
+        const nName = _normVi(c.name), nPhone = _stripSpaces(c.phone), nCccd = _stripSpaces(c.cccd);
+        __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd, ok: true, nName, nPhone, nCccd });
+        c._nName = nName; c._nPhone = nPhone; c._nCccd = nCccd;
     } else {
         __custSummaryCache.delete(c.id);
     }
@@ -307,11 +318,14 @@ async function loadCustomers(query = '') {
         if (activeListTab !== 'all' && (c.status || 'pending') !== activeListTab) continue;
 
         if (q) {
-            const qq = q.toLowerCase();
             _ensureSummaryDecrypted(c);
-            const nameMatch = (c.name || '').toLowerCase().includes(qq);
-            const phoneMatch = (c.phone || '').includes(qq);
-            if (!nameMatch && !phoneMatch) continue;
+            // Dùng chỉ số đã chuẩn hóa (cache) -> không tính lại mỗi keystroke.
+            const qNorm = _normVi(q);
+            const qDigits = _stripSpaces(q);
+            const nameMatch = (c._nName || '').includes(qNorm);
+            const phoneMatch = (c._nPhone || '').includes(qDigits);
+            const cccdMatch = (c._nCccd || '').includes(qDigits);
+            if (!nameMatch && !phoneMatch && !cccdMatch) continue;
         }
 
         list.push(c);
