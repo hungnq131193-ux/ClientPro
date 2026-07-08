@@ -135,8 +135,9 @@ async function sendSelectedCustomersToUser() {
         LoadingManager.hideGlobal(true);
     }
 }
-function deleteSelectedCustomers() {
-    if (selectedCustomers.size === 0) return; if (!confirm(`Xóa vĩnh viễn ${selectedCustomers.size} khách hàng?`)) return;
+async function deleteSelectedCustomers() {
+    if (selectedCustomers.size === 0) return;
+    if (!(await ErrorHandler.confirm(`Xóa vĩnh viễn ${selectedCustomers.size} khách hàng?`, { title: "Xóa khách hàng", danger: true, confirmText: "Xóa vĩnh viễn" }))) return;
     const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
     selectedCustomers.forEach(custId => { custStore.delete(custId); imgStore.index('customerId').getAllKeys(custId).onsuccess = e => { e.target.result.forEach(imgId => imgStore.delete(imgId)); }; });
     tx.oncomplete = () => { ErrorHandler.showSuccess("Đã xóa khách hàng đã chọn"); setCustSelectionMode(false); };
@@ -332,11 +333,11 @@ async function loadCustomers(query = '') {
     // để không block main thread khi danh sách dài.
     const CHUNK_SIZE = 25;
     if (list.length <= CHUNK_SIZE) {
-        renderList(list, { append: false, done: true, summaryCounts });
+        renderList(list, { append: false, done: true, summaryCounts, query: q, totalAll: all.length });
         return;
     }
 
-    renderList(list.slice(0, CHUNK_SIZE), { append: false, done: false, summaryCounts });
+    renderList(list.slice(0, CHUNK_SIZE), { append: false, done: false, summaryCounts, query: q, totalAll: all.length });
     let renderedCount = CHUNK_SIZE;
     const renderNextChunk = () => {
         // Có lượt load mới (search/đổi tab) -> bỏ các chunk còn lại của lượt cũ
@@ -396,16 +397,39 @@ function renderList(list, opts = {}) {
     }
 
     if ((!list || list.length === 0) && !append) {
-        const empty = document.createElement('div');
-        empty.className = 'customer-empty-state text-center py-28 px-6 opacity-85 flex flex-col items-center';
-        empty.innerHTML = `
-            <div class="customer-empty-icon mb-4"><i data-lucide="inbox" class="w-12 h-12 stroke-1"></i></div>
-            <p class="text-sm font-bold tracking-wide">Chưa có hồ sơ phù hợp</p>
-            <p class="text-xs mt-2 opacity-70">Hãy thêm khách hàng mới hoặc thử từ khóa khác.</p>
-        `;
-        frag.appendChild(empty);
+        // Giữ lại thẻ tổng quan (summary) rồi vẽ empty-state theo ngữ cảnh:
+        //  - Đang tìm kiếm mà không có kết quả  → gợi ý xóa tìm kiếm.
+        //  - Tab hiện tại trống nhưng vẫn có KH  → gợi ý xem tất cả.
+        //  - Chưa có khách hàng nào             → gợi ý thêm mới.
         listEl.appendChild(frag);
-        try { lucide.createIcons(); } catch (e) { }
+        const query = (opts.query || '').trim();
+        const totalAll = (typeof opts.totalAll === 'number') ? opts.totalAll : 0;
+        if (window.LoadingManager) {
+            if (query) {
+                LoadingManager.showSearchEmptyState(listEl, {
+                    title: 'Không tìm thấy khách hàng',
+                    message: `Không có hồ sơ nào khớp với “${query}”. Thử từ khóa hoặc số điện thoại khác.`,
+                    actionText: 'Xóa tìm kiếm',
+                    onAction: () => { const s = getEl('search-input'); if (s) { s.value = ''; } loadCustomers(''); },
+                });
+            } else if (totalAll > 0) {
+                LoadingManager.showEmptyState(listEl, {
+                    icon: 'folder',
+                    title: 'Chưa có hồ sơ ở mục này',
+                    message: activeListTab === 'approved' ? 'Chưa có khách hàng nào được duyệt.' : 'Chưa có khách hàng nào ở trạng thái thẩm định.',
+                    actionText: 'Xem tất cả',
+                    onAction: () => { if (typeof openCustomerList === 'function') openCustomerList('all'); else { activeListTab = 'all'; loadCustomers(); } },
+                });
+            } else {
+                LoadingManager.showEmptyState(listEl, {
+                    icon: 'users',
+                    title: 'Chưa có khách hàng',
+                    message: 'Bắt đầu bằng cách tạo hồ sơ khách hàng đầu tiên của bạn.',
+                    actionText: 'Thêm khách hàng',
+                    onAction: () => { if (typeof openModal === 'function') openModal(); },
+                });
+            }
+        }
         return;
     }
     for (let i = 0; i < list.length; i++) {
@@ -852,8 +876,8 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
     }
 }
 
-function deleteCurrentCustomer() {
-    if (!confirm("XÁC NHẬN: Xóa toàn bộ hồ sơ khách hàng này?")) return;
+async function deleteCurrentCustomer() {
+    if (!(await ErrorHandler.confirm("Xóa toàn bộ hồ sơ khách hàng này?", { title: "Xác nhận xóa hồ sơ", danger: true, confirmText: "Xóa hồ sơ" }))) return;
     try {
         const tx = db.transaction(['images', 'customers'], 'readwrite'); const imgStore = tx.objectStore('images'); const custStore = tx.objectStore('customers');
         if (imgStore.indexNames.contains('customerId')) { imgStore.index('customerId').getAllKeys(currentCustomerId).onsuccess = (e) => { e.target.result.forEach(key => imgStore.delete(key)); }; }
@@ -861,8 +885,8 @@ function deleteCurrentCustomer() {
     } catch (err) { window.location.reload(); }
 }
 
-function deleteAsset(idx) {
-    if (!confirm("Xóa tài sản này?")) return;
+async function deleteAsset(idx) {
+    if (!(await ErrorHandler.confirm("Xóa tài sản bảo đảm này?", { title: "Xóa tài sản", danger: true, confirmText: "Xóa" }))) return;
     const removed = currentCustomerData.assets.splice(idx, 1)[0];
     persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, () => {
         ErrorHandler.showSuccess("Đã xóa tài sản bảo đảm");
@@ -881,7 +905,7 @@ function deleteAsset(idx) {
     });
 }
 
-function toggleCustomerStatus() { if (currentCustomerData.status === 'pending') { getEl('approve-modal').classList.remove('hidden'); getEl('approve-limit').value = ''; } else { if (confirm("Thu hồi trạng thái?")) { currentCustomerData.status = 'pending'; updateCustomerAndReload(); } } }
+async function toggleCustomerStatus() { if (currentCustomerData.status === 'pending') { getEl('approve-modal').classList.remove('hidden'); getEl('approve-limit').value = ''; } else { if (await ErrorHandler.confirm("Thu hồi trạng thái đã duyệt của khách hàng này?", { title: "Thu hồi trạng thái", danger: true, confirmText: "Thu hồi" })) { currentCustomerData.status = 'pending'; updateCustomerAndReload(); } } }
 function closeApproveModal() { getEl('approve-modal').classList.add('hidden'); }
 function confirmApproval() { const l = getEl('approve-limit').value; if (!l) return ErrorHandler.showError('VALIDATION', "Vui lòng nhập hạn mức."); currentCustomerData.status = 'approved'; currentCustomerData.creditLimit = l; closeApproveModal(); persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = l; }, () => { ErrorHandler.showSuccess("Đã duyệt khách hàng"); renderFolderHeader(currentCustomerData); loadCustomers(getEl('search-input').value); }); }
 function updateCustomerAndReload() { persistCurrentCustomer((rec) => { rec.status = currentCustomerData.status; rec.creditLimit = currentCustomerData.creditLimit; }, () => { openFolder(currentCustomerData.id); loadCustomers(); }); }
@@ -899,7 +923,7 @@ function openFolder(id) {
 
     // Check if db is ready
     if (!db) {
-        console.error('openFolder: db not ready');
+        ErrorHandler.showError('STORAGE', 'Dữ liệu chưa sẵn sàng. Vui lòng thử lại sau giây lát.', 'openFolder: db not ready');
         return;
     }
 
@@ -911,7 +935,7 @@ function openFolder(id) {
         req.onsuccess = (e) => {
             currentCustomerData = e.target.result;
             if (!currentCustomerData) {
-                console.error('openFolder: customer not found:', id);
+                ErrorHandler.showError('STORAGE', 'Không tìm thấy hồ sơ khách hàng.', 'openFolder: customer not found: ' + id);
                 return;
             }
 
@@ -932,7 +956,7 @@ function openFolder(id) {
                         decryptCustomerObject(currentCustomerData);
                     }
                 }
-            } catch (err) { console.error('openFolder decrypt error:', err); }
+            } catch (err) { ErrorHandler.logError('openFolder decrypt error', err); }
 
             // Fix old data if missing fields
             if (!currentCustomerData.status) currentCustomerData.status = 'pending';
@@ -981,10 +1005,10 @@ function openFolder(id) {
         };
 
         req.onerror = (e) => {
-            console.error('openFolder DB error:', e);
+            ErrorHandler.showError('STORAGE', 'Không mở được hồ sơ khách hàng.', e);
         };
     } catch (err) {
-        console.error('openFolder exception:', err);
+        ErrorHandler.showError('STORAGE', 'Không mở được hồ sơ khách hàng.', err);
     }
 }
 function closeFolder() {

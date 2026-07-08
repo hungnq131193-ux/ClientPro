@@ -82,20 +82,20 @@ function saveScriptUrl() {
     const input = getEl('dashboard-drive-url') || getEl('user-script-url');
     const url = input ? input.value.trim() : '';
     if (!url.startsWith('https://script.google.com/')) {
-        alert("Link không đúng định dạng!");
+        ErrorHandler.showError('VALIDATION', "Link Script không đúng định dạng. Link phải bắt đầu bằng https://script.google.com/");
         return;
     }
     const tokenInput = getEl('dashboard-drive-token');
     const token = tokenInput ? tokenInput.value.trim() : getUserToken();
     if (!token) {
-        alert("Vui lòng nhập Mã bảo mật (Access Token) của Script cá nhân!");
+        ErrorHandler.showWarning("Vui lòng nhập Mã bảo mật (Access Token) của Script cá nhân!");
         if (tokenInput) tokenInput.focus();
         return;
     }
     // Lưu link Script cá nhân và token (niêm phong bằng masterKey nếu app đã mở khóa)
     localStorage.setItem(USER_SCRIPT_KEY, url);
     localStorage.setItem(_userTokenStorageKey(), sealUserToken(token));
-    showToast("Đã lưu kết nối Drive cá nhân");
+    ErrorHandler.showSuccess("Đã lưu kết nối Drive cá nhân");
 }
 document.addEventListener('DOMContentLoaded', () => {
     const savedUrl = localStorage.getItem(USER_SCRIPT_KEY);
@@ -196,13 +196,13 @@ async function uploadAssetToDrive() {
     // Lấy link Script cá nhân
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+        if (await ErrorHandler.confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm 'Vào Cài đặt' để nhập Link Script của bạn.", { title: "Chưa cấu hình Drive", confirmText: "Vào Cài đặt" })) {
             toggleMenu();
         }
         return;
     }
     const scriptUrl = userUrl;
-    
+
     if (!currentCustomerData || !currentAssetId) return;
 
     // Tìm xem đang thao tác với Tài sản nào trong mảng assets
@@ -210,8 +210,7 @@ async function uploadAssetToDrive() {
     if (assetIndex === -1) return;
     const currentAsset = currentCustomerData.assets[assetIndex];
 
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang lấy ảnh TSBĐ...";
+    LoadingManager.showGlobal("Đang lấy ảnh TSBĐ...");
 
     const tx = db.transaction(['images'], 'readonly');
     const store = tx.objectStore('images');
@@ -224,17 +223,18 @@ async function uploadAssetToDrive() {
         let imagesToUpload = allImages.filter(img => img.assetId === currentAssetId);
 
         if (imagesToUpload.length === 0) {
-            getEl('loader').classList.add('hidden');
-            return alert("Tài sản này chưa có ảnh nào!");
-        }
-
-        const assetNamePlain = _displayText(currentAsset.name);
-        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh của tài sản "${assetNamePlain}" lên Drive?`)) {
-            getEl('loader').classList.add('hidden');
+            LoadingManager.hideGlobal(true);
+            ErrorHandler.showWarning("Tài sản này chưa có ảnh nào!");
             return;
         }
 
-        getEl('loader-text').textContent = "Đang Upload TSBĐ...";
+        const assetNamePlain = _displayText(currentAsset.name);
+        if (!(await ErrorHandler.confirm(`Tải lên ${imagesToUpload.length} ảnh của tài sản "${assetNamePlain}" lên Drive?`, { title: "Tải ảnh lên Drive", confirmText: "Tải lên" }))) {
+            LoadingManager.hideGlobal(true);
+            return;
+        }
+
+        LoadingManager.showGlobal("Đang Upload TSBĐ...");
 
         // Đặt tên Folder: [Tên Khách] - [Tên Tài Sản]
         // Ví dụ: Nguyen Van A - Nhà Đất 50m2
@@ -265,19 +265,20 @@ async function uploadAssetToDrive() {
                 // 2. Cập nhật Database (không put() nguyên currentCustomerData vì
                 //    name/phone/cccd trên object đó đã bị giải mã trong openFolder)
                 persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; });
-                
-                getEl('loader').classList.add('hidden');
-                
+
+                LoadingManager.hideGlobal(true);
+
                 // 3. Cập nhật giao diện
                 renderAssetDriveStatus(result.url);
-                
+                ErrorHandler.showSuccess("Đã tải ảnh TSBĐ lên Drive");
+
                 // 4. Hỏi xóa ảnh
-                if(confirm("✅ TSBĐ ĐÃ LÊN MÂY!\n\nXóa ảnh gốc trong máy để nhẹ bộ nhớ?")) {
+                if (await ErrorHandler.confirm("TSBĐ đã lên mây thành công!\n\nXóa ảnh gốc trong máy để nhẹ bộ nhớ?", { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
                     const txDel = db.transaction(['images'], 'readwrite');
                     imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
                     txDel.oncomplete = () => {
                         loadAssetImages(currentAssetId); // Load lại lưới ảnh (trống)
-                        showToast("Đã dọn dẹp ảnh TSBĐ");
+                        ErrorHandler.showSuccess("Đã dọn dẹp ảnh TSBĐ");
                     };
                 }
             } else {
@@ -285,9 +286,8 @@ async function uploadAssetToDrive() {
             }
 
         } catch (err) {
-            console.error(err);
-            getEl('loader').classList.add('hidden');
-            alert("Lỗi: " + err.message);
+            LoadingManager.hideGlobal(true);
+            ErrorHandler.showError('BACKUP', "Tải ảnh lên Drive thất bại. Vui lòng kiểm tra kết nối và Script cá nhân.", err);
         }
     };
 }
@@ -324,16 +324,15 @@ function renderAssetDriveStatus(url) {
 async function reconnectAssetDriveFolder() {
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) toggleMenu();
+        if (await ErrorHandler.confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm 'Vào Cài đặt' để nhập Link Script của bạn.", { title: "Chưa cấu hình Drive", confirmText: "Vào Cài đặt" })) toggleMenu();
         return;
     }
-    
+
     if (!currentCustomerData || !currentAssetId) return;
     const assetIndex = currentCustomerData.assets.findIndex(a => a.id === currentAssetId);
     if (assetIndex === -1) return;
 
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang tìm TSBĐ...";
+    LoadingManager.showGlobal("Đang tìm TSBĐ...");
     
     // IMPORTANT:
     // Nhiều build dùng decryptCustomerSummary() để tăng hiệu năng danh sách khách hàng.
@@ -353,8 +352,8 @@ async function reconnectAssetDriveFolder() {
     if (!assetNamePlain) assetNamePlain = _displayText(currentCustomerData.assets[assetIndex].name);
     // 3) Nếu vẫn là ciphertext thì không dựng folderName sai; báo rõ để tránh tìm sai.
     if (!assetNamePlain || _isCryptoJSCiphertext(assetNamePlain)) {
-        getEl('loader').classList.add('hidden');
-        alert('Không thể đọc tên TSBĐ (dữ liệu cũ đang mã hóa). Vui lòng mở Kho Ảnh TSBĐ để app tự giải mã tên, rồi thử lại.');
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showWarning('Không thể đọc tên TSBĐ (dữ liệu cũ đang mã hóa). Vui lòng mở Kho Ảnh TSBĐ để app tự giải mã tên, rồi thử lại.');
         return;
     }
 
@@ -398,17 +397,17 @@ async function reconnectAssetDriveFolder() {
             };
             tx.oncomplete = () => {
                 currentCustomerData.assets[assetIndex].driveLink = plainUrl; // Cập nhật hiển thị
-                getEl('loader').classList.add('hidden');
+                LoadingManager.hideGlobal(true);
                 renderAssetDriveStatus(plainUrl);
-                showToast("Đã kết nối lại!");
+                ErrorHandler.showSuccess("Đã kết nối lại folder TSBĐ!");
             };
         } else {
-            getEl('loader').classList.add('hidden');
-            alert("Không tìm thấy folder: " + folderName);
+            LoadingManager.hideGlobal(true);
+            ErrorHandler.showWarning("Không tìm thấy folder: " + folderName);
         }
     } catch (err) {
-        getEl('loader').classList.add('hidden');
-        alert("Lỗi: " + err.message);
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showError('NETWORK', "Không kết nối được tới Script cá nhân. Vui lòng thử lại.", err);
     }
 }
 // --- TÍNH NĂNG TÌM LẠI FOLDER THẤT LẠC ---
@@ -416,15 +415,14 @@ async function reconnectDriveFolder() {
     // Lấy link Script cá nhân; nếu chưa cấu hình thì nhắc người dùng cài đặt
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (confirm("Chưa cấu hình Script! Vào cài đặt ngay?")) toggleMenu();
+        if (await ErrorHandler.confirm("Chưa cấu hình Script! Vào cài đặt ngay?", { title: "Chưa cấu hình Drive", confirmText: "Vào Cài đặt" })) toggleMenu();
         return;
     }
     // Không có dữ liệu khách hàng hiện tại thì dừng
     if (!currentCustomerData) return;
 
     // Hiển thị loader và cập nhật thông báo
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang tìm trên Drive...";
+    LoadingManager.showGlobal("Đang tìm trên Drive...");
 
     // Lấy thông tin tên, SĐT và CCCD sau khi giải mã (hàm decryptText sẽ trả lại nguyên bản nếu đầu vào đã giải mã)
     const name = _displayText(currentCustomerData.name);
@@ -452,7 +450,7 @@ async function reconnectDriveFolder() {
                 break;
             }
         } catch (e) {
-            console.warn("Lỗi tìm kiếm:", e);
+            ErrorHandler.logError("reconnectDriveFolder: lỗi tìm kiếm", e);
         }
     }
 
@@ -460,13 +458,13 @@ async function reconnectDriveFolder() {
     if (foundUrl) {
         currentCustomerData.driveLink = foundUrl;
         persistCurrentCustomer((rec) => { rec.driveLink = foundUrl; }, () => {
-            getEl('loader').classList.add('hidden');
+            LoadingManager.hideGlobal(true);
             renderDriveStatus(foundUrl);
-            showToast("Đã kết nối lại thành công!");
+            ErrorHandler.showSuccess("Đã kết nối lại thành công!");
         });
     } else {
-        getEl('loader').classList.add('hidden');
-        alert("Không tìm thấy folder nào khớp với Tên + CCCD hoặc Tên + SĐT.");
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showWarning("Không tìm thấy folder nào khớp với Tên + CCCD hoặc Tên + SĐT.");
     }
 }
 
@@ -477,18 +475,17 @@ async function uploadToGoogleDrive() {
     // Lấy link Script cá nhân cho upload tài sản
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm OK để vào Cài đặt nhập Link Script của bạn.")) {
+        if (await ErrorHandler.confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm 'Vào Cài đặt' để nhập Link Script của bạn.", { title: "Chưa cấu hình Drive", confirmText: "Vào Cài đặt" })) {
             toggleMenu();
         }
         return;
     }
     const scriptUrl = userUrl;
-    
+
     if (!currentCustomerData) return;
 
     // 1. Lấy ảnh từ Database
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = "Đang kiểm tra ảnh...";
+    LoadingManager.showGlobal("Đang kiểm tra ảnh...");
     
     const tx = db.transaction(['images'], 'readonly');
     const store = tx.objectStore('images');
@@ -500,16 +497,17 @@ async function uploadToGoogleDrive() {
         let imagesToUpload = allImages.filter(img => !img.assetId);
 
         if (imagesToUpload.length === 0) {
-            getEl('loader').classList.add('hidden');
-            return alert("Không có ảnh hồ sơ nào để tải lên!");
-        }
-
-        if (!confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`)) {
-            getEl('loader').classList.add('hidden');
+            LoadingManager.hideGlobal(true);
+            ErrorHandler.showWarning("Không có ảnh hồ sơ nào để tải lên!");
             return;
         }
 
-        getEl('loader-text').textContent = "Đang sao lưu ảnh lên Google Drive...";
+        if (!(await ErrorHandler.confirm(`Tải lên ${imagesToUpload.length} ảnh hồ sơ?`, { title: "Tải ảnh lên Drive", confirmText: "Tải lên" }))) {
+            LoadingManager.hideGlobal(true);
+            return;
+        }
+
+        LoadingManager.showGlobal("Đang sao lưu ảnh lên Google Drive...");
 
         // 2. Chuẩn bị gói dữ liệu
         const payload = {
@@ -535,24 +533,25 @@ async function uploadToGoogleDrive() {
                 // Lưu link Folder (ghi an toàn, giữ nguyên ciphertext các trường khác)
                 currentCustomerData.driveLink = result.url;
                 persistCurrentCustomer((rec) => { rec.driveLink = result.url; });
-                
-                getEl('loader').classList.add('hidden');
+
+                LoadingManager.hideGlobal(true);
                 renderDriveStatus(result.url);
-                
-                if(confirm("✅ Đã sao lưu ảnh thành công!\nXóa ảnh trong App để giải phóng bộ nhớ?")) {
+                ErrorHandler.showSuccess("Đã sao lưu ảnh hồ sơ lên Drive");
+
+                if (await ErrorHandler.confirm("Đã sao lưu ảnh thành công!\nXóa ảnh trong App để giải phóng bộ nhớ?", { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
                     const txDel = db.transaction(['images'], 'readwrite');
                     imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
                     txDel.oncomplete = () => {
                         loadProfileImages();
-                        showToast("Đã dọn dẹp bộ nhớ");
+                        ErrorHandler.showSuccess("Đã dọn dẹp bộ nhớ");
                     };
                 }
             } else {
                 throw new Error(result.message);
             }
         } catch (err) {
-            getEl('loader').classList.add('hidden');
-            alert("Lỗi Upload: " + err.message);
+            LoadingManager.hideGlobal(true);
+            ErrorHandler.showError('BACKUP', "Tải ảnh lên Drive thất bại. Vui lòng kiểm tra kết nối và Script cá nhân.", err);
         }
     };
 }

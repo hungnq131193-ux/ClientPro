@@ -35,6 +35,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   // Khởi tạo tầng chuẩn hóa lỗi & loading (module 19). An toàn nếu thiếu file.
   try { if (window.LoadingManager && typeof window.LoadingManager.init === "function") window.LoadingManager.init(); } catch (e) { }
+  // Global error handling: bắt window.onerror + unhandledrejection ngay từ đầu để
+  // ghi log cục bộ và báo lỗi thân thiện cho user khi có sự cố ngoài dự kiến.
+  try { if (window.ErrorHandler && typeof window.ErrorHandler.installGlobalHandlers === "function") window.ErrorHandler.installGlobalHandlers(); } catch (e) { }
 
   // UX: ẩn loader sớm để tránh cảm giác "treo" khi thiết bị/network chậm.
   // Dữ liệu sẽ render dần khi IndexedDB trả về.

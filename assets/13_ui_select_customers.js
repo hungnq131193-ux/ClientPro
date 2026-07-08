@@ -139,13 +139,12 @@
       try {
         const list = await loadCustomersForPick();
         if (!list.length) {
-          alert('Chưa có khách hàng');
+          ErrorHandler.showWarning('Chưa có khách hàng nào để chọn');
           return [];
         }
         return await new Promise((resolve) => renderPicker(list, resolve));
       } catch (err) {
-        console.error(err);
-        alert('Không thể tải danh sách khách hàng');
+        ErrorHandler.showError('STORAGE', 'Không thể tải danh sách khách hàng', err);
         return [];
       }
     }

@@ -32,7 +32,7 @@
 5. **No Framework, Maximum Control**: Vanilla JS + numbered modules + data-action delegation (để tuân thủ CSP `script-src 'self'` không có `unsafe-inline`).
 6. **Versioning Discipline**: PWA cache busting đòi hỏi đồng bộ version ở nhiều nơi. CI sẽ fail nếu vi phạm.
 
-**Phiên bản hiện tại**: `1.4.2` (manifest + sw.js VERSION)
+**Phiên bản hiện tại**: `1.4.3` (manifest + sw.js VERSION)
 
 **License**: Proprietary – All Rights Reserved. Chỉ tác giả (Nguyễn Quốc Hưng) được phép sử dụng và sửa đổi.
 
@@ -266,10 +266,10 @@ Cả hai đều tôn trọng triết lý "user-controlled cloud" — không có 
 ### 4.8 PWA, Service Worker & Versioning (sw.js, pwa.js, manifest.json)
 
 - **Versioning Discipline** (rất nghiêm ngặt):
-  - `manifest.json` → `"version": "1.4.2"`
-  - `sw.js` → `VERSION = 'v1.4.2'`, `ASSET_V = 'REFUI_20260708'`
+  - `manifest.json` → `"version": "1.4.3"`
+  - `sw.js` → `VERSION = 'v1.4.3'`, `ASSET_V = 'REFUI_20260709'`
   - `assets/pwa.js` → `SW_BUILD`
-  - Tất cả asset link trong `index.html` có `?v=REFUI_20260708` (cache busting)
+  - Tất cả asset link trong `index.html` có `?v=REFUI_20260709` (cache busting)
   - `assets/03_map.js` → `MAPLIBRE_V` (lazy-load maplibre) **cũng phải bằng ASSET_V** (CI kiểm tra).
 - **sw.js behavior**:
   - Precache toàn bộ shell + vendor + fonts + tất cả JS modules + một số modal HTML.
@@ -330,17 +330,21 @@ Export ra global: `window.ErrorHandler`, `window.LoadingManager`, `window.AppToa
   - `showError(codeOrMessage, customMessage?, technicalDetail?)`: nếu gọi `NETWORK` khi thật sự offline (`navigator.onLine === false`) → tự chuyển sang thông điệp `OFFLINE` (phân biệt rõ mất mạng thật vs ngoại tuyến). `technicalDetail` chỉ `console.error`, không lộ ra user.
   - `showSuccess/showWarning/showInfo`, `isOffline()`, `classify(err)` (đoán mã từ `err.name`/message: `AbortError`→TIMEOUT, `NotAllowedError`…→CAMERA, `QuotaExceededError`→STORAGE…).
   - `wrapAsync(fn, {loading, errorCode, errorMessage, successMessage, rethrow})`: bọc async — tự bật/tắt loading (`'global'` hoặc `{type:'button', el}`), tự catch + `showError` phân loại.
+  - `confirm(message, {title, confirmText, cancelText, danger, icon})` → **Promise<boolean>** — hộp thoại xác nhận **thay hoàn toàn `confirm()` gốc** (CSP-safe, DOM API, không inline handler). `danger:true` cho nút đỏ (xóa). Alias toàn cục `window.showConfirm(msg, opts)`. Bàn phím: Esc = hủy, Enter = đồng ý; chạm nền tối = hủy. **Dùng `await`** ở call site (đổi hàm gọi sang `async` nếu cần).
+  - **Ghi log lỗi cục bộ**: `logError(message, detail)` đẩy vào ring buffer `localStorage['app_error_log']` (giữ 50 bản gần nhất, mỗi bản `{t, m, d}`), vẫn `console.error` cho lập trình viên nhưng **không** lộ chi tiết cho user. `getErrorLog()` / `clearErrorLog()` để đọc/xóa khi debug. `showError(...)` tự gọi `logError` (không cần log tay).
+  - **Global error handling**: `installGlobalHandlers()` (gọi 1 lần ở `10_bootstrap.js`) gắn `window.onerror` + `unhandledrejection` → ghi `logError` + báo 1 toast thân thiện (tiết lưu 5s, phân loại qua `classify`). Bỏ qua lỗi tải tài nguyên (img/script) — chỉ log.
 - **LoadingManager** (tái sử dụng `#loader` sẵn có, đếm ref chống chồng chéo):
   - `showGlobal(msg)` / `hideGlobal(force)` — overlay toàn màn hình; `hideGlobal(true)` reset cứng ref-count (dùng ở `finally`).
   - `showProgress(msg, percent)` — thanh tiến trình `%` trong overlay (vd "Đang sao lưu… 67%").
   - `showButtonLoading(btn, text)` / `hideButtonLoading(btn, restoreText?)` — spinner trên nút + tự `disable` + `aria-busy`, phục hồi HTML gốc.
   - `showSkeleton(container, count)` / `hideSkeleton(container)` — skeleton card cho danh sách.
+  - **Empty / Error state**: `showEmptyState(container, spec)` / `showSearchEmptyState(...)` / `showErrorState(...)` / `clearState(container)`. `spec = {icon, title, message, actionText, onAction}` — vẽ trạng thái trống/không kết quả/lỗi với 1 nút hành động (dùng `addEventListener`, không inline). Icon lấy từ `STATE_ICON_PATHS` (inbox/search/users/error/folder). Ví dụ dùng: danh sách KH (`05_customers.js` phân biệt "chưa có KH" vs "không có kết quả tìm kiếm" vs "tab trống"), hộp thư Cloud Transfer (`14_cloud_transfer.js`), danh sách backup Drive (`16_auto_backup_drive.js`).
 
-**CSS** đi kèm ở cuối `assets/css/redesign.clientpro.css` (`.app-toast*`, `.btn-loading/.btn-spinner`, `.skeleton*`, `.global-progress-*`), tôn trọng `prefers-reduced-motion`, an toàn safe-area.
+**CSS** đi kèm ở cuối `assets/css/redesign.clientpro.css` (`.app-toast*`, `.btn-loading/.btn-spinner`, `.skeleton*`, `.global-progress-*`, `.cp-confirm-*` cho hộp thoại xác nhận, `.cp-state*` cho empty/error state), tôn trọng `prefers-reduced-motion`, an toàn safe-area.
 
-**Đã refactor sang tầng này** (không đổi logic nghiệp vụ, chỉ chuẩn hóa báo lỗi/loading): `05_customers.js` (CRUD KH, gửi Cloud Transfer, xóa/duyệt/ghi chú), `06_assets.js` (lưu TSBĐ + tham khảo giá), `03_map.js` (GPS/định vị/khởi tạo bản đồ, mã `MAP`/`NETWORK`), `08_images_camera.js` (chia sẻ/lưu ảnh; bỏ báo lỗi khi user bấm Hủy `AbortError`; giữ fallback camera gốc khi `getUserMedia` lỗi), `18_biometric_unlock.js`. Các module còn lại (đặc biệt `02_security.js`, luồng backup Drive) vẫn dùng `alert()` cũ — có thể refactor dần theo cùng pattern.
+**Đã refactor sang tầng này — nay phủ TOÀN BỘ codebase** (không đổi logic nghiệp vụ, chỉ chuẩn hóa báo lỗi/loading/xác nhận): `05_customers.js`, `06_assets.js`, `03_map.js`, `08_images_camera.js`, `18_biometric_unlock.js`, **`02_security.js` (activate/PIN/recovery), `07_drive.js` + `09_backup_manager.js` + `12/16_backup*` + `14_cloud_transfer.js` (toàn bộ luồng Backup/Drive/Cloud Transfer), `13_ui_select_customers.js`, `09_donate.js`, `09_weather.js`, `04_ui_common.js`, `00_globals.js`**. **Không còn `alert()` / `confirm()` / `console.error` thô** trong codebase (trừ log dev nội bộ của chính module 19 và 1 fallback có guard `if (window.ErrorHandler)` ở `00_globals.js`).
 
-**Khi thêm luồng/async mới**: ưu tiên `ErrorHandler.showError('MÃ', 'thông điệp cụ thể', err)` cho lỗi, `LoadingManager` cho loading, `ErrorHandler.showSuccess(...)` cho thành công — **không** dùng `alert()`/`console.error` thô lộ ra user. Cần mã lỗi mới → thêm vào `ERROR_CODES`.
+**Khi thêm luồng/async mới**: ưu tiên `ErrorHandler.showError('MÃ', 'thông điệp cụ thể', err)` cho lỗi, `await ErrorHandler.confirm(...)` thay cho `confirm()`, `LoadingManager` cho loading, `ErrorHandler.showSuccess(...)` cho thành công — **tuyệt đối không** dùng `alert()` / `confirm()` / `console.error` thô. Lỗi nội bộ chỉ cần log thì dùng `ErrorHandler.logError(...)`. Cần mã lỗi mới → thêm vào `ERROR_CODES`.
 
 ---
 
@@ -373,9 +377,9 @@ File `vercel.json` áp dụng header cho toàn bộ route:
 
 ### 6.1 Version Bump (khi thay đổi PWA assets hoặc logic quan trọng)
 Phải đồng bộ **đúng 6 nơi**:
-1. `"version": "1.4.2"` trong `manifest.json`
-2. `VERSION = 'v1.4.2'` trong `sw.js`
-3. `ASSET_V = 'REFUI_20260708'` trong `sw.js` (thường đổi thành ngày mới hoặc semantic)
+1. `"version": "1.4.3"` trong `manifest.json`
+2. `VERSION = 'v1.4.3'` trong `sw.js`
+3. `ASSET_V = 'REFUI_20260709'` trong `sw.js` (thường đổi thành ngày mới hoặc semantic)
 4. `SW_BUILD` trong `assets/pwa.js`
 5. Tất cả query string `?v=...` và `?v=REFUI_...` trong `index.html` (CSS, JS, vendor scripts) — phải **đồng nhất** và bằng `ASSET_V`.
 6. `MAPLIBRE_V` trong `assets/03_map.js` (lazy-load maplibre) — phải bằng `ASSET_V`.
@@ -454,8 +458,8 @@ Khi dự án có thay đổi lớn, yêu cầu Claude:
 
 ## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-08)
 
-- **Phiên bản**: 1.4.2 (ASSET_V: REFUI_20260708)
-- **Recent change**: Thêm tầng chuẩn hóa error & loading (`assets/19_error_loading.js`: ErrorHandler / LoadingManager / AppToast 4 loại) và refactor các luồng ưu tiên (customers, assets, map, camera, biometric) — xem §4.12.
+- **Phiên bản**: 1.4.3 (ASSET_V: REFUI_20260709)
+- **Recent change**: **Hoàn tất migration error & loading toàn ứng dụng** — mở rộng `assets/19_error_loading.js` (thêm `ErrorHandler.confirm()` thay `confirm()` gốc, `logError()` + ring buffer, `installGlobalHandlers()` bắt `window.onerror`/`unhandledrejection`, và empty/error-state renderer trong `LoadingManager`), gắn global error handling ở `10_bootstrap.js`, refactor nốt toàn bộ module còn lại (Backup/Drive/Cloud Transfer, Security/Auth, và các module nhỏ). **Không còn `alert()` / `confirm()` / `console.error` thô** trong codebase. Xem §4.12.
 - **Điểm mạnh hiện tại**:
   - Hệ thống OSRM + cache + validation chặt → khoảng cách đường thực tế khá chính xác dù dùng free public router.
   - Bảo mật biometric WebAuthn PRF + CryptoJS + local-only.
@@ -471,5 +475,5 @@ Khi dự án có thay đổi lớn, yêu cầu Claude:
 **File CLAUDE.md này là tài liệu sống của dự án.**  
 Hãy giữ nó chính xác, cập nhật và dễ hiểu để bất kỳ AI nào (Claude, Grok, v.v.) khi đọc dự án đều có thể làm việc hiệu quả, nhất quán với tầm nhìn của tác giả.
 
-*Last updated: 2026-07-08 (ICT) — Thêm §4.12 (chuẩn hóa error & loading, module 19), cập nhật load order §3.2 và version bump §6.1 (1.4.2 / REFUI_20260708).*  
-*Phiên bản skill: 1.2*
+*Last updated: 2026-07-08 (ICT) — Hoàn tất migration error & loading toàn app: mở rộng §4.12 (module 19 thêm `confirm()`, `logError()`, global error handling, empty/error state), version bump §6.1 (1.4.3 / REFUI_20260709), loại bỏ hoàn toàn `alert()`/`confirm()`/`console.error` thô.*  
+*Phiên bản skill: 1.3*

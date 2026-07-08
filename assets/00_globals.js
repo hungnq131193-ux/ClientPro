@@ -206,7 +206,12 @@
               return;
             }
             try { handler(target, ev); }
-            catch (e) { console.error('[data-action] Lỗi khi chạy', name, e); }
+            catch (e) {
+              if (window.ErrorHandler) {
+                ErrorHandler.logError('[data-action] Lỗi khi chạy ' + name, e);
+                ErrorHandler.showError('UNKNOWN', undefined, e);
+              } else { console.error('[data-action] Lỗi khi chạy', name, e); }
+            }
           }
 
           document.addEventListener('click', (ev) => dispatch(CLICK_ACTIONS, ev));

@@ -51,6 +51,17 @@
     warning: ['M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', 'M12 9v4', 'M12 17h.01'],
     info: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M12 16v-4', 'M12 8h.01'],
     offline: ['M1 1l22 22', 'M16.72 11.06A10.94 10.94 0 0 1 19 12.55', 'M5 12.55a10.94 10.94 0 0 1 5.17-2.39', 'M10.71 5.05A16 16 0 0 1 22.58 9', 'M1.42 9a15.91 15.91 0 0 1 4.7-2.88', 'M8.53 16.11a6 6 0 0 1 6.95 0', 'M12 20h.01'],
+    help: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3', 'M12 17h.01'],
+    trash: ['M3 6h18', 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2', 'M10 11v6', 'M14 11v6'],
+  };
+
+  // Icon cho empty/error state (kích thước lớn hơn, nét mảnh).
+  const STATE_ICON_PATHS = {
+    inbox: ['M22 12h-6l-2 3h-4l-2-3H2', 'M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'],
+    search: ['M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z', 'M21 21l-4.35-4.35'],
+    users: ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
+    error: ['M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', 'M12 9v4', 'M12 17h.01'],
+    folder: ['M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'],
   };
 
   // ----------------------------------------------------------
@@ -211,7 +222,9 @@
       const icon = entry ? entry.icon : null;
 
       const tech = technicalDetail || (entry ? entry.technicalMessage : codeOrMessage);
-      try { console.error('[ErrorHandler]', codeOrMessage, '-', tech); } catch (e) {}
+      // Ghi log cục bộ (ring buffer) thay cho console.error thô — vẫn in dev-console
+      // để tiện debug, nhưng không lộ chi tiết kỹ thuật cho user.
+      this.logError('[' + (entry ? codeOrMessage : 'MESSAGE') + '] ' + userMessage, technicalDetail || tech);
 
       return AppToast.show(userMessage, type, icon ? { icon: icon } : undefined);
     },
@@ -235,6 +248,101 @@
       if (name === 'QuotaExceededError' || /quota|storage/i.test(msg)) return 'STORAGE';
       if (/network|fetch|failed to fetch/i.test(msg)) return 'NETWORK';
       return 'UNKNOWN';
+    },
+
+    // ----------------------------------------------------------
+    // Ghi log lỗi cục bộ (ring buffer trong localStorage) — phục vụ debug sau này
+    // mà không cần backend. Giữ tối đa LOG_MAX bản ghi gần nhất.
+    // ----------------------------------------------------------
+    LOG_KEY: 'app_error_log',
+    LOG_MAX: 50,
+
+    logError(message, detail) {
+      // Vẫn in ra console để lập trình viên debug tại chỗ (không phải lỗi "thô"
+      // lộ cho user — user chỉ thấy toast thân thiện).
+      try { console.error('[ClientPro]', message, detail != null ? detail : ''); } catch (e) {}
+      try {
+        const entry = {
+          t: Date.now(),
+          m: String(message == null ? '' : message).slice(0, 300),
+          d: this._detailToString(detail).slice(0, 600),
+        };
+        let arr = [];
+        try { arr = JSON.parse(localStorage.getItem(this.LOG_KEY) || '[]'); } catch (e) { arr = []; }
+        if (!Array.isArray(arr)) arr = [];
+        arr.push(entry);
+        if (arr.length > this.LOG_MAX) arr = arr.slice(arr.length - this.LOG_MAX);
+        localStorage.setItem(this.LOG_KEY, JSON.stringify(arr));
+      } catch (e) { /* localStorage đầy/không khả dụng — bỏ qua, không chặn app */ }
+    },
+
+    _detailToString(detail) {
+      if (detail == null) return '';
+      if (typeof detail === 'string') return detail;
+      try {
+        if (detail instanceof Error) return (detail.name || 'Error') + ': ' + (detail.message || '') + (detail.stack ? '\n' + detail.stack : '');
+        if (detail.message) return String(detail.message);
+        return JSON.stringify(detail);
+      } catch (e) { return String(detail); }
+    },
+
+    getErrorLog() {
+      try { return JSON.parse(localStorage.getItem(this.LOG_KEY) || '[]') || []; } catch (e) { return []; }
+    },
+
+    clearErrorLog() {
+      try { localStorage.removeItem(this.LOG_KEY); } catch (e) {}
+    },
+
+    // ----------------------------------------------------------
+    // Global error handling: bắt lỗi không mong muốn (window.onerror) và
+    // promise rejection không xử lý (unhandledrejection). Ghi log + báo toast
+    // thân thiện, có tiết lưu (throttle) để tránh spam khi lỗi lặp.
+    // ----------------------------------------------------------
+    _globalInstalled: false,
+    _lastGlobalToastAt: 0,
+
+    installGlobalHandlers() {
+      if (this._globalInstalled) return;
+      this._globalInstalled = true;
+      const self = this;
+
+      window.addEventListener('error', function (ev) {
+        // Bỏ qua lỗi tải tài nguyên (img/script) — không đáng báo cho user.
+        if (ev && ev.target && ev.target !== window && (ev.target.tagName || '')) {
+          self.logError('Resource load error', (ev.target.src || ev.target.href || ev.target.tagName));
+          return;
+        }
+        const err = ev && ev.error ? ev.error : (ev && ev.message ? ev.message : 'Unknown error');
+        self.logError('window.onerror: ' + (ev && ev.message ? ev.message : ''), err);
+        self._notifyGlobal(err);
+      });
+
+      window.addEventListener('unhandledrejection', function (ev) {
+        const reason = ev ? ev.reason : null;
+        self.logError('unhandledrejection', reason);
+        self._notifyGlobal(reason);
+      });
+    },
+
+    // Báo toast thân thiện cho lỗi không mong muốn, tiết lưu 1 toast / 5s.
+    _notifyGlobal(err) {
+      const now = Date.now();
+      if (now - this._lastGlobalToastAt < 5000) return;
+      this._lastGlobalToastAt = now;
+      const code = this.classify(err);
+      // Nếu không phân loại được rõ ràng thì dùng thông điệp UNKNOWN nhẹ nhàng.
+      const entry = this.ERROR_CODES[code] || this.ERROR_CODES.UNKNOWN;
+      AppToast.show(entry.userMessage, entry.type, entry.icon ? { icon: entry.icon } : undefined);
+    },
+
+    // ----------------------------------------------------------
+    // Hộp thoại xác nhận (thay cho confirm() gốc) — trả về Promise<boolean>.
+    // CSP-safe: tạo hoàn toàn bằng DOM API, không inline handler.
+    //   opts: { title, confirmText, cancelText, danger, icon }
+    // ----------------------------------------------------------
+    confirm(message, opts) {
+      return ClientProConfirm(message, opts);
     },
 
     // wrapAsync(fn, options)
@@ -393,11 +501,157 @@
       el.querySelectorAll('[data-skeleton="1"]').forEach((s) => { try { s.remove(); } catch (e) {} });
     },
 
+    // --------------------------------------------------------
+    // Empty / Error state cho danh sách (trống, không có kết quả tìm kiếm, lỗi).
+    // Dùng chung một markup gọn, CSP-safe (DOM API, icon inline SVG).
+    //   spec: { icon, title, message, actionText, onAction }
+    //   variant: 'empty' | 'search' | 'error'
+    // --------------------------------------------------------
+    renderState(container, spec, variant) {
+      const el = (typeof container === 'string') ? document.querySelector(container) : container;
+      if (!el) return;
+      spec = spec || {};
+      this.hideSkeleton(el);
+      this.clearState(el);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'cp-state cp-state-' + (variant || 'empty');
+      wrap.dataset.cpState = '1';
+
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'cp-state-icon';
+      const iconName = spec.icon || (variant === 'error' ? 'error' : (variant === 'search' ? 'search' : 'inbox'));
+      iconWrap.appendChild(svgIcon(STATE_ICON_PATHS[iconName] || STATE_ICON_PATHS.inbox, { size: 40, strokeWidth: '1.6' }));
+      wrap.appendChild(iconWrap);
+
+      if (spec.title) {
+        const h = document.createElement('div');
+        h.className = 'cp-state-title';
+        h.textContent = spec.title;
+        wrap.appendChild(h);
+      }
+      if (spec.message) {
+        const p = document.createElement('div');
+        p.className = 'cp-state-msg';
+        p.textContent = spec.message;
+        wrap.appendChild(p);
+      }
+      if (spec.actionText && typeof spec.onAction === 'function') {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cp-state-action';
+        btn.textContent = spec.actionText;
+        btn.addEventListener('click', function () { try { spec.onAction(); } catch (e) {} });
+        wrap.appendChild(btn);
+      }
+
+      el.appendChild(wrap);
+      return wrap;
+    },
+
+    showEmptyState(container, spec) { return this.renderState(container, spec, 'empty'); },
+    showSearchEmptyState(container, spec) { return this.renderState(container, spec, 'search'); },
+    showErrorState(container, spec) { return this.renderState(container, spec, 'error'); },
+
+    clearState(container) {
+      const el = (typeof container === 'string') ? document.querySelector(container) : container;
+      if (!el) return;
+      el.querySelectorAll('[data-cp-state="1"]').forEach((s) => { try { s.remove(); } catch (e) {} });
+    },
+
     init() {
       // Reset trạng thái nếu app khởi động lại (SW update…)
       this._globalCount = 0;
     },
   };
+
+  // ----------------------------------------------------------
+  // ClientProConfirm — hộp thoại xác nhận thay cho confirm() gốc.
+  // Trả về Promise<boolean> (true = đồng ý, false = hủy). CSP-safe.
+  // ----------------------------------------------------------
+  let _confirmOpen = false;
+  function ClientProConfirm(message, opts) {
+    opts = opts || {};
+    return new Promise((resolve) => {
+      // Tránh chồng nhiều hộp thoại cùng lúc.
+      if (_confirmOpen) {
+        try { document.querySelectorAll('.cp-confirm-overlay').forEach((o) => o.remove()); } catch (e) {}
+      }
+      _confirmOpen = true;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'cp-confirm-overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+
+      const dialog = document.createElement('div');
+      dialog.className = 'cp-confirm-dialog' + (opts.danger ? ' cp-confirm-danger' : '');
+
+      const iconName = opts.icon || (opts.danger ? 'trash' : 'help');
+      if (ICON_PATHS[iconName]) {
+        const ic = document.createElement('div');
+        ic.className = 'cp-confirm-icon';
+        ic.appendChild(svgIcon(ICON_PATHS[iconName], { size: 26 }));
+        dialog.appendChild(ic);
+      }
+
+      if (opts.title) {
+        const h = document.createElement('div');
+        h.className = 'cp-confirm-title';
+        h.textContent = opts.title;
+        dialog.appendChild(h);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'cp-confirm-msg';
+      body.textContent = String(message == null ? '' : message);
+      dialog.appendChild(body);
+
+      const actions = document.createElement('div');
+      actions.className = 'cp-confirm-actions';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'cp-confirm-btn cp-confirm-cancel';
+      cancelBtn.textContent = opts.cancelText || 'Hủy';
+
+      const okBtn = document.createElement('button');
+      okBtn.type = 'button';
+      okBtn.className = 'cp-confirm-btn cp-confirm-ok' + (opts.danger ? ' cp-confirm-ok-danger' : '');
+      okBtn.textContent = opts.confirmText || 'Đồng ý';
+
+      actions.appendChild(cancelBtn);
+      actions.appendChild(okBtn);
+      dialog.appendChild(actions);
+      overlay.appendChild(dialog);
+      document.body.appendChild(overlay);
+
+      let settled = false;
+      function cleanup(result) {
+        if (settled) return;
+        settled = true;
+        _confirmOpen = false;
+        document.removeEventListener('keydown', onKey, true);
+        overlay.classList.remove('cp-confirm-in');
+        afterEnd(overlay, () => { try { overlay.remove(); } catch (e) {} });
+        resolve(result);
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); cleanup(false); }
+        else if (e.key === 'Enter') { e.preventDefault(); cleanup(true); }
+      }
+
+      cancelBtn.addEventListener('click', () => cleanup(false));
+      okBtn.addEventListener('click', () => cleanup(true));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+      document.addEventListener('keydown', onKey, true);
+
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        overlay.classList.add('cp-confirm-in');
+        try { okBtn.focus(); } catch (e) {}
+      }));
+    });
+  }
 
   // ----------------------------------------------------------
   // Export global + tương thích ngược
@@ -412,6 +666,8 @@
   window.showWarning = function (msg) { return ErrorHandler.showWarning(msg); };
   window.startLoading = function (msg) { return LoadingManager.showGlobal(msg); };
   window.stopLoading = function () { return LoadingManager.hideGlobal(true); };
+  // Hộp thoại xác nhận dùng chung (thay confirm()) — trả về Promise<boolean>.
+  window.showConfirm = function (msg, opts) { return ClientProConfirm(msg, opts); };
 
   // Nâng cấp showToast() cũ: giữ nguyên chữ ký showToast(msg[, type]) nhưng
   // dùng hệ thống toast mới (mặc định success để giữ cảm giác quen thuộc — bản

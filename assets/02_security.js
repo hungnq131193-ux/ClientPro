@@ -440,10 +440,7 @@ function isAppUnlocked() {
 
 function requireUnlockedForBackup() {
   if (!isAppUnlocked()) {
-    const msg = "Vui lòng mở khóa dữ liệu trước khi sao lưu.";
-    try { showToast(msg); } catch (e) { }
-    try { console.warn("[Backup] Blocked: masterKey is not available; app is not unlocked."); } catch (e) { }
-    alert(msg);
+    try { ErrorHandler.showWarning("Vui lòng mở khóa dữ liệu trước khi sao lưu."); } catch (e) { }
     return false;
   }
   return true;
@@ -451,10 +448,7 @@ function requireUnlockedForBackup() {
 
 function requireUnlockedForRestore() {
   if (!isAppUnlocked()) {
-    const msg = "Vui lòng mở khóa dữ liệu trước khi khôi phục.";
-    try { showToast(msg); } catch (e) { }
-    try { console.warn("[Restore] Blocked: masterKey is not available; app is not unlocked."); } catch (e) { }
-    alert(msg);
+    try { ErrorHandler.showWarning("Vui lòng mở khóa dữ liệu trước khi khôi phục."); } catch (e) { }
     return false;
   }
   return true;
@@ -570,17 +564,13 @@ async function requireBackupSecretOrAlert() {
   if (typeof ensureBackupSecret === "function") {
     const sec = await ensureBackupSecret();
     if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
-      alert(
-        `BẢO MẬT: ${sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật."}\n\nVui lòng kết nối mạng và thử lại.`
-      );
+      ErrorHandler.showError('AUTH', `Bảo mật: ${sec && sec.message ? sec.message : "Không thể lấy khóa bảo mật."} Vui lòng kết nối mạng và thử lại.`);
       return false;
     }
     return true;
   }
   if (!APP_BACKUP_KDATA_B64U) {
-    alert(
-      "BẢO MẬT: Không thể backup khi đang Offline hoặc chưa xác thực với Server.\n\nVui lòng kết nối mạng và mở lại App để hệ thống tải khóa bảo mật."
-    );
+    ErrorHandler.showError('AUTH', "Bảo mật: Không thể backup khi đang ngoại tuyến hoặc chưa xác thực với máy chủ. Vui lòng kết nối mạng và mở lại App.");
     return false;
   }
   return true;
@@ -751,13 +741,13 @@ function closeSetupModal() {
     const note = getEl("setup-pin-note");
     if (note) note.classList.add("hidden");
   } else {
-    alert("Bạn cần tạo mã PIN 6 số để hoàn tất nâng cấp bảo mật!");
+    ErrorHandler.showWarning("Bạn cần tạo mã PIN 6 số để hoàn tất nâng cấp bảo mật!");
   }
 }
 async function saveSecuritySetup() {
   const pin = getEl("setup-pin").value;
   let ans = getEl("setup-answer").value.trim();
-  if (!/^\d{6}$/.test(pin)) return alert("Mã PIN phải là 6 số");
+  if (!/^\d{6}$/.test(pin)) { ErrorHandler.showError('VALIDATION', "Mã PIN phải là 6 số"); return; }
   // Nếu người dùng không nhập mã nhân viên, lấy từ localStorage đã lưu khi kích hoạt (nếu có)
   if (!ans) {
     const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
@@ -766,7 +756,7 @@ async function saveSecuritySetup() {
       // hiển thị lại cho người dùng biết
       getEl("setup-answer").value = storedEmp;
     } else {
-      return alert("Nhập mã nhân viên");
+      ErrorHandler.showError('VALIDATION', "Vui lòng nhập mã nhân viên"); return;
     }
   }
   // Lưu lại mã nhân viên đề phòng chưa lưu lúc kích hoạt
@@ -792,7 +782,7 @@ async function saveSecuritySetup() {
   const note = getEl("setup-pin-note");
   if (note) note.classList.add("hidden");
   getEl("setup-lock-modal").classList.add("hidden");
-  showToast("Đã lưu bảo mật");
+  ErrorHandler.showSuccess("Đã lưu thiết lập bảo mật");
 }
 function showLockScreen() {
   getEl("screen-lock").classList.remove("hidden");
@@ -885,7 +875,7 @@ async function checkRecovery() {
   const input = getEl("recovery-answer").value.trim();
   const encMaster = localStorage.getItem(SEC_KEY);
   if (getLockoutRemainingMs() > 0) {
-    alert("Sai quá nhiều lần. Vui lòng chờ hết thời gian khóa rồi thử lại.");
+    ErrorHandler.showWarning("Sai quá nhiều lần. Vui lòng chờ hết thời gian khóa rồi thử lại.");
     return;
   }
   // Chấp nhận cả SEC_KEY legacy lẫn v2; input untrimmed cũ vẫn khớp vì setup luôn trim
@@ -894,7 +884,7 @@ async function checkRecovery() {
     // Khôi phục masterKey và cho phép đặt lại PIN 6 số
     masterKey = res.masterKey;
     resetPinFailures();
-    alert("Xác thực thành công. Tạo PIN mới.");
+    ErrorHandler.showSuccess("Xác thực thành công. Vui lòng tạo PIN mới.");
     closeForgotModal();
     // Ẩn màn hình khóa, mở modal thiết lập PIN mới
     getEl("screen-lock").classList.add("hidden");
@@ -906,7 +896,7 @@ async function checkRecovery() {
     // Cửa khôi phục cũng có thể bị đoán mò -> dùng chung bộ đếm lockout với PIN
     registerPinFailure();
     updateLockoutUI();
-    alert("Mã nhân viên không khớp!");
+    ErrorHandler.showError('AUTH', "Mã nhân viên không khớp!");
   }
 }
 
@@ -918,7 +908,7 @@ async function activateApp() {
   const employeeId = empInput ? empInput.value.trim() : "";
 
   if (!key || !employeeId) {
-    alert("Vui lòng nhập đầy đủ Mã kích hoạt và Mã nhân viên");
+    ErrorHandler.showError('VALIDATION', "Vui lòng nhập đầy đủ Mã kích hoạt và Mã nhân viên");
     return;
   }
 
@@ -957,7 +947,7 @@ async function activateApp() {
         getEl("setup-lock-modal").classList.remove("hidden");
         getEl("setup-pin").value = "";
         getEl("setup-answer").value = employeeId;
-        showToast("Kích hoạt thành công! Vui lòng tạo mã PIN.");
+        ErrorHandler.showSuccess("Kích hoạt thành công! Vui lòng tạo mã PIN.");
       } else {
         // Tái kích hoạt trên máy đã có dữ liệu: xác thực mã nhân viên (nhận cả định dạng cũ và v2)
         const encMaster = localStorage.getItem(SEC_KEY);
@@ -976,19 +966,20 @@ async function activateApp() {
           if (modal) modal.classList.add("hidden");
           // Nếu đã có PIN, yêu cầu nhập PIN cũ để vào
           if (localStorage.getItem(PIN_KEY)) {
-            showToast("Gia hạn thành công! Dữ liệu cũ vẫn an toàn.");
+            ErrorHandler.showSuccess("Gia hạn thành công! Dữ liệu cũ vẫn an toàn.");
             showLockScreen();
           } else {
             // Nếu vì lý do nào đó không có PIN, cho tạo mới
             getEl("setup-lock-modal").classList.remove("hidden");
             getEl("setup-pin").value = "";
             getEl("setup-answer").value = employeeId;
-            showToast("Gia hạn thành công! Tạo PIN mới.");
+            ErrorHandler.showSuccess("Gia hạn thành công! Vui lòng tạo PIN mới.");
           }
         } else {
           // Nhân viên khác: cảnh báo và hỏi xác nhận để xóa dữ liệu cũ
-          const confirmDel = confirm(
-            "Phát hiện dữ liệu của nhân viên khác. Tiếp tục sẽ XÓA SẠCH dữ liệu cũ. Đồng ý không?"
+          const confirmDel = await ErrorHandler.confirm(
+            "Phát hiện dữ liệu của nhân viên khác. Tiếp tục sẽ XÓA SẠCH dữ liệu cũ trên thiết bị này. Bạn có chắc chắn?",
+            { title: "Xóa dữ liệu cũ?", danger: true, confirmText: "Xóa & Kích hoạt" }
           );
           if (confirmDel) {
             try {
@@ -1007,7 +998,7 @@ async function activateApp() {
             getEl("setup-lock-modal").classList.remove("hidden");
             getEl("setup-pin").value = "";
             getEl("setup-answer").value = employeeId;
-            showToast("Đã kích hoạt cho người dùng mới, vui lòng tạo PIN.");
+            ErrorHandler.showSuccess("Đã kích hoạt cho người dùng mới, vui lòng tạo PIN.");
           }
           // Nếu không đồng ý, không làm gì cả
         }
@@ -1015,9 +1006,9 @@ async function activateApp() {
     } else {
       let msg = "Kích hoạt thất bại. Vui lòng kiểm tra Key của bạn.";
       if (result && result.message) msg = result.message;
-      alert(msg);
+      ErrorHandler.showError('AUTH', msg);
     }
   } catch (err) {
-    alert("Lỗi kết nối: " + err.message);
+    ErrorHandler.showError('NETWORK', "Lỗi kết nối khi kích hoạt. Vui lòng kiểm tra mạng và thử lại.", err);
   }
 }

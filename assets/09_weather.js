@@ -72,7 +72,7 @@ function fetchWeather(lat, lon) {
       renderWeather(data);
     })
     .catch((err) => {
-      console.error("Weather fetch error", err);
+      if (window.ErrorHandler) ErrorHandler.logError("Weather fetch error", err);
       setWeatherText("Lỗi tải thời tiết");
     });
 }
