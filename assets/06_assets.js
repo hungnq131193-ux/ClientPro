@@ -16,12 +16,11 @@ function referenceAssetPrice(assetIndex) {
   const targetLoc = parseLatLngFromLink(decryptedTargetLink);
 
   if (!targetLoc) {
-    showToast("TSBĐ chưa có tọa độ chuẩn (Link sai hoặc chưa nhập).");
+    ErrorHandler.showError('VALIDATION', "Tài sản chưa có tọa độ chuẩn (link bản đồ sai hoặc chưa nhập).");
     return;
   }
 
-  getEl("loader").classList.remove("hidden");
-  getEl("loader-text").textContent = "Đang tìm kiếm & so sánh...";
+  LoadingManager.showGlobal("Đang tìm kiếm & so sánh...");
 
   const tx = db.transaction(["customers"], "readonly");
   tx.objectStore("customers").getAll().onsuccess = (e) => {
@@ -78,11 +77,10 @@ function referenceAssetPrice(assetIndex) {
       });
     });
 
-    getEl("loader").classList.add("hidden");
-    getEl("loader-text").textContent = "Loading...";
+    LoadingManager.hideGlobal(true);
 
     if (candidates.length === 0) {
-      showToast("Chưa có dữ liệu tham chiếu phù hợp");
+      ErrorHandler.showInfo("Chưa có dữ liệu tham chiếu phù hợp");
       return;
     }
 
@@ -380,7 +378,7 @@ function saveAsset() {
   // Các trường khác vẫn giữ cơ chế mã hóa như cũ để không ảnh hưởng chức năng.
   const enc = (txt) => (txt ? encryptText(txt) : "");
 
-  if (!name) return alert("Nhập mô tả tài sản");
+  if (!name) return ErrorHandler.showError('VALIDATION', 'Vui lòng nhập mô tả tài sản.');
 
   // Xử lý link map
   const coords = parseLatLngFromLink(link);
@@ -426,7 +424,7 @@ function saveAsset() {
   persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, () => {
     closeAssetModal();
     renderAssets();
-    showToast("Đã lưu TSBĐ");
+    ErrorHandler.showSuccess("Đã lưu tài sản bảo đảm");
     currentAssetId = null;
   });
 }

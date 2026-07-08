@@ -32,37 +32,34 @@ function toggleCustomerSelection(id, div) {
 }
 // Gửi dữ liệu KH đã chọn sang user khác (gói .cpb được mã hóa, không lộ dữ liệu)
 async function sendSelectedCustomersToUser() {
-    if (selectedCustomers.size === 0) return alert('Chưa chọn KH');
+    if (selectedCustomers.size === 0) return ErrorHandler.showError('VALIDATION', 'Vui lòng chọn ít nhất một khách hàng.');
 
     // Gate bảo mật: bắt buộc xin GLOBAL KDATA từ server trước khi đóng gói
     if (typeof ensureBackupSecret === 'function') {
         const sec = await ensureBackupSecret();
         // Lưu ý: APP_BACKUP_KDATA_B64U được khai báo bằng "let" ở scope global -> KHÔNG nằm trên window.
         if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
-            alert(
-                `BẢO MẬT: ${sec && sec.message ? sec.message : 'Không thể lấy khóa bảo mật.'}\n\nVui lòng kết nối mạng và thử lại.`
-            );
+            ErrorHandler.showError('AUTH', `Không lấy được khóa bảo mật: ${sec && sec.message ? sec.message : 'lỗi không xác định'}. Vui lòng kết nối mạng và thử lại.`);
             return;
         }
     } else if (!APP_BACKUP_KDATA_B64U) {
-        alert('BẢO MẬT: Không thể gửi khi đang Offline hoặc chưa xác thực với Server.');
+        ErrorHandler.showError('OFFLINE', 'Không thể gửi khi đang ngoại tuyến hoặc chưa xác thực với máy chủ.');
         return;
     }
 
     // Ưu tiên AES-GCM WebCrypto (encryptBackupPayload).
     if (typeof encryptBackupPayload !== 'function') {
-        alert('Thiếu cơ chế mã hóa (WebCrypto).');
+        ErrorHandler.showError('AUTH', 'Thiếu cơ chế mã hóa (WebCrypto) trên thiết bị này.');
         return;
     }
 
     if (!window.CloudTransferUI || typeof CloudTransferUI.sendEncryptedRecord !== 'function') {
-        alert('Chưa sẵn sàng chức năng gửi user (Cloud Transfer).');
+        ErrorHandler.showError('UNKNOWN', 'Chức năng gửi khách hàng chưa sẵn sàng. Vui lòng tải lại trang.');
         return;
     }
 
     _closeMenuIfOpen && _closeMenuIfOpen();
-    getEl('loader').classList.remove('hidden');
-    getEl('loader-text').textContent = 'Đóng gói & mã hóa...';
+    LoadingManager.showGlobal('Đóng gói & mã hóa...');
 
     try {
         const custIds = Array.from(selectedCustomers);
@@ -127,23 +124,22 @@ async function sendSelectedCustomersToUser() {
             meta: { type: 'partial_customers', count: custIds.length }
         };
 
-        getEl('loader-text').textContent = 'Chọn user nhận...';
+        LoadingManager.showGlobal('Chọn người nhận...');
         await CloudTransferUI.sendEncryptedRecord(rec);
 
-        showToast && showToast('Đã gửi gói khách hàng (mã hóa)');
+        ErrorHandler.showSuccess('Đã gửi gói khách hàng (đã mã hóa)');
         setCustSelectionMode(false);
     } catch (e) {
-        console.error(e);
-        alert(e && e.message ? e.message : 'Không thể gửi');
+        ErrorHandler.showError('BACKUP', e && e.message ? e.message : 'Không thể gửi gói khách hàng.', e);
     } finally {
-        getEl('loader').classList.add('hidden');
+        LoadingManager.hideGlobal(true);
     }
 }
 function deleteSelectedCustomers() {
     if (selectedCustomers.size === 0) return; if (!confirm(`Xóa vĩnh viễn ${selectedCustomers.size} khách hàng?`)) return;
     const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
     selectedCustomers.forEach(custId => { custStore.delete(custId); imgStore.index('customerId').getAllKeys(custId).onsuccess = e => { e.target.result.forEach(imgId => imgStore.delete(imgId)); }; });
-    tx.oncomplete = () => { showToast("Đã xóa"); setCustSelectionMode(false); };
+    tx.oncomplete = () => { ErrorHandler.showSuccess("Đã xóa khách hàng đã chọn"); setCustSelectionMode(false); };
 }
 
 // ============================================================
@@ -510,7 +506,7 @@ function openModal() {
 // Open modal to edit current customer (from folder view pencil button)
 function openEditCustomerModal() {
     if (!currentCustomerData) {
-        alert('Không có dữ liệu khách hàng để sửa.');
+        ErrorHandler.showError('VALIDATION', 'Không có dữ liệu khách hàng để sửa.');
         return;
     }
 
@@ -700,13 +696,13 @@ async function saveCustomer() {
     try {
         // Safety check: ensure db is ready
         if (!db) {
-            alert('Cơ sở dữ liệu chưa sẵn sàng. Vui lòng đợi giây lát và thử lại.');
+            ErrorHandler.showError('STORAGE', 'Cơ sở dữ liệu chưa sẵn sàng. Vui lòng đợi giây lát và thử lại.');
             return;
         }
 
         // Security gate: nếu chưa có masterKey thì không cho tạo/sửa để tránh lưu plaintext.
         if (typeof masterKey === 'undefined' || !masterKey) {
-            alert('BẢO MẬT: Chưa mở khóa dữ liệu. Vui lòng đăng nhập/mở khóa trước khi tạo hồ sơ.');
+            ErrorHandler.showError('AUTH', 'Chưa mở khóa dữ liệu. Vui lòng đăng nhập/mở khóa trước khi tạo hồ sơ.');
             return;
         }
 
@@ -717,8 +713,7 @@ async function saveCustomer() {
 
         // Check if modal elements exist
         if (!nameEl) {
-            console.error('saveCustomer: Modal elements not found');
-            alert('Lỗi: Không tìm thấy form nhập liệu. Vui lòng tải lại trang.');
+            ErrorHandler.showError('UNKNOWN', 'Không tìm thấy form nhập liệu. Vui lòng tải lại trang.', 'saveCustomer: Modal elements not found');
             return;
         }
 
@@ -728,7 +723,7 @@ async function saveCustomer() {
         const editId = (idEl && idEl.value ? String(idEl.value) : '').trim();
 
         if (!name) {
-            alert('Vui lòng nhập Tên khách hàng.');
+            ErrorHandler.showError('VALIDATION', 'Vui lòng nhập tên khách hàng.');
             try { nameEl && nameEl.focus && nameEl.focus(); } catch (e) { }
             return;
         }
@@ -765,8 +760,7 @@ async function saveCustomer() {
         _doSaveCustomer(name, phoneNorm, cccd, editId);
 
     } catch (err) {
-        console.error('saveCustomer error:', err);
-        alert('Có lỗi xảy ra khi lưu hồ sơ: ' + (err && err.message ? err.message : 'Unknown error'));
+        ErrorHandler.showError('STORAGE', 'Có lỗi xảy ra khi lưu hồ sơ. Vui lòng thử lại.', err);
     }
 }
 
@@ -775,7 +769,7 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
     try {
         // Safety check: ensure db is ready before attempting transaction
         if (!db) {
-            alert('Cơ sở dữ liệu chưa sẵn sàng. Vui lòng thử lại sau giây lát.');
+            ErrorHandler.showError('STORAGE', 'Cơ sở dữ liệu chưa sẵn sàng. Vui lòng thử lại sau giây lát.');
             return;
         }
 
@@ -785,14 +779,13 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
         const store = tx.objectStore('customers');
 
         tx.onerror = (e) => {
-            console.error('_doSaveCustomer: Transaction error', e);
-            alert('Lỗi lưu hồ sơ. Vui lòng thử lại.');
+            ErrorHandler.showError('STORAGE', 'Lỗi lưu hồ sơ. Vui lòng thử lại.', e);
         };
 
 
         const finalize = (savedId) => {
             closeModal();
-            try { showToast(editId ? 'Đã cập nhật hồ sơ' : 'Đã tạo hồ sơ'); } catch (e) { }
+            try { ErrorHandler.showSuccess(editId ? 'Đã cập nhật hồ sơ' : 'Đã tạo hồ sơ'); } catch (e) { }
             // Refresh list (giữ nguyên search hiện tại nếu có)
             try { loadCustomers(getEl('search-input') ? getEl('search-input').value : ''); } catch (e) { try { loadCustomers(); } catch (e2) { } }
             // Nếu đang mở chi tiết hồ sơ vừa sửa, cập nhật UI ngay thay vì đợi chuyển tab/mở lại.
@@ -811,7 +804,7 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
             req.onsuccess = (e) => {
                 const old = e.target.result;
                 if (!old) {
-                    alert('Không tìm thấy hồ sơ để cập nhật.');
+                    ErrorHandler.showError('STORAGE', 'Không tìm thấy hồ sơ để cập nhật.');
                     return;
                 }
 
@@ -827,11 +820,10 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
                 const putReq = store.put(old);
                 putReq.onsuccess = () => finalize(editId);
                 putReq.onerror = (err) => {
-                    console.error('_doSaveCustomer: put error (update)', err);
-                    alert('Lỗi cập nhật hồ sơ.');
+                    ErrorHandler.showError('STORAGE', 'Lỗi cập nhật hồ sơ.', err);
                 };
             };
-            req.onerror = () => alert('Lỗi đọc hồ sơ để cập nhật.');
+            req.onerror = () => ErrorHandler.showError('STORAGE', 'Lỗi đọc hồ sơ để cập nhật.');
         } else {
             // Create new record
             const newId = makeId();
@@ -852,13 +844,11 @@ function _doSaveCustomer(name, phoneNorm, cccd, editId) {
                 finalize(newId);
             };
             putReq.onerror = (err) => {
-                console.error('_doSaveCustomer: put error (create)', err);
-                alert('Lỗi tạo hồ sơ mới. Vui lòng thử lại.');
+                ErrorHandler.showError('STORAGE', 'Lỗi tạo hồ sơ mới. Vui lòng thử lại.', err);
             };
         }
     } catch (err) {
-        console.error('_doSaveCustomer exception:', err);
-        alert('Có lỗi xảy ra khi lưu hồ sơ: ' + (err && err.message ? err.message : 'Unknown'));
+        ErrorHandler.showError('STORAGE', 'Có lỗi xảy ra khi lưu hồ sơ. Vui lòng thử lại.', err);
     }
 }
 
@@ -867,7 +857,7 @@ function deleteCurrentCustomer() {
     try {
         const tx = db.transaction(['images', 'customers'], 'readwrite'); const imgStore = tx.objectStore('images'); const custStore = tx.objectStore('customers');
         if (imgStore.indexNames.contains('customerId')) { imgStore.index('customerId').getAllKeys(currentCustomerId).onsuccess = (e) => { e.target.result.forEach(key => imgStore.delete(key)); }; }
-        custStore.delete(currentCustomerId); tx.oncomplete = () => { closeFolder(); showToast("Đã xóa hồ sơ"); loadCustomers(); };
+        custStore.delete(currentCustomerId); tx.oncomplete = () => { closeFolder(); ErrorHandler.showSuccess("Đã xóa hồ sơ"); loadCustomers(); };
     } catch (err) { window.location.reload(); }
 }
 
@@ -875,7 +865,7 @@ function deleteAsset(idx) {
     if (!confirm("Xóa tài sản này?")) return;
     const removed = currentCustomerData.assets.splice(idx, 1)[0];
     persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, () => {
-        showToast("Đã xóa TSBĐ");
+        ErrorHandler.showSuccess("Đã xóa tài sản bảo đảm");
         renderAssets();
         // Dọn ảnh của TSBĐ vừa xóa: gallery của nó không còn truy cập được nữa,
         // nếu giữ lại sẽ thành ảnh mồ côi chiếm bộ nhớ vĩnh viễn.
@@ -893,7 +883,7 @@ function deleteAsset(idx) {
 
 function toggleCustomerStatus() { if (currentCustomerData.status === 'pending') { getEl('approve-modal').classList.remove('hidden'); getEl('approve-limit').value = ''; } else { if (confirm("Thu hồi trạng thái?")) { currentCustomerData.status = 'pending'; updateCustomerAndReload(); } } }
 function closeApproveModal() { getEl('approve-modal').classList.add('hidden'); }
-function confirmApproval() { const l = getEl('approve-limit').value; if (!l) return alert("Nhập hạn mức!"); currentCustomerData.status = 'approved'; currentCustomerData.creditLimit = l; closeApproveModal(); persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = l; }, () => { showToast("Đã duyệt"); renderFolderHeader(currentCustomerData); loadCustomers(getEl('search-input').value); }); }
+function confirmApproval() { const l = getEl('approve-limit').value; if (!l) return ErrorHandler.showError('VALIDATION', "Vui lòng nhập hạn mức."); currentCustomerData.status = 'approved'; currentCustomerData.creditLimit = l; closeApproveModal(); persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = l; }, () => { ErrorHandler.showSuccess("Đã duyệt khách hàng"); renderFolderHeader(currentCustomerData); loadCustomers(getEl('search-input').value); }); }
 function updateCustomerAndReload() { persistCurrentCustomer((rec) => { rec.status = currentCustomerData.status; rec.creditLimit = currentCustomerData.creditLimit; }, () => { openFolder(currentCustomerData.id); loadCustomers(); }); }
 
 function renderFolderHeader(data) {
@@ -1128,7 +1118,7 @@ async function saveCustomerNotes() {
                 currentCustomerData.notes = c.notes;
                 currentCustomerData.updatedAt = c.updatedAt;
             }
-            showToast('Đã lưu ghi chú');
+            ErrorHandler.showSuccess('Đã lưu ghi chú');
         };
     };
-}        
+}

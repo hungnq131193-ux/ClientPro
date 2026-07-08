@@ -93,7 +93,7 @@ async function ensureMapLibreLoaded() {
     return __mapLibreLoadPromise.catch(err => {
         __mapLibreLoadPromise = null;
         console.error('[Map] MapLibre load failed:', err);
-        showToast('Không tải được bản đồ. Vui lòng kiểm tra mạng.');
+        ErrorHandler.showError('NETWORK', 'Không tải được bản đồ. Vui lòng kiểm tra mạng.', err);
         return false;
     });
 }
@@ -111,7 +111,7 @@ function __gpsFillResult(position) {
     if (inputLink) inputLink.value = mapLink;
 
     const acc = Math.round(position.coords.accuracy || 0);
-    showToast(acc > 0 ? `Đã lấy tọa độ (sai số ~${acc}m)` : "Đã lấy tọa độ thành công");
+    ErrorHandler.showSuccess(acc > 0 ? `Đã lấy tọa độ (sai số ~${acc}m)` : "Đã lấy tọa độ thành công");
 }
 
 function __gpsGetOnce(options) {
@@ -154,20 +154,18 @@ function __gpsWatchFirstFix(timeoutMs) {
 
 async function getCurrentGPS() {
     if (!navigator.geolocation) {
-        showToast("Thiết bị không hỗ trợ GPS");
+        ErrorHandler.showError('MAP', "Thiết bị không hỗ trợ định vị GPS.");
         return;
     }
     if (window.isSecureContext === false) {
-        showToast("GPS chỉ hoạt động qua HTTPS");
+        ErrorHandler.showError('MAP', "GPS chỉ hoạt động qua kết nối HTTPS.");
         return;
     }
     if (__gpsBusy) return;
     __gpsBusy = true;
 
-    const loader = getEl('loader');
     const loaderText = getEl('loader-text');
-    loader.classList.remove('hidden');
-    loaderText.textContent = "Đang lấy tọa độ...";
+    LoadingManager.showGlobal("Đang lấy tọa độ...");
 
     try {
         // Tầng 1: hỏi nhanh — chấp nhận vị trí hệ thống vừa đo trong 30s gần nhất
@@ -197,9 +195,9 @@ async function getCurrentGPS() {
             case 2: msg = "Không tìm thấy vị trí. Hãy bật Định vị (Location) của thiết bị."; break;
             case 3: msg = "Hết thời gian chờ. Hãy bật Định vị, ra nơi thoáng rồi thử lại."; break;
         }
-        showToast(msg);
+        ErrorHandler.showError('MAP', msg, error);
     } finally {
-        loader.classList.add('hidden');
+        LoadingManager.hideGlobal(true);
         __gpsBusy = false;
     }
 }
@@ -413,8 +411,7 @@ async function toggleMap() {
                 setTimeout(() => { if (map) map.resize(); }, 80);
                 setTimeout(() => { if (map) map.resize(); }, 380);
             } catch (e) {
-                console.error('[Map] init/render error:', e);
-                showToast('Lỗi khởi tạo bản đồ.');
+                ErrorHandler.showError('MAP', 'Lỗi khởi tạo bản đồ.', e);
             } finally {
                 try { const ov = getEl('map-loading'); if (ov) ov.remove(); } catch (e) { }
             }
@@ -650,7 +647,7 @@ function locateMe() {
             __meMarker = new maplibregl.Marker({ element: meEl, anchor: 'center' })
                 .setLngLat([lng, lat])
                 .addTo(map);
-        }, () => showToast("Không lấy được vị trí"));
+        }, () => ErrorHandler.showError('MAP', "Không lấy được vị trí hiện tại."));
     }
 }
 

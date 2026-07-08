@@ -133,7 +133,7 @@ function deleteSelectedImages() {
   const tx = db.transaction(["images"], "readwrite");
   selectedImages.forEach((id) => tx.objectStore("images").delete(id));
   tx.oncomplete = () => {
-    showToast("Đã xóa");
+    ErrorHandler.showSuccess("Đã xóa ảnh đã chọn");
     setImageSelectionMode(false);
   };
 }
@@ -195,8 +195,7 @@ function _attachLazySrc(imgEl, dataUrl) {
 }
 async function shareSelectedImages() {
   if (!selectedImages.size) return;
-  getEl("loader").classList.remove("hidden");
-  getEl("loader-text").textContent = "Đóng gói ảnh...";
+  LoadingManager.showGlobal("Đóng gói ảnh...");
   try {
     const tx = db.transaction(["images"], "readonly");
     const store = tx.objectStore("images");
@@ -219,7 +218,7 @@ async function shareSelectedImages() {
       });
     });
     const files = (await Promise.all(filePromises)).filter((f) => f !== null);
-    getEl("loader").classList.add("hidden");
+    LoadingManager.hideGlobal(true);
     if (files.length > 0) {
       if (navigator.canShare && navigator.canShare({ files })) {
         await navigator.share({
@@ -228,14 +227,15 @@ async function shareSelectedImages() {
           text: "Gửi ảnh hồ sơ",
         });
       } else {
-        alert("Thiết bị không hỗ trợ chia sẻ nhiều ảnh.");
+        ErrorHandler.showError('UNKNOWN', "Thiết bị không hỗ trợ chia sẻ nhiều ảnh.");
       }
     }
     setImageSelectionMode(false);
   } catch (err) {
-    getEl("loader").classList.add("hidden");
-    console.error(err);
-    alert("Lỗi chia sẻ");
+    LoadingManager.hideGlobal(true);
+    // Người dùng bấm Hủy hộp thoại chia sẻ (AbortError) không phải lỗi thật.
+    if (err && err.name === 'AbortError') return;
+    ErrorHandler.showError('UNKNOWN', "Không chia sẻ được ảnh. Vui lòng thử lại.", err);
   }
 }
 
@@ -469,8 +469,7 @@ function saveImageToDB(rawBase64) {
       captureMode = "asset";
     }
 
-    getEl("loader").classList.remove("hidden");
-    getEl("loader-text").textContent = "Xử lý ảnh...";
+    LoadingManager.showGlobal("Xử lý ảnh...");
 
     // Sử dụng trực tiếp ảnh gốc
     const enhancedBase64 = rawBase64;
@@ -491,8 +490,8 @@ function saveImageToDB(rawBase64) {
         .transaction(["images"], "readwrite")
         .objectStore("images")
         .add(newImg).onsuccess = () => {
-          getEl("loader").classList.add("hidden");
-          showToast("Đã lưu ảnh");
+          LoadingManager.hideGlobal(true);
+          ErrorHandler.showSuccess("Đã lưu ảnh");
 
           // Refresh giao diện ngay lập tức
           if (
