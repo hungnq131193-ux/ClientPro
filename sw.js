@@ -1,5 +1,7 @@
-// BUILD: 2026-07-07_v1.4.1_refui
+// BUILD: 2026-07-08_v1.4.2_refui
 // ClientPro Service Worker (runtime-first, PWA-safe)
+// v1.4.2: chuẩn hóa error messages & loading states (module 19_error_loading.js:
+// ErrorHandler + LoadingManager + AppToast 4 loại) + precache module mới.
 // v1.4.1: gọn UI modal Tham khảo giá — bỏ ghi chú đường bộ/chim bay, chấm tin cậy
 // và dòng trạng thái đếm kết quả; chỉ hiển thị khoảng cách (ưu tiên đường bộ khi có).
 // v1.4.0: cải thiện độ chính xác khoảng cách đường bộ (siết ngưỡng bám đường
@@ -11,7 +13,7 @@
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.4.1';
+const VERSION = 'v1.4.2';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -29,7 +31,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'REFUI_20260707';
+const ASSET_V = 'REFUI_20260708';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -76,6 +78,7 @@ const STATIC_ASSETS = [
   `./assets/16_auto_backup_drive.js?v=${ASSET_V}`,
   `./assets/17_onboarding_tour.js?v=${ASSET_V}`,
   `./assets/18_biometric_unlock.js?v=${ASSET_V}`,
+  `./assets/19_error_loading.js?v=${ASSET_V}`,
 
   './assets/ui/load_modals.js',
 

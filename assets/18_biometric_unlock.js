@@ -254,7 +254,10 @@
 
   function _toast(msg) {
     try {
-      if (typeof showToast === "function") showToast(msg);
+      // Các thông điệp của module này đều mang tính cảnh báo (sinh trắc học không
+      // hợp lệ / xác thực thất bại) -> dùng toast cảnh báo thay vì "success".
+      if (window.ErrorHandler) window.ErrorHandler.showWarning(msg);
+      else if (typeof showToast === "function") showToast(msg);
     } catch (e) { }
   }
 
@@ -452,7 +455,7 @@
     const pinInput = document.getElementById("biometric-confirm-pin");
     const pin = pinInput ? pinInput.value.trim() : "";
     if (!/^\d{4,6}$/.test(pin)) {
-      if (typeof showToast === "function") showToast("Vui lòng nhập đúng mã PIN hiện tại.");
+      ErrorHandler.showError('VALIDATION', "Vui lòng nhập đúng mã PIN hiện tại.");
       return;
     }
 
@@ -471,16 +474,16 @@
     }
 
     if (res && res.ok) {
-      if (typeof showToast === "function") showToast("Đã bật mở khóa sinh trắc học.");
+      ErrorHandler.showSuccess("Đã bật mở khóa sinh trắc học.");
       _refreshSetupModalUI();
-    } else if (typeof showToast === "function") {
-      showToast((res && res.message) || "Không thể bật mở khóa sinh trắc học.");
+    } else {
+      ErrorHandler.showError('AUTH', (res && res.message) || "Không thể bật mở khóa sinh trắc học.");
     }
   }
 
   function requestDisable() {
     disable();
-    if (typeof showToast === "function") showToast("Đã tắt mở khóa sinh trắc học.");
+    ErrorHandler.showSuccess("Đã tắt mở khóa sinh trắc học.");
     _refreshSetupModalUI();
   }
 

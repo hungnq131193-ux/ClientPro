@@ -33,6 +33,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   } catch (e) {
     console.warn("[ClientPro] Modals preload warning:", e);
   }
+  // Khởi tạo tầng chuẩn hóa lỗi & loading (module 19). An toàn nếu thiếu file.
+  try { if (window.LoadingManager && typeof window.LoadingManager.init === "function") window.LoadingManager.init(); } catch (e) { }
+
   // UX: ẩn loader sớm để tránh cảm giác "treo" khi thiết bị/network chậm.
   // Dữ liệu sẽ render dần khi IndexedDB trả về.
   try {
