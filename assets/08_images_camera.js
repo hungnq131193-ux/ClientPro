@@ -127,9 +127,9 @@ function toggleImage(id, div) {
   }
   getEl("selection-count").textContent = selectedImages.size;
 }
-function deleteSelectedImages() {
+async function deleteSelectedImages() {
   if (!selectedImages.size) return;
-  if (!confirm(`Xóa ${selectedImages.size} ảnh?`)) return;
+  if (!(await ErrorHandler.confirm(`Xóa ${selectedImages.size} ảnh đã chọn?`, { title: "Xóa ảnh", danger: true, confirmText: "Xóa" }))) return;
   const tx = db.transaction(["images"], "readwrite");
   selectedImages.forEach((id) => tx.objectStore("images").delete(id));
   tx.oncomplete = () => {
@@ -579,22 +579,21 @@ function shareOpenedImage() {
         });
     });
 }
-function deleteOpenedImage() {
-  if (confirm("Hủy chứng từ này?")) {
-    db
-      .transaction(["images"], "readwrite")
-      .objectStore("images")
-      .delete(currentImageId).onsuccess = () => {
-        closeLightbox();
-        if (
-          currentAssetId &&
-          getEl("screen-asset-gallery").classList.contains("translate-x-full") ===
-          false
-        )
-          loadAssetImages(currentAssetId);
-        else loadProfileImages();
-      };
-  }
+async function deleteOpenedImage() {
+  if (!(await ErrorHandler.confirm("Hủy chứng từ này?", { title: "Xóa chứng từ", danger: true, confirmText: "Xóa" }))) return;
+  db
+    .transaction(["images"], "readwrite")
+    .objectStore("images")
+    .delete(currentImageId).onsuccess = () => {
+      closeLightbox();
+      if (
+        currentAssetId &&
+        getEl("screen-asset-gallery").classList.contains("translate-x-full") ===
+        false
+      )
+        loadAssetImages(currentAssetId);
+      else loadProfileImages();
+    };
 }
 
 // Export for lazy loading wrapper

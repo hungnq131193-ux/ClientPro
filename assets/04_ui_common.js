@@ -177,7 +177,7 @@ function persistCurrentCustomer(mutate, onDone) {
         store.get(id).onsuccess = (e) => {
             const rec = e.target.result;
             if (!rec) return;
-            try { if (typeof mutate === 'function') mutate(rec); } catch (err) { console.error('persistCurrentCustomer mutate error:', err); return; }
+            try { if (typeof mutate === 'function') mutate(rec); } catch (err) { if (window.ErrorHandler) ErrorHandler.logError('persistCurrentCustomer mutate error', err); return; }
             // Healing: bản cũ có thể đã lưu plaintext — mã hóa lại các trường nhạy cảm.
             try {
                 if (typeof masterKey !== 'undefined' && masterKey && typeof encryptText === 'function') {
@@ -193,7 +193,7 @@ function persistCurrentCustomer(mutate, onDone) {
         tx.oncomplete = () => { if (typeof onDone === 'function') onDone(ok); };
         tx.onerror = () => { if (typeof onDone === 'function') onDone(false); };
     } catch (err) {
-        console.error('persistCurrentCustomer error:', err);
+        if (window.ErrorHandler) ErrorHandler.logError('persistCurrentCustomer error', err);
         if (typeof onDone === 'function') onDone(false);
     }
 }
@@ -346,10 +346,9 @@ function tryOpenCamera(mode) {
         if (typeof window._tryOpenCameraReal === 'function') {
             window._tryOpenCameraReal(mode);
         } else {
-            showToast('Camera chưa sẵn sàng');
+            ErrorHandler.showWarning('Camera chưa sẵn sàng');
         }
     } catch (e) {
-        console.error('tryOpenCamera error:', e);
-        showToast('Không mở được camera');
+        ErrorHandler.showError('CAMERA', undefined, e);
     }
 }

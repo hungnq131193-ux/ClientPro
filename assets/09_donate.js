@@ -31,7 +31,7 @@ function copyDonateAccount() {
     navigator.clipboard
       .writeText(acc)
       .then(() => {
-        showToast("Đã copy số tài khoản VietinBank");
+        ErrorHandler.showSuccess("Đã copy số tài khoản VietinBank");
       })
       .catch(() => {
         fallbackCopyDonate(acc);
@@ -48,9 +48,9 @@ function fallbackCopyDonate(text) {
   input.select();
   try {
     document.execCommand("copy");
-    showToast("Đã copy số tài khoản");
+    ErrorHandler.showSuccess("Đã copy số tài khoản");
   } catch (e) {
-    alert("Không copy được, vui lòng nhập tay STK: " + text);
+    ErrorHandler.showWarning("Không copy được, vui lòng nhập tay STK: " + text);
   }
   document.body.removeChild(input);
 }

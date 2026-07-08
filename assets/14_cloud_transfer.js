@@ -203,7 +203,7 @@
     }
 
     if (!filtered.length) {
-      alert('Không có user nào khác trong hệ thống.');
+      ErrorHandler.showWarning('Không có user nào khác trong hệ thống.');
       return null;
     }
 
@@ -651,7 +651,7 @@
         overlay.remove();
         await CloudTransferUI.acceptAndRestore(transferId);
       } catch (err) {
-        alert(err && err.message ? err.message : 'Không thể restore');
+        ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể restore bản ghi.', err);
       }
     });
 
@@ -662,12 +662,12 @@
     if (!transferId) throw new Error('Thiếu mã bản ghi');
     if (typeof requireUnlockedForRestore === 'function' && !requireUnlockedForRestore()) return;
     if ((typeof isAppUnlocked === 'function' && !isAppUnlocked()) || typeof masterKey === 'undefined' || !masterKey) {
-      alert('Vui lòng mở khóa dữ liệu trước khi khôi phục.');
+      ErrorHandler.showWarning('Vui lòng mở khóa dữ liệu trước khi khôi phục.');
       return;
     }
 
     // Confirm and show loader
-    if (!confirm('Nhận và Restore bản ghi này?')) return;
+    if (!(await ErrorHandler.confirm('Nhận và Restore bản ghi này?', { title: 'Nhận dữ liệu', confirmText: 'Nhận & Restore' }))) return;
 
     const loader = document.getElementById('loader');
     const loaderText = document.getElementById('loader-text');
@@ -715,14 +715,14 @@
       await CloudTransferUI.renderInbox();
     } catch (e) {}
 
-    if (typeof showToast === 'function') showToast('Đã nhận và restore');
+    ErrorHandler.showSuccess('Đã nhận và khôi phục dữ liệu');
 
     if (loader) loader.classList.add('hidden');
   }
 
   async function dismissItem(transferId) {
     if (!transferId) return;
-    if (!confirm('Bỏ qua bản ghi này? (Có thể tự xóa sau 24h)')) return;
+    if (!(await ErrorHandler.confirm('Bỏ qua bản ghi này? (Có thể tự xóa sau 24h)', { title: 'Bỏ qua bản ghi', confirmText: 'Bỏ qua' }))) return;
     await deleteInboxItem(transferId);
     await CloudTransferUI.renderInbox();
   }
@@ -754,12 +754,18 @@
         setInboxBadge(items.length);
         await renderInboxUI(items);
       } catch (e) {
+        ErrorHandler.logError('renderInbox failed', e);
         const listEl = document.getElementById('inbox-list');
         const emptyEl = document.getElementById('inbox-empty');
-        if (listEl) listEl.innerHTML = '';
-        if (emptyEl) {
-          emptyEl.classList.remove('hidden');
-          emptyEl.textContent = (e && e.message) ? e.message : 'Không tải được inbox.';
+        if (emptyEl) emptyEl.classList.add('hidden');
+        if (listEl) {
+          listEl.innerHTML = '';
+          LoadingManager.showErrorState(listEl, {
+            title: 'Không tải được hộp thư',
+            message: ErrorHandler.isOffline() ? 'Bạn đang ngoại tuyến. Kết nối mạng rồi thử lại.' : ((e && e.message) ? e.message : 'Vui lòng thử lại sau.'),
+            actionText: 'Thử lại',
+            onAction: () => CloudTransferUI.renderInbox(),
+          });
         }
       }
     },
@@ -768,7 +774,7 @@
       const all = (typeof _idbGetAllBackups === 'function') ? await _idbGetAllBackups() : [];
       const rec = all.find(x => String(x.id) === String(backupId));
       if (!rec) {
-        alert('Không tìm thấy backup');
+        ErrorHandler.showWarning('Không tìm thấy backup');
         return;
       }
 
@@ -776,25 +782,19 @@
         const u = await pickUserOverlay();
         if (!u) return;
 
-        const ok = confirm(`Gửi backup này cho user:\n\n${u.name || u.displayName || u.employeeId || u.deviceId}\n\nTiếp tục?`);
+        const ok = await ErrorHandler.confirm(`Gửi backup này cho user:\n\n${u.name || u.displayName || u.employeeId || u.deviceId}\n\nTiếp tục?`, { title: 'Gửi bản ghi', confirmText: 'Gửi' });
         if (!ok) return;
 
-        const loader = document.getElementById('loader');
-        const loaderText = document.getElementById('loader-text');
-        if (loader) loader.classList.remove('hidden');
-        if (loaderText) loaderText.textContent = 'Đang gửi bản ghi...';
+        LoadingManager.showGlobal('Đang gửi bản ghi...');
 
         await uploadBackupToUser(u, rec);
 
-        if (loader) loader.classList.add('hidden');
-        if (typeof showToast === 'function') showToast('Đã gửi bản ghi');
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showSuccess('Đã gửi bản ghi');
       } catch (err) {
+        LoadingManager.hideGlobal(true);
         const msg = err && err.message ? err.message : String(err || 'Không gửi được');
-        alert(msg);
-        try {
-          const loader = document.getElementById('loader');
-          if (loader) loader.classList.add('hidden');
-        } catch (e) {}
+        ErrorHandler.showError('NETWORK', msg, err);
       }
     },
 
@@ -802,7 +802,7 @@
     // record must contain { encrypted, filename?, size?, hash?, createdAt? }
     async sendEncryptedRecord(record) {
       if (!record || !record.encrypted) {
-        alert('Thiếu dữ liệu để gửi');
+        ErrorHandler.showWarning('Thiếu dữ liệu để gửi');
         return;
       }
 
@@ -818,7 +818,7 @@
           throw new Error('Gói gửi có dấu hiệu chưa mã hóa. Đã chặn để tránh lộ dữ liệu.');
         }
       } catch (e) {
-        alert(e && e.message ? e.message : 'Gói gửi không hợp lệ');
+        ErrorHandler.showError('VALIDATION', e && e.message ? e.message : 'Gói gửi không hợp lệ', e);
         return;
       }
 
@@ -830,25 +830,19 @@
           ? `(${record.meta.count || ''} KH)`
           : '';
 
-        const ok = confirm(`Gửi gói dữ liệu này cho user:\n\n${u.name || u.displayName || u.employeeId || u.deviceId} ${label}\n\nTệp: ${record.filename || 'backup.cpb'}\n\nTiếp tục?`);
+        const ok = await ErrorHandler.confirm(`Gửi gói dữ liệu này cho user:\n\n${u.name || u.displayName || u.employeeId || u.deviceId} ${label}\n\nTệp: ${record.filename || 'backup.cpb'}\n\nTiếp tục?`, { title: 'Gửi gói dữ liệu', confirmText: 'Gửi' });
         if (!ok) return;
 
-        const loader = document.getElementById('loader');
-        const loaderText = document.getElementById('loader-text');
-        if (loader) loader.classList.remove('hidden');
-        if (loaderText) loaderText.textContent = 'Đang gửi bản ghi...';
+        LoadingManager.showGlobal('Đang gửi bản ghi...');
 
         await uploadBackupToUser(u, record);
 
-        if (loader) loader.classList.add('hidden');
-        if (typeof showToast === 'function') showToast('Đã gửi bản ghi');
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showSuccess('Đã gửi bản ghi');
       } catch (err) {
+        LoadingManager.hideGlobal(true);
         const msg = err && err.message ? err.message : String(err || 'Không gửi được');
-        alert(msg);
-        try {
-          const loader = document.getElementById('loader');
-          if (loader) loader.classList.add('hidden');
-        } catch (e) {}
+        ErrorHandler.showError('NETWORK', msg, err);
       }
     },
 
@@ -867,7 +861,7 @@
       try {
         await dismissItem(backupId);
       } catch (e) {
-        alert(e && e.message ? e.message : 'Không thể bỏ qua');
+        ErrorHandler.showError('NETWORK', e && e.message ? e.message : 'Không thể bỏ qua bản ghi.', e);
       }
     },
 
