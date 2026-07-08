@@ -792,3 +792,26 @@ body.theme-vietinbank .cp-state { color: #475569; }
   .cp-confirm-dialog { transition: none; transform: none; }
   .cp-confirm-overlay.cp-confirm-in .cp-confirm-dialog { transform: none; }
 }
+
+/* ============================================================
+   Accessibility (P3): focus keyboard rõ ràng + giảm chuyển động toàn cục.
+   ============================================================ */
+/* Viền focus cho người dùng bàn phím (inputs đang dùng outline:none).
+   :focus-visible chỉ hiện khi điều hướng bằng bàn phím, không phiền khi chạm. */
+:focus-visible {
+  outline: 2px solid var(--accent, #2563eb);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Không hiện outline khi tương tác bằng chuột/chạm (trình duyệt hiện đại tự phân biệt). */
+:focus:not(:focus-visible) { outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Tôn trọng người dùng bật "giảm chuyển động": cắt animation/slide toàn app. */
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -301,6 +301,7 @@ Cả hai đều tôn trọng triết lý "user-controlled cloud" — không có 
 
 - **Themes** (4 themes): Sáng (mặc định) + 3 tối (Xanh Đêm, Đại Dương, Thiên Thanh). Dùng CSS variables + `setTheme()`, `redesign.clientpro.css`.
 - **Dynamic Modals**: `assets/ui/load_modals.js` + folder `modals/` (HTML fragments được load runtime). Helpers: `openModal()`, `closeModal()`, `openGuideModal()`, `openDonateModal()`, v.v.
+- **Accessibility (P3) — `ModalA11y`** (trong `04_ui_common.js`, init ở `10_bootstrap.js`): quan sát class của mọi overlay `.fixed.inset-0` (toggle `hidden`) để tự gắn `role="dialog"` + `aria-modal` + `aria-labelledby` (heading có id), **bẫy focus** (Tab/Shift-Tab vòng trong modal), **Esc** = bấm nút `[data-action^="close"]`, và **khôi phục focus** khi đóng — KHÔNG phải sửa từng open/close. `labelIconButtons()` gắn `aria-label` cho nút icon-only theo `ACTION_LABELS`. Viewport đã bỏ `user-scalable=no` (cho phép pinch-zoom). CSS: `:focus-visible` outline cho bàn phím + `@media (prefers-reduced-motion)` cắt animation toàn cục (cuối `redesign.clientpro.css`).
 - **Edge Back Swipe** (11_edge_back_swipe.js): Custom gesture cho mobile (không dùng native).
 - **Onboarding**: `17_onboarding_tour.js` — tour hướng dẫn người dùng mới.
 - **Weather**: `09_weather.js` + `refreshWeather()` — Open-Meteo + cache.
@@ -507,7 +508,8 @@ Bộ test tự động, **ưu tiên cao nhất cho tính toàn vẹn dữ liệu
 
 ## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-08)
 
-- **Phiên bản**: 1.5.0 (ASSET_V: SECGCM_20260708). Nguồn semver: `package.json` (dùng `npm run sync:version`).
+- **Phiên bản**: 1.5.1 (ASSET_V: SECGCM_20260708). Nguồn semver: `package.json` (dùng `npm run sync:version`).
+- **Recent change (2026-07-08e — P3 Accessibility)**: bỏ `user-scalable=no` (pinch-zoom); thêm `ModalA11y` (focus trap + aria-modal/dialog/labelledby + Esc + khôi phục focus cho mọi modal, không sửa từng open/close) + `labelIconButtons`; CSS `:focus-visible` + `@media (prefers-reduced-motion)`. Xem §4.9.
 - **Recent change (2026-07-08d — P2 Security Core)**: **Chuyển field-level encryption sang WebCrypto AES-256-GCM** (envelope `cpg1:`, có auth tag) + **masterKey CSPRNG (MK2)** thay chuỗi timestamp yếu. `encryptText` async (mã hóa trước transaction), `decryptText` đồng bộ đọc `__fieldPlainCache` (nạp bằng `primeFieldCache` sau unlock). **Migration một lần resume-safe** (`runFieldCryptoMigrationIfNeeded`, cờ `app_crypto_schema_v`, marker `cryptoV:2`) chuyển CryptoJS→GCM không mất dữ liệu; biometric/backup không cần đụng. Cập nhật writer (05/06/07/12), bỏ healing double-encrypt ở `persistCurrentCustomer` (04). Tests cập nhật + thêm tamper/wrong-key/migration idempotency+resume. Xem §4.3.
 - **Recent change (2026-07-08c — P1 CSP/Version)**: `package.json` làm single-source cho semver + `scripts/sync-version.mjs` (đồng bộ manifest/sw/pwa/README), CI thêm bước `--check`. Siết `vercel.json`: HSTS + COOP + CORP + CSP `upgrade-insecure-requests`/`manifest-src`/`form-action`/`frame-src 'none'`.
 - **Recent change (2026-07-08b)**: **Thêm Automated Testing** (`tests/`, xem §9) ưu tiên data-integrity. Zero-dependency (`node --test` + WebCrypto + crypto-js self-host), test **code thật** của `02_security.js` qua `node:vm`. (Từ P5 sẽ có thêm devDeps CI-only cho Playwright/Lighthouse — app shipped vẫn zero-dep.)

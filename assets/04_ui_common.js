@@ -347,3 +347,112 @@ function tryOpenCamera(mode) {
         ErrorHandler.showError('CAMERA', undefined, e);
     }
 }
+
+// ============================================================
+// ModalA11y — Accessibility cho MỌI modal mà KHÔNG phải sửa từng open/close.
+// Modal trong app là overlay `.fixed.inset-0 ... hidden`; toggle class `hidden`.
+// Ta quan sát thay đổi class để: gắn role=dialog + aria-modal + aria-labelledby,
+// bẫy focus (Tab/Shift-Tab vòng trong modal), Esc = bấm nút đóng, và khôi phục
+// focus về phần tử trước đó khi đóng. Tôn trọng CSP (không inline handler).
+// ============================================================
+const ModalA11y = (function () {
+    const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    let activeModal = null;
+    let lastFocused = null;
+
+    function isOverlay(el) {
+        return el instanceof HTMLElement && el.classList.contains('fixed') && el.classList.contains('inset-0');
+    }
+    function isVisible(el) { return !!el && !el.classList.contains('hidden'); }
+    function overlays() { return Array.from(document.querySelectorAll('.fixed.inset-0')); }
+    function topVisible() {
+        const vis = overlays().filter(isVisible);
+        return vis.length ? vis[vis.length - 1] : null;
+    }
+    function focusables(modal) {
+        return Array.from(modal.querySelectorAll(FOCUSABLE))
+            .filter((e) => e.type !== 'hidden' && e.getClientRects().length > 0);
+    }
+    function activate(modal) {
+        if (activeModal === modal) return;
+        lastFocused = document.activeElement;
+        activeModal = modal;
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        const heading = modal.querySelector('h1[id],h2[id],h3[id]');
+        if (heading) modal.setAttribute('aria-labelledby', heading.id);
+        // Nút đóng icon-only -> gắn nhãn cho screen reader nếu thiếu.
+        modal.querySelectorAll('[data-action^="close"]').forEach((b) => {
+            if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', 'Đóng');
+        });
+        // Đưa focus vào modal: ưu tiên ô nhập đầu tiên, nếu không thì phần tử focus được đầu tiên.
+        const firstInput = modal.querySelector('input:not([type=hidden]),textarea,select');
+        const target = (firstInput && firstInput.getClientRects().length) ? firstInput : focusables(modal)[0];
+        if (target) { try { target.focus(); } catch (e) { } }
+    }
+    function deactivate() {
+        activeModal = null;
+        if (lastFocused && typeof lastFocused.focus === 'function') { try { lastFocused.focus(); } catch (e) { } }
+        lastFocused = null;
+    }
+    function onKeydown(e) {
+        const modal = (activeModal && isVisible(activeModal)) ? activeModal : topVisible();
+        if (!modal) return;
+        if (e.key === 'Escape') {
+            const closeBtn = modal.querySelector('[data-action^="close"]');
+            if (closeBtn) { e.preventDefault(); closeBtn.click(); }
+            return;
+        }
+        if (e.key !== 'Tab') return;
+        const f = focusables(modal);
+        if (!f.length) { e.preventDefault(); return; }
+        const first = f[0], last = f[f.length - 1];
+        if (!modal.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    function observe(el) {
+        if (!el.__a11yObserved) {
+            el.__a11yObserved = true;
+            _mo.observe(el, { attributes: true, attributeFilter: ['class'] });
+            if (isVisible(el)) activate(el);
+        }
+    }
+    const _mo = new MutationObserver((muts) => {
+        for (const m of muts) {
+            const el = m.target;
+            if (!isOverlay(el)) continue;
+            if (isVisible(el)) activate(el);
+            else if (activeModal === el) deactivate();
+        }
+    });
+    function observeAll() { overlays().forEach(observe); }
+
+    // Nhãn cho nút icon-only (không có chữ hiển thị) -> screen reader đọc được.
+    const ACTION_LABELS = {
+        toggleMenu: 'Mở menu', locateMe: 'Định vị vị trí của tôi', closeFolder: 'Đóng hồ sơ',
+        refreshWeather: 'Làm mới thời tiết', toggleCustSelectionMode: 'Chọn nhiều khách hàng',
+        openModal: 'Thêm khách hàng mới', closeModal: 'Đóng', closeLightbox: 'Đóng ảnh',
+        navigateLightbox: 'Ảnh khác', shareSelectedImages: 'Chia sẻ ảnh đã chọn',
+        deleteSelectedImages: 'Xóa ảnh đã chọn', deleteOpenedImage: 'Xóa ảnh này',
+        openEditCustomerModal: 'Sửa hồ sơ', tryOpenCamera: 'Chụp ảnh',
+    };
+    function labelIconButtons(root) {
+        (root || document).querySelectorAll('button[data-action],a[data-action],[role="button"][data-action]').forEach((btn) => {
+            if (btn.getAttribute('aria-label')) return;
+            if ((btn.textContent || '').trim().length > 0) return; // đã có chữ hiển thị
+            const label = ACTION_LABELS[btn.dataset.action];
+            if (label) btn.setAttribute('aria-label', label);
+        });
+    }
+
+    function init() {
+        document.addEventListener('keydown', onKeydown, true);
+        observeAll();
+        labelIconButtons(document);
+        // Modal nạp bất đồng bộ (ui/load_modals.js) -> quan sát + gắn nhãn lại sau khi có DOM.
+        document.addEventListener('clientpro:modals-loaded', () => { observeAll(); labelIconButtons(document); });
+    }
+    return { init, observeAll, labelIconButtons };
+})();
+window.ModalA11y = ModalA11y;
