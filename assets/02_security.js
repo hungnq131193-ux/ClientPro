@@ -1,6 +1,12 @@
 // --- Security & Encryption Helpers ---
 // Sử dụng masterKey cho cơ chế mã hóa toàn bộ dữ liệu và khôi phục bằng mã nhân viên.
+// masterKey là chuỗi "sentinel" (mọi check !!masterKey/isAppUnlocked giữ nguyên):
+//   - Mới (v2): "MK2:" + base64(32 byte CSPRNG)  -> field cipher = AES-256-GCM (WebCrypto).
+//   - Cũ (legacy): "mk_..."                        -> field cipher = CryptoJS.AES (chỉ để migrate/đọc).
 let masterKey = null;
+let masterKeyBytes = null;    // Uint8Array(32) thô (chỉ tồn tại khi đã mở khóa, zero khi lock)
+let masterCryptoKey = null;   // CryptoKey AES-GCM non-extractable, dùng cho encrypt/decrypt field
+let masterKeyLegacy = null;   // passphrase CryptoJS "mk_..." — chỉ set khi cần migrate/đọc dữ liệu cũ
 // Legacy secret (passphrase) chỉ để đọc backup .cpb định dạng cũ.
 // Backup mới dùng global KDATA do GAS cấp (base64url, no padding) làm AES-GCM key.
 let APP_BACKUP_SECRET = "";
@@ -166,37 +172,245 @@ function getDeviceId() {
   return deviceId;
 }
 
-/** Encrypt a text value using AES và masterKey. */
+// ============================================================
+// Field-level cipher — AES-256-GCM (WebCrypto), có auth tag.
+// Định dạng envelope chuỗi gọn:  "cpg1:" + base64url( iv[12] ‖ ciphertext+tag )
+// Phân biệt 3 trạng thái giá trị:
+//   (a) "cpg1:..."   -> AES-GCM mới (đọc qua cache đồng bộ, xem __fieldPlainCache)
+//   (b) "U2FsdGVk..." -> legacy CryptoJS.AES (giải mã đồng bộ bằng masterKeyLegacy)
+//   (c) còn lại       -> plaintext, trả nguyên
+// ============================================================
+const GCM_PREFIX = "cpg1:";
 
-function encryptText(text) {
+/** Cache giải mã field: ciphertext "cpg1:..." -> plaintext. Khóa duy nhất do IV
+ *  ngẫu nhiên nên không bao giờ alias/stale. Cho phép decryptText() giữ ĐỒNG BỘ
+ *  (WebCrypto chỉ có API bất đồng bộ; ta bulk-decrypt 1 lần lúc unlock -> primeFieldCache). */
+const __fieldPlainCache = new Map();
+
+function _b64uEncodeBytes(bytes) {
+  return _b64EncodeBytes(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Mã hóa 1 field bằng AES-GCM (async). Seed luôn cache để đọc lại đồng bộ ngay trong phiên. */
+async function _gcmEncryptField(plain) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ctBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, masterCryptoKey, new TextEncoder().encode(String(plain)));
+  const ct = new Uint8Array(ctBuf);
+  const buf = new Uint8Array(iv.length + ct.length);
+  buf.set(iv, 0); buf.set(ct, iv.length);
+  const out = GCM_PREFIX + _b64uEncodeBytes(buf);
+  __fieldPlainCache.set(out, String(plain));
+  return out;
+}
+
+/** Giải mã 1 field AES-GCM (async). Ném lỗi nếu bị giả mạo/sai khóa (GCM tag). */
+async function _gcmDecryptField(s) {
+  const raw = _b64uDecodeToBytes(String(s).slice(GCM_PREFIX.length));
+  const ptBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.subarray(0, 12) }, masterCryptoKey, raw.subarray(12));
+  return new TextDecoder().decode(ptBuf);
+}
+
+/**
+ * Encrypt a text value. BẤT ĐỒNG BỘ (WebCrypto). Trả về "cpg1:..." khi đã mở khóa
+ * bằng key v2; trong cửa sổ migration (chỉ có masterKeyLegacy) tạm dùng CryptoJS.
+ * Gọi ở các điểm GHI (saveCustomer/saveAsset/notes/restore/token) — phải `await`
+ * và mã hóa TRƯỚC khi mở transaction IndexedDB (không await giữa transaction).
+ */
+async function encryptText(text) {
   if (!masterKey || text === undefined || text === null) return text;
+  if (masterCryptoKey) return _gcmEncryptField(text);
   try {
-    return CryptoJS.AES.encrypt(String(text), masterKey).toString();
+    return CryptoJS.AES.encrypt(String(text), masterKeyLegacy || masterKey).toString(); // chỉ pre-migration
   } catch (e) {
     return text;
   }
 }
 
-/** * Decrypt một chuỗi AES bằng masterKey. Nếu chưa có masterKey hoặc giải mã thất bại thì trả lại nguyên bản. * @param {string} cipher * @returns {string} */
+/** * Decrypt một field. ĐỒNG BỘ (đọc cache cho cpg1:, CryptoJS cho legacy). Nếu chưa
+ * mở khóa / cache chưa nạp / giải mã thất bại thì trả nguyên bản. * @param {string} cipher * @returns {string} */
 function decryptText(cipher) {
-  if (!masterKey || cipher === undefined || cipher === null) return cipher;
-  try {
-    const bytes = CryptoJS.AES.decrypt(String(cipher), masterKey);
-    const plaintext = bytes.toString(CryptoJS.enc.Utf8);
-    return plaintext || cipher;
-  } catch (e) {
-    return cipher;
+  if (cipher === undefined || cipher === null) return cipher;
+  const s = String(cipher);
+  if (s.startsWith(GCM_PREFIX)) {
+    const hit = __fieldPlainCache.get(s);
+    return hit !== undefined ? hit : cipher; // miss -> vẫn "trông như mã hóa" (chưa prime)
+  }
+  if (s.startsWith("U2FsdGVk")) {
+    const k = masterKeyLegacy || (masterKey && masterKey.startsWith("mk_") ? masterKey : null);
+    if (!k) return cipher;
+    try {
+      const plaintext = CryptoJS.AES.decrypt(s, k).toString(CryptoJS.enc.Utf8);
+      return plaintext || cipher;
+    } catch (e) {
+      return cipher;
+    }
+  }
+  return cipher; // plaintext passthrough
+}
+
+/** * Sinh master key ngẫu nhiên MẠNH bằng CSPRNG: "MK2:" + base64(32 byte). * @returns {string} */
+function generateMasterKey() {
+  return "MK2:" + _b64EncodeBytes(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+/**
+ * Cài masterKey vào phiên: set sentinel + dựng key phái sinh. Thay cho `masterKey = ...` trực tiếp.
+ * - "MK2:..." -> import AES-GCM CryptoKey (non-extractable) sẵn cho encrypt/decrypt field.
+ * - "mk_..."  -> giữ làm masterKeyLegacy để đọc dữ liệu cũ + kích hoạt migration.
+ */
+async function _installMasterKey(mkStr) {
+  // Đổi khóa -> cache plaintext của khóa cũ không còn hợp lệ (chống rò rỉ chéo khóa).
+  __fieldPlainCache.clear();
+  masterKey = mkStr;
+  if (mkStr && mkStr.startsWith("MK2:")) {
+    masterKeyBytes = _b64DecodeToBytes(mkStr.slice(4));
+    masterCryptoKey = await crypto.subtle.importKey("raw", masterKeyBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+    masterKeyLegacy = null;
+  } else {
+    masterKeyLegacy = mkStr || null;
+    masterKeyBytes = null;
+    masterCryptoKey = null;
   }
 }
 
-/** * Sinh master key ngẫu nhiên. Master key dùng để mã hóa/giải mã toàn bộ thông tin khách hàng. * @returns {string} */
-function generateMasterKey() {
-  return (
-    "mk_" +
-    Date.now() +
-    Math.random().toString(36).slice(2) +
-    Math.random().toString(36).slice(2)
-  );
+/** Xóa mọi vết khóa + plaintext khỏi RAM khi khóa app / ẩn tab (giới hạn tuổi thọ). */
+function clearMasterKeyMaterial() {
+  if (masterKeyBytes) { try { masterKeyBytes.fill(0); } catch (e) {} }
+  masterKey = null; masterKeyBytes = null; masterCryptoKey = null; masterKeyLegacy = null;
+  __fieldPlainCache.clear();
+}
+
+/**
+ * Bulk-decrypt mọi field "cpg1:" của toàn bộ customer (kèm asset nhúng) vào cache —
+ * chạy 1 lần sau unlock (và sau migration/restore) để decryptText() đọc đồng bộ.
+ */
+async function primeFieldCache() {
+  if (!masterCryptoKey || typeof db === "undefined" || !db) return;
+  const all = await new Promise((resolve) => {
+    try {
+      const req = db.transaction(["customers"], "readonly").objectStore("customers").getAll();
+      req.onsuccess = (e) => resolve(e.target.result || []);
+      req.onerror = () => resolve([]);
+    } catch (e) { resolve([]); }
+  });
+  const jobs = new Set();
+  const grab = (v) => { if (typeof v === "string" && v.startsWith(GCM_PREFIX) && !__fieldPlainCache.has(v)) jobs.add(v); };
+  for (const c of all) {
+    if (!c) continue;
+    [c.name, c.phone, c.cccd, c.notes, c.driveLink].forEach(grab);
+    if (Array.isArray(c.assets)) for (const a of c.assets) {
+      ["name", "link", "valuation", "loanValue", "area", "width", "onland", "year", "driveLink"].forEach((k) => grab(a && a[k]));
+    }
+  }
+  // Token Drive cá nhân (07_drive) cũng niêm phong bằng field cipher -> prime để getUserToken() đọc đồng bộ.
+  try {
+    const tkKey = (typeof USER_TOKEN_KEY !== "undefined") ? USER_TOKEN_KEY : "app_user_script_token";
+    const rawTk = (localStorage.getItem(tkKey) || "").trim();
+    if (rawTk.startsWith("sealed.v1:")) grab(rawTk.slice("sealed.v1:".length));
+  } catch (e) {}
+  await Promise.all([...jobs].map(async (s) => { try { __fieldPlainCache.set(s, await _gcmDecryptField(s)); } catch (e) {} }));
+}
+
+// ============================================================
+// Migration một lần: CryptoJS(masterKey cũ "mk_...") -> AES-256-GCM (masterKey mới "MK2:").
+// Idempotent + resume-safe. Bất biến: envelope PIN chỉ swap sang MK2 khi 100% record
+// đã GCM; tới lúc đó legacy key vẫn mở được từ PIN_KEY gốc -> không bao giờ kẹt/mất.
+// ============================================================
+const SCHEMA_KEY = "app_crypto_schema_v";   // '2' = đã migrate
+const PIN_STAGE = "app_pin_v2_stage";       // niêm phong MK2 tạm dưới PIN (resume không đúc lại key)
+const SEC_STAGE = "app_sec_v2_stage";       // niêm phong MK2 tạm dưới mã nhân viên
+
+function _getAllCustomerKeys() {
+  return new Promise((resolve) => {
+    try {
+      const req = db.transaction(["customers"], "readonly").objectStore("customers").getAllKeys();
+      req.onsuccess = (e) => resolve(e.target.result || []);
+      req.onerror = () => resolve([]);
+    } catch (e) { resolve([]); }
+  });
+}
+
+/** Re-encrypt mọi field CryptoJS-legacy của 1 record sang AES-GCM (masterCryptoKey mới). */
+async function _reencryptRecord(c) {
+  const decLegacy = (v) => (typeof v === "string" && v.startsWith("U2FsdGVk"))
+    ? (CryptoJS.AES.decrypt(v, masterKeyLegacy).toString(CryptoJS.enc.Utf8) || "") : v;
+  const conv = async (v) => (typeof v === "string" && v.startsWith("U2FsdGVk")) ? await _gcmEncryptField(decLegacy(v)) : v;
+  for (const k of ["name", "phone", "cccd", "notes", "driveLink"]) if (c[k] !== undefined) c[k] = await conv(c[k]);
+  if (Array.isArray(c.assets)) for (const a of c.assets) {
+    for (const k of ["name", "link", "valuation", "loanValue", "area", "width", "onland", "year", "driveLink"]) if (a[k] !== undefined) a[k] = await conv(a[k]);
+  }
+  c.cryptoV = 2;
+}
+
+/** Re-encrypt token Drive (07_drive 'sealed.v1:') trong lúc còn masterKeyLegacy. */
+async function _migrateDriveToken() {
+  try {
+    const tkKey = (typeof USER_TOKEN_KEY !== "undefined") ? USER_TOKEN_KEY : "app_user_script_token";
+    const raw = (localStorage.getItem(tkKey) || "").trim();
+    if (!raw.startsWith("sealed.v1:")) return;         // plaintext/empty -> getUserToken reseal sau
+    const inner = raw.slice("sealed.v1:".length);
+    if (inner.startsWith(GCM_PREFIX)) return;           // đã GCM
+    if (!inner.startsWith("U2FsdGVk")) return;
+    const pt = CryptoJS.AES.decrypt(inner, masterKeyLegacy).toString(CryptoJS.enc.Utf8);
+    if (pt) localStorage.setItem(tkKey, "sealed.v1:" + await _gcmEncryptField(pt));
+  } catch (e) {}
+}
+
+/**
+ * Chạy migration nếu cần (gọi sau _installMasterKey, TRƯỚC primeFieldCache).
+ * @param {string} pin secret mở khóa hằng ngày (để niêm phong MK2 mới)
+ * @param {string} employeeId mã nhân viên (để niêm phong MK2 dưới SEC_KEY)
+ */
+async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
+  if (typeof db === "undefined" || !db) return;
+  if (localStorage.getItem(SCHEMA_KEY) === "2") return;
+
+  // Resume-after-swap: envelope đã MK2 (crash trước khi set cờ) -> chỉ finalize.
+  if (!masterKeyLegacy && masterCryptoKey) {
+    localStorage.setItem(SCHEMA_KEY, "2");
+    localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
+    return;
+  }
+  if (!masterKeyLegacy) return; // cài mới hoàn toàn v2, không có gì để migrate
+
+  // 1) Đúc/khôi phục newMk (resume tái dùng staged key -> không orphan dữ liệu GCM đã ghi).
+  let mkStr = null;
+  const staged = localStorage.getItem(PIN_STAGE);
+  if (staged) mkStr = await openMasterKeyV2(pin, staged);
+  if (!mkStr) {
+    mkStr = generateMasterKey();
+    localStorage.setItem(PIN_STAGE, await sealMasterKey(pin, mkStr));
+    if (employeeId) localStorage.setItem(SEC_STAGE, await sealMasterKey(employeeId, mkStr));
+  }
+
+  // 2) Cài GCM key để GHI; GIỮ masterKeyLegacy để ĐỌC dữ liệu cũ.
+  masterKeyBytes = _b64DecodeToBytes(mkStr.slice(4));
+  masterCryptoKey = await crypto.subtle.importKey("raw", masterKeyBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+
+  // 3) Từng record: ĐỌC (tx1) -> re-encrypt (await crypto NGOÀI transaction) -> GHI (tx2, thuần sync).
+  //    Không await WebCrypto giữa 1 transaction (IDB tự commit/close). Mỗi record 1 tx ghi -> atomic + resume-safe.
+  for (const id of await _getAllCustomerKeys()) {
+    const c = await new Promise((resolve, reject) => {
+      const g = db.transaction(["customers"], "readonly").objectStore("customers").get(id);
+      g.onsuccess = () => resolve(g.result);
+      g.onerror = () => reject(g.error);
+    });
+    if (!c || c.cryptoV === 2) continue;   // idempotent: đã GCM thì bỏ qua (resume sau crash)
+    await _reencryptRecord(c);
+    await new Promise((resolve, reject) => {
+      const p = db.transaction(["customers"], "readwrite").objectStore("customers").put(c);
+      p.onsuccess = () => resolve();
+      p.onerror = () => reject(p.error);
+    });
+  }
+  await _migrateDriveToken();
+
+  // 4) FINALIZE — swap envelope TRƯỚC (loop đã 100%), set cờ SAU CÙNG.
+  localStorage.setItem(PIN_KEY, localStorage.getItem(PIN_STAGE));
+  if (localStorage.getItem(SEC_STAGE)) localStorage.setItem(SEC_KEY, localStorage.getItem(SEC_STAGE));
+  localStorage.setItem(SCHEMA_KEY, "2");
+  localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
+  masterKey = mkStr; masterKeyLegacy = null;
 }
 
 // ============================================================
@@ -268,10 +482,15 @@ async function openMasterKeyV2(secret, rawStored) {
     const key = await _deriveEnvelopeKey(secret, _b64DecodeToBytes(env.salt), Number(env.iter) || PBKDF2_ITER_DEFAULT);
     const ptBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: _b64DecodeToBytes(env.iv) }, key, _b64DecodeToBytes(env.ct));
     const mk = new TextDecoder().decode(ptBuf);
-    return mk && mk.startsWith("mk_") ? mk : null;
+    return _isValidMasterKeyString(mk) ? mk : null;
   } catch (e) {
     return null;
   }
+}
+
+/** masterKey hợp lệ: định dạng mới "MK2:" hoặc legacy "mk_" (tương thích ngược). */
+function _isValidMasterKeyString(mk) {
+  return !!mk && (mk.startsWith("MK2:") || mk.startsWith("mk_"));
 }
 
 /** Mở envelope legacy (CryptoJS.AES với passphrase = SHA-256(secret)). */
@@ -281,7 +500,7 @@ async function openMasterKeyLegacy(secret, rawStored) {
     const hashed = await hashString(String(secret));
     const bytes = CryptoJS.AES.decrypt(String(rawStored), hashed);
     const mk = bytes.toString(CryptoJS.enc.Utf8);
-    return mk && mk.startsWith("mk_") ? mk : null;
+    return _isValidMasterKeyString(mk) ? mk : null;
   } catch (e) {
     return null;
   }
@@ -762,10 +981,12 @@ async function saveSecuritySetup() {
   // Lưu lại mã nhân viên đề phòng chưa lưu lúc kích hoạt
   localStorage.setItem(EMPLOYEE_KEY, ans);
   /* * Thiết lập bảo mật v2: * - Sinh masterKey nếu chưa tồn tại * - Niêm phong masterKey bằng PBKDF2 + AES-GCM với 2 secret: PIN 6 số (mở khóa hằng ngày) và mã nhân viên (khôi phục) */
-  // Nếu masterKey chưa sinh (lần đầu thiết lập), tạo mới
+  // Nếu masterKey chưa sinh (lần đầu thiết lập), tạo mới bằng CSPRNG (MK2)
   if (!masterKey) {
     masterKey = generateMasterKey();
   }
+  // Dựng key GCM cho phiên (fresh install), hoặc giữ nguyên nếu đã cài từ unlock/recovery.
+  await _installMasterKey(masterKey);
   const btn = getEl("setup-save-btn");
   const btnLabel = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Đang mã hóa..."; }
@@ -776,6 +997,15 @@ async function saveSecuritySetup() {
     if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
   }
   resetPinFailures();
+  // Đảm bảo dữ liệu ở định dạng AES-GCM mới nhất (idempotent):
+  // - Fresh install (MK2, không legacy) -> chỉ đánh dấu schema='2'.
+  // - Sau khôi phục mà dữ liệu còn CryptoJS -> migrate ngay dưới PIN vừa đặt.
+  try {
+    await runFieldCryptoMigrationIfNeeded(pin, ans);
+  } catch (e) {
+    try { ErrorHandler.logError("crypto-migration", e); } catch (_) {}
+  }
+  await primeFieldCache();
   // PIN vừa đổi: enrollment sinh trắc học cũ (nếu có) mã hóa PIN cũ nên không còn hợp lệ.
   try { if (window.BiometricUnlock) window.BiometricUnlock.onPinChanged(); } catch (e) { }
   // Ẩn hộp thoại và thông báo
@@ -834,12 +1064,21 @@ async function validatePin() {
     _pinChecking = false;
   }
   if (res && res.masterKey) {
-    // Giải mã thành công: thiết lập masterKey và mở khóa giao diện
-    masterKey = res.masterKey;
+    // Giải mã thành công: cài masterKey (dựng key GCM) và mở khóa giao diện
+    await _installMasterKey(res.masterKey);
+    const pinForMigration = currentPin;
+    const empForMigration = (localStorage.getItem(EMPLOYEE_KEY) || "").trim();
     currentPin = ""; // không giữ PIN trong bộ nhớ lâu hơn cần thiết
     resetPinFailures();
     _setKeypadDisabled(false);
     getEl("screen-lock").classList.add("hidden");
+    // Migration 1 lần (CryptoJS -> AES-GCM) rồi nạp cache trước khi render danh sách.
+    try {
+      await runFieldCryptoMigrationIfNeeded(pinForMigration, empForMigration);
+    } catch (e) {
+      try { ErrorHandler.logError("crypto-migration", e); } catch (_) {}
+    }
+    await primeFieldCache();
     // Sau khi unlock, tải lại danh sách khách hàng để giải mã dữ liệu
     loadCustomers(getEl("search-input").value);
     // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới (masterKey giữ nguyên, dữ liệu không đổi)
@@ -881,8 +1120,9 @@ async function checkRecovery() {
   // Chấp nhận cả SEC_KEY legacy lẫn v2; input untrimmed cũ vẫn khớp vì setup luôn trim
   const res = await unwrapMasterKeyAny(input, encMaster);
   if (res && res.masterKey) {
-    // Khôi phục masterKey và cho phép đặt lại PIN 6 số
-    masterKey = res.masterKey;
+    // Khôi phục masterKey (cài key GCM/legacy) và cho phép đặt lại PIN 6 số.
+    // Migration (nếu dữ liệu còn CryptoJS) sẽ chạy trong saveSecuritySetup dưới PIN mới.
+    await _installMasterKey(res.masterKey);
     resetPinFailures();
     ErrorHandler.showSuccess("Xác thực thành công. Vui lòng tạo PIN mới.");
     closeForgotModal();
@@ -953,8 +1193,8 @@ async function activateApp() {
         const encMaster = localStorage.getItem(SEC_KEY);
         const recovered = await unwrapMasterKeyAny(employeeId, encMaster);
         if (recovered && recovered.masterKey) {
-          // Đúng nhân viên cũ: giữ nguyên masterKey và dữ liệu, gia hạn thành công
-          masterKey = recovered.masterKey;
+          // Đúng nhân viên cũ: cài masterKey (key GCM/legacy), giữ nguyên dữ liệu
+          await _installMasterKey(recovered.masterKey);
           // Nhân tiện nâng cấp SEC_KEY lên v2 nếu còn định dạng cũ
           if (recovered.legacy) {
             try { localStorage.setItem(SEC_KEY, await sealMasterKey(employeeId, masterKey)); } catch (e) { }
@@ -987,8 +1227,8 @@ async function activateApp() {
               localStorage.clear();
               indexedDB.deleteDatabase(DB_NAME);
             } catch (e) { }
-            // Đặt lại masterKey và lưu trạng thái kích hoạt mới
-            masterKey = null;
+            // Đặt lại toàn bộ vật liệu khóa và lưu trạng thái kích hoạt mới
+            clearMasterKeyMaterial();
             localStorage.setItem(ACTIVATED_KEY, "true");
             localStorage.setItem(EMPLOYEE_KEY, employeeId);
             try { await ensureBackupSecret(); } catch (e) { }

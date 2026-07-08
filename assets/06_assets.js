@@ -365,18 +365,18 @@ function closeAssetModal() {
   currentAssetId = null;
 }
 
-function saveAsset() {
+async function saveAsset() {
   // Lấy giá trị từ các ô nhập liệu
   const name = getEl("asset-name").value.trim();
   let link = getEl("asset-link").value.trim();
 
-  // Helper:
+  // Helper (ASYNC vì AES-GCM/WebCrypto bất đồng bộ):
   // - Chỉ mã hóa nếu có dữ liệu (tránh biến ô trống thành mã loằng ngoằng)
   // - Không mã hóa trường 'name' của TSBĐ nữa để:
-  //   + tránh hiện chuỗi U2FsdGVk... ở các luồng UI/Drive
+  //   + tránh hiện chuỗi mã hóa ở các luồng UI/Drive
   //   + đảm bảo tính năng "tìm lại link" search folder theo plaintext
   // Các trường khác vẫn giữ cơ chế mã hóa như cũ để không ảnh hưởng chức năng.
-  const enc = (txt) => (txt ? encryptText(txt) : "");
+  const enc = async (txt) => (txt ? await encryptText(txt) : "");
 
   if (!name) return ErrorHandler.showError('VALIDATION', 'Vui lòng nhập mô tả tài sản.');
 
@@ -392,15 +392,16 @@ function saveAsset() {
   // Tương thích dữ liệu cũ:
   // - dữ liệu cũ: asset.name là ciphertext -> các chỗ render vẫn gọi decryptText(asset.name)
   // - dữ liệu mới: asset.name là plaintext -> decryptText() sẽ fallback (hoặc trả nguyên bản) và UI vẫn hiển thị đúng
+  // Mã hóa TRƯỚC khi persist (persistCurrentCustomer mở transaction, không await bên trong).
   const assetObj = {
     name: name,
-    link: enc(link),
-    valuation: enc(getEl("asset-val").value),
-    loanValue: enc(getEl("asset-loan").value),
-    area: enc(getEl("asset-area").value),
-    width: enc(getEl("asset-width").value),
-    onland: enc(getEl("asset-onland").value),
-    year: enc(getEl("asset-year").value),
+    link: await enc(link),
+    valuation: await enc(getEl("asset-val").value),
+    loanValue: await enc(getEl("asset-loan").value),
+    area: await enc(getEl("asset-area").value),
+    width: await enc(getEl("asset-width").value),
+    onland: await enc(getEl("asset-onland").value),
+    year: await enc(getEl("asset-year").value),
   };
 
   const index = getEl("edit-asset-index").value;

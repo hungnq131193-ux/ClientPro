@@ -80,7 +80,10 @@ function loadSecurity() {
     THEME_KEY: 'app_theme',
     EMPLOYEE_KEY: 'app_employee_id',
     ACTIVATED_KEY: 'app_activated',
+    USER_TOKEN_KEY: 'app_user_script_token',
     DB_NAME: 'QLKH_Pro_V4',
+    db: null,                 // gán qua api.setDb(makeFakeDb(...)) khi test migration/prime
+    queueMicrotask: (fn) => Promise.resolve().then(fn),
     getEl: () => null,
     document: { getElementById: () => null, body: {}, querySelectorAll: () => [] },
     ErrorHandler: errorHandlerStub,
@@ -103,11 +106,25 @@ function loadSecurity() {
   // được masterKey và tham chiếu mọi hàm/hằng khai báo ở đầu file.
   const epilogue = `
     globalThis.__api = {
-      setMasterKey: (k) => { masterKey = k; },
+      // Cài masterKey mới (MK2) — ASYNC (dựng AES-GCM CryptoKey qua _installMasterKey).
+      setMasterKey: async (k) => { await _installMasterKey(k); },
+      // Cài masterKey legacy "mk_..." (đọc/migrate dữ liệu CryptoJS cũ).
+      setLegacyMasterKey: (k) => { masterKey = k; masterKeyLegacy = k; masterCryptoKey = null; masterKeyBytes = null; },
       getMasterKey: () => masterKey,
-      encryptText,
-      decryptText,
+      getState: () => ({ mk: masterKey, legacy: masterKeyLegacy, hasGcmKey: !!masterCryptoKey }),
+      setDb: (d) => { db = d; },
+      getDb: () => db,
+      encryptText,               // ASYNC nay (AES-GCM)
+      decryptText,               // đồng bộ (đọc cache / legacy CryptoJS)
       generateMasterKey,
+      _installMasterKey,
+      clearMasterKeyMaterial,
+      _gcmEncryptField,
+      _gcmDecryptField,
+      primeFieldCache,
+      resetFieldCache: () => __fieldPlainCache.clear(),
+      runFieldCryptoMigrationIfNeeded,
+      _reencryptRecord,
       encryptBackupPayload,
       decryptBackupPayload,
       sealMasterKey,
@@ -133,4 +150,44 @@ function randomKdataB64u() {
   return Buffer.from(webcrypto.getRandomValues(new Uint8Array(32))).toString('base64url');
 }
 
-module.exports = { loadSecurity, randomKdataB64u, CryptoJS };
+/**
+ * IndexedDB in-memory tối thiểu (zero-dependency) đủ cho migration + primeFieldCache:
+ * hỗ trợ transaction().objectStore(name).get/getAll/getAllKeys/put/delete.
+ * Callback request kích hoạt qua microtask (sau khi caller gán onsuccess/onerror).
+ */
+function makeFakeDb(customers = [], images = []) {
+  const stores = { customers: new Map(), images: new Map() };
+  for (const c of customers) stores.customers.set(c.id, c);
+  for (const im of images) stores.images.set(im.id, im);
+
+  function makeReq(compute) {
+    const r = { onsuccess: null, onerror: null, result: undefined, error: null };
+    Promise.resolve().then(() => {
+      try {
+        r.result = compute();            // real IDB đặt cả request.result LẪN event.target.result
+        if (r.onsuccess) r.onsuccess({ target: r });
+      } catch (e) {
+        r.error = e;
+        if (r.onerror) r.onerror({ target: r });
+      }
+    });
+    return r;
+  }
+  function objectStore(name) {
+    const m = stores[name];
+    return {
+      get: (k) => makeReq(() => m.get(k)),
+      getAll: () => makeReq(() => [...m.values()]),
+      getAllKeys: () => makeReq(() => [...m.keys()]),
+      put: (v) => makeReq(() => { m.set(v.id, v); return v.id; }),
+      delete: (k) => makeReq(() => { m.delete(k); return undefined; }),
+    };
+  }
+  return {
+    _stores: stores,
+    objectStoreNames: { contains: (n) => n in stores },
+    transaction: () => ({ objectStore }),
+  };
+}
+
+module.exports = { loadSecurity, randomKdataB64u, makeFakeDb, CryptoJS };

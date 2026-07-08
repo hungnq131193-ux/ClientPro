@@ -38,6 +38,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Global error handling: bắt window.onerror + unhandledrejection ngay từ đầu để
   // ghi log cục bộ và báo lỗi thân thiện cho user khi có sự cố ngoài dự kiến.
   try { if (window.ErrorHandler && typeof window.ErrorHandler.installGlobalHandlers === "function") window.ErrorHandler.installGlobalHandlers(); } catch (e) { }
+  // Accessibility cho modal (focus trap + aria-modal + Esc). An toàn nếu thiếu.
+  try { if (window.ModalA11y && typeof window.ModalA11y.init === "function") window.ModalA11y.init(); } catch (e) { }
 
   // UX: ẩn loader sớm để tránh cảm giác "treo" khi thiết bị/network chậm.
   // Dữ liệu sẽ render dần khi IndexedDB trả về.

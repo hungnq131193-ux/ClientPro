@@ -44,6 +44,9 @@ jobs:
             exit 1
           fi
 
+      - name: Verify version single-source (package.json → manifest/sw/pwa/README)
+        run: node scripts/sync-version.mjs --check
+
       - name: Verify version is synchronized across files
         run: |
           set -euo pipefail
@@ -104,3 +107,42 @@ jobs:
       # Không thêm dependency, không thêm asset -> không đụng versioning/cache-buster.
       - name: Run test suite (Node built-in runner)
         run: node --test 'tests/**/*.test.js'
+
+  e2e:
+    name: E2E + a11y + Lighthouse (Playwright/axe/LHCI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # devDeps CHỈ cho CI (Playwright/axe/Lighthouse). App shipped vẫn zero-dependency.
+      # Dùng `npm install` (không `npm ci`) vì không commit package-lock.json.
+      - name: Install CI test tooling
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E + axe a11y
+        run: npx playwright test
+
+      - name: Lighthouse CI (a11y gate + perf/best-practices cảnh báo)
+        run: npx lhci autorun
+        continue-on-error: true
+
+      - name: Upload E2E & Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-lighthouse-reports
+          path: |
+            playwright-report/
+            .lighthouseci/
+          if-no-files-found: ignore
