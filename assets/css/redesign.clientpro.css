@@ -440,7 +440,11 @@ body.theme-vietinbank #info-notes {
    6. MÀN HÌNH KHÓA — bàn phím tròn kiểu ngân hàng
    --------------------------------------------------------------------------- */
 #screen-lock {
-  position: relative;
+  /* Must stay `fixed` (matches the `.fixed` Tailwind class in screen-lock.html) so the
+     PIN gate always covers the full viewport. An ID selector here beats `.fixed`'s
+     specificity, so overriding to `relative` shrank the overlay to its intrinsic content
+     height and exposed the dashboard underneath before unlock — a real data-exposure bug. */
+  position: fixed !important;
   background: radial-gradient(ellipse 120% 70% at 50% 0%, rgba(0, 91, 159, 0.55) 0%, transparent 60%), #0a1628 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;

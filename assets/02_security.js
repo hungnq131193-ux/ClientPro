@@ -219,6 +219,16 @@ async function _gcmDecryptField(s) {
  */
 async function encryptText(text) {
   if (!masterKey || text === undefined || text === null) return text;
+  const s = String(text);
+  // Chống double-encryption: nếu chuỗi truyền vào ĐÃ trông như 1 envelope ciphertext
+  // (cpg1:... hoặc U2FsdGVk... của legacy), từ chối mã hóa lại. Trường hợp này xảy ra khi
+  // 1 field lazy-decrypt bị cache-miss lúc render (decryptText trả nguyên ciphertext), UI
+  // vô tình đổ ciphertext đó vào ô input, rồi user bấm Lưu — nếu mã hóa tiếp sẽ lồng thêm
+  // 1 lớp AES-GCM ngoài ciphertext cũ, làm dữ liệu hỏng VĨNH VIỄN (không cách nào gỡ lại vì
+  // decryptFieldAsync chỉ mở đúng 1 lớp). Ném lỗi để caller dừng lưu thay vì âm thầm phá dữ liệu.
+  if (s.startsWith(GCM_PREFIX) || s.startsWith("U2FsdGVk")) {
+    throw new Error("encryptText: từ chối mã hóa chuỗi đã trông như ciphertext (chống double-encryption)");
+  }
   if (masterCryptoKey) return _gcmEncryptField(text);
   try {
     return CryptoJS.AES.encrypt(String(text), masterKeyLegacy || masterKey).toString(); // chỉ pre-migration
