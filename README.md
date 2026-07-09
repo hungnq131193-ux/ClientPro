@@ -3,7 +3,7 @@
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
-[![Version](https://img.shields.io/badge/version-1.5.7-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.5.8-blue.svg)](manifest.json)
 
 > **Live demo:** https://client-pro-beryl.vercel.app
 
@@ -16,7 +16,7 @@
 ## Tính năng
 
 - 👥 **Khách hàng & tài sản bảo đảm** — CRUD, tìm kiếm không dấu (tên/CCCD/SĐT), lọc, ảnh, ghi chú, chọn nhiều & thao tác hàng loạt, luồng phê duyệt, tham khảo giá tài sản.
-- 🔒 **Bảo mật cục bộ** — kích hoạt thiết bị, PIN + câu hỏi bảo mật, sinh trắc học WebAuthn; mã hóa dữ liệu AES-256-GCM (WebCrypto) ngay trên thiết bị.
+- 🔒 **Bảo mật cục bộ** — kích hoạt thiết bị, PIN + câu hỏi bảo mật, sinh trắc học WebAuthn; mã hóa dữ liệu AES-256-GCM (WebCrypto) ngay trên thiết bị; UI không bao giờ hiện chuỗi mã hóa (`cpg1:` / legacy) ra màn hình.
 - ☁️ **Sao lưu & chuyển dữ liệu** — backup mã hóa `.cpb` (tự động/thủ công) lên Google Drive **cá nhân**; Cloud Transfer gửi/nhận dữ liệu giữa các thiết bị qua Google Apps Script (khóa cấp riêng từng user).
 - 🗺️ **Bản đồ & khoảng cách đường thực tế** — MapLibre GL self-host + OSRM, có validation snap + cache + fallback cho kết quả chính xác mà hoàn toàn miễn phí; marker clustering.
 - 📱 **PWA & mobile-first** — cài lên màn hình chính, offline, camera trong app, lightbox, edge back-swipe, chuyển màn hình mượt.
@@ -69,14 +69,14 @@ Mở `http://localhost:8000/`.
 
 Hai định danh độc lập, mỗi loại một nguồn duy nhất:
 
-**1. Phiên bản app (semver)** — hiện tại **`1.5.7`**. Nguồn: `package.json` → `version`. Sửa ở đó rồi chạy:
+**1. Phiên bản app (semver)** — hiện tại **`1.5.8`**. Nguồn: `package.json` → `version`. Sửa ở đó rồi chạy:
 
 ```bash
 npm run sync:version      # ghi semver ra manifest.json, sw.js, pwa.js, README
 npm run check:version     # chỉ kiểm tra (CI dùng, lệch => fail)
 ```
 
-**2. Tag cache-buster asset** — hiện tại **`CRYPTOFIX2_20260709`**. Nguồn: `ASSET_V` trong `sw.js`; phải đồng nhất với mọi query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`. Đổi tay khi thay asset.
+**2. Tag cache-buster asset** — hiện tại **`ZINDEXFIX_20260709`**. Nguồn: `ASSET_V` trong `sw.js`; phải đồng nhất với mọi query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`. Đổi tay khi thay asset.
 
 CI kiểm tra cả hai — không sửa tay các file đích của semver.
 

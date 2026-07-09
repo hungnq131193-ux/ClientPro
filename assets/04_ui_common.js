@@ -141,15 +141,53 @@ function bindLongPress(el, onLongPress, options) {
 
 function navigateLightbox(dir) {
     if (currentLightboxList.length <= 1) return;
-    currentLightboxIndex += dir; if (currentLightboxIndex < 0) currentLightboxIndex = currentLightboxList.length - 1; if (currentLightboxIndex >= currentLightboxList.length) currentLightboxIndex = 0;
+    currentLightboxIndex += dir;
+    if (currentLightboxIndex < 0) currentLightboxIndex = currentLightboxList.length - 1;
+    if (currentLightboxIndex >= currentLightboxList.length) currentLightboxIndex = 0;
+    const item = currentLightboxList[currentLightboxIndex];
+    // Ưu tiên _displayData (đã giải mã khi load gallery); tuyệt đối không gán ciphertext vào src
+    let src = (item && (item._displayData || item.data)) || '';
+    if (typeof _looksEncrypted === 'function' && _looksEncrypted(src)) src = '';
+    if (typeof isSafeImageUrl === 'function' && src && !isSafeImageUrl(src)) src = '';
     const imgEl = getEl('lightbox-img');
-    imgEl.style.transform = dir > 0 ? 'translateX(-20px)' : 'translateX(20px)'; imgEl.style.opacity = '0';
-    setTimeout(() => { imgEl.src = currentLightboxList[currentLightboxIndex].data; imgEl.style.transform = dir > 0 ? 'translateX(20px)' : 'translateX(-20px)'; setTimeout(() => { imgEl.style.transform = 'translateX(0)'; imgEl.style.opacity = '1'; currentImageId = currentLightboxList[currentLightboxIndex].id; currentImageBase64 = currentLightboxList[currentLightboxIndex].data; getEl('lightbox-counter').textContent = `${currentLightboxIndex + 1}/${currentLightboxList.length}`; }, 50); }, 150);
+    imgEl.style.transform = dir > 0 ? 'translateX(-20px)' : 'translateX(20px)';
+    imgEl.style.opacity = '0';
+    setTimeout(() => {
+        imgEl.src = src;
+        imgEl.style.transform = dir > 0 ? 'translateX(20px)' : 'translateX(-20px)';
+        setTimeout(() => {
+            imgEl.style.transform = 'translateX(0)';
+            imgEl.style.opacity = '1';
+            currentImageId = item && item.id;
+            currentImageBase64 = src;
+            getEl('lightbox-counter').textContent = `${currentLightboxIndex + 1}/${currentLightboxList.length}`;
+            // Nếu chưa có _displayData (ảnh mã hóa chưa resolve), giải mã nền rồi cập nhật
+            if ((!src || src === item.data) && item && item.data && typeof resolveImageData === 'function'
+                && typeof _looksEncrypted === 'function' && _looksEncrypted(item.data)) {
+                const idxAtStart = currentLightboxIndex;
+                resolveImageData(item).then((resolved) => {
+                    if (!resolved || currentLightboxIndex !== idxAtStart) return;
+                    item._displayData = resolved;
+                    imgEl.src = resolved;
+                    currentImageBase64 = resolved;
+                }).catch(() => { });
+            }
+        }, 50);
+    }, 150);
 }
 function openLightbox(src, id, idx, list) {
-    getEl('lightbox').classList.remove('hidden'); currentLightboxIndex = idx;
-    if (list && list.length > 0) currentLightboxList = list; else currentLightboxList = [{ id: id, data: src }];
-    const imgEl = getEl('lightbox-img'); imgEl.src = src; currentImageId = id; currentImageBase64 = src; getEl('lightbox-counter').textContent = `${currentLightboxIndex + 1}/${currentLightboxList.length}`;
+    getEl('lightbox').classList.remove('hidden');
+    currentLightboxIndex = idx;
+    if (list && list.length > 0) currentLightboxList = list;
+    else currentLightboxList = [{ id: id, data: src, _displayData: src }];
+    const imgEl = getEl('lightbox-img');
+    let safeSrc = src || '';
+    if (typeof _looksEncrypted === 'function' && _looksEncrypted(safeSrc)) safeSrc = '';
+    if (typeof isSafeImageUrl === 'function' && safeSrc && !isSafeImageUrl(safeSrc)) safeSrc = '';
+    imgEl.src = safeSrc;
+    currentImageId = id;
+    currentImageBase64 = safeSrc;
+    getEl('lightbox-counter').textContent = `${currentLightboxIndex + 1}/${currentLightboxList.length}`;
 }
 function closeLightbox() { getEl('lightbox').classList.add('hidden'); }
 

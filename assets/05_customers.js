@@ -239,12 +239,8 @@ async function updateFolderCounts(customersOpt) {
 // - Chỉ gọi lucide.createIcons() 1 lần sau khi render xong
 // =======================
 const __custSummaryCache = window.__custSummaryCache || (window.__custSummaryCache = new Map());
-// Ciphertext có 2 dạng: legacy CryptoJS "U2FsdGVk..." và mới AES-GCM "cpg1:...".
-// decryptText() trả nguyên ciphertext khi chưa unlock / cache chưa nạp -> UI phải coi là
-// "chưa giải mã" để không cache nhầm và hiện đúng trạng thái "Đang tải...".
-function _looksEncrypted(v) {
-    return (typeof v === 'string') && (v.startsWith('U2FsdGVk') || v.startsWith('cpg1:'));
-}
+// _looksEncrypted / _displayPlain / _displayPlainAsync: nguồn duy nhất ở 00_globals.js (v1.5.8).
+
 // Chuẩn hóa tiếng Việt cho tìm kiếm: hạ chữ + bỏ dấu (NFD) + đ->d.
 // Cho phép gõ "nguyen" tìm ra "Nguyễn", "da nang" ra "Đà Nẵng".
 function _normVi(s) {
@@ -591,7 +587,7 @@ function openModal() {
 }
 
 // Open modal to edit current customer (from folder view pencil button)
-function openEditCustomerModal() {
+async function openEditCustomerModal() {
     if (!currentCustomerData) {
         ErrorHandler.showError('VALIDATION', 'Không có dữ liệu khách hàng để sửa.');
         return;
@@ -599,10 +595,22 @@ function openEditCustomerModal() {
 
     getEl('add-modal').classList.remove('hidden');
 
-    // Fill form with current customer data (check for encrypted values)
-    const safeName = (currentCustomerData.name && !_looksEncrypted(currentCustomerData.name)) ? currentCustomerData.name : '';
-    const safePhone = (currentCustomerData.phone && !_looksEncrypted(currentCustomerData.phone)) ? currentCustomerData.phone : '';
-    const safeCccd = (currentCustomerData.cccd && !_looksEncrypted(currentCustomerData.cccd)) ? currentCustomerData.cccd : '';
+    // Fill form — async decrypt + guard ciphertext (không đổ cpg1: vào ô input)
+    let safeName = '', safePhone = '', safeCccd = '';
+    try {
+        if (typeof _displayPlainAsync === 'function') {
+            [safeName, safePhone, safeCccd] = await Promise.all([
+                _displayPlainAsync(currentCustomerData.name, ''),
+                _displayPlainAsync(currentCustomerData.phone, ''),
+                _displayPlainAsync(currentCustomerData.cccd, ''),
+            ]);
+        } else {
+            safeName = (currentCustomerData.name && !_looksEncrypted(currentCustomerData.name)) ? currentCustomerData.name : '';
+            safePhone = (currentCustomerData.phone && !_looksEncrypted(currentCustomerData.phone)) ? currentCustomerData.phone : '';
+            safeCccd = (currentCustomerData.cccd && !_looksEncrypted(currentCustomerData.cccd)) ? currentCustomerData.cccd : '';
+        }
+    } catch (e) { }
+
     getEl('new-name').value = safeName;
     getEl('new-phone').value = safePhone;
     if (getEl('new-cccd')) getEl('new-cccd').value = safeCccd;
@@ -707,7 +715,7 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'dup-warning-overlay';
-        overlay.className = 'fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm';
+        overlay.className = 'fixed inset-0 z-[200] bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm';
         document.body.appendChild(overlay);
     }
 
@@ -754,11 +762,33 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
     ]);
     overlay.appendChild(panel);
 
-    nameEl.textContent = existing.name || 'Không tên';
-    phoneEl.textContent = existing.phone || 'N/A';
-    cccdEl.textContent = existing.cccd || 'N/A';
+    nameEl.textContent = (typeof _displayPlain === 'function')
+        ? _displayPlain(existing.name, 'Không tên')
+        : ((existing.name && !_looksEncrypted(existing.name)) ? existing.name : 'Không tên');
+    phoneEl.textContent = (typeof _displayPlain === 'function')
+        ? _displayPlain(existing.phone, 'N/A')
+        : ((existing.phone && !_looksEncrypted(existing.phone)) ? existing.phone : 'N/A');
+    cccdEl.textContent = (typeof _displayPlain === 'function')
+        ? _displayPlain(existing.cccd, 'N/A')
+        : ((existing.cccd && !_looksEncrypted(existing.cccd)) ? existing.cccd : 'N/A');
 
     overlay.classList.remove('hidden');
+    // Async refresh: nếu sync decrypt miss cache, nạp thật rồi cập nhật overlay
+    (async () => {
+        try {
+            if (typeof _displayPlainAsync !== 'function') return;
+            const [n, p, c] = await Promise.all([
+                _displayPlainAsync(existing.name, 'Không tên'),
+                _displayPlainAsync(existing.phone, 'N/A'),
+                _displayPlainAsync(existing.cccd, 'N/A'),
+            ]);
+            if (!getEl('dup-warning-overlay') || getEl('dup-warning-overlay').classList.contains('hidden')) return;
+            nameEl.textContent = n;
+            phoneEl.textContent = p;
+            cccdEl.textContent = c;
+        } catch (e) { }
+    })();
+
     try { lucide.createIcons({ icons: { 'alert-triangle': lucide.icons['alert-triangle'], 'smartphone': lucide.icons['smartphone'], 'id-card': lucide.icons['id-card'], 'folder-open': lucide.icons['folder-open'] }, attrs: {} }); } catch (e) { try { lucide.createIcons(); } catch (e2) { } }
 
     // Event handlers
@@ -1039,10 +1069,38 @@ function updateCustomerAndReload() {
 }
 
 function renderFolderHeader(data) {
-    getEl('folder-customer-name').textContent = data.name; getEl('folder-avatar').textContent = data.name.charAt(0).toUpperCase(); getEl('btn-detail-call').href = getTelLink(data.phone); getEl('btn-detail-zalo').href = getZaloLink(data.phone); getEl('btn-detail-zalo').onclick = () => { openZaloChat(data.phone); return false; };
+    if (!data) return;
+    // Guard ciphertext: sync decryptText có thể trả nguyên "cpg1:..." khi cache chưa nạp.
+    // Không bao giờ hiện chuỗi mã hóa ra tiêu đề hồ sơ / avatar / link gọi.
+    const name = (typeof _displayPlain === 'function')
+        ? _displayPlain(data.name, 'Đang tải...')
+        : ((data.name && !_looksEncrypted(data.name)) ? data.name : 'Đang tải...');
+    const phone = (typeof _displayPlain === 'function')
+        ? _displayPlain(data.phone, '')
+        : ((data.phone && !_looksEncrypted(data.phone)) ? data.phone : '');
+    const nameEl = getEl('folder-customer-name');
+    const avatarEl = getEl('folder-avatar');
+    if (nameEl) nameEl.textContent = name;
+    if (avatarEl) avatarEl.textContent = (name && name !== 'Đang tải...') ? name.charAt(0).toUpperCase() : '?';
+    const callBtn = getEl('btn-detail-call');
+    const zaloBtn = getEl('btn-detail-zalo');
+    if (callBtn) callBtn.href = getTelLink(phone);
+    if (zaloBtn) {
+        zaloBtn.href = getZaloLink(phone);
+        zaloBtn.onclick = () => { openZaloChat(phone); return false; };
+    }
     const badge = getEl('detail-status-badge');
-    if (data.status === 'approved') { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10"; badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span class="badge-value"></span>`; badge.querySelector('.badge-value').textContent = data.creditLimit; }
-    else { badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20"; badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`; } lucide.createIcons();
+    if (!badge) return;
+    if (data.status === 'approved') {
+        badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10";
+        badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span class="badge-value"></span>`;
+        const bv = badge.querySelector('.badge-value');
+        if (bv) bv.textContent = data.creditLimit;
+    } else {
+        badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
+        badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`;
+    }
+    try { lucide.createIcons(); } catch (e) { }
 }
 
 function openFolder(id) {
@@ -1067,25 +1125,6 @@ function openFolder(id) {
                 return;
             }
 
-            // Decrypt summary fields
-            try {
-                if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(currentCustomerData);
-                else {
-                    currentCustomerData.name = decryptText(currentCustomerData.name);
-                    currentCustomerData.phone = decryptText(currentCustomerData.phone);
-                    currentCustomerData.cccd = decryptText(currentCustomerData.cccd);
-                }
-                currentCustomerData.driveLink = decryptText(currentCustomerData.driveLink);
-
-                // Verify decryption succeeded - if still looks encrypted, try full decrypt
-                if (_looksEncrypted(currentCustomerData.name) || _looksEncrypted(currentCustomerData.phone)) {
-                    console.warn('openFolder: data still encrypted, attempting full decrypt');
-                    if (typeof decryptCustomerObject === 'function') {
-                        decryptCustomerObject(currentCustomerData);
-                    }
-                }
-            } catch (err) { ErrorHandler.logError('openFolder decrypt error', err); }
-
             // Fix old data if missing fields
             if (!currentCustomerData.status) currentCustomerData.status = 'pending';
             if (!currentCustomerData.assets) currentCustomerData.assets = [];
@@ -1096,37 +1135,63 @@ function openFolder(id) {
             if (imgArea) { imgArea.innerHTML = ''; imgArea.scrollTop = 0; }
             if (assetArea) { assetArea.innerHTML = ''; assetArea.scrollTop = 0; }
 
-            // Render header with ACTUAL data (not placeholder)
+            // Sync best-effort decrypt for immediate header (may still be ciphertext on
+            // GCM cache-miss — renderFolderHeader guards with _displayPlain).
+            try {
+                if (typeof decryptCustomerSummary === 'function') decryptCustomerSummary(currentCustomerData);
+                else {
+                    currentCustomerData.name = decryptText(currentCustomerData.name);
+                    currentCustomerData.phone = decryptText(currentCustomerData.phone);
+                    currentCustomerData.cccd = decryptText(currentCustomerData.cccd);
+                }
+                currentCustomerData.driveLink = decryptText(currentCustomerData.driveLink);
+            } catch (err) { ErrorHandler.logError('openFolder decrypt error', err); }
+
             renderFolderHeader(currentCustomerData);
 
-            // Render Drive status
             if (typeof renderDriveStatus === "function") {
                 renderDriveStatus(currentCustomerData.driveLink || null);
             }
 
-            // Reset selection mode
             isSelectionMode = false;
             if (typeof selectedImages !== 'undefined') selectedImages.clear();
             if (typeof updateSelectionUI === 'function') updateSelectionUI();
 
-            // Switch to info tab BEFORE showing folder. switchTab() already renders info synchronously.
             switchTab('info');
 
-            // NOW show folder slide-in (data is already populated)
             if (typeof slideScreenIn === 'function') slideScreenIn(folderScreen);
             else if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
             else folderScreen.classList.remove('translate-x-full');
 
-            // Decrypt assets + notes in background (lazy decrypt, v1.5.5): chỉ nạp
-            // __fieldPlainCache, KHÔNG tự hiện ciphertext. Sau khi nạp xong, re-render tab
-            // đang mở (nếu là info/assets) để thay ciphertext transient bằng plaintext thật.
+            // Lazy decrypt (v1.5.8): prime summary + notes + TSBĐ fields, rồi re-render
+            // header + tab đang mở để thay "Đang tải..." / ciphertext transient bằng plaintext.
             const runDecryptAssets = async () => {
                 try {
+                    // Summary async — sửa cache-miss của name/phone/cccd trên header
+                    if (typeof decryptCustomerSummaryAsync === 'function') {
+                        await decryptCustomerSummaryAsync(currentCustomerData);
+                    } else if (typeof decryptFieldAsync === 'function') {
+                        currentCustomerData.name = await decryptFieldAsync(currentCustomerData.name);
+                        currentCustomerData.phone = await decryptFieldAsync(currentCustomerData.phone);
+                        currentCustomerData.cccd = await decryptFieldAsync(currentCustomerData.cccd);
+                    }
+                    if (typeof decryptFieldAsync === 'function' && currentCustomerData.driveLink) {
+                        try {
+                            const dl = await decryptFieldAsync(currentCustomerData.driveLink);
+                            if (dl && !_looksEncrypted(dl)) currentCustomerData.driveLink = dl;
+                        } catch (e) { }
+                    }
                     if (typeof decryptFieldAsync === 'function' && currentCustomerData.notes) {
                         await decryptFieldAsync(currentCustomerData.notes);
                     }
                     if (typeof window.decryptCustomerAssetsAsync === 'function') {
                         await window.decryptCustomerAssetsAsync(currentCustomerData, { batchSize: 6 });
+                    }
+                    // Chỉ re-render nếu vẫn đang xem đúng hồ sơ này
+                    if (!currentCustomerData || currentCustomerData.id !== id) return;
+                    renderFolderHeader(currentCustomerData);
+                    if (typeof renderDriveStatus === "function") {
+                        renderDriveStatus(currentCustomerData.driveLink || null);
                     }
                     const contentInfo = getEl('content-info');
                     const contentAssets = getEl('content-assets');
@@ -1230,13 +1295,16 @@ function loadCustomerInfo() {
 
     const c = currentCustomerData;
 
-    // phone, cccd, name are already decrypted by decryptCustomerSummary in openFolder
-    // Only notes needs to be decrypted here
-    // Check if field still looks encrypted - show '--' instead
-    const phone = (c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--';
-    const cccd = (c.cccd && !_looksEncrypted(c.cccd)) ? c.cccd : '--';
-    const rawNotes = decryptText(c.notes);
-    const notes = (rawNotes && !_looksEncrypted(rawNotes)) ? rawNotes : '';
+    // Guard ciphertext (sync decryptText fail-open trên cache-miss)
+    const phone = (typeof _displayPlain === 'function')
+        ? _displayPlain(c.phone, '--')
+        : ((c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--');
+    const cccd = (typeof _displayPlain === 'function')
+        ? _displayPlain(c.cccd, '--')
+        : ((c.cccd && !_looksEncrypted(c.cccd)) ? c.cccd : '--');
+    const notes = (typeof _displayPlain === 'function')
+        ? _displayPlain(c.notes, '')
+        : (() => { const raw = decryptText(c.notes); return (raw && !_looksEncrypted(raw)) ? raw : ''; })();
     const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
 
     const phoneEl = getEl('info-phone');

@@ -16,19 +16,28 @@
       }
     });
 
-    // decrypt for display
-    list.forEach((c) => {
+    // decrypt for display — async + guard ciphertext (v1.5.8)
+    await Promise.all(list.map(async (c) => {
       try {
-        if (typeof decryptCustomerObject === 'function') {
+        if (typeof decryptCustomerSummaryAsync === 'function') {
+          await decryptCustomerSummaryAsync(c);
+        } else if (typeof decryptFieldAsync === 'function') {
+          c.name = await decryptFieldAsync(c.name);
+          c.phone = await decryptFieldAsync(c.phone);
+        } else if (typeof decryptCustomerObject === 'function') {
           decryptCustomerObject(c);
         } else {
           c.name = typeof decryptText === 'function' ? decryptText(c.name) : (c.name || '');
           c.phone = typeof decryptText === 'function' ? decryptText(c.phone) : (c.phone || '');
         }
+        if (typeof _looksEncrypted === 'function') {
+          if (_looksEncrypted(c.name)) c.name = '';
+          if (_looksEncrypted(c.phone)) c.phone = '';
+        }
       } catch (e) {
         // ignore
       }
-    });
+    }));
 
     list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return list;
@@ -84,8 +93,12 @@
         row.appendChild(el('div', { className: `w-5 h-5 rounded-md border border-white/20 flex items-center justify-center ${isOn ? 'bg-emerald-500/20' : 'bg-transparent'}` },
           isOn ? el('span', { style: 'color:#34d399;font-weight:900', text: '✓' }) : null));
         row.appendChild(el('div', { className: 'flex-1 min-w-0' }, [nameEl, phoneEl]));
-        nameEl.textContent = c.name || '---';
-        phoneEl.textContent = c.phone || '';
+        nameEl.textContent = (typeof _displayPlain === 'function')
+          ? _displayPlain(c.name, '---')
+          : ((c.name && !(typeof _looksEncrypted === 'function' && _looksEncrypted(c.name))) ? c.name : '---');
+        phoneEl.textContent = (typeof _displayPlain === 'function')
+          ? _displayPlain(c.phone, '')
+          : ((c.phone && !(typeof _looksEncrypted === 'function' && _looksEncrypted(c.phone))) ? c.phone : '');
 
         row.addEventListener('click', () => {
           if (selected.has(c.id)) selected.delete(c.id);

@@ -11,8 +11,10 @@ function referenceAssetPrice(assetIndex) {
   // 1. Lấy tài sản đang chọn
   const targetAsset = currentCustomerData.assets[assetIndex];
 
-  // GIẢI MÃ LINK BẢN ĐỒ TRƯỚC KHI LẤY TỌA ĐỘ
-  const decryptedTargetLink = decryptText(targetAsset.link);
+  // GIẢI MÃ LINK BẢN ĐỒ TRƯỚC KHI LẤY TỌA ĐỘ (guard ciphertext)
+  const decryptedTargetLink = (typeof _displayPlain === 'function')
+    ? _displayPlain(targetAsset.link, '')
+    : (decryptText(targetAsset.link) || '');
   const targetLoc = parseLatLngFromLink(decryptedTargetLink);
 
   if (!targetLoc) {
@@ -23,30 +25,45 @@ function referenceAssetPrice(assetIndex) {
   LoadingManager.showGlobal("Đang tìm kiếm & so sánh...");
 
   const tx = db.transaction(["customers"], "readonly");
-  tx.objectStore("customers").getAll().onsuccess = (e) => {
+  tx.objectStore("customers").getAll().onsuccess = async (e) => {
     const customers = e.target.result || [];
     const candidates = [];
+    const _plain = (v) => (typeof _displayPlain === 'function')
+      ? _displayPlain(v, '')
+      : ((typeof decryptText === 'function') ? (decryptText(v) || '') : String(v || ''));
+
+    // v1.5.8: nạp cache field cho TẤT CẢ KH (không chỉ hồ sơ đang mở) trước khi so sánh,
+    // tránh hiện ciphertext trong modal tham khảo khi lazy-decrypt chưa từng chạm record khác.
+    if (typeof decryptFieldAsync === 'function') {
+      const primeJobs = [];
+      customers.forEach((cust) => {
+        if (!cust) return;
+        if (cust.name) primeJobs.push(decryptFieldAsync(cust.name).catch(() => { }));
+        (cust.assets || []).forEach((asset) => {
+          ['name', 'link', 'valuation', 'area', 'width'].forEach((f) => {
+            if (asset && asset[f]) primeJobs.push(decryptFieldAsync(asset[f]).catch(() => { }));
+          });
+        });
+      });
+      // Giới hạn concurrency nhẹ: chờ tất cả (số field thường < vài trăm)
+      try { await Promise.all(primeJobs); } catch (err) { }
+    }
 
     customers.forEach((cust) => {
       if (!cust.assets) return;
 
-      // Giải mã tên khách hàng để hiển thị
-      const custName = decryptText(cust.name);
+      const custName = _plain(cust.name);
 
       cust.assets.forEach((asset) => {
-        // Bỏ qua chính tài sản đang so sánh
         if (cust.id === currentCustomerData.id && asset.id === targetAsset.id)
           return;
 
-        // GIẢI MÃ DỮ LIỆU CỦA CÁC TÀI SẢN KHÁC
-        const decryptedLink = decryptText(asset.link);
+        const decryptedLink = _plain(asset.link);
+        if (!decryptedLink || (typeof _looksEncrypted === 'function' && _looksEncrypted(decryptedLink))) return;
         const loc = parseLatLngFromLink(decryptedLink);
 
-        // Giải mã định giá để tính toán
-        const val = parseMoneyToNumber(decryptText(asset.valuation));
-
-        // Giải mã tên tài sản để hiển thị
-        const assetName = decryptText(asset.name) || asset.name || "";
+        const val = parseMoneyToNumber(_plain(asset.valuation));
+        const assetName = _plain(asset.name);
 
         if (loc && val > 0) {
           const dist = distanceMeters(
@@ -56,18 +73,15 @@ function referenceAssetPrice(assetIndex) {
             loc.lng
           );
 
-          // Chỉ lấy các tài sản trong bán kính 5km (hoặc tùy chỉnh)
-          // Ở đây lấy tất cả rồi sort, nhưng có thể if (dist < 5000)
-          // Giải mã diện tích và mặt tiền
-          const assetArea = decryptText(asset.area) || "";
-          const assetWidth = decryptText(asset.width) || "";
+          const assetArea = _plain(asset.area);
+          const assetWidth = _plain(asset.width);
 
           candidates.push({
             customerName: custName,
             assetName: assetName,
             valuation: val,
-            distance: dist, // khóa sort/hiển thị: haversine ban đầu, thay bằng đường bộ khi có
-            straight: dist, // giữ haversine gốc để fallback khi không lấy được đường bộ
+            distance: dist,
+            straight: dist,
             lat: loc.lat,
             lng: loc.lng,
             area: assetArea,
@@ -84,15 +98,11 @@ function referenceAssetPrice(assetIndex) {
       return;
     }
 
-    // Sắp xếp: Gần nhất lên đầu
     candidates.sort((a, b) => a.distance - b.distance);
 
-    // Hiển thị top 20 kết quả (haversine) ngay lập tức
     const top = candidates.slice(0, 30);
     showRefModal(top.slice(0, 20));
 
-    // Nâng cấp bất đồng bộ: thay bằng quãng đường đường bộ khi lấy được.
-    // Gửi top 30 để sau khi sort theo đường bộ, top 20 hiển thị chính xác hơn.
     enhanceRefWithRoadDistances(targetLoc, top, ++__refPriceSeq);
   };
 }
@@ -233,9 +243,12 @@ function renderAssets() {
       "glass-panel p-4 rounded-xl flex flex-col gap-3 transition-transform active:scale-[0.99] mb-4";
     el.style.border = "1px solid rgba(255,255,255,0.12)";
 
-    // --- GIẢI MÃ DỮ LIỆU (DECRYPT) ---
-    // Nếu ô nào lưu rỗng, hàm decryptText sẽ trả về rỗng -> Không hiện chuỗi mã hóa nữa
-    const decName = _deepDecryptLabel(asset.name) || asset.name || "";
+    // --- GIẢI MÃ DỮ LIỆU (DECRYPT) + GUARD CIPHERTEXT (v1.5.8) ---
+    // decryptText fail-open trên cache-miss → phải lọc bằng _displayPlain trước khi textContent.
+    const decName = (typeof _displayPlain === 'function')
+      ? _displayPlain(_deepDecryptLabel(asset.name) || asset.name, 'Đang tải...')
+      : (_deepDecryptLabel(asset.name) || '');
+    const _plain = (v, fb) => (typeof _displayPlain === 'function') ? _displayPlain(v, fb) : (decryptText(v) || fb || '');
 
     // If name is still ciphertext (legacy CryptoJS hoặc đã migrate sang "cpg1:") nhưng
     // decryptText() giải mã thành công ra plaintext, persist lại dạng plaintext.
@@ -244,18 +257,18 @@ function renderAssets() {
       if (typeof asset.name === "string" && _looksEncrypted(asset.name)) {
         const dd = _deepDecryptLabel(asset.name);
         if (dd && dd !== asset.name && !_looksEncrypted(dd)) {
-          asset.name = decName;
+          asset.name = dd;
           _needSaveMigration = true;
         }
       }
     } catch (e) { }
-    const decLink = decryptText(asset.link) || "";
-    const decVal = decryptText(asset.valuation) || "";
-    const decLoan = decryptText(asset.loanValue) || "";
-    const decArea = decryptText(asset.area) || "";
-    const decWidth = decryptText(asset.width) || "";
-    const decYear = decryptText(asset.year) || "";
-    const decOnland = decryptText(asset.onland) || "";
+    const decLink = _plain(asset.link, '');
+    const decVal = _plain(asset.valuation, '');
+    const decLoan = _plain(asset.loanValue, '');
+    const decArea = _plain(asset.area, '');
+    const decWidth = _plain(asset.width, '');
+    const decYear = _plain(asset.year, '');
+    const decOnland = _plain(asset.onland, '');
 
     const mapLink = formatLink(decLink);
     const mapBtn = mapLink
@@ -356,10 +369,10 @@ async function openEditAssetModal(index) {
     ? decryptFieldAsync
     : (v) => Promise.resolve(decryptText(v));
 
-  let link = "", val = "", loan = "", area = "", width = "", onland = "", year = "";
+  let name = "", link = "", val = "", loan = "", area = "", width = "", onland = "", year = "";
   try {
-    [link, val, loan, area, width, onland, year] = await Promise.all([
-      dec(asset.link), dec(asset.valuation), dec(asset.loanValue),
+    [name, link, val, loan, area, width, onland, year] = await Promise.all([
+      dec(asset.name), dec(asset.link), dec(asset.valuation), dec(asset.loanValue),
       dec(asset.area), dec(asset.width), dec(asset.onland), dec(asset.year),
     ]);
   } catch (e) { }
@@ -370,7 +383,8 @@ async function openEditAssetModal(index) {
   // Bảo vệ: nếu sau khi cố giải mã vẫn còn dạng ciphertext (khóa sai / dữ liệu hỏng), để ô
   // TRỐNG thay vì hiện chuỗi mã hóa — và tuyệt đối không cho _doSaveAsset mã hóa lại chuỗi đó
   // (xem encAssetField trong _doSaveAsset, giữ nguyên ciphertext gốc khi ô để trống).
-  getEl("asset-name").value = asset.name || "";
+  // name: bản ghi mới là plaintext; bản ghi cũ/migrated có thể là ciphertext → cùng guard.
+  getEl("asset-name").value = (name && !_looksEncrypted(name)) ? name : "";
   getEl("asset-link").value = (link && !_looksEncrypted(link)) ? link : "";
   getEl("asset-val").value = (val && !_looksEncrypted(val)) ? val : "";
   getEl("asset-loan").value = (loan && !_looksEncrypted(loan)) ? loan : "";

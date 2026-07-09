@@ -33,23 +33,44 @@ function openAssetGallery(id, name, idx) {
 
   // Lấy thông tin tài sản đang chọn từ bộ nhớ (để đảm bảo chính xác nhất)
   const asset = currentCustomerData.assets[idx];
+  const openedAssetId = id;
+
+  const applyGalleryHeader = (n, v, l) => {
+    // Chỉ cập nhật nếu vẫn đang xem đúng gallery này
+    if (currentAssetId !== openedAssetId) return;
+    getEl("gallery-asset-name").textContent = n || "";
+    getEl("gallery-asset-val").textContent = v || "--";
+    getEl("gallery-asset-loan").textContent = l || "--";
+  };
 
   if (asset) {
-    // --- PERF: ưu tiên cache __dec nếu đã được chuẩn bị (tránh decrypt lặp) ---
-    const d = asset.__dec || {};
-    getEl("gallery-asset-name").textContent = (d.name !== undefined ? d.name : decryptText(asset.name)) || "";
-    getEl("gallery-asset-val").textContent = (d.valuation !== undefined ? d.valuation : decryptText(asset.valuation)) || "--";
-    getEl("gallery-asset-loan").textContent = (d.loanValue !== undefined ? d.loanValue : decryptText(asset.loanValue)) || "--";
+    // Sync best-effort (guard ciphertext) rồi async refresh
+    const _p = (x, fb) => (typeof _displayPlain === 'function') ? _displayPlain(x, fb) : (decryptText(x) || fb || '');
+    applyGalleryHeader(_p(asset.name, 'Đang tải...'), _p(asset.valuation, '--'), _p(asset.loanValue, '--'));
 
-    // Kiểm tra link Drive của tài sản
     if (typeof renderAssetDriveStatus === "function") {
-      renderAssetDriveStatus(d.driveLink !== undefined ? d.driveLink : asset.driveLink);
+      const dl = (typeof _displayPlain === 'function') ? _displayPlain(asset.driveLink, '') : (asset.driveLink || '');
+      renderAssetDriveStatus(dl || null);
     }
+
+    // Async: chờ giải mã thật (lazy decrypt cache-miss)
+    (async () => {
+      try {
+        const _pa = (typeof _displayPlainAsync === 'function')
+          ? _displayPlainAsync
+          : async (x, fb) => _p(x, fb);
+        const [n, v, l] = await Promise.all([
+          _pa(asset.name, ''),
+          _pa(asset.valuation, '--'),
+          _pa(asset.loanValue, '--'),
+        ]);
+        applyGalleryHeader(n || (typeof _displayPlain === 'function' ? _displayPlain(name, '') : (name || '')), v, l);
+      } catch (e) { }
+    })();
   } else {
-    // Fallback nếu không tìm thấy tài sản
-    getEl("gallery-asset-name").textContent = name; // Dùng tạm tên truyền vào
-    getEl("gallery-asset-val").textContent = "--";
-    getEl("gallery-asset-loan").textContent = "--";
+    // Fallback nếu không tìm thấy tài sản — vẫn guard ciphertext trên name param
+    const safeName = (typeof _displayPlain === 'function') ? _displayPlain(name, '') : ((name && typeof _looksEncrypted === 'function' && _looksEncrypted(name)) ? '' : (name || ''));
+    applyGalleryHeader(safeName, '--', '--');
     if (typeof renderAssetDriveStatus === "function")
       renderAssetDriveStatus(null);
   }
@@ -180,6 +201,9 @@ function _ensureLazyImgObserver() {
 }
 
 function _attachLazySrc(imgEl, dataUrl) {
+  // Không bao giờ gán ciphertext / URL không an toàn vào <img src>
+  if (typeof _looksEncrypted === 'function' && _looksEncrypted(dataUrl)) return;
+  if (typeof isSafeImageUrl === 'function' && dataUrl && !isSafeImageUrl(dataUrl)) return;
   const obs = _ensureLazyImgObserver();
   if (imgEl) {
     imgEl.loading = 'lazy';
@@ -196,13 +220,25 @@ function _attachLazySrc(imgEl, dataUrl) {
   }
 }
 
-/** Giải mã img.data (plaintext hoặc cpg1:) trước khi hiển thị/chia sẻ. */
+/** Giải mã img.data (plaintext hoặc cpg1:/U2FsdGVk) trước khi hiển thị/chia sẻ. */
 async function resolveImageData(imgOrData) {
   const raw = (imgOrData && typeof imgOrData === 'object') ? imgOrData.data : imgOrData;
   if (!raw) return '';
-  if (typeof decryptImageData === 'function') return decryptImageData(raw);
-  if (typeof decryptFieldAsync === 'function' && String(raw).startsWith('cpg1:')) return decryptFieldAsync(raw);
-  return decryptText(raw);
+  let out = '';
+  try {
+    if (typeof decryptImageData === 'function') out = await decryptImageData(raw);
+    else if (typeof decryptFieldAsync === 'function' && typeof _looksEncrypted === 'function' && _looksEncrypted(String(raw))) {
+      out = await decryptFieldAsync(raw);
+    } else if (typeof decryptFieldAsync === 'function' && String(raw).startsWith('cpg1:')) {
+      out = await decryptFieldAsync(raw);
+    } else {
+      out = (typeof decryptText === 'function') ? decryptText(raw) : raw;
+    }
+  } catch (e) { return ''; }
+  if (!out) return '';
+  if (typeof _looksEncrypted === 'function' && _looksEncrypted(out)) return '';
+  if (typeof isSafeImageUrl === 'function' && !isSafeImageUrl(out)) return '';
+  return out;
 }
 async function shareSelectedImages() {
   if (!selectedImages.size) return;
