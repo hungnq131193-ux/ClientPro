@@ -7,6 +7,42 @@
             t = setTimeout(() => fn.apply(this, args), wait);
           };
         }
+
+        // =======================
+        // DISPLAY / CIPHERTEXT GUARDS (v1.5.8)
+        // decryptText() fail-open: cache-miss với "cpg1:" trả nguyên ciphertext.
+        // Mọi chỗ textContent / .value / img.src PHẢI qua helper này — không hard-code
+        // tiền tố cục bộ. Nguồn duy nhất cho nhận diện ciphertext (cả legacy + GCM).
+        // =======================
+        function _looksEncrypted(v) {
+          return (typeof v === 'string') && (v.startsWith('U2FsdGVk') || v.startsWith('cpg1:'));
+        }
+        /** Đồng bộ: decryptText + chặn ciphertext. Trả fallback nếu chưa giải mã được. */
+        function _displayPlain(v, fallback) {
+          const fb = (fallback === undefined) ? '' : fallback;
+          if (v == null || v === '') return fb;
+          let s = String(v);
+          if (typeof decryptText === 'function') {
+            try {
+              const out = decryptText(s);
+              if (out != null && out !== '') s = String(out);
+            } catch (e) { /* keep s */ }
+          }
+          if (_looksEncrypted(s) || s === 'undefined' || s === 'null') return fb;
+          return s;
+        }
+        /** Async: chờ decryptFieldAsync rồi chặn ciphertext. */
+        async function _displayPlainAsync(v, fallback) {
+          const fb = (fallback === undefined) ? '' : fallback;
+          if (v == null || v === '') return fb;
+          let s = String(v);
+          try {
+            if (typeof decryptFieldAsync === 'function') s = String(await decryptFieldAsync(s) || '');
+            else if (typeof decryptText === 'function') s = String(decryptText(s) || '');
+          } catch (e) { return fb; }
+          if (_looksEncrypted(s) || s === 'undefined' || s === 'null') return fb;
+          return s;
+        }
         const DB_NAME='QLKH_Pro_V4'; let db;
         const PIN_KEY = 'app_pin'; const SEC_KEY = 'app_sec_qa'; const THEME_KEY = 'app_theme';
         // Thêm các key cho kích hoạt thiết bị & mã nhân viên

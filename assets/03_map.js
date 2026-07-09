@@ -8,7 +8,7 @@ const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'CRYPTOFIX2_20260709';
+const MAPLIBRE_V = 'DISPLAYFIX_20260709';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const MAP_STYLE_SAT = {
     version: 8,
@@ -541,21 +541,24 @@ function _buildMapPopupCard(props) {
 
     const nameDiv = document.createElement('div');
     nameDiv.className = 'font-bold text-sm truncate w-40';
-    nameDiv.textContent = custName;
+    const safeCust = (typeof _looksEncrypted === 'function' && _looksEncrypted(custName)) ? '—' : (custName || '—');
+    nameDiv.textContent = safeCust;
     infoDiv.appendChild(nameDiv);
 
     const assetDiv = document.createElement('div');
     assetDiv.className = 'text-[10px] text-slate-400 truncate w-40';
-    assetDiv.textContent = assetName;
+    const safeAsset = (typeof _looksEncrypted === 'function' && _looksEncrypted(assetName)) ? '—' : (assetName || '');
+    assetDiv.textContent = safeAsset;
     infoDiv.appendChild(assetDiv);
 
-    if (assetVal) {
+    const safeVal = (assetVal && !(typeof _looksEncrypted === 'function' && _looksEncrypted(assetVal))) ? assetVal : '';
+    if (safeVal) {
         const valDiv = document.createElement('div');
         valDiv.className = 'text-xs text-slate-300';
         valDiv.append('Định giá: ');
         const valB = document.createElement('b');
         valB.className = 'text-white';
-        valB.textContent = assetVal;
+        valB.textContent = safeVal;
         valDiv.appendChild(valB);
         infoDiv.appendChild(valDiv);
     }
@@ -690,14 +693,20 @@ async function renderMapMarkers() {
     customers.forEach((cust) => {
         if (!cust || !cust.assets) return;
         featureJobs.push((async () => {
-            const custName = await decryptFieldAsync(cust.name);
+            let custName = await decryptFieldAsync(cust.name);
+            if (typeof _looksEncrypted === 'function' && _looksEncrypted(custName)) custName = '';
             for (const asset of cust.assets) {
                 const decryptedLink = await decryptFieldAsync(asset.link);
+                if (typeof _looksEncrypted === 'function' && _looksEncrypted(decryptedLink)) continue;
                 const loc = parseLatLngFromLink(decryptedLink);
                 if (!loc) continue;
 
-                const assetName = await decryptFieldAsync(asset.name);
-                const assetVal = await decryptFieldAsync(asset.valuation);
+                let assetName = await decryptFieldAsync(asset.name);
+                let assetVal = await decryptFieldAsync(asset.valuation);
+                if (typeof _looksEncrypted === 'function') {
+                    if (_looksEncrypted(assetName)) assetName = '';
+                    if (_looksEncrypted(assetVal)) assetVal = '';
+                }
                 const img = allImages.find(i => i.assetId === asset.id) || allImages.find(i => i.customerId === cust.id);
                 let thumb = fallbackThumb;
                 if (img && img.data) {

@@ -129,15 +129,17 @@ function _safeDecryptMaybe(s) {
     try {
         if (typeof decryptText === 'function') {
             const out = decryptText(str);
-            // decryptText() in this app usually returns the input when it cannot decrypt.
-            // Only accept a decrypted value if it is a non-empty string.
-            if (typeof out === 'string' && out.length > 0) return out;
+            // decryptText() fail-open: cache-miss trả nguyên ciphertext — từ chối nếu vẫn mã hóa.
+            if (typeof out === 'string' && out.length > 0 && !_isCryptoJSCiphertext(out)) return out;
         }
     } catch (e) {}
-    return str;
+    // Nếu đầu vào đã là plaintext (không phải ciphertext) thì trả nguyên.
+    if (!_isCryptoJSCiphertext(str)) return str;
+    return '';
 }
 
 function _displayText(s) {
+    if (typeof _displayPlain === 'function') return _displayPlain(s, '');
     const out = _safeDecryptMaybe(s);
     return (out && out !== 'undefined' && out !== 'null') ? out : '';
 }
