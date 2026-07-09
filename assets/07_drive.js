@@ -267,7 +267,9 @@ async function uploadAssetToDrive() {
 
                 // 2. Cập nhật Database (không put() nguyên currentCustomerData vì
                 //    name/phone/cccd trên object đó đã bị giải mã trong openFolder)
-                persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; });
+                persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, (ok) => {
+                    if (!ok) ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm lại link" sau.');
+                });
 
                 LoadingManager.hideGlobal(true);
 
@@ -460,8 +462,13 @@ async function reconnectDriveFolder() {
     // Nếu tìm thấy thì lưu và cập nhật giao diện, ngược lại báo lỗi
     if (foundUrl) {
         currentCustomerData.driveLink = foundUrl;
-        persistCurrentCustomer((rec) => { rec.driveLink = foundUrl; }, () => {
+        persistCurrentCustomer((rec) => { rec.driveLink = foundUrl; }, (ok) => {
             LoadingManager.hideGlobal(true);
+            if (!ok) {
+                currentCustomerData.driveLink = null;
+                ErrorHandler.showError('STORAGE', 'Tìm thấy link nhưng lưu vào hồ sơ thất bại. Vui lòng thử lại.');
+                return;
+            }
             renderDriveStatus(foundUrl);
             ErrorHandler.showSuccess("Đã kết nối lại thành công!");
         });
@@ -535,7 +542,9 @@ async function uploadToGoogleDrive() {
             if (result.status === 'success') {
                 // Lưu link Folder (ghi an toàn, giữ nguyên ciphertext các trường khác)
                 currentCustomerData.driveLink = result.url;
-                persistCurrentCustomer((rec) => { rec.driveLink = result.url; });
+                persistCurrentCustomer((rec) => { rec.driveLink = result.url; }, (ok) => {
+                    if (!ok) ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm lại link" sau.');
+                });
 
                 LoadingManager.hideGlobal(true);
                 renderDriveStatus(result.url);
