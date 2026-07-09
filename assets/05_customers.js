@@ -1117,14 +1117,21 @@ function openFolder(id) {
             else if (typeof nextFrame === 'function') nextFrame(() => folderScreen.classList.remove('translate-x-full'));
             else folderScreen.classList.remove('translate-x-full');
 
-            // Decrypt assets in background for other tabs
+            // Decrypt assets + notes in background (lazy decrypt, v1.5.5): chỉ nạp
+            // __fieldPlainCache, KHÔNG tự hiện ciphertext. Sau khi nạp xong, re-render tab
+            // đang mở (nếu là info/assets) để thay ciphertext transient bằng plaintext thật.
             const runDecryptAssets = async () => {
                 try {
+                    if (typeof decryptFieldAsync === 'function' && currentCustomerData.notes) {
+                        await decryptFieldAsync(currentCustomerData.notes);
+                    }
                     if (typeof window.decryptCustomerAssetsAsync === 'function') {
                         await window.decryptCustomerAssetsAsync(currentCustomerData, { batchSize: 6 });
-                    } else if (typeof window.decryptCustomerObjectAsync === 'function') {
-                        await window.decryptCustomerObjectAsync(currentCustomerData, { batchSize: 6 });
                     }
+                    const contentInfo = getEl('content-info');
+                    const contentAssets = getEl('content-assets');
+                    if (contentInfo && !contentInfo.classList.contains('hidden')) loadCustomerInfo();
+                    if (contentAssets && !contentAssets.classList.contains('hidden') && typeof renderAssets === 'function') renderAssets();
                 } catch (err) { }
             };
 
@@ -1252,16 +1259,39 @@ async function saveCustomerNotes() {
     const notesEl = getEl('info-notes');
     const notesText = notesEl ? notesEl.value.trim() : '';
 
-    // Mã hóa TRƯỚC transaction (AES-GCM async).
-    const encNotes = await encryptText(notesText);
-
-    // Đọc record (transaction đọc riêng).
+    // Đọc record hiện tại trước (transaction đọc riêng).
     const c = await new Promise((resolve, reject) => {
         const g = db.transaction(['customers'], 'readonly').objectStore('customers').get(currentCustomerId);
         g.onsuccess = () => resolve(g.result);
         g.onerror = () => reject(g.error);
     });
     if (!c) return;
+
+    // BẢO VỆ CHỐNG MẤT DỮ LIỆU: ô ghi chú có thể đang trống không phải vì user chủ động xóa,
+    // mà vì lazy-decrypt chưa kịp nạp __fieldPlainCache lúc mở hồ sơ (xem openFolder()).
+    // Nếu ô trống nhưng DB đang có ghi chú cũ, thử giải mã lại (chờ thật) trước khi chấp nhận
+    // đây là "user muốn xóa" — chỉ lưu chuỗi rỗng nếu ghi chú gốc thực sự giải mã được và
+    // rỗng, hoặc không thể giải mã được nữa (dữ liệu hỏng, không còn gì để mất thêm).
+    if (!notesText && c.notes) {
+        let existingPlain = '';
+        try {
+            existingPlain = (typeof decryptFieldAsync === 'function') ? await decryptFieldAsync(c.notes) : decryptText(c.notes);
+        } catch (e) { }
+        if (existingPlain && !_looksEncrypted(existingPlain)) {
+            ErrorHandler.showError('STORAGE', 'Ghi chú chưa tải xong lúc mở hồ sơ. Vui lòng thử lưu lại (hệ thống không lưu ghi chú rỗng đè lên ghi chú cũ để tránh mất dữ liệu).');
+            return;
+        }
+    }
+
+    // Mã hóa TRƯỚC transaction (AES-GCM async). encryptText tự chối nếu notesText lỡ là
+    // ciphertext dán nhầm (chống double-encryption) — bắt lỗi để báo rõ thay vì crash âm thầm.
+    let encNotes;
+    try {
+        encNotes = await encryptText(notesText);
+    } catch (e) {
+        ErrorHandler.showError('STORAGE', 'Không thể lưu ghi chú (dữ liệu không hợp lệ). Vui lòng thử lại.', e);
+        return;
+    }
 
     c.notes = encNotes;
     c.updatedAt = Date.now();

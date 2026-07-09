@@ -331,7 +331,7 @@ function openAssetModal() {
   getEl("asset-onland").value = "";
   getEl("asset-year").value = "";
 }
-function openEditAssetModal(index) {
+async function openEditAssetModal(index) {
   // Hiện modal
   getEl("asset-modal").classList.remove("hidden");
 
@@ -344,20 +344,62 @@ function openEditAssetModal(index) {
   getEl("btn-save-asset").textContent = "Lưu thay đổi";
 
   // --- QUAN TRỌNG: Giải mã dữ liệu trước khi điền vào ô input ---
-  // Nếu không có decryptText, nó sẽ hiện chuỗi U2FsdGVk...
-  getEl("asset-name").value = decryptText(asset.name) || asset.name || "";
-  getEl("asset-link").value = decryptText(asset.link) || "";
-  getEl("asset-val").value = decryptText(asset.valuation) || "";
-  getEl("asset-loan").value = decryptText(asset.loanValue) || "";
+  // Dùng decryptFieldAsync (chờ giải mã thật, không phụ thuộc __fieldPlainCache đã nạp sẵn
+  // hay chưa — với lazy decrypt, cache có thể chưa có field này). decryptText đồng bộ chỉ dùng
+  // làm fallback nếu decryptFieldAsync không tồn tại.
+  const dec = (typeof decryptFieldAsync === "function")
+    ? decryptFieldAsync
+    : (v) => Promise.resolve(decryptText(v));
 
-  getEl("asset-area").value = decryptText(asset.area) || "";
-  getEl("asset-width").value = decryptText(asset.width) || "";
-  getEl("asset-onland").value = decryptText(asset.onland) || "";
-  getEl("asset-year").value = decryptText(asset.year) || "";
+  let link = "", val = "", loan = "", area = "", width = "", onland = "", year = "";
+  try {
+    [link, val, loan, area, width, onland, year] = await Promise.all([
+      dec(asset.link), dec(asset.valuation), dec(asset.loanValue),
+      dec(asset.area), dec(asset.width), dec(asset.onland), dec(asset.year),
+    ]);
+  } catch (e) { }
+
+  // Nếu currentAssetId đã đổi (user đóng modal / mở TSBĐ khác) trong lúc chờ giải mã thì bỏ qua.
+  if (getEl("edit-asset-index").value !== String(index)) return;
+
+  // Bảo vệ: nếu sau khi cố giải mã vẫn còn dạng ciphertext (khóa sai / dữ liệu hỏng), để ô
+  // TRỐNG thay vì hiện chuỗi mã hóa — và tuyệt đối không cho _doSaveAsset mã hóa lại chuỗi đó
+  // (xem encAssetField trong _doSaveAsset, giữ nguyên ciphertext gốc khi ô để trống).
+  getEl("asset-name").value = asset.name || "";
+  getEl("asset-link").value = (link && !_looksEncrypted(link)) ? link : "";
+  getEl("asset-val").value = (val && !_looksEncrypted(val)) ? val : "";
+  getEl("asset-loan").value = (loan && !_looksEncrypted(loan)) ? loan : "";
+  getEl("asset-area").value = (area && !_looksEncrypted(area)) ? area : "";
+  getEl("asset-width").value = (width && !_looksEncrypted(width)) ? width : "";
+  getEl("asset-onland").value = (onland && !_looksEncrypted(onland)) ? onland : "";
+  getEl("asset-year").value = (year && !_looksEncrypted(year)) ? year : "";
 
   // Gán ID để xử lý ảnh đúng tài sản
   currentAssetId = asset.id;
 }
+
+/**
+ * Giải mã trước (prime __fieldPlainCache) toàn bộ field TSBĐ của 1 khách hàng, theo batch.
+ * Chỉ nạp cache, KHÔNG tự render — caller quyết định re-render tab nào đang mở sau khi xong
+ * (xem openFolder() trong 05_customers.js). Đây là phần còn thiếu của "lazy decrypt" (v1.5.5):
+ * trước đây renderAssets()/openEditAssetModal() gọi decryptText() đồng bộ nhưng không có gì
+ * nạp cache cho field TSBĐ -> luôn hiện ciphertext ở lần mở đầu tiên sau unlock.
+ */
+window.decryptCustomerAssetsAsync = async function decryptCustomerAssetsAsync(customer, opts) {
+  if (!customer || !Array.isArray(customer.assets) || typeof decryptFieldAsync !== "function") return;
+  const batchSize = (opts && opts.batchSize) || 6;
+  const fields = ["link", "valuation", "loanValue", "area", "width", "onland", "year"];
+  for (let i = 0; i < customer.assets.length; i += batchSize) {
+    const batch = customer.assets.slice(i, i + batchSize);
+    await Promise.all(batch.map((asset) => Promise.all(fields.map((f) => {
+      const v = asset && asset[f];
+      return (v !== undefined && v !== null) ? dec_safely(v) : Promise.resolve();
+    }))));
+  }
+  function dec_safely(v) {
+    return decryptFieldAsync(v).catch(() => { });
+  }
+};
 function closeAssetModal() {
   getEl("asset-modal").classList.add("hidden");
   // Hủy sửa TSBĐ -> không còn "đang thao tác" trên tài sản đó nữa, tránh ảnh chụp
@@ -388,15 +430,26 @@ async function _doSaveAsset() {
   const name = getEl("asset-name").value.trim();
   let link = getEl("asset-link").value.trim();
 
+  if (!name) return ErrorHandler.showError('VALIDATION', 'Vui lòng nhập mô tả tài sản.');
+
+  const index = getEl("edit-asset-index").value;
+  const prev = (index !== "") ? currentCustomerData.assets[parseInt(index)] : null;
+
   // Helper (ASYNC vì AES-GCM/WebCrypto bất đồng bộ):
   // - Chỉ mã hóa nếu có dữ liệu (tránh biến ô trống thành mã loằng ngoằng)
-  // - Không mã hóa trường 'name' của TSBĐ nữa để:
-  //   + tránh hiện chuỗi mã hóa ở các luồng UI/Drive
-  //   + đảm bảo tính năng "tìm lại link" search folder theo plaintext
-  // Các trường khác vẫn giữ cơ chế mã hóa như cũ để không ảnh hưởng chức năng.
-  const enc = async (txt) => (txt ? await encryptText(txt) : "");
-
-  if (!name) return ErrorHandler.showError('VALIDATION', 'Vui lòng nhập mô tả tài sản.');
+  // - BẢO VỆ CHỐNG MẤT DỮ LIỆU: nếu ô đang trống NHƯNG trường gốc (prev) vẫn còn ciphertext
+  //   chưa giải mã được (khóa sai / dữ liệu hỏng / cache lazy-decrypt chưa kịp nạp khi mở modal),
+  //   GIỮ NGUYÊN ciphertext gốc thay vì ghi đè bằng chuỗi rỗng — tránh xóa mất dữ liệu mà user
+  //   chưa từng thực sự thấy được. Chỉ áp dụng khi field KHÔNG đổi (ô trống), field có nội dung
+  //   mới thì mã hóa bình thường (encryptText tự chặn double-encryption nếu lỡ dán ciphertext).
+  const enc = async (txt, origField) => {
+    const v = (txt || "").trim();
+    if (!v) {
+      if (origField && _looksEncrypted(decryptText(origField))) return origField;
+      return "";
+    }
+    return await encryptText(v);
+  };
 
   // Xử lý link map
   const coords = parseLatLngFromLink(link);
@@ -413,22 +466,20 @@ async function _doSaveAsset() {
   // Mã hóa TRƯỚC khi persist (persistCurrentCustomer mở transaction, không await bên trong).
   const assetObj = {
     name: name,
-    link: await enc(link),
-    valuation: await enc(getEl("asset-val").value),
-    loanValue: await enc(getEl("asset-loan").value),
-    area: await enc(getEl("asset-area").value),
-    width: await enc(getEl("asset-width").value),
-    onland: await enc(getEl("asset-onland").value),
-    year: await enc(getEl("asset-year").value),
+    link: await enc(link, prev && prev.link),
+    valuation: await enc(getEl("asset-val").value, prev && prev.valuation),
+    loanValue: await enc(getEl("asset-loan").value, prev && prev.loanValue),
+    area: await enc(getEl("asset-area").value, prev && prev.area),
+    width: await enc(getEl("asset-width").value, prev && prev.width),
+    onland: await enc(getEl("asset-onland").value, prev && prev.onland),
+    year: await enc(getEl("asset-year").value, prev && prev.year),
   };
 
-  const index = getEl("edit-asset-index").value;
   // Snapshot để hoàn tác in-memory nếu ghi DB thất bại (tránh UI lệch với DB).
   let undoMutation = null;
   if (index !== "") {
     // Cập nhật tài sản cũ
     const i = parseInt(index);
-    const prev = currentCustomerData.assets[i];
     assetObj.id = prev.id;
     assetObj.createdAt = prev.createdAt;
     if (prev.driveLink) assetObj.driveLink = prev.driveLink;

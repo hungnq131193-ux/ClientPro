@@ -82,6 +82,26 @@ test('decryptText: SAI khóa -> KHÔNG rò rỉ plaintext (đổi khóa xóa cac
   await assert.rejects(() => api._gcmDecryptField(cipher), 'Khóa B không giải mã được ciphertext của khóa A');
 });
 
+test('encryptText: từ chối mã hóa lại chuỗi đã trông như ciphertext (chống double-encryption)', async () => {
+  // Bug thực tế (v1.5.5 lazy-decrypt regression): decryptText() cache-miss trả nguyên
+  // ciphertext "cpg1:..." -> UI đổ nhầm vào ô input -> user bấm Lưu -> nếu encryptText mã
+  // hóa lại thì lồng thêm 1 lớp AES-GCM, hỏng dữ liệu vĩnh viễn (không cách nào gỡ lại vì
+  // decryptFieldAsync chỉ mở đúng 1 lớp). encryptText phải NÉM LỖI thay vì âm thầm lồng mã.
+  const { api } = loadSecurity();
+  const { CryptoJS } = require('./helpers/load-security');
+  await api.setMasterKey(api.generateMasterKey());
+
+  const cipher = await api.encryptText('dữ liệu gốc');
+  await assert.rejects(() => api.encryptText(cipher), 'cpg1: ciphertext đưa lại vào encryptText phải bị từ chối');
+
+  const legacyCipher = CryptoJS.AES.encrypt('dữ liệu cũ', 'mk_legacy').toString();
+  await assert.rejects(() => api.encryptText(legacyCipher), 'U2FsdGVk... (legacy) đưa lại vào encryptText phải bị từ chối');
+
+  // Plaintext bình thường (không trông giống ciphertext) vẫn phải mã hóa được như cũ.
+  const ok = await api.encryptText('văn bản bình thường không phải ciphertext');
+  assert.ok(ok.startsWith('cpg1:'), 'Plaintext hợp lệ vẫn phải mã hóa bình thường');
+});
+
 test('legacy CryptoJS "U2FsdGVk...": decryptText đọc đồng bộ bằng masterKeyLegacy', async () => {
   const { api } = loadSecurity();
   const { CryptoJS } = require('./helpers/load-security');
