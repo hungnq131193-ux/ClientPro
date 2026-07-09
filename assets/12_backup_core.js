@@ -182,6 +182,7 @@
 
     // Nạp lại cache field cho dữ liệu vừa khôi phục (để decryptText đọc đồng bộ ngay).
     try { if (typeof primeFieldCache === 'function') await primeFieldCache(); } catch (e) {}
+    try { if (typeof runImageCryptoMigrationIfNeeded === 'function') await runImageCryptoMigrationIfNeeded(); } catch (e) {}
     return true;
   }
 

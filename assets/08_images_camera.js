@@ -195,6 +195,15 @@ function _attachLazySrc(imgEl, dataUrl) {
     try { obs.observe(imgEl); } catch (e) { imgEl.src = dataUrl; }
   }
 }
+
+/** Giải mã img.data (plaintext hoặc cpg1:) trước khi hiển thị/chia sẻ. */
+async function resolveImageData(imgOrData) {
+  const raw = (imgOrData && typeof imgOrData === 'object') ? imgOrData.data : imgOrData;
+  if (!raw) return '';
+  if (typeof decryptImageData === 'function') return decryptImageData(raw);
+  if (typeof decryptFieldAsync === 'function' && String(raw).startsWith('cpg1:')) return decryptFieldAsync(raw);
+  return decryptText(raw);
+}
 async function shareSelectedImages() {
   if (!selectedImages.size) return;
   LoadingManager.showGlobal("Đóng gói ảnh...");
@@ -204,9 +213,10 @@ async function shareSelectedImages() {
     const filePromises = Array.from(selectedImages).map((id) => {
       return new Promise((resolve) => {
         const req = store.get(id);
-        req.onsuccess = (e) => {
+        req.onsuccess = async (e) => {
           if (e.target.result) {
-            const blob = dataURLtoBlob(e.target.result.data);
+            const dataUrl = await resolveImageData(e.target.result);
+            const blob = dataURLtoBlob(dataUrl);
             resolve(
               new File(
                 [blob],
@@ -246,10 +256,15 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
     .transaction(["images"], "readonly")
     .objectStore("images")
     .index("customerId")
-    .getAll(currentCustomerId).onsuccess = (e) => {
+    .getAll(currentCustomerId).onsuccess = async (e) => {
       let imgs = e.target.result || [];
       imgs = imgs.filter(filterFn);
       imgs.sort((a, b) => b.createdAt - a.createdAt);
+      const resolved = await Promise.all(imgs.map(async (img) => ({
+        ...img,
+        _displayData: await resolveImageData(img),
+      })));
+      imgs = resolved;
       if (
         targetId === "content-images" &&
         !getEl("screen-asset-gallery").classList.contains("translate-x-full")
@@ -285,7 +300,7 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
 
           const imgEl = document.createElement('img');
           imgEl.className = 'pointer-events-none';
-          _attachLazySrc(imgEl, img.data);
+          _attachLazySrc(imgEl, img._displayData || img.data);
 
           div.appendChild(imgEl);
 
@@ -299,7 +314,7 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
           const idx = i;
           div.onclick = () => {
             if (isSelectionMode) toggleImage(img.id, div);
-            else openLightbox(img.data, img.id, idx, imgs);
+            else openLightbox(img._displayData || img.data, img.id, idx, imgs);
           };
           if (typeof bindLongPress === 'function') {
             bindLongPress(div, (event) => {
@@ -326,10 +341,15 @@ function loadAssetImages(id) {
     .transaction(["images"], "readonly")
     .objectStore("images")
     .index("customerId")
-    .getAll(currentCustomerId).onsuccess = (e) => {
+    .getAll(currentCustomerId).onsuccess = async (e) => {
       let imgs = e.target.result || [];
       imgs = imgs.filter((img) => img.assetId === id);
       imgs.sort((a, b) => b.createdAt - a.createdAt);
+      const resolved = await Promise.all(imgs.map(async (img) => ({
+        ...img,
+        _displayData: await resolveImageData(img),
+      })));
+      imgs = resolved;
       currentLightboxList = imgs;
       const grid = getEl("asset-gallery-grid");
       // Token chống render chồng (xem loadImagesFiltered)
@@ -357,7 +377,7 @@ function loadAssetImages(id) {
 
           const imgEl = document.createElement('img');
           imgEl.className = 'pointer-events-none';
-          _attachLazySrc(imgEl, img.data);
+          _attachLazySrc(imgEl, img._displayData || img.data);
           div.appendChild(imgEl);
 
           if (isSelectionMode) {
@@ -370,7 +390,7 @@ function loadAssetImages(id) {
           const idx = i;
           div.onclick = () => {
             if (isSelectionMode) toggleImage(img.id, div);
-            else openLightbox(img.data, img.id, idx, imgs);
+            else openLightbox(img._displayData || img.data, img.id, idx, imgs);
           };
           if (typeof bindLongPress === 'function') {
             bindLongPress(div, (event) => {
@@ -478,13 +498,22 @@ function saveImageToDB(rawBase64) {
 
     getEl("loader-text").textContent = "Đang lưu ảnh...";
 
-    // Nén và Lưu vào Database
-    compressImage(enhancedBase64, (compressed) => {
+    // Nén và Lưu vào Database (mã hóa at-rest trước khi ghi)
+    compressImage(enhancedBase64, async (compressed) => {
+      let storedData = compressed;
+      try {
+        if (typeof encryptImageData === 'function') {
+          storedData = await encryptImageData(compressed);
+        }
+      } catch (e) {
+        try { ErrorHandler.logError('encryptImageData', e); } catch (_) {}
+      }
       const newImg = {
         id: "img_" + Date.now() + Math.random(),
         customerId: currentCustomerId,
         assetId: currentAssetId,
-        data: compressed,
+        data: storedData,
+        imgCryptoV: (typeof storedData === 'string' && storedData.startsWith('cpg1:')) ? 1 : undefined,
         createdAt: Date.now(),
       };
 
