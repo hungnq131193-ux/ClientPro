@@ -4,7 +4,9 @@ function openAssetGallery(id, name, idx) {
     id = "asset_" + Date.now();
     if (currentCustomerData.assets[idx]) {
       currentCustomerData.assets[idx].id = id;
-      persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; });
+      persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, (ok) => {
+        if (!ok && window.ErrorHandler) ErrorHandler.logError('openAssetGallery: không lưu được id TSBĐ mới sinh', { assetId: id });
+      });
     }
   }
 
@@ -530,20 +532,45 @@ function handleFileUpload(input, mode) {
   // Reset input để lần sau chọn lại vẫn trigger onchange
   input.value = "";
 }
+// Dừng hẳn stream camera hiện tại (tắt đèn camera, giải phóng pin) + gỡ khỏi <video>.
+function _stopCameraStream() {
+  if (stream) {
+    try { stream.getTracks().forEach((t) => t.stop()); } catch (e) { }
+    stream = null;
+  }
+  try {
+    const v = getEl("camera-feed");
+    if (v) v.srcObject = null;
+  } catch (e) { }
+}
+
 // Renamed to _tryOpenCameraReal for lazy loading wrapper
+// Token chống race khi double-tap nút camera: stream cũ luôn bị stop trước khi
+// stream mới được gán, và stream về "muộn" (modal đã đóng / có request mới hơn)
+// bị dừng ngay thay vì chạy ngầm.
+let __cameraOpenSeq = 0;
 async function _tryOpenCameraReal(mode) {
   captureMode = mode;
+  const seq = ++__cameraOpenSeq;
   try {
     getEl("camera-modal").classList.remove("hidden");
-    stream = await navigator.mediaDevices.getUserMedia({
+    _stopCameraStream();
+    const newStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: "environment" },
         width: { min: 1280, ideal: 1920, max: 2560 },
         height: { min: 720, ideal: 1080, max: 1440 },
       },
     });
-    getEl("camera-feed").srcObject = stream;
+    if (seq !== __cameraOpenSeq || getEl("camera-modal").classList.contains("hidden")) {
+      // Đã có request mới hơn hoặc user đóng camera trong lúc chờ cấp quyền.
+      try { newStream.getTracks().forEach((t) => t.stop()); } catch (e) { }
+      return;
+    }
+    stream = newStream;
+    getEl("camera-feed").srcObject = newStream;
   } catch {
+    if (seq !== __cameraOpenSeq) return;
     getEl("camera-modal").classList.add("hidden");
     getEl(
       mode === "profile" ? "native-camera-profile" : "native-camera-asset"
@@ -551,9 +578,17 @@ async function _tryOpenCameraReal(mode) {
   }
 }
 function closeCamera() {
-  getEl("camera-modal").classList.add("hidden");
-  if (stream) stream.getTracks().forEach((t) => t.stop());
+  const m = getEl("camera-modal");
+  if (m) m.classList.add("hidden");
+  _stopCameraStream();
 }
+
+// RIÊNG TƯ + PIN: camera không được chạy ngầm khi app bị che/khóa máy/chuyển tab.
+// closeCamera() an toàn khi gọi lặp (no-op nếu không có stream).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") closeCamera();
+});
+window.addEventListener("pagehide", () => closeCamera());
 // CHỤP ẢNH TỪ CAMERA
 async function capturePhoto() {
   const v = getEl("camera-feed");
