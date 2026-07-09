@@ -3,7 +3,7 @@
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
-[![Version](https://img.shields.io/badge/version-1.5.3-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.5.4-blue.svg)](manifest.json)
 
 > **Live demo:** https://client-pro-beryl.vercel.app
 
@@ -106,7 +106,7 @@ Sau đó mở `http://localhost:8000/`.
 
 Dự án dùng **hai loại định danh phiên bản độc lập** — cần phân biệt rõ khi bump:
 
-**1. Phiên bản app (semver)** — hiện tại **`1.5.3`**. **Nguồn duy nhất (single source of truth) là `package.json` → `version`.** Sửa ở đó rồi chạy:
+**1. Phiên bản app (semver)** — hiện tại **`1.5.4`**. **Nguồn duy nhất (single source of truth) là `package.json` → `version`.** Sửa ở đó rồi chạy:
 
 ```bash
 npm run sync:version      # ghi semver + ASSET_V ra mọi nơi khác
@@ -115,7 +115,7 @@ npm run check:version     # chỉ kiểm tra (CI dùng lệnh này, lệch => fa
 
 `scripts/sync-version.mjs` (zero-dependency) tự đồng bộ semver tới **3 nơi** — `version` trong `manifest.json`, `VERSION` (`v<sem>`) trong `sw.js`, `SW_BUILD` (`v<sem>`) trong `assets/pwa.js` — **và** cả badge + phần này trong `README.md`. Không sửa tay từng file nữa.
 
-**2. Tag cache-buster asset (chuỗi tự do)** — hiện tại **`SECGCM_20260708`**, thường đặt theo mốc ngày/đợt redesign. Nguồn là `ASSET_V` trong `sw.js`; phải **đồng nhất** tại:
+**2. Tag cache-buster asset (chuỗi tự do)** — hiện tại **`SAVEFIX_20260709`**, thường đặt theo mốc ngày/đợt redesign. Nguồn là `ASSET_V` trong `sw.js`; phải **đồng nhất** tại:
 
 - `ASSET_V` trong `sw.js` (nguồn — `sync:version` đọc từ đây và cập nhật README).
 - **Mọi** query `?v=` của asset trong `index.html` (CSS, JS, vendor) — tất cả phải là một giá trị duy nhất và bằng `ASSET_V`.
