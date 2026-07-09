@@ -44,7 +44,7 @@ test('sw.js: precache đủ shell + TẤT CẢ module JS nghiệp vụ (offline 
   }
 
   // Vendor sống còn cho crypto + bản đồ cũng phải được precache.
-  for (const dep of ['vendor/crypto-js.min.js', 'vendor/maplibre-gl.js', 'vendor/lucide.min.js']) {
+  for (const dep of ['vendor/crypto-js.min.js', 'vendor/maplibre-gl.js', 'vendor/supercluster.min.js', 'vendor/lucide.min.js']) {
     assert.ok(sw.includes(`./assets/${dep}?v=`), `Precache thiếu vendor: ${dep}`);
   }
 });

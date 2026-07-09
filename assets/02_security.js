@@ -183,9 +183,10 @@ function getDeviceId() {
 const GCM_PREFIX = "cpg1:";
 
 /** Cache giải mã field: ciphertext "cpg1:..." -> plaintext. Khóa duy nhất do IV
- *  ngẫu nhiên nên không bao giờ alias/stale. Cho phép decryptText() giữ ĐỒNG BỘ
- *  (WebCrypto chỉ có API bất đồng bộ; ta bulk-decrypt 1 lần lúc unlock -> primeFieldCache). */
+ *  ngẫu nhiên nên không bao giờ alias/stale. decryptText() đọc cache ĐỒNG BỘ;
+ *  cache miss -> decryptFieldAsync() giải mã lazy khi render (không bulk prime). */
 const __fieldPlainCache = new Map();
+const __fieldDecryptPending = new Map();
 
 function _b64uEncodeBytes(bytes) {
   return _b64EncodeBytes(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -226,6 +227,31 @@ async function encryptText(text) {
   }
 }
 
+/**
+ * Giải mã 1 field AES-GCM lazy (async). Dedupe concurrent decrypt cùng ciphertext.
+ * Legacy CryptoJS + plaintext passthrough giữ đồng bộ qua decryptText().
+ */
+async function decryptFieldAsync(cipher) {
+  if (cipher === undefined || cipher === null) return cipher;
+  const s = String(cipher);
+  if (!s.startsWith(GCM_PREFIX)) return decryptText(s);
+  const hit = __fieldPlainCache.get(s);
+  if (hit !== undefined) return hit;
+  let pending = __fieldDecryptPending.get(s);
+  if (!pending) {
+    pending = _gcmDecryptField(s).then((pt) => {
+      __fieldPlainCache.set(s, pt);
+      __fieldDecryptPending.delete(s);
+      return pt;
+    }).catch(() => {
+      __fieldDecryptPending.delete(s);
+      return s;
+    });
+    __fieldDecryptPending.set(s, pending);
+  }
+  return pending;
+}
+
 /** * Decrypt một field. ĐỒNG BỘ (đọc cache cho cpg1:, CryptoJS cho legacy). Nếu chưa
  * mở khóa / cache chưa nạp / giải mã thất bại thì trả nguyên bản. * @param {string} cipher * @returns {string} */
 function decryptText(cipher) {
@@ -233,7 +259,7 @@ function decryptText(cipher) {
   const s = String(cipher);
   if (s.startsWith(GCM_PREFIX)) {
     const hit = __fieldPlainCache.get(s);
-    return hit !== undefined ? hit : cipher; // miss -> vẫn "trông như mã hóa" (chưa prime)
+    return hit !== undefined ? hit : cipher; // miss -> lazy decrypt qua decryptFieldAsync khi render
   }
   if (s.startsWith("U2FsdGVk")) {
     const k = masterKeyLegacy || (masterKey && masterKey.startsWith("mk_") ? masterKey : null);
@@ -278,37 +304,113 @@ function clearMasterKeyMaterial() {
   if (masterKeyBytes) { try { masterKeyBytes.fill(0); } catch (e) {} }
   masterKey = null; masterKeyBytes = null; masterCryptoKey = null; masterKeyLegacy = null;
   __fieldPlainCache.clear();
+  __fieldDecryptPending.clear();
 }
 
 /**
- * Bulk-decrypt mọi field "cpg1:" của toàn bộ customer (kèm asset nhúng) vào cache —
- * chạy 1 lần sau unlock (và sau migration/restore) để decryptText() đọc đồng bộ.
+ * Prime tối thiểu sau unlock: chỉ token Drive (getUserToken đồng bộ).
+ * Field KH/TSBĐ giải mã lazy qua decryptFieldAsync khi render.
  */
 async function primeFieldCache() {
+  if (!masterCryptoKey) return;
+  try {
+    const tkKey = (typeof USER_TOKEN_KEY !== "undefined") ? USER_TOKEN_KEY : "app_user_script_token";
+    const rawTk = (localStorage.getItem(tkKey) || "").trim();
+    if (rawTk.startsWith("sealed.v1:")) {
+      const inner = rawTk.slice("sealed.v1:".length);
+      if (inner.startsWith(GCM_PREFIX) && !__fieldPlainCache.has(inner)) {
+        try { __fieldPlainCache.set(inner, await _gcmDecryptField(inner)); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+}
+
+// ============================================================
+// Image at-rest encryption (field `data` trong store images)
+// ============================================================
+const IMG_SCHEMA_KEY = "app_image_crypto_schema_v";
+
+function _isPlainImageDataUrl(s) {
+  return typeof s === "string" && /^data:image\/[a-z0-9.+-]+;base64,/i.test(s);
+}
+
+async function encryptImageData(dataUrl) {
+  if (!dataUrl || !masterKey) return dataUrl;
+  if (String(dataUrl).startsWith(GCM_PREFIX)) return dataUrl;
+  if (!_isPlainImageDataUrl(dataUrl)) return dataUrl;
+  return encryptText(dataUrl);
+}
+
+async function decryptImageData(cipher) {
+  if (!cipher) return cipher;
+  const s = String(cipher);
+  if (s.startsWith(GCM_PREFIX)) return decryptFieldAsync(s);
+  if (_isPlainImageDataUrl(s)) return s;
+  return decryptText(s);
+}
+
+async function runImageCryptoMigrationIfNeeded() {
+  if (localStorage.getItem(IMG_SCHEMA_KEY) === "1") return;
   if (!masterCryptoKey || typeof db === "undefined" || !db) return;
   const all = await new Promise((resolve) => {
     try {
-      const req = db.transaction(["customers"], "readonly").objectStore("customers").getAll();
+      const req = db.transaction(["images"], "readonly").objectStore("images").getAll();
       req.onsuccess = (e) => resolve(e.target.result || []);
       req.onerror = () => resolve([]);
     } catch (e) { resolve([]); }
   });
-  const jobs = new Set();
-  const grab = (v) => { if (typeof v === "string" && v.startsWith(GCM_PREFIX) && !__fieldPlainCache.has(v)) jobs.add(v); };
-  for (const c of all) {
-    if (!c) continue;
-    [c.name, c.phone, c.cccd, c.notes, c.driveLink].forEach(grab);
-    if (Array.isArray(c.assets)) for (const a of c.assets) {
-      ["name", "link", "valuation", "loanValue", "area", "width", "onland", "year", "driveLink"].forEach((k) => grab(a && a[k]));
-    }
+  for (const img of all) {
+    if (!img || img.imgCryptoV === 1) continue;
+    if (!_isPlainImageDataUrl(img.data)) continue;
+    const enc = await encryptImageData(img.data);
+    await new Promise((resolve, reject) => {
+      img.data = enc;
+      img.imgCryptoV = 1;
+      const p = db.transaction(["images"], "readwrite").objectStore("images").put(img);
+      p.onsuccess = () => resolve();
+      p.onerror = () => reject(p.error);
+    });
   }
-  // Token Drive cá nhân (07_drive) cũng niêm phong bằng field cipher -> prime để getUserToken() đọc đồng bộ.
+  localStorage.setItem(IMG_SCHEMA_KEY, "1");
+}
+
+function _setUnlockLoading(on, msg) {
+  const panel = getEl("pin-unlock-loading");
+  const keypad = getEl("pin-keypad");
+  const display = getEl("pin-display");
+  const forgot = document.querySelector("#screen-lock [data-action=\"forgotPin\"]");
+  if (panel) panel.classList.toggle("hidden", !on);
+  if (keypad) keypad.classList.toggle("hidden", !!on);
+  if (display) display.classList.toggle("hidden", !!on);
+  if (forgot) forgot.classList.toggle("hidden", !!on);
+  if (on && msg) {
+    const t = panel && panel.querySelector("[data-unlock-msg]");
+    if (t) t.textContent = msg;
+  }
+}
+
+/** Sau khi xác thực PIN: migration + lazy prime + loadCustomers — giữ lock đến khi xong. */
+async function completeUnlockDataLoad(pinForMigration, empForMigration) {
+  _setUnlockLoading(true, "Đang tải dữ liệu...");
   try {
-    const tkKey = (typeof USER_TOKEN_KEY !== "undefined") ? USER_TOKEN_KEY : "app_user_script_token";
-    const rawTk = (localStorage.getItem(tkKey) || "").trim();
-    if (rawTk.startsWith("sealed.v1:")) grab(rawTk.slice("sealed.v1:".length));
-  } catch (e) {}
-  await Promise.all([...jobs].map(async (s) => { try { __fieldPlainCache.set(s, await _gcmDecryptField(s)); } catch (e) {} }));
+    try { if (window.__dbReady) await window.__dbReady; } catch (e) {}
+    try {
+      await runFieldCryptoMigrationIfNeeded(pinForMigration, empForMigration);
+    } catch (e) {
+      try { ErrorHandler.logError("crypto-migration", e); } catch (_) {}
+    }
+    try {
+      await runImageCryptoMigrationIfNeeded();
+    } catch (e) {
+      try { ErrorHandler.logError("image-crypto-migration", e); } catch (_) {}
+    }
+    await primeFieldCache();
+    if (typeof loadCustomers === "function") {
+      await loadCustomers((getEl("search-input") && getEl("search-input").value) || "");
+    }
+  } finally {
+    _setUnlockLoading(false);
+  }
 }
 
 // ============================================================
@@ -639,6 +741,20 @@ function decryptCustomerSummary(cust) {
   cust.phone = decryptText(cust.phone);
   cust.cccd = decryptText(cust.cccd);
   // driveLink không cần cho list, chỉ giữ nguyên để dùng khi mở folder
+  return cust;
+}
+
+/** Giải mã summary async (lazy) — dùng khi render danh sách / tìm kiếm. */
+async function decryptCustomerSummaryAsync(cust) {
+  if (!cust) return cust;
+  const [name, phone, cccd] = await Promise.all([
+    decryptFieldAsync(cust.name),
+    decryptFieldAsync(cust.phone),
+    decryptFieldAsync(cust.cccd),
+  ]);
+  cust.name = name;
+  cust.phone = phone;
+  cust.cccd = cccd;
   return cust;
 }
 
@@ -1008,7 +1124,15 @@ async function saveSecuritySetup() {
   } catch (e) {
     try { ErrorHandler.logError("crypto-migration", e); } catch (_) {}
   }
+  try {
+    await runImageCryptoMigrationIfNeeded();
+  } catch (e) {
+    try { ErrorHandler.logError("image-crypto-migration", e); } catch (_) {}
+  }
   await primeFieldCache();
+  if (typeof loadCustomers === "function") {
+    await loadCustomers("");
+  }
   // PIN vừa đổi: enrollment sinh trắc học cũ (nếu có) mã hóa PIN cũ nên không còn hợp lệ.
   try { if (window.BiometricUnlock) window.BiometricUnlock.onPinChanged(); } catch (e) { }
   // Ẩn hộp thoại và thông báo
@@ -1067,26 +1191,15 @@ async function validatePin() {
     _pinChecking = false;
   }
   if (res && res.masterKey) {
-    // Giải mã thành công: cài masterKey (dựng key GCM) và mở khóa giao diện
+    // Giải mã thành công: cài masterKey (dựng key GCM) — giữ lock đến khi load xong dữ liệu
     await _installMasterKey(res.masterKey);
     const pinForMigration = currentPin;
     const empForMigration = (localStorage.getItem(EMPLOYEE_KEY) || "").trim();
     currentPin = ""; // không giữ PIN trong bộ nhớ lâu hơn cần thiết
     resetPinFailures();
     _setKeypadDisabled(false);
+    await completeUnlockDataLoad(pinForMigration, empForMigration);
     getEl("screen-lock").classList.add("hidden");
-    // Lock screen giờ hiện TRƯỚC khi IndexedDB mở xong (bootstrap) — chờ db sẵn sàng
-    // để migration/primeFieldCache/loadCustomers không chạy khi db còn undefined.
-    try { if (window.__dbReady) await window.__dbReady; } catch (e) { }
-    // Migration 1 lần (CryptoJS -> AES-GCM) rồi nạp cache trước khi render danh sách.
-    try {
-      await runFieldCryptoMigrationIfNeeded(pinForMigration, empForMigration);
-    } catch (e) {
-      try { ErrorHandler.logError("crypto-migration", e); } catch (_) {}
-    }
-    await primeFieldCache();
-    // Sau khi unlock, tải lại danh sách khách hàng để giải mã dữ liệu
-    loadCustomers(getEl("search-input").value);
     // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới (masterKey giữ nguyên, dữ liệu không đổi)
     if (res.legacy) _openForcedPinUpgrade();
   } else {

@@ -18,22 +18,22 @@
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-vietnamese.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-latin.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-vietnamese.woff2">
-    <link rel="stylesheet" href="./assets/css/fonts.css?v=SAVEFIX_20260709">
+    <link rel="stylesheet" href="./assets/css/fonts.css?v=PERFMAP_20260709">
     <!-- Tailwind (self-host) -->
     <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
     <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css">
     <link rel="stylesheet" href="./assets/css/app.patch.css">
     <!-- Lucide icons (self-host, xem assets/vendor/README.md) -->
-    <script defer src="./assets/vendor/lucide.min.js?v=SAVEFIX_20260709"></script>
+    <script defer src="./assets/vendor/lucide.min.js?v=PERFMAP_20260709"></script>
     <!-- Transfer Backup uses TEXT chunks (no QR image) -->
     <!-- MapLibre GL JS is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
     <!-- CryptoJS library for hashing and encryption (self-host) -->
-    <script defer src="./assets/vendor/crypto-js.min.js?v=SAVEFIX_20260709"></script>
+    <script defer src="./assets/vendor/crypto-js.min.js?v=PERFMAP_20260709"></script>
 
-    <script defer src="./assets/head.js?v=SAVEFIX_20260709"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=SAVEFIX_20260709">
+    <script defer src="./assets/head.js?v=PERFMAP_20260709"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=PERFMAP_20260709">
     <!-- REDESIGN LAYER (banking / Vietinbank) — nạp cuối để đè lớp giao diện, không đụng JS -->
-    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=SAVEFIX_20260709">
+    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=PERFMAP_20260709">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <!-- style-src vẫn giữ 'unsafe-inline' trong vercel.json: hàng trăm thuộc tính style="..."
          và nhiều chỗ .style.cssText/.style.x trong assets/*.js dùng cho theme động, vị trí
@@ -538,35 +538,35 @@
     <div id="ui-modals-root"></div>
     <script src="./assets/ui/load_modals.js" defer></script>
 
-    <script src="./assets/00_globals.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/01_config.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/02_security.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/12_backup_core.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/13_ui_select_customers.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/15_auth_gate.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/03_map.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/04_ui_common.js?v=SAVEFIX_20260709" defer></script>
+    <script src="./assets/00_globals.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/01_config.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/02_security.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/12_backup_core.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/13_ui_select_customers.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/15_auth_gate.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/03_map.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/04_ui_common.js?v=PERFMAP_20260709" defer></script>
     <!-- Chuẩn hóa error messages & loading states (ErrorHandler / LoadingManager / AppToast) -->
-    <script src="./assets/19_error_loading.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/05_customers.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/06_assets.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/08_images_camera.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/09_menu.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/09_backup_manager.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/09_donate.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/09_weather.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/07_drive.js?v=SAVEFIX_20260709" defer></script>
+    <script src="./assets/19_error_loading.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/05_customers.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/06_assets.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/08_images_camera.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/09_menu.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/09_backup_manager.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/09_donate.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/09_weather.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/07_drive.js?v=PERFMAP_20260709" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=SAVEFIX_20260709" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=PERFMAP_20260709" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=SAVEFIX_20260709" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=PERFMAP_20260709" defer></script>
     <!-- Onboarding tour for new users -->
-    <script src="./assets/17_onboarding_tour.js?v=SAVEFIX_20260709" defer></script>
+    <script src="./assets/17_onboarding_tour.js?v=PERFMAP_20260709" defer></script>
     <!-- Mở khóa sinh trắc học (Face ID / vân tay) - tính năng bổ sung, không thay đổi luồng PIN -->
-    <script src="./assets/18_biometric_unlock.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/10_bootstrap.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/11_edge_back_swipe.js?v=SAVEFIX_20260709" defer></script>
-    <script src="./assets/pwa.js?v=SAVEFIX_20260709" defer></script>
+    <script src="./assets/18_biometric_unlock.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/10_bootstrap.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=PERFMAP_20260709" defer></script>
+    <script src="./assets/pwa.js?v=PERFMAP_20260709" defer></script>
 </body>
 
 </html>

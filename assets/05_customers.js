@@ -287,6 +287,47 @@ function _ensureSummaryDecrypted(c) {
     return c;
 }
 
+async function _ensureSummaryDecryptedAsync(c) {
+    if (!c) return c;
+    if (!c.assets) c.assets = [];
+    if (!c.status) c.status = 'pending';
+
+    const sig = _custSig(c);
+    const cached = __custSummaryCache.get(c.id);
+    if (cached && cached.sig === sig && cached.ok === true) {
+        c.name = cached.name;
+        c.phone = cached.phone;
+        c.cccd = cached.cccd;
+        c._nName = cached.nName; c._nPhone = cached.nPhone; c._nCccd = cached.nCccd;
+        return c;
+    }
+
+    if (typeof decryptCustomerSummaryAsync === 'function') await decryptCustomerSummaryAsync(c);
+    else if (typeof decryptFieldAsync === 'function') {
+        c.name = await decryptFieldAsync(c.name);
+        c.phone = await decryptFieldAsync(c.phone);
+        c.cccd = await decryptFieldAsync(c.cccd);
+    } else {
+        _ensureSummaryDecrypted(c);
+        return c;
+    }
+
+    const ok = !_looksEncrypted(c.name) && !_looksEncrypted(c.phone) && !_looksEncrypted(c.cccd);
+    if (ok) {
+        const nName = _normVi(c.name), nPhone = _stripSpaces(c.phone), nCccd = _stripSpaces(c.cccd);
+        __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd, ok: true, nName, nPhone, nCccd });
+        c._nName = nName; c._nPhone = nPhone; c._nCccd = nCccd;
+    } else {
+        __custSummaryCache.delete(c.id);
+    }
+    return c;
+}
+
+async function _decryptSummariesBatch(customers) {
+    if (!customers || !customers.length) return;
+    await Promise.all(customers.map((c) => _ensureSummaryDecryptedAsync(c)));
+}
+
 async function loadCustomers(query = '') {
     if (!db) return;
     const q = (query || '').trim();
@@ -318,7 +359,7 @@ async function loadCustomers(query = '') {
         if (activeListTab !== 'all' && (c.status || 'pending') !== activeListTab) continue;
 
         if (q) {
-            _ensureSummaryDecrypted(c);
+            await _ensureSummaryDecryptedAsync(c);
             // Dùng chỉ số đã chuẩn hóa (cache) -> không tính lại mỗi keystroke.
             const qNorm = _normVi(q);
             const qDigits = _stripSpaces(q);
@@ -347,19 +388,27 @@ async function loadCustomers(query = '') {
     // để không block main thread khi danh sách dài.
     const CHUNK_SIZE = 25;
     if (list.length <= CHUNK_SIZE) {
+        await _decryptSummariesBatch(list);
+        if (window.__customerListLoadToken !== loadToken) return;
         renderList(list, { append: false, done: true, summaryCounts, query: q, totalAll: all.length });
         return;
     }
 
-    renderList(list.slice(0, CHUNK_SIZE), { append: false, done: false, summaryCounts, query: q, totalAll: all.length });
+    const firstChunk = list.slice(0, CHUNK_SIZE);
+    await _decryptSummariesBatch(firstChunk);
+    if (window.__customerListLoadToken !== loadToken) return;
+    renderList(firstChunk, { append: false, done: false, summaryCounts, query: q, totalAll: all.length });
     let renderedCount = CHUNK_SIZE;
     const renderNextChunk = () => {
         // Có lượt load mới (search/đổi tab) -> bỏ các chunk còn lại của lượt cũ
         if (window.__customerListLoadToken !== loadToken) return;
         const chunk = list.slice(renderedCount, renderedCount + CHUNK_SIZE);
-        renderedCount += chunk.length;
-        renderList(chunk, { append: true, done: renderedCount >= list.length, summaryCounts });
-        if (renderedCount < list.length) requestAnimationFrame(renderNextChunk);
+        _decryptSummariesBatch(chunk).then(() => {
+            if (window.__customerListLoadToken !== loadToken) return;
+            renderedCount += chunk.length;
+            renderList(chunk, { append: true, done: renderedCount >= list.length, summaryCounts });
+            if (renderedCount < list.length) requestAnimationFrame(renderNextChunk);
+        });
     };
     requestAnimationFrame(renderNextChunk);
 }

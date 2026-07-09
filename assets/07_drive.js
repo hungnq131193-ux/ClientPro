@@ -244,13 +244,15 @@ async function uploadAssetToDrive() {
         const custNamePlain = _displayText(currentCustomerData.name);
         const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
 
+        const resolvedImages = await Promise.all(imagesToUpload.map(async (img, idx) => ({
+            name: `asset_img_${Date.now()}_${idx}.jpg`,
+            data: (typeof decryptImageData === 'function') ? await decryptImageData(img.data) : img.data,
+        })));
+
         const payload = {
             token: getUserToken(),
             folderName: folderName,
-            images: imagesToUpload.map((img, idx) => ({
-                name: `asset_img_${Date.now()}_${idx}.jpg`,
-                data: img.data
-            }))
+            images: resolvedImages,
         };
 
         try {
@@ -519,16 +521,18 @@ async function uploadToGoogleDrive() {
 
         LoadingManager.showGlobal("Đang sao lưu ảnh lên Google Drive...");
 
+        const resolvedImages = await Promise.all(imagesToUpload.map(async (img, idx) => ({
+            name: `hoso_${Date.now()}_${idx}.jpg`,
+            data: (typeof decryptImageData === 'function') ? await decryptImageData(img.data) : img.data,
+        })));
+
         // 2. Chuẩn bị gói dữ liệu
         const payload = {
             action: 'upload', // <--- Báo cho Script biết là muốn Upload
             token: getUserToken(),
             // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
             folderName: `${_displayText(currentCustomerData.name)} - ${_displayText(currentCustomerData.cccd) || _displayText(currentCustomerData.phone)}`,
-            images: imagesToUpload.map((img, idx) => ({
-                name: `hoso_${Date.now()}_${idx}.jpg`,
-                data: img.data // Gửi cả mảng ảnh đi 1 lần
-            }))
+            images: resolvedImages,
         };
 
         try {

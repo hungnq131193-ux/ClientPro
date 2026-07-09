@@ -1,5 +1,12 @@
 // --- MAP SYSTEM VARIABLES ---
 let map = null; let markers = []; let mapResizeObserver = null;
+let __mapClusterIndex = null;
+let __mapFeatures = [];
+let __mapClusterHandlers = null;
+let __superclusterLoadPromise = null;
+const MAP_CLUSTER_MIN_ZOOM = 0;
+const MAP_CLUSTER_MAX_ZOOM = 16;
+const MAP_CLUSTER_RADIUS = 56;
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const MAP_STYLE_SAT = {
     version: 8,
@@ -77,7 +84,7 @@ async function ensureMapLibreLoaded() {
     __mapLibreLoadPromise = (async () => {
         // Self-host (maplibre-gl 4.7.1, xem assets/vendor/README.md) — không dùng CDN ngoài.
         // Query ?v= phải khớp STATIC_ASSETS trong sw.js để precache dùng lại được.
-        const MAPLIBRE_V = 'SAVEFIX_20260709';
+        const MAPLIBRE_V = 'PERFMAP_20260709';
         const cssLocal = `./assets/vendor/maplibre-gl.css?v=${MAPLIBRE_V}`;
         const jsLocal = `./assets/vendor/maplibre-gl.js?v=${MAPLIBRE_V}`;
 
@@ -95,6 +102,16 @@ async function ensureMapLibreLoaded() {
         ErrorHandler.showError('NETWORK', 'Không tải được bản đồ. Vui lòng kiểm tra mạng.', err);
         return false;
     });
+}
+
+async function ensureSuperclusterLoaded() {
+    if (window.Supercluster) return true;
+    if (__superclusterLoadPromise) return __superclusterLoadPromise;
+    const MAPLIBRE_V = 'PERFMAP_20260709';
+    __superclusterLoadPromise = __loadScript(`./assets/vendor/supercluster.min.js?v=${MAPLIBRE_V}`, 'supercluster-js', 10000)
+        .then(() => !!(window.Supercluster))
+        .catch(() => false);
+    return __superclusterLoadPromise;
 }
 
 // --- GPS FEATURE V1.2 (đa tầng dự phòng, tránh lỗi "Hết thời gian chờ") ---
@@ -452,13 +469,166 @@ function destroyMap() {
         mapResizeObserver.disconnect();
         mapResizeObserver = null;
     }
+    if (map && __mapClusterHandlers) {
+        map.off('moveend', __mapClusterHandlers.move);
+        map.off('zoomend', __mapClusterHandlers.zoom);
+        __mapClusterHandlers = null;
+    }
     markers.forEach(m => m.remove());
     markers = [];
+    __mapClusterIndex = null;
+    __mapFeatures = [];
     if (typeof __meMarker !== 'undefined' && __meMarker) { try { __meMarker.remove(); } catch (e) { } __meMarker = null; }
     if (map) {
         map.remove();
         map = null;
     }
+}
+
+function _clearMapMarkers() {
+    markers.forEach(m => m.remove());
+    markers = [];
+}
+
+function _attachMapClusterHandlers() {
+    if (!map || __mapClusterHandlers) return;
+    const handler = () => { _paintMapClusters(); };
+    __mapClusterHandlers = { move: handler, zoom: handler };
+    map.on('moveend', handler);
+    map.on('zoomend', handler);
+}
+
+function _createClusterMarkerEl(count) {
+    const el = document.createElement('div');
+    el.className = 'map-cluster-marker';
+    const size = count < 10 ? 36 : count < 50 ? 42 : 48;
+    el.style.width = `${size}px`;
+    el.style.height = `${size}px`;
+    el.textContent = String(count);
+    return el;
+}
+
+function _createPointMarkerEl(isApproved) {
+    const markerEl = document.createElement('div');
+    markerEl.className = 'custom-div-icon';
+    const markerClass = isApproved ? 'marker-approved' : 'marker-pending';
+    markerEl.innerHTML = `<div class="marker-glow ${markerClass}"></div>`;
+    return markerEl;
+}
+
+function _buildMapPopupCard(props) {
+    const { custId, custName, assetName, assetVal, isApproved, loc, thumb } = props;
+    const card = document.createElement('div');
+    card.className = 'map-popup-card';
+    card.dataset.custId = custId;
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+
+    const imgEl = document.createElement('img');
+    imgEl.className = 'map-popup-img';
+    imgEl.alt = '';
+    imgEl.src = thumb;
+    card.appendChild(imgEl);
+
+    const row = document.createElement('div');
+    row.className = 'flex justify-between items-start';
+
+    const infoDiv = document.createElement('div');
+    const statusSpan = document.createElement('span');
+    statusSpan.className = isApproved ? 'map-tag approved' : 'map-tag pending';
+    statusSpan.textContent = isApproved ? 'Đã Duyệt' : 'Thẩm định';
+    infoDiv.appendChild(statusSpan);
+
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'font-bold text-sm truncate w-40';
+    nameDiv.textContent = custName;
+    infoDiv.appendChild(nameDiv);
+
+    const assetDiv = document.createElement('div');
+    assetDiv.className = 'text-[10px] text-slate-400 truncate w-40';
+    assetDiv.textContent = assetName;
+    infoDiv.appendChild(assetDiv);
+
+    if (assetVal) {
+        const valDiv = document.createElement('div');
+        valDiv.className = 'text-xs text-slate-300';
+        valDiv.append('Định giá: ');
+        const valB = document.createElement('b');
+        valB.className = 'text-white';
+        valB.textContent = assetVal;
+        valDiv.appendChild(valB);
+        infoDiv.appendChild(valDiv);
+    }
+
+    row.appendChild(infoDiv);
+    const arrowDiv = document.createElement('div');
+    arrowDiv.className = 'p-2 bg-indigo-500 rounded-lg text-white mt-1';
+    arrowDiv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+    row.appendChild(arrowDiv);
+    card.appendChild(row);
+
+    const directionLink = document.createElement('a');
+    directionLink.className = 'block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20';
+    directionLink.target = '_blank';
+    directionLink.textContent = 'Chỉ đường';
+    directionLink.setAttribute('href', `https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}`);
+    card.appendChild(directionLink);
+
+    const popup = new maplibregl.Popup({ offset: 18, closeButton: true, className: 'clientpro-map-popup', maxWidth: '300px' }).setDOMContent(card);
+    popup.on('open', () => {
+        const popupEl = popup.getElement();
+        const cardEl = popupEl && popupEl.querySelector('.map-popup-card[data-cust-id]');
+        if (!cardEl) return;
+        const openCurrentFolder = () => openMapFolder(cardEl.dataset.custId);
+        cardEl.addEventListener('click', (event) => {
+            if (event.target && event.target.closest('a')) return;
+            openCurrentFolder();
+        });
+        cardEl.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openCurrentFolder();
+            }
+        });
+    });
+    return popup;
+}
+
+function _paintMapClusters() {
+    if (!map || !__mapClusterIndex) return;
+    _clearMapMarkers();
+    const bounds = map.getBounds();
+    const zoom = Math.max(0, Math.min(MAP_CLUSTER_MAX_ZOOM, Math.round(map.getZoom())));
+    const clusters = __mapClusterIndex.getClusters(
+        [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
+        zoom
+    );
+
+    clusters.forEach((feat) => {
+        const [lng, lat] = feat.geometry.coordinates;
+        const props = feat.properties || {};
+
+        if (props.cluster) {
+            const el = _createClusterMarkerEl(props.point_count_abbreviated || props.point_count);
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const expansionZoom = Math.min(
+                    __mapClusterIndex.getClusterExpansionZoom(props.cluster_id),
+                    MAP_CLUSTER_MAX_ZOOM
+                );
+                map.easeTo({ center: [lng, lat], zoom: expansionZoom });
+            });
+            markers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map));
+            return;
+        }
+
+        const marker = new maplibregl.Marker({
+            element: _createPointMarkerEl(!!props.isApproved),
+            anchor: 'center',
+        }).setLngLat([lng, lat]).addTo(map);
+        marker.setPopup(_buildMapPopupCard(props));
+        markers.push(marker);
+    });
 }
 
 function createMapStyleControl() {
@@ -483,147 +653,108 @@ function createMapStyleControl() {
     };
 }
 
-// --- ĐÃ SỬA: GIẢI MÃ LINK VÀ THÔNG TIN TRƯỚC KHI VẼ MAP ---
+// --- GIẢI MÃ + SUPERCLUSTER: mượt với >100 điểm ---
 async function renderMapMarkers() {
     if (!db || !map) return;
-    // Xóa marker cũ
-    markers.forEach(m => m.remove());
-    markers = [];
+    const scOk = await ensureSuperclusterLoaded();
+    if (!scOk || !window.Supercluster) {
+        ErrorHandler.showWarning('Không tải được clustering — hiển thị điểm đơn lẻ.');
+    }
 
-    const tx = db.transaction(['customers', 'images'], 'readonly');
-    const custStore = tx.objectStore('customers');
-    const imgStore = tx.objectStore('images');
+    _clearMapMarkers();
+    __mapFeatures = [];
+    __mapClusterIndex = null;
 
-    // Lấy trước toàn bộ ảnh để làm thumbnail
-    const allImages = await new Promise(r => { const req = imgStore.getAll(); req.onsuccess = e => r(e.target.result || []); req.onerror = () => r([]); });
+    const fallbackThumb = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzU1NSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
 
-    custStore.getAll().onsuccess = (e) => {
-        const customers = e.target.result || [];
-        const bounds = [];
+    const [customers, allImages] = await Promise.all([
+        new Promise((resolve) => {
+            try {
+                const req = db.transaction(['customers'], 'readonly').objectStore('customers').getAll();
+                req.onsuccess = (e) => resolve(e.target.result || []);
+                req.onerror = () => resolve([]);
+            } catch (e) { resolve([]); }
+        }),
+        new Promise((resolve) => {
+            try {
+                const req = db.transaction(['images'], 'readonly').objectStore('images').getAll();
+                req.onsuccess = (e) => resolve(e.target.result || []);
+                req.onerror = () => resolve([]);
+            } catch (e) { resolve([]); }
+        }),
+    ]);
 
-        customers.forEach(cust => {
-            if (!cust.assets) return;
+    const bounds = [];
+    const featureJobs = [];
 
-            // 1. GIẢI MÃ TÊN KHÁCH HÀNG (để hiện trên Popup)
-            const custName = decryptText(cust.name);
-
-            cust.assets.forEach(asset => {
-                // 2. QUAN TRỌNG: GIẢI MÃ LINK TRƯỚC KHI TÁCH TỌA ĐỘ
-                const decryptedLink = decryptText(asset.link);
+    customers.forEach((cust) => {
+        if (!cust || !cust.assets) return;
+        featureJobs.push((async () => {
+            const custName = await decryptFieldAsync(cust.name);
+            for (const asset of cust.assets) {
+                const decryptedLink = await decryptFieldAsync(asset.link);
                 const loc = parseLatLngFromLink(decryptedLink);
+                if (!loc) continue;
 
-                if (loc) {
-                    // 3. GIẢI MÃ CÁC THÔNG TIN TÀI SẢN KHÁC
-                    const assetName = decryptText(asset.name);
-                    const assetVal = decryptText(asset.valuation);
-
-                    // Tìm ảnh đại diện
-                    const img = allImages.find(i => i.assetId === asset.id) || allImages.find(i => i.customerId === cust.id);
-                    const fallbackThumb = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNjAiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzU1NSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
-                    const thumb = (img && typeof isSafeImageUrl === 'function' && isSafeImageUrl(img.data)) ? img.data : fallbackThumb;
-
-                    // Style marker theo trạng thái
-                    const isApproved = cust.status === 'approved';
-                    const markerClass = isApproved ? 'marker-approved' : 'marker-pending';
-
-                    const markerEl = document.createElement('div');
-                    markerEl.className = 'custom-div-icon';
-                    markerEl.innerHTML = `<div class="marker-glow ${markerClass}"></div>`;
-
-                    const marker = new maplibregl.Marker({ element: markerEl, anchor: 'center' })
-                        .setLngLat([loc.lng, loc.lat])
-                        .addTo(map);
-
-                    // Popup: dựng bằng DOM API (setDOMContent) thay vì nội suy HTML string,
-                    // để dữ liệu khách hàng/tài sản không bao giờ đi qua HTML parser.
-                    const card = document.createElement('div');
-                    card.className = 'map-popup-card';
-                    card.dataset.custId = cust.id;
-                    card.setAttribute('role', 'button');
-                    card.setAttribute('tabindex', '0');
-
-                    const imgEl = document.createElement('img');
-                    imgEl.className = 'map-popup-img';
-                    imgEl.alt = '';
-                    imgEl.src = thumb;
-                    card.appendChild(imgEl);
-
-                    const row = document.createElement('div');
-                    row.className = 'flex justify-between items-start';
-
-                    const infoDiv = document.createElement('div');
-
-                    const statusSpan = document.createElement('span');
-                    statusSpan.className = isApproved ? 'map-tag approved' : 'map-tag pending';
-                    statusSpan.textContent = isApproved ? 'Đã Duyệt' : 'Thẩm định';
-                    infoDiv.appendChild(statusSpan);
-
-                    const nameDiv = document.createElement('div');
-                    nameDiv.className = 'font-bold text-sm truncate w-40';
-                    nameDiv.textContent = custName;
-                    infoDiv.appendChild(nameDiv);
-
-                    const assetDiv = document.createElement('div');
-                    assetDiv.className = 'text-[10px] text-slate-400 truncate w-40';
-                    assetDiv.textContent = assetName;
-                    infoDiv.appendChild(assetDiv);
-
-                    if (assetVal) {
-                        const valDiv = document.createElement('div');
-                        valDiv.className = 'text-xs text-slate-300';
-                        valDiv.append('Định giá: ');
-                        const valB = document.createElement('b');
-                        valB.className = 'text-white';
-                        valB.textContent = assetVal;
-                        valDiv.appendChild(valB);
-                        infoDiv.appendChild(valDiv);
-                    }
-
-                    row.appendChild(infoDiv);
-
-                    const arrowDiv = document.createElement('div');
-                    arrowDiv.className = 'p-2 bg-indigo-500 rounded-lg text-white mt-1';
-                    arrowDiv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
-                    row.appendChild(arrowDiv);
-
-                    card.appendChild(row);
-
-                    const directionLink = document.createElement('a');
-                    directionLink.className = 'block mt-2 text-center py-2 bg-white/10 rounded border border-white/10 text-[10px] font-bold text-blue-300 uppercase hover:bg-white/20';
-                    directionLink.target = '_blank';
-                    directionLink.textContent = 'Chỉ đường';
-                    directionLink.setAttribute('href', `https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}`);
-                    card.appendChild(directionLink);
-
-                    const popup = new maplibregl.Popup({ offset: 18, closeButton: true, className: 'clientpro-map-popup', maxWidth: '300px' }).setDOMContent(card);
-                    popup.on('open', () => {
-                        const popupEl = popup.getElement();
-                        const cardEl = popupEl && popupEl.querySelector('.map-popup-card[data-cust-id]');
-                        if (!cardEl) return;
-                        const openCurrentFolder = () => openMapFolder(cardEl.dataset.custId);
-                        cardEl.addEventListener('click', (event) => {
-                            if (event.target && event.target.closest('a')) return;
-                            openCurrentFolder();
-                        });
-                        cardEl.addEventListener('keydown', (event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                openCurrentFolder();
-                            }
-                        });
-                    });
-                    marker.setPopup(popup);
-                    markers.push(marker);
-                    bounds.push([loc.lng, loc.lat]);
+                const assetName = await decryptFieldAsync(asset.name);
+                const assetVal = await decryptFieldAsync(asset.valuation);
+                const img = allImages.find(i => i.assetId === asset.id) || allImages.find(i => i.customerId === cust.id);
+                let thumb = fallbackThumb;
+                if (img && img.data) {
+                    const raw = (typeof decryptImageData === 'function')
+                        ? await decryptImageData(img.data)
+                        : await decryptFieldAsync(img.data);
+                    if (typeof isSafeImageUrl === 'function' && isSafeImageUrl(raw)) thumb = raw;
                 }
-            });
-        });
 
-        if (bounds.length > 0) {
-            const boundsObj = bounds.reduce((b, coord) => b.extend(coord), new maplibregl.LngLatBounds(bounds[0], bounds[0]));
-            map.fitBounds(boundsObj, { padding: 50, maxZoom: 16 });
-        }
-    };
+                const isApproved = cust.status === 'approved';
+                __mapFeatures.push({
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [loc.lng, loc.lat] },
+                    properties: {
+                        custId: cust.id,
+                        custName,
+                        assetName,
+                        assetVal,
+                        isApproved,
+                        loc,
+                        thumb,
+                    },
+                });
+                bounds.push([loc.lng, loc.lat]);
+            }
+        })());
+    });
+
+    await Promise.all(featureJobs);
+
+    if (window.Supercluster && __mapFeatures.length > 0) {
+        __mapClusterIndex = new window.Supercluster({
+            radius: MAP_CLUSTER_RADIUS,
+            maxZoom: MAP_CLUSTER_MAX_ZOOM,
+            minZoom: MAP_CLUSTER_MIN_ZOOM,
+        });
+        __mapClusterIndex.load(__mapFeatures);
+        _attachMapClusterHandlers();
+        _paintMapClusters();
+    } else {
+        // Fallback không cluster
+        __mapFeatures.forEach((feat) => {
+            const [lng, lat] = feat.geometry.coordinates;
+            const props = feat.properties;
+            const marker = new maplibregl.Marker({
+                element: _createPointMarkerEl(!!props.isApproved),
+                anchor: 'center',
+            }).setLngLat([lng, lat]).addTo(map);
+            marker.setPopup(_buildMapPopupCard(props));
+            markers.push(marker);
+        });
+    }
+
+    if (bounds.length > 0) {
+        const boundsObj = bounds.reduce((b, coord) => b.extend(coord), new maplibregl.LngLatBounds(bounds[0], bounds[0]));
+        map.fitBounds(boundsObj, { padding: 50, maxZoom: 16 });
+    }
 }
 
 function openMapFolder(custId) {

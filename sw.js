@@ -13,7 +13,7 @@
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.5.4';
+const VERSION = 'v1.5.5';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -31,7 +31,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'SAVEFIX_20260709';
+const ASSET_V = 'PERFMAP_20260709';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -44,6 +44,7 @@ const STATIC_ASSETS = [
   `./assets/vendor/crypto-js.min.js?v=${ASSET_V}`,
   `./assets/vendor/maplibre-gl.js?v=${ASSET_V}`,
   `./assets/vendor/maplibre-gl.css?v=${ASSET_V}`,
+  `./assets/vendor/supercluster.min.js?v=${ASSET_V}`,
 
   // Fonts (self-host; woff2 được request từ fonts.css nên KHÔNG có query)
   `./assets/css/fonts.css?v=${ASSET_V}`,

@@ -116,6 +116,10 @@ function loadSecurity() {
       getDb: () => db,
       encryptText,               // ASYNC nay (AES-GCM)
       decryptText,               // đồng bộ (đọc cache / legacy CryptoJS)
+      decryptFieldAsync,
+      encryptImageData,
+      decryptImageData,
+      runImageCryptoMigrationIfNeeded,
       generateMasterKey,
       _installMasterKey,
       clearMasterKeyMaterial,
