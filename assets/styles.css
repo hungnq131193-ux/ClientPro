@@ -1168,12 +1168,20 @@ input::placeholder {
   z-index: 70;
 }
 
+.z-\[80\] {
+  z-index: 80;
+}
+
 .z-\[100\] {
   z-index: 100;
 }
 
 .z-\[120\] {
   z-index: 120;
+}
+
+.z-\[200\] {
+  z-index: 200;
 }
 
 .z-\[300\] {

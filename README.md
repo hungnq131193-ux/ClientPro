@@ -76,7 +76,7 @@ npm run sync:version      # ghi semver ra manifest.json, sw.js, pwa.js, README
 npm run check:version     # chỉ kiểm tra (CI dùng, lệch => fail)
 ```
 
-**2. Tag cache-buster asset** — hiện tại **`DISPLAYFIX_20260709`**. Nguồn: `ASSET_V` trong `sw.js`; phải đồng nhất với mọi query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`. Đổi tay khi thay asset.
+**2. Tag cache-buster asset** — hiện tại **`ZINDEXFIX_20260709`**. Nguồn: `ASSET_V` trong `sw.js`; phải đồng nhất với mọi query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`. Đổi tay khi thay asset.
 
 CI kiểm tra cả hai — không sửa tay các file đích của semver.
 
