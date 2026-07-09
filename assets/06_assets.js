@@ -194,13 +194,17 @@ function renderAssets() {
 
   // Try to fully unwrap old/double-encrypted labels (best-effort).
   // Some historical records could be encrypted more than once during migrations.
+  // asset.name is NOT encrypted for new writes (xem _doSaveAsset), nhưng bản ghi cũ
+  // (trước fix "KHÔNG MÃ HÓA TÊN") có thể vẫn là ciphertext, và migration GCM
+  // (_reencryptRecord trong 02_security.js) chuyển ciphertext legacy đó sang "cpg1:" —
+  // phải dùng decryptText() (hiểu cả 2 dạng) thay vì chỉ strip tiền tố "U2FsdGVkX1",
+  // nếu không name sẽ hiện nguyên ciphertext "cpg1:..." sau khi migrate (bug v1.5.6).
   function _deepDecryptLabel(v) {
     if (v === undefined || v === null) return "";
     let s = String(v);
     for (let i = 0; i < 3; i++) {
-      if (!s.startsWith("U2FsdGVkX1")) break;
+      if (typeof decryptText !== "function" || typeof _looksEncrypted !== "function" || !_looksEncrypted(s)) break;
       try {
-        if (typeof decryptText !== "function") break;
         const out = decryptText(s);
         if (!out || out === s) break;
         s = String(out);
@@ -233,12 +237,13 @@ function renderAssets() {
     // Nếu ô nào lưu rỗng, hàm decryptText sẽ trả về rỗng -> Không hiện chuỗi mã hóa nữa
     const decName = _deepDecryptLabel(asset.name) || asset.name || "";
 
-    // If name is still ciphertext but decryptText() produced a readable plaintext, persist it.
+    // If name is still ciphertext (legacy CryptoJS hoặc đã migrate sang "cpg1:") nhưng
+    // decryptText() giải mã thành công ra plaintext, persist lại dạng plaintext.
     // This is safe because asset.name is a display label (not used in cryptographic logic).
     try {
-      if (typeof asset.name === "string" && asset.name.startsWith("U2FsdGVkX1")) {
+      if (typeof asset.name === "string" && _looksEncrypted(asset.name)) {
         const dd = _deepDecryptLabel(asset.name);
-        if (dd && dd !== asset.name && !String(dd).startsWith("U2FsdGVkX1")) {
+        if (dd && dd !== asset.name && !_looksEncrypted(dd)) {
           asset.name = decName;
           _needSaveMigration = true;
         }
@@ -388,7 +393,9 @@ async function openEditAssetModal(index) {
 window.decryptCustomerAssetsAsync = async function decryptCustomerAssetsAsync(customer, opts) {
   if (!customer || !Array.isArray(customer.assets) || typeof decryptFieldAsync !== "function") return;
   const batchSize = (opts && opts.batchSize) || 6;
-  const fields = ["link", "valuation", "loanValue", "area", "width", "onland", "year"];
+  // "name" thường là plaintext (xem _doSaveAsset) nhưng bản ghi cũ có thể vẫn là ciphertext
+  // (legacy hoặc đã migrate sang "cpg1:") -> phải nạp cache cho nó, không chỉ các field TSBĐ khác.
+  const fields = ["name", "link", "valuation", "loanValue", "area", "width", "onland", "year"];
   for (let i = 0; i < customer.assets.length; i += batchSize) {
     const batch = customer.assets.slice(i, i + batchSize);
     await Promise.all(batch.map((asset) => Promise.all(fields.map((f) => {

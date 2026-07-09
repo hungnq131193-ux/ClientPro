@@ -113,8 +113,14 @@ document.addEventListener('DOMContentLoaded', () => {
 // =============================
 // Helpers (decrypt display fields, keep backward compatibility)
 // =============================
+// Tên hàm giữ nguyên ("CryptoJS") để tránh đổi diện rộng, nhưng nay nhận diện CẢ 2 dạng
+// ciphertext: legacy CryptoJS ("U2FsdGVkX1...") và AES-GCM mới ("cpg1:..."). Trước đây chỉ
+// check tiền tố legacy -> field asset.name/driveLink đã migrate sang "cpg1:" bị coi nhầm là
+// plaintext, khiến chuỗi mã hóa lọt vào folderName Drive / hiển thị UI (xem _looksEncrypted
+// trong 05_customers.js, cùng bug với renderAssets() ở 06_assets.js).
 function _isCryptoJSCiphertext(s) {
-    return typeof s === 'string' && s.startsWith('U2FsdGVkX1');
+    if (typeof _looksEncrypted === 'function') return _looksEncrypted(s);
+    return typeof s === 'string' && (s.startsWith('U2FsdGVkX1') || s.startsWith('cpg1:'));
 }
 
 function _safeDecryptMaybe(s) {
