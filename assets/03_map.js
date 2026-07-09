@@ -7,6 +7,8 @@ let __superclusterLoadPromise = null;
 const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
+// Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
+const MAPLIBRE_V = 'PERFMAP_20260709';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const MAP_STYLE_SAT = {
     version: 8,
@@ -84,7 +86,6 @@ async function ensureMapLibreLoaded() {
     __mapLibreLoadPromise = (async () => {
         // Self-host (maplibre-gl 4.7.1, xem assets/vendor/README.md) — không dùng CDN ngoài.
         // Query ?v= phải khớp STATIC_ASSETS trong sw.js để precache dùng lại được.
-        const MAPLIBRE_V = 'PERFMAP_20260709';
         const cssLocal = `./assets/vendor/maplibre-gl.css?v=${MAPLIBRE_V}`;
         const jsLocal = `./assets/vendor/maplibre-gl.js?v=${MAPLIBRE_V}`;
 
@@ -107,7 +108,6 @@ async function ensureMapLibreLoaded() {
 async function ensureSuperclusterLoaded() {
     if (window.Supercluster) return true;
     if (__superclusterLoadPromise) return __superclusterLoadPromise;
-    const MAPLIBRE_V = 'PERFMAP_20260709';
     __superclusterLoadPromise = __loadScript(`./assets/vendor/supercluster.min.js?v=${MAPLIBRE_V}`, 'supercluster-js', 10000)
         .then(() => !!(window.Supercluster))
         .catch(() => false);
