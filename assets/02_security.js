@@ -997,6 +997,9 @@ async function saveSecuritySetup() {
     if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
   }
   resetPinFailures();
+  // Gate bảo mật có thể hiện trước khi IndexedDB mở xong — chờ db để migration
+  // không bị bỏ qua vì `!db`.
+  try { if (window.__dbReady) await window.__dbReady; } catch (e) { }
   // Đảm bảo dữ liệu ở định dạng AES-GCM mới nhất (idempotent):
   // - Fresh install (MK2, không legacy) -> chỉ đánh dấu schema='2'.
   // - Sau khôi phục mà dữ liệu còn CryptoJS -> migrate ngay dưới PIN vừa đặt.
@@ -1072,6 +1075,9 @@ async function validatePin() {
     resetPinFailures();
     _setKeypadDisabled(false);
     getEl("screen-lock").classList.add("hidden");
+    // Lock screen giờ hiện TRƯỚC khi IndexedDB mở xong (bootstrap) — chờ db sẵn sàng
+    // để migration/primeFieldCache/loadCustomers không chạy khi db còn undefined.
+    try { if (window.__dbReady) await window.__dbReady; } catch (e) { }
     // Migration 1 lần (CryptoJS -> AES-GCM) rồi nạp cache trước khi render danh sách.
     try {
       await runFieldCryptoMigrationIfNeeded(pinForMigration, empForMigration);

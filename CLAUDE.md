@@ -32,7 +32,7 @@
 5. **No Framework, Maximum Control**: Vanilla JS + numbered modules + data-action delegation (để tuân thủ CSP `script-src 'self'` không có `unsafe-inline`).
 6. **Versioning Discipline**: PWA cache busting đòi hỏi đồng bộ version ở nhiều nơi. CI sẽ fail nếu vi phạm.
 
-**Phiên bản hiện tại**: `1.5.0` (nguồn duy nhất: `package.json` → `sync:version` đồng bộ manifest/sw/pwa/README)
+**Phiên bản hiện tại**: `1.5.4` (nguồn duy nhất: `package.json` → `sync:version` đồng bộ manifest/sw/pwa/README)
 
 **License**: Proprietary – All Rights Reserved. Chỉ tác giả (Nguyễn Quốc Hưng) được phép sử dụng và sửa đổi.
 
@@ -223,6 +223,10 @@ Mục tiêu của section này là cung cấp **mental model + chi tiết thực
 
 **Data flow điển hình**: User nhập form → `saveCustomer()` → encrypt object → IndexedDB put → refresh list UI.
 
+**Chống double-submit (v1.5.4)**: `saveCustomer()` (05) và `saveAsset()` (06) có **cờ in-flight** (`__custSaveInFlight`/`__custWriteInFlight`, `__assetSaveInFlight` — set ĐỒNG BỘ trước await đầu tiên) + disable nút Lưu bằng `LoadingManager.showButtonLoading(btn, 'Đang lưu...')`, nhả trong `finally` sau khi transaction ghi xong (các put IDB được bọc Promise + await). Chạm 2 lần trên máy/mạng chậm không thể tạo 2 record trùng. Khi thêm luồng ghi mới có nút submit → áp dụng cùng pattern.
+
+**Kiểm tra kết quả ghi (v1.5.4)**: `persistCurrentCustomer(mutate, onDone)` (04) trả `onDone(ok)` — **MỌI caller phải kiểm tra `ok`**: `saveAsset`/`deleteAsset`/`confirmApproval` hoàn tác mutation in-memory (undo/revert) + `ErrorHandler.showError('STORAGE', ...)` khi `ok=false` thay vì báo "thành công" giả; `updateCustomerAndReload` báo lỗi rồi reload từ DB; các persist driveLink trong 07_drive báo warning "chưa lưu được link". Không bao giờ hiện toast thành công trước khi biết transaction commit.
+
 ### 4.5 Bản đồ & Tính khoảng cách đường thực tế (03_map.js)
 
 - MapLibre GL JS self-hosted, lazy load khi vào màn hình map.
@@ -254,6 +258,7 @@ Mục tiêu của section này là cung cấp **mental model + chi tiết thực
 
 - `capturePhoto()` → `getUserMedia` (camera) → chụp → lưu vào record customer/asset (thường dưới dạng dataURL + encrypt metadata).
 - `tryOpenCamera(data-arg)` — mở camera theo context (customer hay asset).
+- **Vòng đời stream camera (v1.5.4)**: `_stopCameraStream()` dừng mọi track + gỡ `srcObject`; `closeCamera()` gọi nó (an toàn khi gọi lặp). Listener `visibilitychange` (hidden) + `pagehide` tự `closeCamera()` → camera KHÔNG chạy ngầm khi khóa máy/chuyển app (riêng tư + pin). `_tryOpenCameraReal` dùng token `__cameraOpenSeq`: stream cũ bị stop trước khi mở stream mới, stream về "muộn" (double-tap / user đã đóng modal) bị stop ngay thay vì rò rỉ.
 - Lightbox: `currentLightboxList`, `currentLightboxIndex`, `navigateLightbox()`, `closeLightbox()`, share/delete.
 - `shareSelectedImages()`, `deleteSelectedImages()`, `deleteOpenedImage()`.
 - Tích hợp chặt với folder view và asset gallery.
@@ -313,6 +318,7 @@ Cả hai đều tôn trọng triết lý "user-controlled cloud" — không có 
 - Chạy sau khi các module nền tảng load xong.
 - Khởi tạo DB (IndexedDB), restore theme, check auth gate, load initial data (customers/assets), init map nếu cần, register PWA.
 - Thứ tự init rất quan trọng (đã sắp xếp qua load order trong index.html).
+- **Gate trước loader (v1.5.4)**: `checkSecurity()` được gọi NGAY trong DOMContentLoaded (sau khi modal partials ready), TRƯỚC khi ẩn `#loader` — phần hiển thị gate chạy đồng bộ, không cần db → dashboard không bao giờ lộ thoáng qua trước màn hình PIN/kích hoạt. Loader chỉ ẩn sớm khi 1 trong 3 gate (`screen-lock`/`setup-lock-modal`/`activation-modal`) đã hiện; nếu không (partials lỗi/timeout) → giữ loader, retry `checkSecurity()` trong `indexedDB.open onsuccess`. Vì gate có thể hiện trước khi DB mở xong, bootstrap expose **`window.__dbReady`** (Promise, resolve ở `onsuccess`/`onerror`) — `validatePin()` và `saveSecuritySetup()` (02) `await window.__dbReady` trước khi chạy migration/`primeFieldCache`/`loadCustomers`.
 
 ### 4.11 GAS Backend (`gas/`) — AdminAPI.gs & UserDriveAPI.gs
 
@@ -519,9 +525,10 @@ Bộ test tự động, **ưu tiên cao nhất cho tính toàn vẹn dữ liệu
 
 ---
 
-## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-08)
+## 8. Trạng thái Hiện tại & Ghi chú Quan trọng (cập nhật 2026-07-09)
 
-- **Phiên bản**: 1.5.3 (ASSET_V: SECGCM_20260708). Nguồn semver: `package.json` (dùng `npm run sync:version`).
+- **Phiên bản**: 1.5.4 (ASSET_V: SAVEFIX_20260709). Nguồn semver: `package.json` (dùng `npm run sync:version`).
+- **Recent change (2026-07-09 — Reliability fixes v1.5.4)**: 4 fix an toàn dữ liệu/riêng tư: (1) **Chống double-submit** `saveCustomer`/`saveAsset` — cờ in-flight + `LoadingManager.showButtonLoading` disable nút, await tới khi transaction ghi xong (xem §4.4); (2) **Không báo "thành công" giả** — mọi caller `persistCurrentCustomer` kiểm tra `onDone(ok)`, hoàn tác in-memory + `showError('STORAGE',...)` khi ghi DB thất bại (§4.4); (3) **Gate trước loader** — `checkSecurity()` chạy trước khi ẩn `#loader` trong bootstrap, dashboard không lộ thoáng qua; thêm `window.__dbReady` để `validatePin`/`saveSecuritySetup` chờ DB (§4.10); (4) **Camera tự tắt** khi `visibilitychange:hidden`/`pagehide` + token `__cameraOpenSeq` chống rò rỉ stream khi double-tap (§4.6).
 - **Recent change (2026-07-08g — P5 Production Testing)**: thêm `tests/schema.test.js` (data-contract, zero-dep) + hạ tầng E2E CI-only: `e2e/` (Playwright: smoke/a11y-axe/offline/crud) + `playwright.config.js` + `lighthouserc.json` + devDeps trong `package.json` (không commit node_modules/lock). CI thêm job `e2e`. `crud.spec.js` xác minh đường ống mã hóa AES-GCM chạy trong Chromium thật. a11y: thêm fallback nhãn icon (ICON_LABELS) trong `labelIconButtons` -> 0 vi phạm axe `critical`. Xem §9.
 - **Recent change (2026-07-08f — P4 Scalability)**: tìm kiếm KH không dấu (`_normVi`) + khớp CCCD/SĐT, chỉ số chuẩn hóa cache trong `__custSummaryCache` (không tính lại mỗi keystroke; decrypt cache-hit nhờ P2). Virtual list & viewport marker culling **cố ý bỏ** ở quy mô vài trăm KH. Xem §4.4.
 - **Recent change (2026-07-08e — P3 Accessibility)**: bỏ `user-scalable=no` (pinch-zoom); thêm `ModalA11y` (focus trap + aria-modal/dialog/labelledby + Esc + khôi phục focus cho mọi modal, không sửa từng open/close) + `labelIconButtons`; CSS `:focus-visible` + `@media (prefers-reduced-motion)`. Xem §4.9.
@@ -544,5 +551,5 @@ Bộ test tự động, **ưu tiên cao nhất cho tính toàn vẹn dữ liệu
 **File CLAUDE.md này là tài liệu sống của dự án.**  
 Hãy giữ nó chính xác, cập nhật và dễ hiểu để bất kỳ AI nào (Claude, Grok, v.v.) khi đọc dự án đều có thể làm việc hiệu quả, nhất quán với tầm nhìn của tác giả.
 
-*Last updated: 2026-07-08 (ICT) — Thêm §9 Automated Testing (thư mục `tests/`, ưu tiên data integrity): zero-dependency `node --test` + `node:vm` nạp code thật `02_security.js`, thêm job `tests` vào `ci.yml`, cập nhật §6.4. Không đụng versioning (test ngoài `assets/`).*  
-*Phiên bản skill: 1.4*
+*Last updated: 2026-07-09 (ICT) — Reliability fixes v1.5.4: chống double-submit save (§4.4), kiểm tra `ok` của `persistCurrentCustomer` ở mọi caller (§4.4), security gate hiện trước loader + `window.__dbReady` (§4.10), camera tự tắt khi background/khóa máy + chống rò stream double-tap (§4.6).*  
+*Phiên bản skill: 1.5*

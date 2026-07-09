@@ -730,7 +730,19 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
 
 // Create / Update customer (called from add-modal.html via data-action="saveCustomer")
 // IMPORTANT: Must keep existing data schema and encryption behavior.
+// CHỐNG DOUBLE-SUBMIT: cờ in-flight (set ĐỒNG BỘ trước await đầu tiên) + disable nút
+// qua LoadingManager.showButtonLoading — chạm 2 lần trên mạng/máy chậm sẽ không tạo
+// 2 hồ sơ trùng (checkDuplicateCustomer không thể thấy record chưa kịp ghi).
+let __custSaveInFlight = false;
 async function saveCustomer() {
+    if (__custSaveInFlight) return;
+    __custSaveInFlight = true;
+    const saveBtn = getEl('btn-save-cust');
+    try { LoadingManager.showButtonLoading(saveBtn, 'Đang lưu...'); } catch (e) { }
+    const releaseSaveUi = () => {
+        __custSaveInFlight = false;
+        try { LoadingManager.hideButtonLoading(saveBtn); } catch (e) { }
+    };
     try {
         // Safety check: ensure db is ready
         if (!db) {
@@ -780,7 +792,9 @@ async function saveCustomer() {
         }
 
         if (dupResult && dupResult.duplicate) {
-            // Show warning and let user decide
+            // Show warning and let user decide.
+            // Nhả guard/nút TRƯỚC khi chờ quyết định của user (overlay cảnh báo che nút Lưu;
+            // _doSaveCustomer có guard ghi riêng nên đường onIgnore vẫn chống double-submit).
             showDuplicateWarning(
                 dupResult,
                 // onIgnore: proceed with save anyway
@@ -794,18 +808,26 @@ async function saveCustomer() {
             return; // Don't proceed, wait for user decision
         }
 
-        // No duplicate, proceed with save
-        _doSaveCustomer(name, phoneNorm, cccd, editId);
+        // No duplicate, proceed with save (await để guard giữ đến khi ghi DB xong)
+        await _doSaveCustomer(name, phoneNorm, cccd, editId);
 
     } catch (err) {
         ErrorHandler.showError('STORAGE', 'Có lỗi xảy ra khi lưu hồ sơ. Vui lòng thử lại.', err);
+    } finally {
+        releaseSaveUi();
     }
 }
 
 // Internal save function (called after duplicate check passes or user ignores warning).
 // ASYNC: mã hóa (AES-GCM/WebCrypto) chạy TRƯỚC khi mở transaction IndexedDB —
 // không được await giữa một transaction (IDB tự commit/close khi hàng đợi microtask rỗng).
+// Guard ghi riêng: bảo vệ cả đường gọi trực tiếp từ cảnh báo trùng (onIgnore).
+let __custWriteInFlight = false;
 async function _doSaveCustomer(name, phoneNorm, cccd, editId) {
+    if (__custWriteInFlight) return;
+    __custWriteInFlight = true;
+    const saveBtn = getEl('btn-save-cust');
+    try { LoadingManager.showButtonLoading(saveBtn, 'Đang lưu...'); } catch (e) { }
     try {
         // Safety check: ensure db is ready before attempting transaction
         if (!db) {
@@ -855,12 +877,15 @@ async function _doSaveCustomer(name, phoneNorm, cccd, editId) {
             if (old.creditLimit === undefined) old.creditLimit = '';
             if (old.driveLink === undefined) old.driveLink = null;
 
-            // 3a) Ghi (transaction thuần đồng bộ).
-            const wtx = db.transaction(['customers'], 'readwrite');
-            wtx.onerror = (e) => ErrorHandler.showError('STORAGE', 'Lỗi lưu hồ sơ. Vui lòng thử lại.', e);
-            const putReq = wtx.objectStore('customers').put(old);
-            putReq.onsuccess = () => finalize(editId);
-            putReq.onerror = (err) => ErrorHandler.showError('STORAGE', 'Lỗi cập nhật hồ sơ.', err);
+            // 3a) Ghi (await tới khi put xong để guard chống double-submit còn hiệu lực).
+            await new Promise((resolve, reject) => {
+                const wtx = db.transaction(['customers'], 'readwrite');
+                const putReq = wtx.objectStore('customers').put(old);
+                putReq.onsuccess = () => resolve();
+                putReq.onerror = () => reject(putReq.error || new Error('put failed'));
+                wtx.onerror = () => reject(wtx.error || new Error('tx failed'));
+            });
+            finalize(editId);
         } else {
             // 2b/3b) Tạo record mới (đã ở định dạng GCM -> cryptoV:2 để migration bỏ qua).
             const newId = makeId();
@@ -877,14 +902,20 @@ async function _doSaveCustomer(name, phoneNorm, cccd, editId) {
                 cryptoV: 2,
             };
 
-            const wtx = db.transaction(['customers'], 'readwrite');
-            wtx.onerror = (e) => ErrorHandler.showError('STORAGE', 'Lỗi lưu hồ sơ. Vui lòng thử lại.', e);
-            const putReq = wtx.objectStore('customers').put(rec);
-            putReq.onsuccess = () => finalize(newId);
-            putReq.onerror = (err) => ErrorHandler.showError('STORAGE', 'Lỗi tạo hồ sơ mới. Vui lòng thử lại.', err);
+            await new Promise((resolve, reject) => {
+                const wtx = db.transaction(['customers'], 'readwrite');
+                const putReq = wtx.objectStore('customers').put(rec);
+                putReq.onsuccess = () => resolve();
+                putReq.onerror = () => reject(putReq.error || new Error('put failed'));
+                wtx.onerror = () => reject(wtx.error || new Error('tx failed'));
+            });
+            finalize(newId);
         }
     } catch (err) {
         ErrorHandler.showError('STORAGE', 'Có lỗi xảy ra khi lưu hồ sơ. Vui lòng thử lại.', err);
+    } finally {
+        __custWriteInFlight = false;
+        try { LoadingManager.hideButtonLoading(saveBtn); } catch (e) { }
     }
 }
 
@@ -900,7 +931,14 @@ async function deleteCurrentCustomer() {
 async function deleteAsset(idx) {
     if (!(await ErrorHandler.confirm("Xóa tài sản bảo đảm này?", { title: "Xóa tài sản", danger: true, confirmText: "Xóa" }))) return;
     const removed = currentCustomerData.assets.splice(idx, 1)[0];
-    persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, () => {
+    persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, (ok) => {
+        if (!ok) {
+            // Ghi DB thất bại: hoàn tác in-memory để UI khớp với dữ liệu thật, KHÔNG báo thành công.
+            try { currentCustomerData.assets.splice(idx, 0, removed); } catch (e) { }
+            ErrorHandler.showError('STORAGE', 'Xóa tài sản thất bại — dữ liệu CHƯA thay đổi. Vui lòng thử lại.');
+            renderAssets();
+            return;
+        }
         ErrorHandler.showSuccess("Đã xóa tài sản bảo đảm");
         renderAssets();
         // Dọn ảnh của TSBĐ vừa xóa: gallery của nó không còn truy cập được nữa,
@@ -919,8 +957,37 @@ async function deleteAsset(idx) {
 
 async function toggleCustomerStatus() { if (currentCustomerData.status === 'pending') { getEl('approve-modal').classList.remove('hidden'); getEl('approve-limit').value = ''; } else { if (await ErrorHandler.confirm("Thu hồi trạng thái đã duyệt của khách hàng này?", { title: "Thu hồi trạng thái", danger: true, confirmText: "Thu hồi" })) { currentCustomerData.status = 'pending'; updateCustomerAndReload(); } } }
 function closeApproveModal() { getEl('approve-modal').classList.add('hidden'); }
-function confirmApproval() { const l = getEl('approve-limit').value; if (!l) return ErrorHandler.showError('VALIDATION', "Vui lòng nhập hạn mức."); currentCustomerData.status = 'approved'; currentCustomerData.creditLimit = l; closeApproveModal(); persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = l; }, () => { ErrorHandler.showSuccess("Đã duyệt khách hàng"); renderFolderHeader(currentCustomerData); loadCustomers(getEl('search-input').value); }); }
-function updateCustomerAndReload() { persistCurrentCustomer((rec) => { rec.status = currentCustomerData.status; rec.creditLimit = currentCustomerData.creditLimit; }, () => { openFolder(currentCustomerData.id); loadCustomers(); }); }
+function confirmApproval() {
+    const l = getEl('approve-limit').value;
+    if (!l) return ErrorHandler.showError('VALIDATION', "Vui lòng nhập hạn mức.");
+    const prevStatus = currentCustomerData.status;
+    const prevLimit = currentCustomerData.creditLimit;
+    currentCustomerData.status = 'approved';
+    currentCustomerData.creditLimit = l;
+    closeApproveModal();
+    persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = l; }, (ok) => {
+        if (!ok) {
+            // Ghi DB thất bại: hoàn tác in-memory, báo lỗi thay vì báo "Đã duyệt".
+            currentCustomerData.status = prevStatus;
+            currentCustomerData.creditLimit = prevLimit;
+            ErrorHandler.showError('STORAGE', 'Duyệt khách hàng thất bại — trạng thái CHƯA được lưu. Vui lòng thử lại.');
+            return;
+        }
+        ErrorHandler.showSuccess("Đã duyệt khách hàng");
+        renderFolderHeader(currentCustomerData);
+        loadCustomers(getEl('search-input').value);
+    });
+}
+function updateCustomerAndReload() {
+    persistCurrentCustomer((rec) => { rec.status = currentCustomerData.status; rec.creditLimit = currentCustomerData.creditLimit; }, (ok) => {
+        if (!ok) {
+            ErrorHandler.showError('STORAGE', 'Cập nhật trạng thái thất bại — dữ liệu CHƯA được lưu. Vui lòng thử lại.');
+        }
+        // Reload từ DB để UI luôn khớp dữ liệu thật (kể cả khi ghi thất bại).
+        openFolder(currentCustomerData.id);
+        loadCustomers();
+    });
+}
 
 function renderFolderHeader(data) {
     getEl('folder-customer-name').textContent = data.name; getEl('folder-avatar').textContent = data.name.charAt(0).toUpperCase(); getEl('btn-detail-call').href = getTelLink(data.phone); getEl('btn-detail-zalo').href = getZaloLink(data.phone); getEl('btn-detail-zalo').onclick = () => { openZaloChat(data.phone); return false; };

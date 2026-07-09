@@ -365,7 +365,25 @@ function closeAssetModal() {
   currentAssetId = null;
 }
 
+// CHỐNG DOUBLE-SUBMIT: cờ in-flight + disable nút Lưu (LoadingManager.showButtonLoading).
+// Chạm 2 lần trên máy chậm sẽ không push 2 tài sản trùng vào currentCustomerData.assets.
+let __assetSaveInFlight = false;
 async function saveAsset() {
+  if (__assetSaveInFlight) return;
+  __assetSaveInFlight = true;
+  const saveBtn = getEl("btn-save-asset");
+  try { LoadingManager.showButtonLoading(saveBtn, "Đang lưu..."); } catch (e) { }
+  try {
+    await _doSaveAsset();
+  } catch (err) {
+    ErrorHandler.showError('STORAGE', 'Có lỗi xảy ra khi lưu tài sản. Vui lòng thử lại.', err);
+  } finally {
+    __assetSaveInFlight = false;
+    try { LoadingManager.hideButtonLoading(saveBtn); } catch (e) { }
+  }
+}
+
+async function _doSaveAsset() {
   // Lấy giá trị từ các ô nhập liệu
   const name = getEl("asset-name").value.trim();
   let link = getEl("asset-link").value.trim();
@@ -405,29 +423,44 @@ async function saveAsset() {
   };
 
   const index = getEl("edit-asset-index").value;
+  // Snapshot để hoàn tác in-memory nếu ghi DB thất bại (tránh UI lệch với DB).
+  let undoMutation = null;
   if (index !== "") {
     // Cập nhật tài sản cũ
     const i = parseInt(index);
-    assetObj.id = currentCustomerData.assets[i].id;
-    assetObj.createdAt = currentCustomerData.assets[i].createdAt;
-    if (currentCustomerData.assets[i].driveLink)
-      assetObj.driveLink = currentCustomerData.assets[i].driveLink;
+    const prev = currentCustomerData.assets[i];
+    assetObj.id = prev.id;
+    assetObj.createdAt = prev.createdAt;
+    if (prev.driveLink) assetObj.driveLink = prev.driveLink;
     currentCustomerData.assets[i] = assetObj;
+    undoMutation = () => { currentCustomerData.assets[i] = prev; };
   } else {
     // Thêm mới
     assetObj.id = currentAssetId || "asset_" + Date.now();
     assetObj.createdAt = Date.now();
     currentCustomerData.assets.push(assetObj);
+    undoMutation = () => {
+      const pos = currentCustomerData.assets.indexOf(assetObj);
+      if (pos >= 0) currentCustomerData.assets.splice(pos, 1);
+    };
   }
 
   // Lưu vào DB (chỉ ghi mảng assets; không put() nguyên currentCustomerData
-  // vì name/phone/cccd trên object đó đã bị giải mã trong openFolder)
-  persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, () => {
-    closeAssetModal();
-    renderAssets();
-    ErrorHandler.showSuccess("Đã lưu tài sản bảo đảm");
-    currentAssetId = null;
+  // vì name/phone/cccd trên object đó đã bị giải mã trong openFolder).
+  // Await kết quả để: (1) guard chống double-submit giữ đến khi ghi xong,
+  // (2) KHÔNG báo "thành công" khi ghi DB thất bại (persistCurrentCustomer trả ok=false).
+  const ok = await new Promise((resolve) => {
+    persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, resolve);
   });
+  if (!ok) {
+    try { if (undoMutation) undoMutation(); } catch (e) { }
+    ErrorHandler.showError('STORAGE', 'Lưu tài sản thất bại — dữ liệu CHƯA được ghi. Vui lòng thử lại.');
+    return;
+  }
+  closeAssetModal();
+  renderAssets();
+  ErrorHandler.showSuccess("Đã lưu tài sản bảo đảm");
+  currentAssetId = null;
 }
 // --- NEW GUIDE MODAL LOGIC ---
 function openGuideModal() {

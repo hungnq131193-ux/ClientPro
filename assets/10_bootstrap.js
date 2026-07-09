@@ -41,11 +41,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Accessibility cho modal (focus trap + aria-modal + Esc). An toàn nếu thiếu.
   try { if (window.ModalA11y && typeof window.ModalA11y.init === "function") window.ModalA11y.init(); } catch (e) { }
 
+  // BẢO MẬT: hiện cổng xác thực (PIN/kích hoạt) TRƯỚC khi ẩn loader để dashboard
+  // không bao giờ lộ thoáng qua trên máy chậm. Phần hiển thị gate của checkSecurity()
+  // chạy đồng bộ trước await đầu tiên và không cần db (chỉ đọc localStorage + DOM).
+  let securityGateShown = false;
+  try {
+    checkSecurity();
+  } catch (e) { }
+  try {
+    securityGateShown = ["screen-lock", "setup-lock-modal", "activation-modal"].some((id) => {
+      const el = getEl(id);
+      return el && !el.classList.contains("hidden");
+    });
+  } catch (e) { }
+
   // UX: ẩn loader sớm để tránh cảm giác "treo" khi thiết bị/network chậm.
-  // Dữ liệu sẽ render dần khi IndexedDB trả về.
+  // Dữ liệu sẽ render dần khi IndexedDB trả về. CHỈ ẩn khi gate đã hiện —
+  // nếu modal partials chưa nạp được thì giữ loader che dashboard, retry ở onsuccess.
   try {
     const ld = getEl && getEl("loader");
-    if (ld) ld.classList.add("hidden");
+    if (ld && securityGateShown) ld.classList.add("hidden");
   } catch (e) { }
 
   // Không để lỗi CDN (lucide chưa tải được) chặn toàn bộ boot — nếu throw ở đây,
@@ -76,6 +91,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   updateDashboardDateTicker();
   // 🌤 Khởi động thời tiết
   initWeather();
+
+  // Vì gate hiện trước khi DB mở xong, luồng mở khóa (validatePin) await promise này
+  // để migration/primeFieldCache/loadCustomers không chạy khi db còn undefined.
+  let dbReadyResolve;
+  window.__dbReady = new Promise((resolve) => { dbReadyResolve = resolve; });
 
   const req = indexedDB.open(DB_NAME, 5);
   req.onupgradeneeded = (e) => {
@@ -120,8 +140,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof updateFolderCounts === 'function') {
       updateFolderCounts();
     }
+    // Fallback hiếm: nếu gate chưa hiện được lúc DOMContentLoaded (modal partials
+    // nạp chậm/timeout) thì thử lại ở đây trước khi ẩn loader.
+    if (!securityGateShown) {
+      try { checkSecurity(); } catch (err) { }
+    }
     getEl("loader").classList.add("hidden");
-    checkSecurity();
+    if (dbReadyResolve) dbReadyResolve();
 
     // Auth gate: kiểm tra ngầm quyền + thiết bị với Admin GAS (issue_kdata, TTL 24h).
     // Fire-and-forget: offline/lỗi mạng không chặn UI, chỉ chặn khi server xác nhận
@@ -146,6 +171,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         setTimeout(() => { window.DriveBackup.checkDaily(); }, 15000);
       }
     } catch (err) { }
+  };
+  req.onerror = () => {
+    // DB mở thất bại: vẫn resolve để luồng mở khóa không treo — các hàm sau unlock
+    // đều có guard !db riêng.
+    try { if (window.ErrorHandler) ErrorHandler.logError('indexedDB.open failed', req.error); } catch (e) { }
+    if (dbReadyResolve) dbReadyResolve();
   };
   // Debounce search to avoid decrypt + render on every single keystroke (mượt hơn với danh sách lớn)
   const onSearchInput = (e) => loadCustomers(e.target.value);
