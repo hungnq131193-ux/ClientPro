@@ -209,6 +209,7 @@ async function _doRestoreBackupFromApp(id) {
 
   if (!(await ErrorHandler.confirm(`Khôi phục dữ liệu từ backup:\n\n${rec.filename}\n\nTiếp tục?`, { title: "Khôi phục dữ liệu", confirmText: "Khôi phục" }))) return;
 
+  closeBackupManager();
   LoadingManager.showGlobal("Đồng bộ...");
 
   try {
