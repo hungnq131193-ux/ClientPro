@@ -4,6 +4,12 @@
 const BACKUP_STORE = "backups";
 const LAST_BACKUP_HASH_KEY = "clientpro_last_backup_hash";
 
+// Chống double-submit (mirror pattern manualBackupInProgress ở 16_auto_backup_drive.js):
+// requireBackupSecretOrAlert() gọi mạng trước khi có loading overlay che nút,
+// double-tap trong khoảng đó tạo 2 backup trùng / 2 restore chạy song song.
+let __backupInFlight = false;
+let __restoreInFlight = false;
+
 function _formatYYYYMMDD(ts) {
   const d = new Date(ts);
   const y = d.getFullYear();
@@ -178,6 +184,16 @@ async function createBackupFileNow() {
 }
 
 async function restoreBackupFromApp(id) {
+  if (__restoreInFlight) return;
+  __restoreInFlight = true;
+  try {
+    await _doRestoreBackupFromApp(id);
+  } finally {
+    __restoreInFlight = false;
+  }
+}
+
+async function _doRestoreBackupFromApp(id) {
   if (typeof requireUnlockedForRestore === "function" && !requireUnlockedForRestore()) return;
   if ((typeof isAppUnlocked === "function" && !isAppUnlocked()) || typeof masterKey === "undefined" || !masterKey) {
     ErrorHandler.showWarning("Vui lòng mở khóa dữ liệu trước khi khôi phục.");
@@ -243,6 +259,16 @@ async function _restoreFromEncryptedContent(encryptedContent, keyOverrideB64u) {
 // HÀM BACKUP MỚI (CHỈ LƯU THÔNG TIN - LOẠI BỎ ẢNH & LINK)
 // ============================================================
 async function backupData() {
+  if (__backupInFlight) return;
+  __backupInFlight = true;
+  try {
+    await _doBackupData();
+  } finally {
+    __backupInFlight = false;
+  }
+}
+
+async function _doBackupData() {
   if (typeof requireUnlockedForBackup === "function" && !requireUnlockedForBackup()) return;
   if (typeof decryptText !== "function" || typeof masterKey === "undefined" || !masterKey) {
     ErrorHandler.showWarning("Vui lòng mở khóa dữ liệu trước khi sao lưu.");
@@ -316,38 +342,52 @@ async function backupData() {
 }
 
 async function restoreData(input) {
-  if (typeof requireUnlockedForRestore === "function" && !requireUnlockedForRestore()) return;
-  if ((typeof isAppUnlocked === "function" && !isAppUnlocked()) || typeof masterKey === "undefined" || !masterKey) {
-    ErrorHandler.showWarning("Vui lòng mở khóa dữ liệu trước khi khôi phục.");
-    return;
-  }
-
-  // Đóng menu nếu đang mở (tránh lỗi khi gọi từ Backup Manager Modal)
-  _closeMenuIfOpen();
-  const f = input.files && input.files[0];
-  if (!f) return;
-  LoadingManager.showGlobal("Xác thực bảo mật...");
-
-  // Phương án 1: mỗi lần bấm Restore sẽ verify lại và xin secret từ server
-  if (!(await requireBackupSecretOrAlert())) { LoadingManager.hideGlobal(true); return; }
-
-  LoadingManager.showGlobal("Đồng bộ...");
-  const r = new FileReader();
-  r.onload = async (e) => {
-    try {
-      const encryptedContent = e.target.result;
-      await _restoreFromEncryptedContent(encryptedContent);
-      LoadingManager.hideGlobal(true);
-      ErrorHandler.showSuccess("Đã khôi phục dữ liệu");
-      loadCustomers();
-    } catch (err) {
-      LoadingManager.hideGlobal(true);
-      ErrorHandler.showError('BACKUP', "File backup không hợp lệ hoặc sai định dạng bảo mật.", err);
+  if (__restoreInFlight) return;
+  __restoreInFlight = true;
+  // FileReader hoàn tất trong callback async — cờ chỉ được giữ qua khỏi hàm này
+  // khi reader đã thực sự khởi động (callback của reader sẽ tự nhả);
+  // mọi đường thoát sớm / exception trước đó → finally nhả ngay.
+  let readerStarted = false;
+  try {
+    if (typeof requireUnlockedForRestore === "function" && !requireUnlockedForRestore()) return;
+    if ((typeof isAppUnlocked === "function" && !isAppUnlocked()) || typeof masterKey === "undefined" || !masterKey) {
+      ErrorHandler.showWarning("Vui lòng mở khóa dữ liệu trước khi khôi phục.");
+      return;
     }
-  };
-  r.onerror = (e) => {
-    LoadingManager.hideGlobal(true);
-    ErrorHandler.showError('STORAGE', "Không đọc được file backup.", e);
-  };
-  r.readAsText(f);
+
+    // Đóng menu nếu đang mở (tránh lỗi khi gọi từ Backup Manager Modal)
+    _closeMenuIfOpen();
+    const f = input.files && input.files[0];
+    if (!f) return;
+    LoadingManager.showGlobal("Xác thực bảo mật...");
+
+    // Phương án 1: mỗi lần bấm Restore sẽ verify lại và xin secret từ server
+    if (!(await requireBackupSecretOrAlert())) { LoadingManager.hideGlobal(true); return; }
+
+    LoadingManager.showGlobal("Đồng bộ...");
+    const r = new FileReader();
+    r.onload = async (e) => {
+      try {
+        const encryptedContent = e.target.result;
+        await _restoreFromEncryptedContent(encryptedContent);
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showSuccess("Đã khôi phục dữ liệu");
+        loadCustomers();
+      } catch (err) {
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showError('BACKUP', "File backup không hợp lệ hoặc sai định dạng bảo mật.", err);
+      } finally {
+        __restoreInFlight = false;
+      }
+    };
+    r.onerror = (e) => {
+      LoadingManager.hideGlobal(true);
+      ErrorHandler.showError('STORAGE', "Không đọc được file backup.", e);
+      __restoreInFlight = false;
+    };
+    r.readAsText(f);
+    readerStarted = true;
+  } finally {
+    if (!readerStarted) __restoreInFlight = false;
+  }
 }

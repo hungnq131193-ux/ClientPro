@@ -6,7 +6,7 @@
 
 **ClientPro** = PWA tĩnh thuần (vanilla JS ES6+, không framework, không build step) quản lý **khách hàng (KH)** + **tài sản bảo đảm (TSBĐ)**, tối ưu mobile. Không backend; dữ liệu lưu cục bộ (IndexedDB) và **mã hóa**; mở khóa bằng PIN hoặc WebAuthn PRF (Face ID/vân tay); offline-first qua Service Worker; deploy static trên Vercel với CSP nghiêm ngặt.
 
-- **Phiên bản**: 1.5.8 — nguồn duy nhất `package.json`, đồng bộ bằng `npm run sync:version` (§7).
+- **Phiên bản**: 1.5.9 — nguồn duy nhất `package.json`, đồng bộ bằng `npm run sync:version` (§7).
 - **License**: Proprietary — All Rights Reserved (tác giả Nguyễn Quốc Hưng). Demo: https://client-pro-beryl.vercel.app
 
 **Triết lý** (soi mọi thay đổi vào đây):
@@ -221,12 +221,13 @@ npm run check:version
 
 Chạy: `node --test 'tests/**/*.test.js'` (zero-dep, TAP) · `npm install && npm run test:e2e` / `npm run test:lh` (CI-only; `playwright.config.js` tự dùng Chromium sẵn ở `/opt/pw-browsers` nếu có). `lighthouserc.json` gate accessibility ≥0.9 (error), perf/best-practices chỉ warning; report `.lighthouseci/` không upload public. CI: 3 job song song `static-checks` + `tests` + `e2e`; xem kết quả trên tab Checks của PR. **Hàm crypto/luồng dữ liệu mới → thêm test roundtrip + tamper + sai khóa; flow UI quan trọng → thêm spec e2e.** Test không cần chạm version.
 
-## 11. Trạng thái hiện tại (2026-07-09)
+## 11. Trạng thái hiện tại (2026-07-10)
 
-- **v1.5.8**, `ASSET_V = ZINDEXFIX_20260709`.
-- **Recent (v1.5.8 — Display integrity)**: audit toàn app sau lazy-decrypt; vá mọi đường hiển thị còn sót ciphertext. Helper chung `_looksEncrypted` / `_displayPlain` / `_displayPlainAsync` chuyển về `00_globals.js`. Fix: `renderFolderHeader` + `openFolder` async refresh header; `openEditAssetModal` decrypt `name`; `renderAssets`/`referenceAssetPrice`/`openAssetGallery`/`loadCustomerInfo`/`openEditCustomerModal`/picker/dup-warning/map popup/Drive `_safeDecryptMaybe` đều guard; lightbox dùng `_displayData` + `isSafeImageUrl`; z-index modal chuẩn hóa `z-[200]` (+ thêm utility `.z-[80]`/`.z-[200]` vào CSS static — thiếu class → modal mất stacking, E2E `saveCustomer` bị dashboard chặn click). Quy tắc R2/R5 §5 cập nhật tương ứng.
+- **v1.5.9**, `ASSET_V = PERFFIX_20260710`.
+- **Recent (v1.5.9 — Perf + bugfix)**: chống double-submit backup/restore nội bộ (`__backupInFlight`/`__restoreInFlight`, 09_backup_manager — mirror pattern 16); toast thành công upload Drive chỉ hiện khi `persistCurrentCustomer` trả `ok` (07, mirror `_doSaveAsset`/06; `!ok` → không hỏi xóa ảnh gốc); `capturePhoto` bọc try/finally đảm bảo `closeCamera()` chạy kể cả khi chụp lỗi (08); thêm `tx.onerror` cho 2 transaction `reconnectAssetDriveFolder` (07 — hết treo loading / nuốt lỗi im lặng); load-token `window.__openFolderSeq` chống race double-tap 2 hồ sơ (05, `openFolder`); debounce 120ms cho search picker KH (13) + map cluster repaint `moveend`/`zoomend` (03); polling cloud-transfer skip khi app khóa qua `isAppUnlocked()` (14).
+- **v1.5.8 — Display integrity**: audit toàn app sau lazy-decrypt; vá mọi đường hiển thị còn sót ciphertext. Helper chung `_looksEncrypted` / `_displayPlain` / `_displayPlainAsync` chuyển về `00_globals.js`. Fix: `renderFolderHeader` + `openFolder` async refresh header; `openEditAssetModal` decrypt `name`; `renderAssets`/`referenceAssetPrice`/`openAssetGallery`/`loadCustomerInfo`/`openEditCustomerModal`/picker/dup-warning/map popup/Drive `_safeDecryptMaybe` đều guard; lightbox dùng `_displayData` + `isSafeImageUrl`; z-index modal chuẩn hóa `z-[200]` (+ thêm utility `.z-[80]`/`.z-[200]` vào CSS static — thiếu class → modal mất stacking, E2E `saveCustomer` bị dashboard chặn click). Quy tắc R2/R5 §5 cập nhật tương ứng.
 - Các đợt nâng cấp lớn đã hoàn tất: **P1** single-source versioning + siết CSP; **P2** Security Core AES-256-GCM + masterKey CSPRNG + migration resume-safe; **P3** accessibility (ModalA11y, pinch-zoom, reduced-motion); **P4** tìm kiếm không dấu + index cache; **P5** test suite zero-dep + E2E/axe/Lighthouse CI; chuẩn hóa error/loading toàn codebase (§6.7); reliability v1.5.4; v1.5.5 (clustering, lazy decrypt, ảnh at-rest); v1.5.6–1.5.8 (chuỗi fix field cipher + display integrity — quy tắc **R1–R5 §5**, cạm bẫy CSS **§6.10**).
 - Khi làm việc: giữ triết lý không-backend/local-first, không phình vendor không cần thiết, ưu tiên UX mobile mượt (animation/gesture/camera).
 
 ---
-*Tài liệu sống — cập nhật cùng mỗi thay đổi lớn. Last updated: 2026-07-09 (ICT). Phiên bản skill: 2.1 (v1.5.8 display integrity).*
+*Tài liệu sống — cập nhật cùng mỗi thay đổi lớn. Last updated: 2026-07-10 (ICT). Phiên bản skill: 2.2 (v1.5.9 perf + bugfix).*

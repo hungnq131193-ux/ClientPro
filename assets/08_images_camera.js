@@ -656,17 +656,23 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", () => closeCamera());
 // CHỤP ẢNH TỪ CAMERA
 async function capturePhoto() {
-  const v = getEl("camera-feed");
-  const c = getEl("camera-canvas");
-  c.width = v.videoWidth;
-  c.height = v.videoHeight;
+  // finally đảm bảo camera luôn tắt kể cả khi drawImage/toDataURL/save ném lỗi
+  // (video chưa sẵn sàng...) — không để track chạy ngầm, đèn camera sáng mãi.
+  try {
+    const v = getEl("camera-feed");
+    const c = getEl("camera-canvas");
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
 
-  const ctx = c.getContext("2d");
-  ctx.drawImage(v, 0, 0);
+    const ctx = c.getContext("2d");
+    ctx.drawImage(v, 0, 0);
 
-  const rawBase64 = c.toDataURL("image/jpeg", 1.0);
-  closeCamera();
-  await saveImageToDB(rawBase64);
+    const rawBase64 = c.toDataURL("image/jpeg", 1.0);
+    closeCamera();
+    await saveImageToDB(rawBase64);
+  } finally {
+    closeCamera(); // no-op nếu đã đóng ở nhánh thành công
+  }
 }
 function shareOpenedImage() {
   if (!currentImageBase64) return;
