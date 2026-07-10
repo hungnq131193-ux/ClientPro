@@ -429,11 +429,7 @@ body.theme-aurora #content-info .glass-panel {
   border-radius: 18px !important;
 }
 
-/* Ghi chú: readonly mặc định (xem trước, bấm mới sửa) — trạng thái theo thuộc tính DOM readOnly */
-#info-notes:read-only {
-  cursor: pointer;
-}
-
+/* Ghi chú: readonly mặc định, chỉ nút Sửa mới vào edit — trạng thái theo thuộc tính DOM readOnly */
 #info-notes:not(:read-only) {
   border-color: var(--accent);
 }
