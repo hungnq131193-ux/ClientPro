@@ -401,6 +401,7 @@
             }
         }
 
+        closeBackupManager();
         LoadingManager.showGlobal('Đang tải backup từ Drive...');
 
         try {

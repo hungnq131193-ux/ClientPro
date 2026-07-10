@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.6.1-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.6.2-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
@@ -83,7 +83,7 @@ GitHub Actions chạy static checks, crypto/data-integrity tests, Playwright, ax
 
 ## Phiên bản
 
-- **Phiên bản app (semver)** — hiện tại **`1.6.1`**. Nguồn duy nhất: `package.json`.
+- **Phiên bản app (semver)** — hiện tại **`1.6.2`**. Nguồn duy nhất: `package.json`.
 - **cache-buster asset** — hiện tại **`V160_20260710`**. Nguồn: `ASSET_V` trong `sw.js`.
 
 Sau khi đổi semver:
@@ -93,9 +93,9 @@ npm run sync:version
 npm run check:version
 ```
 
-## Bản sửa v1.6.1
+## Bản sửa v1.6.2
 
-Khi restore từ Backup Manager, modal được đóng ngay trước khi hiện global loader. Loader không còn bị modal che; không thay đổi z-index, `LoadingManager` hoặc logic restore khác.
+Khi restore backup Google Drive từ Trung tâm Backup, modal được đóng ngay trước khi hiện global loader. Loader không còn bị modal che; không thay đổi z-index, `LoadingManager` hoặc logic restore khác.
 
 ## License
 
