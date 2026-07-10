@@ -514,7 +514,14 @@ function compressImage(base64, cb) {
 // --- ĐÃ SỬA: FIX LỖI KHÔNG REFRESH ẢNH ---
 function saveImageToDB(rawBase64) {
   return new Promise(async (resolve) => {
-    if (!currentCustomerId) {
+    // SNAPSHOT đối tượng đích NGAY LÚC BẮT ĐẦU: chuỗi nén ảnh (nhiều vòng
+    // setTimeout chỉnh chất lượng) + await mã hóa phía dưới có thể kéo dài —
+    // nếu đọc global currentCustomerId/currentAssetId SAU đó, user kịp chuyển
+    // hồ sơ/TSBĐ làm ảnh bị gán nhầm đối tượng mới. Ảnh luôn ghi vào đúng
+    // đối tượng tại thời điểm chụp.
+    const askedCustomerId = currentCustomerId;
+    const askedAssetId = currentAssetId;
+    if (!askedCustomerId) {
       resolve();
       return;
     }
@@ -526,6 +533,7 @@ function saveImageToDB(rawBase64) {
     ) {
       captureMode = "asset";
     }
+    const askedCaptureMode = captureMode;
 
     LoadingManager.showGlobal("Xử lý ảnh...");
 
@@ -546,34 +554,43 @@ function saveImageToDB(rawBase64) {
       }
       const newImg = {
         id: "img_" + Date.now() + Math.random(),
-        customerId: currentCustomerId,
-        assetId: currentAssetId,
+        customerId: askedCustomerId,
+        assetId: askedAssetId,
         data: storedData,
         imgCryptoV: (typeof storedData === 'string' && storedData.startsWith('cpg1:')) ? 1 : undefined,
         createdAt: Date.now(),
       };
 
-      db
+      const addReq = db
         .transaction(["images"], "readwrite")
         .objectStore("images")
-        .add(newImg).onsuccess = () => {
-          LoadingManager.hideGlobal(true);
-          ErrorHandler.showSuccess("Đã lưu ảnh");
+        .add(newImg);
 
-          // Refresh giao diện ngay lập tức
-          if (
-            currentAssetId &&
-            !getEl("screen-asset-gallery").classList.contains("translate-x-full")
-          ) {
-            loadAssetImages(currentAssetId);
-          } else if (captureMode === "asset" && currentAssetId) {
-            loadAssetImages(currentAssetId);
-          } else {
+      addReq.onsuccess = () => {
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showSuccess("Đã lưu ảnh");
+
+        // Refresh giao diện CHỈ khi user vẫn đang ở đúng đối tượng ban đầu
+        // (đã chuyển đi nơi khác thì không đụng grid đang xem).
+        if (currentCustomerId === askedCustomerId) {
+          const galleryOpen = !getEl("screen-asset-gallery").classList.contains("translate-x-full");
+          if (askedAssetId && currentAssetId === askedAssetId && (galleryOpen || askedCaptureMode === "asset")) {
+            loadAssetImages(askedAssetId);
+          } else if (!askedAssetId) {
             loadProfileImages();
           }
+        }
 
-          resolve();
-        };
+        resolve();
+      };
+
+      // Lỗi ghi IDB (quota/constraint) hiếm nhưng có thật: không có onerror thì
+      // loader "Đang lưu ảnh..." treo vĩnh viễn (hideGlobal chỉ nằm trong onsuccess).
+      addReq.onerror = () => {
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showError('STORAGE', 'Không lưu được ảnh vào máy. Kiểm tra dung lượng bộ nhớ rồi thử lại.', addReq.error);
+        resolve();
+      };
     });
   });
 }
