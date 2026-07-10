@@ -203,7 +203,11 @@
             if (!window.BackupCore || typeof BackupCore.normalizeCustomerForExport !== 'function') {
                 throw new Error('BackupCore chưa sẵn sàng.');
             }
-            const cleanCustomers = customers.map((c) => BackupCore.normalizeCustomerForExport(c));
+            // normalizeCustomerForExport ASYNC từ v1.6.0 (decrypt thật, không fail-open
+            // trả ciphertext khi cache lạnh) — phải await từng customer.
+            const cleanCustomers = await Promise.all(
+                customers.map((c) => BackupCore.normalizeCustomerForExport(c))
+            );
 
             const dataToExport = {
                 v: 1.1,

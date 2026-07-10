@@ -149,6 +149,22 @@ function loadSecurity() {
   return { api: ctx.__api, localStorage, ctx };
 }
 
+/**
+ * Nạp assets/12_backup_core.js NGUYÊN BẢN vào CÙNG sandbox đã loadSecurity()
+ * (dùng chung masterKey + __fieldPlainCache thật) — trả về window.BackupCore.
+ * 12_backup_core.js tham chiếu _looksEncrypted (nguồn thật ở 00_globals.js —
+ * file DOM-heavy không nạp được vào vm) nên sandbox cấp bản sao 2 dòng tương đương.
+ * @param {object} ctx - ctx trả về từ loadSecurity()
+ */
+function loadBackupCore(ctx) {
+  if (typeof ctx._looksEncrypted !== 'function') {
+    ctx._looksEncrypted = (v) => (typeof v === 'string') && (v.startsWith('U2FsdGVk') || v.startsWith('cpg1:'));
+  }
+  const src = fs.readFileSync(path.join(ROOT, 'assets', '12_backup_core.js'), 'utf8');
+  vm.runInContext(src, ctx, { filename: 'assets/12_backup_core.js' });
+  return ctx.window.BackupCore;
+}
+
 /** base64url 32 byte ngẫu nhiên — mô phỏng KDATA do GAS cấp cho backup. */
 function randomKdataB64u() {
   return Buffer.from(webcrypto.getRandomValues(new Uint8Array(32))).toString('base64url');
@@ -194,4 +210,4 @@ function makeFakeDb(customers = [], images = []) {
   };
 }
 
-module.exports = { loadSecurity, randomKdataB64u, makeFakeDb, CryptoJS };
+module.exports = { loadSecurity, loadBackupCore, randomKdataB64u, makeFakeDb, CryptoJS };
