@@ -23,8 +23,13 @@
     return JSON.parse(JSON.stringify(obj || {}));
   }
 
-  function safeDecrypt(v) {
+  // ASYNC decrypt THẬT (decryptFieldAsync) — KHÔNG dùng decryptText đồng bộ ở đây:
+  // decryptText fail-open khi cache lạnh (trả nguyên "cpg1:...") — đúng cho hiển thị UI
+  // nhưng SAI cho export: ciphertext lọt vào backup, lúc restore encryptText từ chối
+  // (guard chống double-encryption) -> field bị xóa trắng vĩnh viễn.
+  async function safeDecryptAsync(v) {
     try {
+      if (typeof decryptFieldAsync === 'function') return await decryptFieldAsync(v);
       return decryptText(v);
     } catch (e) {
       return v || '';
@@ -32,7 +37,21 @@
   }
 
   async function safeEncrypt(v) {
-    const t = (v === null || typeof v === 'undefined') ? '' : String(v);
+    let t = (v === null || typeof v === 'undefined') ? '' : String(v);
+    // Backward-compat backup CŨ (trước v1.6.0) từng lọt ciphertext vào field export:
+    // thử giải mã thật trước — restore trên cùng thiết bị/khóa đã export sẽ khôi phục
+    // đúng plaintext gốc. Nếu vẫn không giải mã được (khác khóa / dữ liệu hỏng) ->
+    // rule R3: giữ nguyên ciphertext gốc, KHÔNG ghi đè rỗng.
+    if (_looksEncrypted(t)) {
+      try {
+        const plain = (typeof decryptFieldAsync === 'function')
+          ? await decryptFieldAsync(t) : decryptText(t);
+        if (plain && !_looksEncrypted(String(plain))) t = String(plain);
+        else return t;
+      } catch (e) {
+        return t;
+      }
+    }
     if (!t.trim()) return '';
     try {
       return await encryptText(t);
@@ -41,28 +60,25 @@
     }
   }
 
-  function normalizeCustomerForExport(c) {
+  async function normalizeCustomerForExport(c) {
     const cust = deepClone(c);
-    cust.name = safeDecrypt(cust.name);
-    cust.phone = safeDecrypt(cust.phone);
-    cust.cccd = safeDecrypt(cust.cccd);
-    cust.notes = safeDecrypt(cust.notes);
+    [cust.name, cust.phone, cust.cccd, cust.notes] = await Promise.all([
+      safeDecryptAsync(cust.name),
+      safeDecryptAsync(cust.phone),
+      safeDecryptAsync(cust.cccd),
+      safeDecryptAsync(cust.notes)
+    ]);
     cust.driveLink = null;
 
     if (cust.assets && Array.isArray(cust.assets)) {
-      cust.assets = cust.assets.map((a) => {
+      cust.assets = await Promise.all(cust.assets.map(async (a) => {
         const asset = deepClone(a);
-        asset.name = safeDecrypt(asset.name);
-        asset.link = safeDecrypt(asset.link);
-        asset.valuation = safeDecrypt(asset.valuation);
-        asset.loanValue = safeDecrypt(asset.loanValue);
-        asset.area = safeDecrypt(asset.area);
-        asset.width = safeDecrypt(asset.width);
-        asset.onland = safeDecrypt(asset.onland);
-        asset.year = safeDecrypt(asset.year);
+        const fields = ['name', 'link', 'valuation', 'loanValue', 'area', 'width', 'onland', 'year'];
+        const vals = await Promise.all(fields.map((f) => safeDecryptAsync(asset[f])));
+        fields.forEach((f, i) => { asset[f] = vals[i]; });
         asset.driveLink = null;
         return asset;
-      });
+      }));
     }
 
     return cust;
@@ -148,7 +164,7 @@
     const customers = await _getAllCustomersRaw();
     return {
       v: 1.1,
-      customers: customers.map(normalizeCustomerForExport),
+      customers: await Promise.all(customers.map((c) => normalizeCustomerForExport(c))),
       images: []
     };
   }
@@ -157,7 +173,7 @@
     const customers = await _getCustomersByIdsRaw(customerIds);
     return {
       v: 1.1,
-      customers: customers.map(normalizeCustomerForExport),
+      customers: await Promise.all(customers.map((c) => normalizeCustomerForExport(c))),
       images: []
     };
   }

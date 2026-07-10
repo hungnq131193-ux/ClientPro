@@ -158,6 +158,37 @@ function _normalizeDriveUrl(url) {
 
 // Legacy duplicate uploadToGoogleDrive implementation removed; canonical function is defined once below.
 
+// v1.6.0: phân loại kết quả upload TỪNG ảnh từ GAS. Server v4 trả status
+// 'success' | 'partial' | 'error' + files[] luôn 1 entry/1 ảnh gửi lên (đúng
+// thứ tự, entry lỗi có .error thay vì .id); server cũ (v3) luôn 'success' kể cả
+// khi có ảnh lỗi. Đối chiếu theo index; nếu không khớp được index thì chỉ tin
+// "đã lên hết" khi server báo success không kèm failed — còn lại coi như KHÔNG
+// chắc ảnh nào đã lên: không xóa ảnh gốc nào cho an toàn.
+// @returns {null | {succeeded: Array, failedCount: number}} null = thất bại toàn bộ (caller throw như cũ)
+function _splitUploadResults(result, imagesToUpload) {
+    if (!result || (result.status !== 'success' && result.status !== 'partial')) return null;
+    const files = Array.isArray(result.files) ? result.files : null;
+    if (files && files.length === imagesToUpload.length) {
+        const succeeded = imagesToUpload.filter((img, i) => files[i] && files[i].id && !files[i].error);
+        if (succeeded.length === 0) return null;
+        return { succeeded, failedCount: imagesToUpload.length - succeeded.length };
+    }
+    if (result.status === 'success' && !(Number(result.failed) > 0)) {
+        return { succeeded: imagesToUpload.slice(), failedCount: 0 };
+    }
+    return null;
+}
+
+// Xóa CHỈ những ảnh gốc đã upload thành công (không đụng ảnh lỗi), rồi gọi onDone().
+function _deleteSucceededUploadsOnly(succeededImgs, onDone) {
+    const txDel = db.transaction(['images'], 'readwrite');
+    succeededImgs.forEach(img => txDel.objectStore('images').delete(img.id));
+    txDel.oncomplete = () => { if (typeof onDone === 'function') onDone(); };
+    txDel.onerror = () => {
+        ErrorHandler.showError('STORAGE', 'Không xóa được ảnh gốc trong máy.', txDel.error);
+    };
+}
+
 // 3. Hàm hiển thị nút mở Drive
 function renderDriveStatus(url) {
     const area = getEl('drive-status-area');
@@ -271,7 +302,12 @@ async function uploadAssetToDrive() {
             
             const result = await response.json();
 
-            if (result.status === 'success') {
+            // v1.6.0: KHÔNG tin status='success' trần — đối chiếu kết quả từng ảnh
+            // (server cũ trả 'success' kể cả khi có ảnh lỗi trong files[]).
+            const split = _splitUploadResults(result, imagesToUpload);
+            if (split) {
+                const succeededImgs = split.succeeded;
+
                 // 1. Lưu Link vào đúng đối tượng Asset
                 currentCustomerData.assets[assetIndex].driveLink = result.url;
 
@@ -292,19 +328,24 @@ async function uploadAssetToDrive() {
 
                 // 3. Cập nhật giao diện
                 renderAssetDriveStatus(result.url);
-                ErrorHandler.showSuccess("Đã tải ảnh TSBĐ lên Drive");
+                if (split.failedCount > 0) {
+                    ErrorHandler.showWarning(`Đã tải ${succeededImgs.length}/${imagesToUpload.length} ảnh TSBĐ lên Drive — ${split.failedCount} ảnh lỗi vẫn còn trong máy, hãy thử tải lại sau.`);
+                } else {
+                    ErrorHandler.showSuccess("Đã tải ảnh TSBĐ lên Drive");
+                }
 
-                // 4. Hỏi xóa ảnh
-                if (await ErrorHandler.confirm("TSBĐ đã lên mây thành công!\n\nXóa ảnh gốc trong máy để nhẹ bộ nhớ?", { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
-                    const txDel = db.transaction(['images'], 'readwrite');
-                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
-                    txDel.oncomplete = () => {
-                        loadAssetImages(currentAssetId); // Load lại lưới ảnh (trống)
+                // 4. Hỏi xóa ảnh — CHỈ xóa ảnh đã lên Drive thành công
+                const msgDel = split.failedCount > 0
+                    ? `Xóa ${succeededImgs.length} ảnh ĐÃ lên mây khỏi máy để nhẹ bộ nhớ?\n(${split.failedCount} ảnh lỗi sẽ được giữ nguyên)`
+                    : "TSBĐ đã lên mây thành công!\n\nXóa ảnh gốc trong máy để nhẹ bộ nhớ?";
+                if (await ErrorHandler.confirm(msgDel, { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
+                    _deleteSucceededUploadsOnly(succeededImgs, () => {
+                        loadAssetImages(currentAssetId); // Load lại lưới ảnh
                         ErrorHandler.showSuccess("Đã dọn dẹp ảnh TSBĐ");
-                    };
+                    });
                 }
             } else {
-                throw new Error(result.message);
+                throw new Error(result && result.message ? result.message : 'Upload thất bại');
             }
 
         } catch (err) {
@@ -567,7 +608,12 @@ async function uploadToGoogleDrive() {
             
             const result = await response.json();
 
-            if (result.status === 'success') {
+            // v1.6.0: KHÔNG tin status='success' trần — đối chiếu kết quả từng ảnh
+            // (server cũ trả 'success' kể cả khi có ảnh lỗi trong files[]).
+            const split = _splitUploadResults(result, imagesToUpload);
+            if (split) {
+                const succeededImgs = split.succeeded;
+
                 // Lưu link Folder (ghi an toàn, giữ nguyên ciphertext các trường khác).
                 // Await kết quả ghi: KHÔNG báo thành công / hỏi xóa ảnh gốc khi ghi
                 // link thất bại (mirror pattern _doSaveAsset ở 06_assets.js).
@@ -584,18 +630,24 @@ async function uploadToGoogleDrive() {
                 }
 
                 renderDriveStatus(result.url);
-                ErrorHandler.showSuccess("Đã sao lưu ảnh hồ sơ lên Drive");
+                if (split.failedCount > 0) {
+                    ErrorHandler.showWarning(`Đã sao lưu ${succeededImgs.length}/${imagesToUpload.length} ảnh hồ sơ — ${split.failedCount} ảnh lỗi vẫn còn trong máy, hãy thử tải lại sau.`);
+                } else {
+                    ErrorHandler.showSuccess("Đã sao lưu ảnh hồ sơ lên Drive");
+                }
 
-                if (await ErrorHandler.confirm("Đã sao lưu ảnh thành công!\nXóa ảnh trong App để giải phóng bộ nhớ?", { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
-                    const txDel = db.transaction(['images'], 'readwrite');
-                    imagesToUpload.forEach(img => txDel.objectStore('images').delete(img.id));
-                    txDel.oncomplete = () => {
+                // CHỈ xóa ảnh đã lên Drive thành công
+                const msgDel = split.failedCount > 0
+                    ? `Xóa ${succeededImgs.length} ảnh ĐÃ lên mây khỏi App để giải phóng bộ nhớ?\n(${split.failedCount} ảnh lỗi sẽ được giữ nguyên)`
+                    : "Đã sao lưu ảnh thành công!\nXóa ảnh trong App để giải phóng bộ nhớ?";
+                if (await ErrorHandler.confirm(msgDel, { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
+                    _deleteSucceededUploadsOnly(succeededImgs, () => {
                         loadProfileImages();
                         ErrorHandler.showSuccess("Đã dọn dẹp bộ nhớ");
-                    };
+                    });
                 }
             } else {
-                throw new Error(result.message);
+                throw new Error(result && result.message ? result.message : 'Upload thất bại');
             }
         } catch (err) {
             LoadingManager.hideGlobal(true);

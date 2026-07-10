@@ -333,6 +333,10 @@ function renderAssets() {
 // Legacy asset gallery functions removed; canonical implementations live in assets/08_images_camera.js.
 
 function openAssetModal() {
+  // Vô hiệu hóa lượt decrypt sửa-TSBĐ còn treo (nếu có) + gỡ khóa nút Lưu,
+  // tránh lượt cũ đè nhãn/trạng thái nút sau khi đã chuyển sang chế độ thêm mới.
+  window.__editAssetModalSeq = (window.__editAssetModalSeq || 0) + 1;
+  try { LoadingManager.hideButtonLoading(getEl("btn-save-asset")); } catch (e) { }
   getEl("asset-modal").classList.remove("hidden");
   // Tránh dùng nhầm currentAssetId còn sót lại từ lần Sửa/Hủy TSBĐ trước đó
   // (nếu không reset, TSBĐ mới tạo có thể bị gán trùng id với TSBĐ cũ -> lẫn ảnh giữa 2 tài sản).
@@ -353,13 +357,26 @@ async function openEditAssetModal(index) {
   // Hiện modal
   getEl("asset-modal").classList.remove("hidden");
 
-  // Lấy tài sản đang chọn
+  // Lấy tài sản đang chọn — SNAPSHOT trước await, không đọc lại currentCustomerData
+  // sống sau khi decrypt xong.
   const asset = currentCustomerData.assets[index];
 
   // Setup tiêu đề modal
   getEl("edit-asset-index").value = index;
   getEl("modal-title-asset").textContent = "Cập nhật TSBĐ";
   getEl("btn-save-asset").textContent = "Lưu thay đổi";
+
+  // Reset form NGAY (openAssetModal có reset, hàm này trước đây không): trong lúc
+  // chờ decrypt, form không được hiện dữ liệu sót của TSBĐ mở lần trước — bấm Lưu
+  // lúc đó sẽ ghi nhầm dữ liệu cũ vào TSBĐ đang mở.
+  ["asset-name", "asset-link", "asset-val", "asset-loan", "asset-area", "asset-width", "asset-onland", "asset-year"]
+    .forEach((fid) => { const el = getEl(fid); if (el) el.value = ""; });
+
+  // Khóa nút Lưu trong lúc chờ decrypt; chỉ lượt mở MỚI NHẤT được mở khóa nút
+  // (không có nguy cơ 2 lượt tranh nhau bật/tắt).
+  const editSeq = (window.__editAssetModalSeq = (window.__editAssetModalSeq || 0) + 1);
+  const saveBtn = getEl("btn-save-asset");
+  try { LoadingManager.showButtonLoading(saveBtn, "Đang tải..."); } catch (e) { }
 
   // --- QUAN TRỌNG: Giải mã dữ liệu trước khi điền vào ô input ---
   // Dùng decryptFieldAsync (chờ giải mã thật, không phụ thuộc __fieldPlainCache đã nạp sẵn
@@ -377,7 +394,12 @@ async function openEditAssetModal(index) {
     ]);
   } catch (e) { }
 
-  // Nếu currentAssetId đã đổi (user đóng modal / mở TSBĐ khác) trong lúc chờ giải mã thì bỏ qua.
+  // Chỉ lượt mở MỚI NHẤT được điền form + mở khóa nút (lượt cũ không đụng nút —
+  // lượt mới hơn / openAssetModal đã tự lo trạng thái nút).
+  if (editSeq !== window.__editAssetModalSeq) return;
+  try { LoadingManager.hideButtonLoading(saveBtn, "Lưu thay đổi"); } catch (e) { }
+
+  // Nếu user đóng modal / mở TSBĐ khác trong lúc chờ giải mã thì bỏ qua (giữ guard cũ).
   if (getEl("edit-asset-index").value !== String(index)) return;
 
   // Bảo vệ: nếu sau khi cố giải mã vẫn còn dạng ciphertext (khóa sai / dữ liệu hỏng), để ô

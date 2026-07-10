@@ -160,16 +160,26 @@ async function deleteSelectedImages() {
     setImageSelectionMode(false);
   };
 }
+// Trả null (KHÔNG throw) khi input rỗng/không phải data URL hợp lệ — caller phải
+// kiểm null. Trước đây ''.split(',')[0].match(...) trả null -> null[1] throw
+// TypeError bên trong async callback không ai catch -> Promise chia sẻ ảnh treo.
 function dataURLtoBlob(dataurl) {
-  var arr = dataurl.split(","),
-    mime = arr[0].match(/:(.*?);/)[1],
-    bstr = atob(arr[1]),
-    n = bstr.length,
-    u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
+  try {
+    if (!dataurl || typeof dataurl !== 'string') return null;
+    var arr = dataurl.split(",");
+    var mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch || arr.length < 2) return null;
+    var mime = mimeMatch[1],
+      bstr = atob(arr[1]),
+      n = bstr.length,
+      u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch (e) {
+    return null;
   }
-  return new Blob([u8arr], { type: mime });
 }
 
 // =======================
@@ -249,10 +259,15 @@ async function shareSelectedImages() {
     const filePromises = Array.from(selectedImages).map((id) => {
       return new Promise((resolve) => {
         const req = store.get(id);
+        // Async callback của IDB không ai await/catch được Promise của nó — mọi
+        // throw bên trong (ảnh rỗng/hỏng, decrypt fail) phải tự catch để LUÔN
+        // resolve, nếu không Promise.all treo vĩnh viễn -> loader không bao giờ tắt.
         req.onsuccess = async (e) => {
-          if (e.target.result) {
+          try {
+            if (!e.target.result) { resolve(null); return; }
             const dataUrl = await resolveImageData(e.target.result);
             const blob = dataURLtoBlob(dataUrl);
+            if (!blob) { resolve(null); return; } // ảnh hỏng/không giải mã được -> bỏ qua
             resolve(
               new File(
                 [blob],
@@ -260,7 +275,10 @@ async function shareSelectedImages() {
                 { type: "image/jpeg" }
               )
             );
-          } else resolve(null);
+          } catch (err) {
+            try { ErrorHandler.logError('shareSelectedImages: ảnh lỗi', err); } catch (_) {}
+            resolve(null);
+          }
         };
         req.onerror = () => resolve(null);
       });
@@ -277,6 +295,9 @@ async function shareSelectedImages() {
       } else {
         ErrorHandler.showError('UNKNOWN', "Thiết bị không hỗ trợ chia sẻ nhiều ảnh.");
       }
+    } else {
+      // Tất cả ảnh chọn đều hỏng/không giải mã được — báo rõ thay vì im lặng.
+      ErrorHandler.showError('UNKNOWN', "Không đọc được ảnh đã chọn (ảnh hỏng hoặc chưa giải mã được). Vui lòng thử lại.");
     }
     setImageSelectionMode(false);
   } catch (err) {
@@ -288,11 +309,18 @@ async function shareSelectedImages() {
 }
 
 function loadImagesFiltered(filterFn, targetId = "content-images") {
+  // Token chống hiện nhầm ảnh khi user chuyển hồ sơ/TSBĐ trong lúc decrypt
+  // (mirror __openFolderSeq ở 05_customers.js). Dùng chung 1 counter với
+  // loadAssetImages — 2 hàm không chạy đồng thời cho cùng grid. renderToken
+  // phía dưới chỉ chống 2 lượt render CÙNG đối tượng đè nhau, không chống
+  // việc đã chuyển sang đối tượng KHÁC trước khi decrypt xong.
+  const loadSeq = (window.__galleryLoadSeq = (window.__galleryLoadSeq || 0) + 1);
+  const askedCustomerId = currentCustomerId;
   db
     .transaction(["images"], "readonly")
     .objectStore("images")
     .index("customerId")
-    .getAll(currentCustomerId).onsuccess = async (e) => {
+    .getAll(askedCustomerId).onsuccess = async (e) => {
       let imgs = e.target.result || [];
       imgs = imgs.filter(filterFn);
       imgs.sort((a, b) => b.createdAt - a.createdAt);
@@ -300,6 +328,9 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
         ...img,
         _displayData: await resolveImageData(img),
       })));
+      // Sau decrypt: có lượt load mới hơn / user đã sang hồ sơ khác -> bỏ,
+      // không ghi đè grid + lightbox list của đối tượng đang xem.
+      if (loadSeq !== window.__galleryLoadSeq || currentCustomerId !== askedCustomerId) return;
       imgs = resolved;
       if (
         targetId === "content-images" &&
@@ -373,11 +404,15 @@ function loadProfileImages() {
   loadImagesFiltered((img) => !img.assetId);
 }
 function loadAssetImages(id) {
+  // Token chống hiện nhầm gallery khi user mở TSBĐ khác trong lúc decrypt
+  // (xem loadImagesFiltered — dùng chung counter __galleryLoadSeq).
+  const loadSeq = (window.__galleryLoadSeq = (window.__galleryLoadSeq || 0) + 1);
+  const askedCustomerId = currentCustomerId;
   db
     .transaction(["images"], "readonly")
     .objectStore("images")
     .index("customerId")
-    .getAll(currentCustomerId).onsuccess = async (e) => {
+    .getAll(askedCustomerId).onsuccess = async (e) => {
       let imgs = e.target.result || [];
       imgs = imgs.filter((img) => img.assetId === id);
       imgs.sort((a, b) => b.createdAt - a.createdAt);
@@ -385,6 +420,8 @@ function loadAssetImages(id) {
         ...img,
         _displayData: await resolveImageData(img),
       })));
+      // Sau decrypt: có lượt load mới hơn / user đã sang nơi khác -> bỏ.
+      if (loadSeq !== window.__galleryLoadSeq || currentCustomerId !== askedCustomerId) return;
       imgs = resolved;
       currentLightboxList = imgs;
       const grid = getEl("asset-gallery-grid");
@@ -514,7 +551,14 @@ function compressImage(base64, cb) {
 // --- ĐÃ SỬA: FIX LỖI KHÔNG REFRESH ẢNH ---
 function saveImageToDB(rawBase64) {
   return new Promise(async (resolve) => {
-    if (!currentCustomerId) {
+    // SNAPSHOT đối tượng đích NGAY LÚC BẮT ĐẦU: chuỗi nén ảnh (nhiều vòng
+    // setTimeout chỉnh chất lượng) + await mã hóa phía dưới có thể kéo dài —
+    // nếu đọc global currentCustomerId/currentAssetId SAU đó, user kịp chuyển
+    // hồ sơ/TSBĐ làm ảnh bị gán nhầm đối tượng mới. Ảnh luôn ghi vào đúng
+    // đối tượng tại thời điểm chụp.
+    const askedCustomerId = currentCustomerId;
+    const askedAssetId = currentAssetId;
+    if (!askedCustomerId) {
       resolve();
       return;
     }
@@ -526,6 +570,7 @@ function saveImageToDB(rawBase64) {
     ) {
       captureMode = "asset";
     }
+    const askedCaptureMode = captureMode;
 
     LoadingManager.showGlobal("Xử lý ảnh...");
 
@@ -546,34 +591,43 @@ function saveImageToDB(rawBase64) {
       }
       const newImg = {
         id: "img_" + Date.now() + Math.random(),
-        customerId: currentCustomerId,
-        assetId: currentAssetId,
+        customerId: askedCustomerId,
+        assetId: askedAssetId,
         data: storedData,
         imgCryptoV: (typeof storedData === 'string' && storedData.startsWith('cpg1:')) ? 1 : undefined,
         createdAt: Date.now(),
       };
 
-      db
+      const addReq = db
         .transaction(["images"], "readwrite")
         .objectStore("images")
-        .add(newImg).onsuccess = () => {
-          LoadingManager.hideGlobal(true);
-          ErrorHandler.showSuccess("Đã lưu ảnh");
+        .add(newImg);
 
-          // Refresh giao diện ngay lập tức
-          if (
-            currentAssetId &&
-            !getEl("screen-asset-gallery").classList.contains("translate-x-full")
-          ) {
-            loadAssetImages(currentAssetId);
-          } else if (captureMode === "asset" && currentAssetId) {
-            loadAssetImages(currentAssetId);
-          } else {
+      addReq.onsuccess = () => {
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showSuccess("Đã lưu ảnh");
+
+        // Refresh giao diện CHỈ khi user vẫn đang ở đúng đối tượng ban đầu
+        // (đã chuyển đi nơi khác thì không đụng grid đang xem).
+        if (currentCustomerId === askedCustomerId) {
+          const galleryOpen = !getEl("screen-asset-gallery").classList.contains("translate-x-full");
+          if (askedAssetId && currentAssetId === askedAssetId && (galleryOpen || askedCaptureMode === "asset")) {
+            loadAssetImages(askedAssetId);
+          } else if (!askedAssetId) {
             loadProfileImages();
           }
+        }
 
-          resolve();
-        };
+        resolve();
+      };
+
+      // Lỗi ghi IDB (quota/constraint) hiếm nhưng có thật: không có onerror thì
+      // loader "Đang lưu ảnh..." treo vĩnh viễn (hideGlobal chỉ nằm trong onsuccess).
+      addReq.onerror = () => {
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showError('STORAGE', 'Không lưu được ảnh vào máy. Kiểm tra dung lượng bộ nhớ rồi thử lại.', addReq.error);
+        resolve();
+      };
     });
   });
 }

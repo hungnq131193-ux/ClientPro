@@ -473,6 +473,19 @@
         else if (!now && was) closed = true;
         lastVisible.set(id, now);
       });
+      // Cả ĐÓNG lẫn MỞ trong cùng frame (vd modal đóng đúng lúc screen khác
+      // trượt vào — MutationObserver batch mọi mutation cùng tick): net depth
+      // không đổi, entry của thứ vừa đóng được TÁI DÙNG cho thứ vừa mở bằng
+      // replaceState ĐỒNG BỘ. Không gọi back() + pushState trong cùng tick
+      // (history.back() bất đồng bộ, dễ race). Trước đây nhánh `opened` return
+      // sớm nên entry của thứ đã đóng không bao giờ được pop -> để lại 1 entry
+      // "ma", user phải back 2 lần mới thoát thật.
+      if (opened && closed && !suppressDepthPush) {
+        try {
+          history.replaceState(SENTINEL_STATE, document.title, location.href);
+        } catch (_) { }
+        return;
+      }
       // A screen/modal just opened by a normal tap (not by our own back
       // handling) — record exactly one real history step for it.
       if (opened && !suppressDepthPush) {

@@ -3,7 +3,7 @@
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
-[![Version](https://img.shields.io/badge/version-1.5.11-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](manifest.json)
 
 > **Live demo:** https://client-pro-beryl.vercel.app
 
@@ -22,6 +22,19 @@
 - 📱 **PWA & mobile-first** — cài lên màn hình chính, offline, camera trong app, lightbox, edge back-swipe, chuyển màn hình mượt.
 - 🎨 **4 giao diện** — Sáng (mặc định) + 3 nền tối: Xanh Đêm, Đại Dương, Thiên Thanh (chung `redesign.clientpro.css`, khác `--accent-gradient`).
 - 🌤️ **Tiện ích** — thời tiết Open-Meteo, onboarding tour, ủng hộ tác giả qua VietQR.
+
+## Có gì mới — v1.6.0
+
+Đợt sửa 8 lỗi logic tập trung vào an toàn dữ liệu và độ ổn định:
+
+- **Sửa lỗi mất dữ liệu khi backup/restore**: sao lưu ngay sau khi mở khóa app không còn nguy cơ làm trống tên/ghi chú/định giá khi khôi phục. Bản backup cũ (tạo trước v1.6.0) vẫn khôi phục được bình thường nhờ cơ chế tự khôi phục ngược trên cùng thiết bị/khóa.
+- **Drive upload không còn xóa nhầm ảnh chưa lên mây**: khi một phần ảnh tải lên lỗi, app chỉ xóa ảnh đã lên Drive thành công và báo rõ số ảnh lỗi (cần deploy lại `gas/UserDriveAPI.gs` bản v4 để nhận báo cáo chi tiết từng ảnh).
+- **Ảnh luôn lưu vào đúng hồ sơ/tài sản** kể cả khi chuyển hồ sơ trong lúc "Đang lưu ảnh...", và lỗi lưu ảnh (đầy bộ nhớ) được báo thay vì treo màn hình.
+- **Kho ảnh không hiện nhầm ảnh** của hồ sơ/tài sản khác khi chuyển tab nhanh.
+- **Sửa hồ sơ/TSBĐ an toàn hơn**: nút Lưu khóa trong lúc form đang tải, không còn nguy cơ ghi nhầm dữ liệu sang hồ sơ khác khi điều hướng nhanh.
+- **Kiểm tra trùng CCCD/SĐT chính xác** ngay cả khi vừa mở khóa app.
+- **Sửa treo màn hình khi chia sẻ ảnh lỗi** — ảnh hỏng được bỏ qua và báo rõ.
+- **Sửa back/vuốt lùi phải bấm 2 lần** trong một số tình huống đóng modal + mở màn hình cùng lúc.
 
 ## Công nghệ
 
@@ -69,14 +82,14 @@ Mở `http://localhost:8000/`.
 
 Hai định danh độc lập, mỗi loại một nguồn duy nhất:
 
-**1. Phiên bản app (semver)** — hiện tại **`1.5.11`**. Nguồn: `package.json` → `version`. Sửa ở đó rồi chạy:
+**1. Phiên bản app (semver)** — hiện tại **`1.6.0`**. Nguồn: `package.json` → `version`. Sửa ở đó rồi chạy:
 
 ```bash
 npm run sync:version      # ghi semver ra manifest.json, sw.js, pwa.js, README
 npm run check:version     # chỉ kiểm tra (CI dùng, lệch => fail)
 ```
 
-**2. Tag cache-buster asset** — hiện tại **`V1511_20260710`**. Nguồn: `ASSET_V` trong `sw.js`; phải đồng nhất với mọi query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`. Đổi tay khi thay asset.
+**2. Tag cache-buster asset** — hiện tại **`V160_20260710`**. Nguồn: `ASSET_V` trong `sw.js`; phải đồng nhất với mọi query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`. Đổi tay khi thay asset.
 
 CI kiểm tra cả hai — không sửa tay các file đích của semver.
 

@@ -575,6 +575,10 @@ function renderList(list, opts = {}) {
 }
 
 function openModal() {
+    // Vô hiệu hóa lượt decrypt sửa-hồ-sơ còn treo (nếu có) + gỡ khóa nút Lưu,
+    // tránh lượt cũ đè nhãn/trạng thái nút sau khi đã chuyển sang chế độ tạo mới.
+    window.__editCustModalSeq = (window.__editCustModalSeq || 0) + 1;
+    try { LoadingManager.hideButtonLoading(getEl('btn-save-cust')); } catch (e) { }
     getEl('add-modal').classList.remove('hidden');
     // Reset tất cả trường nhập thông tin khách hàng khi tạo mới
     getEl('new-name').value = '';
@@ -593,32 +597,54 @@ async function openEditCustomerModal() {
         return;
     }
 
+    // SNAPSHOT hồ sơ đang sửa TRƯỚC chuỗi await: user có thể điều hướng sang hồ
+    // sơ khác trong lúc chờ decrypt — mọi thứ điền vào form (kể cả edit-cust-id)
+    // phải lấy từ snapshot này, KHÔNG đọc lại currentCustomerData sống sau await
+    // (trước đây id đọc sau await -> bấm Lưu ghi dữ liệu hồ sơ A vào record B).
+    const asked = currentCustomerData;
+    const editSeq = (window.__editCustModalSeq = (window.__editCustModalSeq || 0) + 1);
+
     getEl('add-modal').classList.remove('hidden');
+
+    // Phần đồng bộ điền NGAY: id snapshot + reset field (không hiện dữ liệu sót
+    // của lần mở trước trong lúc chờ decrypt).
+    getEl('new-name').value = '';
+    getEl('new-phone').value = '';
+    if (getEl('new-cccd')) getEl('new-cccd').value = '';
+    getEl('edit-cust-id').value = asked.id || '';
+    getEl('modal-title-cust').textContent = "Chỉnh sửa hồ sơ";
+    getEl('btn-save-cust').textContent = "Cập nhật";
+
+    // Khóa nút Lưu trong lúc chờ decrypt: không cho lưu khi form chưa sẵn sàng.
+    const saveBtn = getEl('btn-save-cust');
+    try { LoadingManager.showButtonLoading(saveBtn, 'Đang tải...'); } catch (e) { }
 
     // Fill form — async decrypt + guard ciphertext (không đổ cpg1: vào ô input)
     let safeName = '', safePhone = '', safeCccd = '';
     try {
         if (typeof _displayPlainAsync === 'function') {
             [safeName, safePhone, safeCccd] = await Promise.all([
-                _displayPlainAsync(currentCustomerData.name, ''),
-                _displayPlainAsync(currentCustomerData.phone, ''),
-                _displayPlainAsync(currentCustomerData.cccd, ''),
+                _displayPlainAsync(asked.name, ''),
+                _displayPlainAsync(asked.phone, ''),
+                _displayPlainAsync(asked.cccd, ''),
             ]);
         } else {
-            safeName = (currentCustomerData.name && !_looksEncrypted(currentCustomerData.name)) ? currentCustomerData.name : '';
-            safePhone = (currentCustomerData.phone && !_looksEncrypted(currentCustomerData.phone)) ? currentCustomerData.phone : '';
-            safeCccd = (currentCustomerData.cccd && !_looksEncrypted(currentCustomerData.cccd)) ? currentCustomerData.cccd : '';
+            safeName = (asked.name && !_looksEncrypted(asked.name)) ? asked.name : '';
+            safePhone = (asked.phone && !_looksEncrypted(asked.phone)) ? asked.phone : '';
+            safeCccd = (asked.cccd && !_looksEncrypted(asked.cccd)) ? asked.cccd : '';
         }
     } catch (e) { }
+
+    // Chỉ lượt mở MỚI NHẤT được điền form + mở khóa nút (lượt cũ không đụng nút —
+    // lượt mới hơn / openModal đã tự lo trạng thái nút).
+    if (editSeq !== window.__editCustModalSeq) return;
+    try { LoadingManager.hideButtonLoading(saveBtn, 'Cập nhật'); } catch (e) { }
+    // Modal đã bị đóng trong lúc chờ -> không đổ dữ liệu cũ vào lần mở sau.
+    if (getEl('add-modal').classList.contains('hidden')) return;
 
     getEl('new-name').value = safeName;
     getEl('new-phone').value = safePhone;
     if (getEl('new-cccd')) getEl('new-cccd').value = safeCccd;
-    getEl('edit-cust-id').value = currentCustomerData.id || '';
-
-    // Update modal title and button
-    getEl('modal-title-cust').textContent = "Chỉnh sửa hồ sơ";
-    getEl('btn-save-cust').textContent = "Cập nhật";
 
     getEl('new-name').focus();
 }
@@ -645,64 +671,61 @@ async function checkDuplicateCustomer(cccd, phone, excludeId = null) {
     // Skip check if both are empty
     if (!cccdNorm && !phoneNorm) return { duplicate: false };
 
-    return new Promise((resolve) => {
-        const tx = db.transaction(['customers'], 'readonly');
-        const store = tx.objectStore('customers');
-        const req = store.getAll();
-
-        req.onsuccess = (e) => {
-            const customers = e.target.result || [];
-
-            for (const c of customers) {
-                // Skip the customer being edited
-                if (excludeId && c.id === excludeId) continue;
-
-                // Decrypt fields for comparison
-                let custCccd = '';
-                let custPhone = '';
-                let custName = '';
-
-                try {
-                    custCccd = (typeof decryptText === 'function' ? decryptText(c.cccd) : c.cccd) || '';
-                    custPhone = (typeof decryptText === 'function' ? decryptText(c.phone) : c.phone) || '';
-                    custName = (typeof decryptText === 'function' ? decryptText(c.name) : c.name) || '';
-                } catch (err) {
-                    // If decryption fails, use raw (might be plaintext or unreadable)
-                    custCccd = c.cccd || '';
-                    custPhone = c.phone || '';
-                    custName = c.name || '';
-                }
-
-                // Normalize for comparison
-                custCccd = custCccd.replace(/\s+/g, '').trim();
-                                custPhone = custPhone.replace(/\s+/g, '').trim();
-
-                // Check CCCD match (only if input has value)
-                if (cccdNorm && custCccd && cccdNorm === custCccd) {
-                    resolve({
-                        duplicate: true,
-                        field: 'cccd',
-                        existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
-                    });
-                    return;
-                }
-
-                // Check Phone match (only if input has value)
-                if (phoneNorm && custPhone && phoneNorm === custPhone) {
-                    resolve({
-                        duplicate: true,
-                        field: 'phone',
-                        existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
-                    });
-                    return;
-                }
-            }
-
-            resolve({ duplicate: false });
-        };
-
-        req.onerror = () => resolve({ duplicate: false });
+    const customers = await new Promise((resolve) => {
+        try {
+            const tx = db.transaction(['customers'], 'readonly');
+            const req = tx.objectStore('customers').getAll();
+            req.onsuccess = (e) => resolve(e.target.result || []);
+            req.onerror = () => resolve([]);
+        } catch (e) {
+            resolve([]);
+        }
     });
+
+    // Decrypt THẬT (decryptFieldAsync) thay vì decryptText đồng bộ: decryptText
+    // fail-open khi cache lạnh (trả nguyên "cpg1:...") — ciphertext không bao giờ
+    // khớp plaintext input -> duplicate thật bị bỏ sót ngay sau unlock / với KH
+    // chưa từng render. decryptFieldAsync fail thì trả nguyên ciphertext, so sánh
+    // vẫn không khớp (an toàn như trước, không false positive).
+    const dec = async (v) => {
+        try {
+            if (typeof decryptFieldAsync === 'function') return (await decryptFieldAsync(v)) || '';
+            if (typeof decryptText === 'function') return decryptText(v) || '';
+        } catch (err) { }
+        return v || '';
+    };
+
+    for (const c of customers) {
+        // Skip the customer being edited
+        if (excludeId && c.id === excludeId) continue;
+
+        // Decrypt fields for comparison
+        let [custCccd, custPhone, custName] = await Promise.all([dec(c.cccd), dec(c.phone), dec(c.name)]);
+
+        // Normalize for comparison
+        custCccd = custCccd.replace(/\s+/g, '').trim();
+        custPhone = custPhone.replace(/\s+/g, '').trim();
+
+        // Check CCCD match (only if input has value)
+        if (cccdNorm && custCccd && cccdNorm === custCccd) {
+            return {
+                duplicate: true,
+                field: 'cccd',
+                existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
+            };
+        }
+
+        // Check Phone match (only if input has value)
+        if (phoneNorm && custPhone && phoneNorm === custPhone) {
+            return {
+                duplicate: true,
+                field: 'phone',
+                existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
+            };
+        }
+    }
+
+    return { duplicate: false };
 }
 
 // Show duplicate warning UI

@@ -10,7 +10,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadSecurity, randomKdataB64u } = require('./helpers/load-security');
+const { loadSecurity, loadBackupCore, randomKdataB64u } = require('./helpers/load-security');
 
 // Ảnh giả lập (data URL) để kiểm tra backup KHÔNG làm hỏng payload lớn/nhị phân.
 function fakeImageDataUrl(kb) {
@@ -121,6 +121,98 @@ test('backup: thiếu khóa khi restore -> MISSING_BACKUP_KDATA', async () => {
 test('backup: nội dung rỗng khi restore -> EMPTY_CIPHER', async () => {
   const { api } = loadSecurity();
   await assert.rejects(() => api.decryptBackupPayload('', randomKdataB64u()), /EMPTY_CIPHER/);
+});
+
+// ============================================================================
+// v1.6.0 Bug 1 — Export/restore khi cache LẠNH (BackupCore, 12_backup_core.js):
+// export phải decrypt THẬT (không fail-open trả ciphertext), restore backup cũ
+// đã lỗi phải khôi phục được plaintext thay vì xóa trắng field.
+// ============================================================================
+
+test('backup-core: export khi cache LẠNH vẫn ra plaintext (không lọt cpg1: vào backup)', async () => {
+  const { api, ctx } = loadSecurity();
+  const BackupCore = loadBackupCore(ctx);
+  await api.setMasterKey(api.generateMasterKey());
+
+  const cust = {
+    id: 'c1',
+    name: await api.encryptText('Nguyễn Văn A'),
+    phone: await api.encryptText('0987654321'),
+    cccd: await api.encryptText('001234567890'),
+    notes: await api.encryptText('Khách VIP — hạn mức 2.5 tỷ'),
+    assets: [{
+      id: 'a1',
+      name: await api.encryptText('Nhà đất 120m²'),
+      valuation: await api.encryptText('5000000000'),
+      loanValue: await api.encryptText('3500000000'),
+    }],
+  };
+
+  // Mô phỏng mở app mới sau unlock: cache field trống, chưa render hồ sơ nào.
+  api.resetFieldCache();
+
+  const out = await BackupCore.normalizeCustomerForExport(cust);
+  assert.equal(out.name, 'Nguyễn Văn A');
+  assert.equal(out.phone, '0987654321');
+  assert.equal(out.cccd, '001234567890');
+  assert.equal(out.notes, 'Khách VIP — hạn mức 2.5 tỷ');
+  assert.equal(out.assets[0].name, 'Nhà đất 120m²');
+  assert.equal(out.assets[0].valuation, '5000000000');
+  assert.equal(out.assets[0].loanValue, '3500000000');
+  assert.ok(!JSON.stringify(out).includes('cpg1:'), 'Export không được chứa ciphertext');
+});
+
+test('backup-core: restore backup CŨ đã lỗi (chứa ciphertext) trên CÙNG khóa -> khôi phục plaintext, không xóa trắng', async () => {
+  const { api, ctx } = loadSecurity();
+  const BackupCore = loadBackupCore(ctx);
+  await api.setMasterKey(api.generateMasterKey());
+
+  const nameCt = await api.encryptText('Nguyễn Văn A');
+  const notesCt = await api.encryptText('Ghi chú quan trọng');
+  const valCt = await api.encryptText('5000000000');
+  api.resetFieldCache();
+
+  // Backup cũ (trước fix) lọt nguyên ciphertext vào field lẽ ra plaintext.
+  const restored = await BackupCore.normalizeCustomerForRestore({
+    id: 'c1', name: nameCt, notes: notesCt,
+    assets: [{ id: 'a1', valuation: valCt }],
+  });
+
+  assert.equal(restored.cryptoV, 2);
+  assert.notEqual(restored.name, '', 'Không được xóa trắng field');
+  assert.equal(await api.decryptFieldAsync(restored.name), 'Nguyễn Văn A');
+  assert.equal(await api.decryptFieldAsync(restored.notes), 'Ghi chú quan trọng');
+  assert.equal(await api.decryptFieldAsync(restored.assets[0].valuation), '5000000000');
+});
+
+test('backup-core: restore backup CŨ đã lỗi + KHÁC khóa -> giữ nguyên ciphertext gốc (R3), không ghi đè rỗng', async () => {
+  const { api, ctx } = loadSecurity();
+  const BackupCore = loadBackupCore(ctx);
+
+  await api.setMasterKey(api.generateMasterKey());
+  const ct = await api.encryptText('dữ liệu của thiết bị khác');
+
+  // Đổi sang khóa khác (mô phỏng restore trên thiết bị mới) — không giải mã được ct cũ.
+  await api.setMasterKey(api.generateMasterKey());
+
+  const restored = await BackupCore.normalizeCustomerForRestore({ id: 'c1', name: ct });
+  assert.equal(restored.name, ct, 'Phải giữ nguyên ciphertext gốc, không xóa trắng');
+});
+
+test('backup-core: restore plaintext bình thường vẫn mã hóa lại như cũ', async () => {
+  const { api, ctx } = loadSecurity();
+  const BackupCore = loadBackupCore(ctx);
+  await api.setMasterKey(api.generateMasterKey());
+
+  const restored = await BackupCore.normalizeCustomerForRestore({
+    id: 'c1', name: 'Trần Thị B', phone: '0912345678',
+    assets: [{ id: 'a1', name: 'Ô tô', valuation: '800000000' }],
+  });
+
+  assert.ok(String(restored.name).startsWith('cpg1:'), 'Field nhạy cảm phải được mã hóa');
+  assert.equal(await api.decryptFieldAsync(restored.name), 'Trần Thị B');
+  assert.equal(await api.decryptFieldAsync(restored.assets[0].valuation), '800000000');
+  assert.equal(restored.cryptoV, 2);
 });
 
 test('backup: KDATA sai độ dài (không phải 32 byte) -> KDATA_INVALID_LEN', async () => {
