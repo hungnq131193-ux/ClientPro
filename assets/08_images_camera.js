@@ -160,16 +160,26 @@ async function deleteSelectedImages() {
     setImageSelectionMode(false);
   };
 }
+// Trả null (KHÔNG throw) khi input rỗng/không phải data URL hợp lệ — caller phải
+// kiểm null. Trước đây ''.split(',')[0].match(...) trả null -> null[1] throw
+// TypeError bên trong async callback không ai catch -> Promise chia sẻ ảnh treo.
 function dataURLtoBlob(dataurl) {
-  var arr = dataurl.split(","),
-    mime = arr[0].match(/:(.*?);/)[1],
-    bstr = atob(arr[1]),
-    n = bstr.length,
-    u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
+  try {
+    if (!dataurl || typeof dataurl !== 'string') return null;
+    var arr = dataurl.split(",");
+    var mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch || arr.length < 2) return null;
+    var mime = mimeMatch[1],
+      bstr = atob(arr[1]),
+      n = bstr.length,
+      u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch (e) {
+    return null;
   }
-  return new Blob([u8arr], { type: mime });
 }
 
 // =======================
@@ -249,10 +259,15 @@ async function shareSelectedImages() {
     const filePromises = Array.from(selectedImages).map((id) => {
       return new Promise((resolve) => {
         const req = store.get(id);
+        // Async callback của IDB không ai await/catch được Promise của nó — mọi
+        // throw bên trong (ảnh rỗng/hỏng, decrypt fail) phải tự catch để LUÔN
+        // resolve, nếu không Promise.all treo vĩnh viễn -> loader không bao giờ tắt.
         req.onsuccess = async (e) => {
-          if (e.target.result) {
+          try {
+            if (!e.target.result) { resolve(null); return; }
             const dataUrl = await resolveImageData(e.target.result);
             const blob = dataURLtoBlob(dataUrl);
+            if (!blob) { resolve(null); return; } // ảnh hỏng/không giải mã được -> bỏ qua
             resolve(
               new File(
                 [blob],
@@ -260,7 +275,10 @@ async function shareSelectedImages() {
                 { type: "image/jpeg" }
               )
             );
-          } else resolve(null);
+          } catch (err) {
+            try { ErrorHandler.logError('shareSelectedImages: ảnh lỗi', err); } catch (_) {}
+            resolve(null);
+          }
         };
         req.onerror = () => resolve(null);
       });
@@ -277,6 +295,9 @@ async function shareSelectedImages() {
       } else {
         ErrorHandler.showError('UNKNOWN', "Thiết bị không hỗ trợ chia sẻ nhiều ảnh.");
       }
+    } else {
+      // Tất cả ảnh chọn đều hỏng/không giải mã được — báo rõ thay vì im lặng.
+      ErrorHandler.showError('UNKNOWN', "Không đọc được ảnh đã chọn (ảnh hỏng hoặc chưa giải mã được). Vui lòng thử lại.");
     }
     setImageSelectionMode(false);
   } catch (err) {
