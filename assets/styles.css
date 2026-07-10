@@ -2525,11 +2525,7 @@ body.theme-vietinbank #screen-folder .glass-header .rounded-xl.bg-black\/20 {
   border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
-/* Ghi chú: readonly mặc định (xem trước, bấm mới sửa) — trạng thái theo thuộc tính DOM readOnly */
-#info-notes:read-only {
-  cursor: pointer;
-}
-
+/* Ghi chú: readonly mặc định, chỉ nút Sửa mới vào edit — trạng thái theo thuộc tính DOM readOnly */
 #info-notes:not(:read-only) {
   border-color: var(--accent);
 }

@@ -1295,12 +1295,12 @@ function switchTab(tabName) {
 
 // ==== Ghi chú (tab Info): xem trước, bấm mới sửa ====
 // Nguồn sự thật duy nhất = thuộc tính DOM readOnly của #info-notes (CSS ăn theo qua :read-only,
-// không thêm class JS-toggle riêng). Vào edit qua nút Sửa HOẶC tap thẳng vào textarea
-// (cùng data-action="enterNotesEditMode"). Không có nút Hủy: loadCustomerInfo() ghi đè .value
-// mỗi lần quay lại tab Info nên edit dở dang tự bị hủy sẵn.
+// không thêm class JS-toggle riêng). Vào edit CHỈ qua nút pencil #btn-edit-notes — tap vào
+// textarea khi readonly chỉ để xem/chọn-copy, không vào edit. Không có nút Hủy:
+// loadCustomerInfo() ghi đè .value mỗi lần quay lại tab Info nên edit dở dang tự bị hủy sẵn.
 function enterNotesEditMode() {
     const notesEl = getEl('info-notes');
-    if (!notesEl || !notesEl.readOnly) return; // đang edit rồi -> click chỉ đặt caret như bình thường
+    if (!notesEl || !notesEl.readOnly) return; // đang edit rồi -> no-op
     notesEl.readOnly = false;
     const editBtn = getEl('btn-edit-notes');
     const saveBtn = getEl('btn-save-notes');
