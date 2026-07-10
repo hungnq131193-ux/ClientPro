@@ -895,6 +895,9 @@
         // only poll when tab visible (reduce noise)
         try {
           if (document.hidden) return;
+          // không poll mạng khi app đang khóa (tiết kiệm mạng/pin; kết quả cũng
+          // không dùng được khi chưa mở khóa) — cùng guard isAppUnlocked ở nơi khác
+          if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) return;
         } catch (e) {}
         pollInboxAndNotify();
       }, POLL_INTERVAL_MS);

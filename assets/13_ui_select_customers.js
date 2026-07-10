@@ -142,7 +142,10 @@
       draw(filterList());
     });
 
-    searchEl.addEventListener('input', () => draw(filterList()));
+    // Debounce: draw() rebuild toàn bộ DOM list — không chạy trên từng keystroke
+    // (cùng độ trễ 120ms với picker tương đương ở 14_cloud_transfer.js)
+    searchEl.addEventListener('input',
+      (typeof debounce === 'function') ? debounce(() => draw(filterList()), 120) : () => draw(filterList()));
 
     draw(list);
   }

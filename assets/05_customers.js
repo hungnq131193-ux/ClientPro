@@ -1107,6 +1107,11 @@ function openFolder(id) {
     currentCustomerId = id;
     const folderScreen = getEl('screen-folder');
 
+    // Load-token chống race (cùng pattern __customerListLoadToken ở loadCustomers):
+    // double-tap nhanh 2 hồ sơ khác nhau → request trả về sau của hồ sơ TRƯỚC
+    // không được ghi đè currentCustomerData/header của hồ sơ sau.
+    const seq = (window.__openFolderSeq = (window.__openFolderSeq || 0) + 1);
+
     // Check if db is ready
     if (!db) {
         ErrorHandler.showError('STORAGE', 'Dữ liệu chưa sẵn sàng. Vui lòng thử lại sau giây lát.', 'openFolder: db not ready');
@@ -1119,6 +1124,7 @@ function openFolder(id) {
         const req = tx.objectStore('customers').get(id);
 
         req.onsuccess = (e) => {
+            if (seq !== window.__openFolderSeq) return; // đã có openFolder mới hơn
             currentCustomerData = e.target.result;
             if (!currentCustomerData) {
                 ErrorHandler.showError('STORAGE', 'Không tìm thấy hồ sơ khách hàng.', 'openFolder: customer not found: ' + id);

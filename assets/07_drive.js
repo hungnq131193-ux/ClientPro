@@ -276,12 +276,19 @@ async function uploadAssetToDrive() {
                 currentCustomerData.assets[assetIndex].driveLink = result.url;
 
                 // 2. Cập nhật Database (không put() nguyên currentCustomerData vì
-                //    name/phone/cccd trên object đó đã bị giải mã trong openFolder)
-                persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, (ok) => {
-                    if (!ok) ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm lại link" sau.');
+                //    name/phone/cccd trên object đó đã bị giải mã trong openFolder).
+                //    Await kết quả ghi: KHÔNG báo thành công / hỏi xóa ảnh gốc khi ghi
+                //    link thất bại (mirror pattern _doSaveAsset ở 06_assets.js).
+                const ok = await new Promise((resolve) => {
+                    persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, resolve);
                 });
 
                 LoadingManager.hideGlobal(true);
+
+                if (!ok) {
+                    ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm lại link" sau.');
+                    return;
+                }
 
                 // 3. Cập nhật giao diện
                 renderAssetDriveStatus(result.url);
@@ -387,6 +394,10 @@ async function reconnectAssetDriveFolder() {
                     stM.put(rec);
                 }
             };
+            // Auto-migrate phụ: lỗi ghi không cần chặn flow, nhưng không được nuốt im lặng.
+            txM.onerror = (e) => {
+                ErrorHandler.logError('reconnectAssetDriveFolder: auto-migrate asset name failed', e);
+            };
         }
     } catch (e) {}
 
@@ -415,6 +426,11 @@ async function reconnectAssetDriveFolder() {
                 LoadingManager.hideGlobal(true);
                 renderAssetDriveStatus(plainUrl);
                 ErrorHandler.showSuccess("Đã kết nối lại folder TSBĐ!");
+            };
+            // Transaction lỗi: phải tắt loading (nếu không overlay treo vĩnh viễn) + báo lỗi.
+            tx.onerror = (e) => {
+                LoadingManager.hideGlobal(true);
+                ErrorHandler.showError('STORAGE', 'Tìm thấy folder nhưng CHƯA lưu được link vào hồ sơ. Vui lòng thử lại.', e);
             };
         } else {
             LoadingManager.hideGlobal(true);
@@ -552,13 +568,21 @@ async function uploadToGoogleDrive() {
             const result = await response.json();
 
             if (result.status === 'success') {
-                // Lưu link Folder (ghi an toàn, giữ nguyên ciphertext các trường khác)
+                // Lưu link Folder (ghi an toàn, giữ nguyên ciphertext các trường khác).
+                // Await kết quả ghi: KHÔNG báo thành công / hỏi xóa ảnh gốc khi ghi
+                // link thất bại (mirror pattern _doSaveAsset ở 06_assets.js).
                 currentCustomerData.driveLink = result.url;
-                persistCurrentCustomer((rec) => { rec.driveLink = result.url; }, (ok) => {
-                    if (!ok) ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm lại link" sau.');
+                const ok = await new Promise((resolve) => {
+                    persistCurrentCustomer((rec) => { rec.driveLink = result.url; }, resolve);
                 });
 
                 LoadingManager.hideGlobal(true);
+
+                if (!ok) {
+                    ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm lại link" sau.');
+                    return;
+                }
+
                 renderDriveStatus(result.url);
                 ErrorHandler.showSuccess("Đã sao lưu ảnh hồ sơ lên Drive");
 

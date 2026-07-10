@@ -8,7 +8,7 @@ const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'ZINDEXFIX_20260709';
+const MAPLIBRE_V = 'PERFFIX_20260710';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const MAP_STYLE_SAT = {
     version: 8,
@@ -492,7 +492,11 @@ function _clearMapMarkers() {
 
 function _attachMapClusterHandlers() {
     if (!map || __mapClusterHandlers) return;
-    const handler = () => { _paintMapClusters(); };
+    // Debounce: _paintMapClusters clear + rebuild toàn bộ marker DOM + popup —
+    // pinch-zoom/pan bắn nhiều moveend/zoomend liên tiếp, chỉ repaint lần cuối.
+    const handler = (typeof debounce === 'function')
+        ? debounce(() => { _paintMapClusters(); }, 120)
+        : () => { _paintMapClusters(); };
     __mapClusterHandlers = { move: handler, zoom: handler };
     map.on('moveend', handler);
     map.on('zoomend', handler);
