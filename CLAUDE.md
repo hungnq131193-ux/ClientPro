@@ -6,7 +6,7 @@
 
 **ClientPro** = PWA tĩnh thuần (vanilla JS ES6+, không framework, không build step) quản lý **khách hàng (KH)** + **tài sản bảo đảm (TSBĐ)**, tối ưu mobile. Không backend; dữ liệu lưu cục bộ (IndexedDB) và **mã hóa**; mở khóa bằng PIN hoặc WebAuthn PRF (Face ID/vân tay); offline-first qua Service Worker; deploy static trên Vercel với CSP nghiêm ngặt.
 
-- **Phiên bản**: 1.5.10 — nguồn duy nhất `package.json`, đồng bộ bằng `npm run sync:version` (§7).
+- **Phiên bản**: 1.5.11 — nguồn duy nhất `package.json`, đồng bộ bằng `npm run sync:version` (§7).
 - **License**: Proprietary — All Rights Reserved (tác giả Nguyễn Quốc Hưng). Demo: https://client-pro-beryl.vercel.app
 
 **Triết lý** (soi mọi thay đổi vào đây):
@@ -176,7 +176,7 @@ Khung chung cả 2 file: `doGet`/`doPost` → `handleRequest_()`, response qua `
 
 **Hai định danh độc lập, mỗi loại 1 nguồn duy nhất**:
 - **A. Semver app** — nguồn `package.json → version`. **KHÔNG sửa tay** các file đích. Đổi package.json rồi `npm run sync:version` (`scripts/sync-version.mjs`, zero-dep) tự ghi ra: `manifest.json version`, `sw.js VERSION='v<sem>'`, `assets/pwa.js SW_BUILD='v<sem>'`, README.md (badge + mục "Quản lý phiên bản").
-- **B. Cache-buster asset** — nguồn `ASSET_V` trong `sw.js` (chuỗi tự do, hiện `NOTESEDIT_20260710`), đổi tay khi thay asset. Phải đồng nhất với: **mọi** query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`.
+- **B. Cache-buster asset** — nguồn `ASSET_V` trong `sw.js` (chuỗi tự do, hiện `V1511_20260710`), đổi tay khi thay asset. Phải đồng nhất với: **mọi** query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`.
 - CI (`.github/workflows/ci.yml`, job `static-checks`) check cả hai: bước `sync-version.mjs --check` (semver + README) + bước version-sync (`?v=`/`MAPLIBRE_V`) + chặn CDN. Trước commit: `npm run check:version`.
 
 **sw.js**: precache toàn bộ shell + vendor + fonts + mọi module JS + modal HTML (**module mới → thêm vào precache list**). Runtime: same-origin cacheFirst/networkFirst; map tiles stale-while-revalidate 30 ngày (cache riêng); **OSRM không cache**; navigation SWR (user thấy bản mới ở lần mở tiếp theo); `skipWaiting` + message `SKIP_WAITING` để activate ngay. `assets/pwa.js`: đăng ký SW + xử lý update.
@@ -223,12 +223,13 @@ Chạy: `node --test 'tests/**/*.test.js'` (zero-dep, TAP) · `npm install && np
 
 ## 11. Trạng thái hiện tại (2026-07-10)
 
-- **v1.5.10**, `ASSET_V = NOTESEDIT_20260710`.
-- **Recent (v1.5.10 — Notes UX)**: ô Ghi chú tab Info chuyển sang mô hình "xem trước, bấm mới sửa" — readonly mặc định, CHỈ nút Sửa (pencil `#btn-edit-notes`) mới vào chế độ gõ (tap vào ô chỉ xem/copy), nút Lưu (`#btn-save-notes`) chỉ hiện khi đang edit, tự về readonly sau lưu thành công / khi load lại tab Info (chi tiết §6.4/05).
+- **v1.5.11**, `ASSET_V = V1511_20260710`.
+- **v1.5.11 — Release bump đầy đủ**: bump đồng bộ cả semver (1.5.10 → 1.5.11 qua `sync:version`) lẫn cache-buster `ASSET_V` (`NOTESEDIT_20260710` → `V1511_20260710`, không đổi code) để mọi client cập nhật SW + tải lại toàn bộ asset, tránh lỗi cache lệch.
+- **v1.5.10 — Notes UX**: ô Ghi chú tab Info chuyển sang mô hình "xem trước, bấm mới sửa" — readonly mặc định, CHỈ nút Sửa (pencil `#btn-edit-notes`) mới vào chế độ gõ (tap vào ô chỉ xem/copy), nút Lưu (`#btn-save-notes`) chỉ hiện khi đang edit, tự về readonly sau lưu thành công / khi load lại tab Info (chi tiết §6.4/05).
 - **v1.5.9 — Perf + bugfix**: chống double-submit backup/restore nội bộ (`__backupInFlight`/`__restoreInFlight`, 09_backup_manager — mirror pattern 16); toast thành công upload Drive chỉ hiện khi `persistCurrentCustomer` trả `ok` (07, mirror `_doSaveAsset`/06; `!ok` → không hỏi xóa ảnh gốc); `capturePhoto` bọc try/finally đảm bảo `closeCamera()` chạy kể cả khi chụp lỗi (08); thêm `tx.onerror` cho 2 transaction `reconnectAssetDriveFolder` (07 — hết treo loading / nuốt lỗi im lặng); load-token `window.__openFolderSeq` chống race double-tap 2 hồ sơ (05, `openFolder`); debounce 120ms cho search picker KH (13) + map cluster repaint `moveend`/`zoomend` (03); polling cloud-transfer skip khi app khóa qua `isAppUnlocked()` (14).
 - **v1.5.8 — Display integrity**: audit toàn app sau lazy-decrypt; vá mọi đường hiển thị còn sót ciphertext. Helper chung `_looksEncrypted` / `_displayPlain` / `_displayPlainAsync` chuyển về `00_globals.js`. Fix: `renderFolderHeader` + `openFolder` async refresh header; `openEditAssetModal` decrypt `name`; `renderAssets`/`referenceAssetPrice`/`openAssetGallery`/`loadCustomerInfo`/`openEditCustomerModal`/picker/dup-warning/map popup/Drive `_safeDecryptMaybe` đều guard; lightbox dùng `_displayData` + `isSafeImageUrl`; z-index modal chuẩn hóa `z-[200]` (+ thêm utility `.z-[80]`/`.z-[200]` vào CSS static — thiếu class → modal mất stacking, E2E `saveCustomer` bị dashboard chặn click). Quy tắc R2/R5 §5 cập nhật tương ứng.
 - Các đợt nâng cấp lớn đã hoàn tất: **P1** single-source versioning + siết CSP; **P2** Security Core AES-256-GCM + masterKey CSPRNG + migration resume-safe; **P3** accessibility (ModalA11y, pinch-zoom, reduced-motion); **P4** tìm kiếm không dấu + index cache; **P5** test suite zero-dep + E2E/axe/Lighthouse CI; chuẩn hóa error/loading toàn codebase (§6.7); reliability v1.5.4; v1.5.5 (clustering, lazy decrypt, ảnh at-rest); v1.5.6–1.5.8 (chuỗi fix field cipher + display integrity — quy tắc **R1–R5 §5**, cạm bẫy CSS **§6.10**).
 - Khi làm việc: giữ triết lý không-backend/local-first, không phình vendor không cần thiết, ưu tiên UX mobile mượt (animation/gesture/camera).
 
 ---
-*Tài liệu sống — cập nhật cùng mỗi thay đổi lớn. Last updated: 2026-07-10 (ICT). Phiên bản skill: 2.3 (v1.5.10 notes view→edit).*
+*Tài liệu sống — cập nhật cùng mỗi thay đổi lớn. Last updated: 2026-07-10 (ICT). Phiên bản skill: 2.4 (v1.5.11 release bump).*

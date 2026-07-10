@@ -3,7 +3,7 @@
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
-[![Version](https://img.shields.io/badge/version-1.5.10-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.5.11-blue.svg)](manifest.json)
 
 > **Live demo:** https://client-pro-beryl.vercel.app
 
@@ -69,14 +69,14 @@ Mở `http://localhost:8000/`.
 
 Hai định danh độc lập, mỗi loại một nguồn duy nhất:
 
-**1. Phiên bản app (semver)** — hiện tại **`1.5.10`**. Nguồn: `package.json` → `version`. Sửa ở đó rồi chạy:
+**1. Phiên bản app (semver)** — hiện tại **`1.5.11`**. Nguồn: `package.json` → `version`. Sửa ở đó rồi chạy:
 
 ```bash
 npm run sync:version      # ghi semver ra manifest.json, sw.js, pwa.js, README
 npm run check:version     # chỉ kiểm tra (CI dùng, lệch => fail)
 ```
 
-**2. Tag cache-buster asset** — hiện tại **`NOTESEDIT_20260710`**. Nguồn: `ASSET_V` trong `sw.js`; phải đồng nhất với mọi query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`. Đổi tay khi thay asset.
+**2. Tag cache-buster asset** — hiện tại **`V1511_20260710`**. Nguồn: `ASSET_V` trong `sw.js`; phải đồng nhất với mọi query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`. Đổi tay khi thay asset.
 
 CI kiểm tra cả hai — không sửa tay các file đích của semver.
 
