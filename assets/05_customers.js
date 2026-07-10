@@ -671,64 +671,61 @@ async function checkDuplicateCustomer(cccd, phone, excludeId = null) {
     // Skip check if both are empty
     if (!cccdNorm && !phoneNorm) return { duplicate: false };
 
-    return new Promise((resolve) => {
-        const tx = db.transaction(['customers'], 'readonly');
-        const store = tx.objectStore('customers');
-        const req = store.getAll();
-
-        req.onsuccess = (e) => {
-            const customers = e.target.result || [];
-
-            for (const c of customers) {
-                // Skip the customer being edited
-                if (excludeId && c.id === excludeId) continue;
-
-                // Decrypt fields for comparison
-                let custCccd = '';
-                let custPhone = '';
-                let custName = '';
-
-                try {
-                    custCccd = (typeof decryptText === 'function' ? decryptText(c.cccd) : c.cccd) || '';
-                    custPhone = (typeof decryptText === 'function' ? decryptText(c.phone) : c.phone) || '';
-                    custName = (typeof decryptText === 'function' ? decryptText(c.name) : c.name) || '';
-                } catch (err) {
-                    // If decryption fails, use raw (might be plaintext or unreadable)
-                    custCccd = c.cccd || '';
-                    custPhone = c.phone || '';
-                    custName = c.name || '';
-                }
-
-                // Normalize for comparison
-                custCccd = custCccd.replace(/\s+/g, '').trim();
-                                custPhone = custPhone.replace(/\s+/g, '').trim();
-
-                // Check CCCD match (only if input has value)
-                if (cccdNorm && custCccd && cccdNorm === custCccd) {
-                    resolve({
-                        duplicate: true,
-                        field: 'cccd',
-                        existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
-                    });
-                    return;
-                }
-
-                // Check Phone match (only if input has value)
-                if (phoneNorm && custPhone && phoneNorm === custPhone) {
-                    resolve({
-                        duplicate: true,
-                        field: 'phone',
-                        existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
-                    });
-                    return;
-                }
-            }
-
-            resolve({ duplicate: false });
-        };
-
-        req.onerror = () => resolve({ duplicate: false });
+    const customers = await new Promise((resolve) => {
+        try {
+            const tx = db.transaction(['customers'], 'readonly');
+            const req = tx.objectStore('customers').getAll();
+            req.onsuccess = (e) => resolve(e.target.result || []);
+            req.onerror = () => resolve([]);
+        } catch (e) {
+            resolve([]);
+        }
     });
+
+    // Decrypt THẬT (decryptFieldAsync) thay vì decryptText đồng bộ: decryptText
+    // fail-open khi cache lạnh (trả nguyên "cpg1:...") — ciphertext không bao giờ
+    // khớp plaintext input -> duplicate thật bị bỏ sót ngay sau unlock / với KH
+    // chưa từng render. decryptFieldAsync fail thì trả nguyên ciphertext, so sánh
+    // vẫn không khớp (an toàn như trước, không false positive).
+    const dec = async (v) => {
+        try {
+            if (typeof decryptFieldAsync === 'function') return (await decryptFieldAsync(v)) || '';
+            if (typeof decryptText === 'function') return decryptText(v) || '';
+        } catch (err) { }
+        return v || '';
+    };
+
+    for (const c of customers) {
+        // Skip the customer being edited
+        if (excludeId && c.id === excludeId) continue;
+
+        // Decrypt fields for comparison
+        let [custCccd, custPhone, custName] = await Promise.all([dec(c.cccd), dec(c.phone), dec(c.name)]);
+
+        // Normalize for comparison
+        custCccd = custCccd.replace(/\s+/g, '').trim();
+        custPhone = custPhone.replace(/\s+/g, '').trim();
+
+        // Check CCCD match (only if input has value)
+        if (cccdNorm && custCccd && cccdNorm === custCccd) {
+            return {
+                duplicate: true,
+                field: 'cccd',
+                existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
+            };
+        }
+
+        // Check Phone match (only if input has value)
+        if (phoneNorm && custPhone && phoneNorm === custPhone) {
+            return {
+                duplicate: true,
+                field: 'phone',
+                existingCustomer: { id: c.id, name: custName, phone: custPhone, cccd: custCccd }
+            };
+        }
+    }
+
+    return { duplicate: false };
 }
 
 // Show duplicate warning UI
