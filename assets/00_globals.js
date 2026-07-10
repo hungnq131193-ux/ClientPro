@@ -170,6 +170,7 @@
             saveSecuritySetup: () => saveSecuritySetup(),
             saveScriptUrl: () => saveScriptUrl(),
             saveCustomerNotes: () => saveCustomerNotes(),
+            enterNotesEditMode: () => enterNotesEditMode(),
             saveCustomer: () => saveCustomer(),
             saveAsset: () => saveAsset(),
             refreshWeather: () => refreshWeather(),
