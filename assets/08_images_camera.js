@@ -288,11 +288,18 @@ async function shareSelectedImages() {
 }
 
 function loadImagesFiltered(filterFn, targetId = "content-images") {
+  // Token chống hiện nhầm ảnh khi user chuyển hồ sơ/TSBĐ trong lúc decrypt
+  // (mirror __openFolderSeq ở 05_customers.js). Dùng chung 1 counter với
+  // loadAssetImages — 2 hàm không chạy đồng thời cho cùng grid. renderToken
+  // phía dưới chỉ chống 2 lượt render CÙNG đối tượng đè nhau, không chống
+  // việc đã chuyển sang đối tượng KHÁC trước khi decrypt xong.
+  const loadSeq = (window.__galleryLoadSeq = (window.__galleryLoadSeq || 0) + 1);
+  const askedCustomerId = currentCustomerId;
   db
     .transaction(["images"], "readonly")
     .objectStore("images")
     .index("customerId")
-    .getAll(currentCustomerId).onsuccess = async (e) => {
+    .getAll(askedCustomerId).onsuccess = async (e) => {
       let imgs = e.target.result || [];
       imgs = imgs.filter(filterFn);
       imgs.sort((a, b) => b.createdAt - a.createdAt);
@@ -300,6 +307,9 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
         ...img,
         _displayData: await resolveImageData(img),
       })));
+      // Sau decrypt: có lượt load mới hơn / user đã sang hồ sơ khác -> bỏ,
+      // không ghi đè grid + lightbox list của đối tượng đang xem.
+      if (loadSeq !== window.__galleryLoadSeq || currentCustomerId !== askedCustomerId) return;
       imgs = resolved;
       if (
         targetId === "content-images" &&
@@ -373,11 +383,15 @@ function loadProfileImages() {
   loadImagesFiltered((img) => !img.assetId);
 }
 function loadAssetImages(id) {
+  // Token chống hiện nhầm gallery khi user mở TSBĐ khác trong lúc decrypt
+  // (xem loadImagesFiltered — dùng chung counter __galleryLoadSeq).
+  const loadSeq = (window.__galleryLoadSeq = (window.__galleryLoadSeq || 0) + 1);
+  const askedCustomerId = currentCustomerId;
   db
     .transaction(["images"], "readonly")
     .objectStore("images")
     .index("customerId")
-    .getAll(currentCustomerId).onsuccess = async (e) => {
+    .getAll(askedCustomerId).onsuccess = async (e) => {
       let imgs = e.target.result || [];
       imgs = imgs.filter((img) => img.assetId === id);
       imgs.sort((a, b) => b.createdAt - a.createdAt);
@@ -385,6 +399,8 @@ function loadAssetImages(id) {
         ...img,
         _displayData: await resolveImageData(img),
       })));
+      // Sau decrypt: có lượt load mới hơn / user đã sang nơi khác -> bỏ.
+      if (loadSeq !== window.__galleryLoadSeq || currentCustomerId !== askedCustomerId) return;
       imgs = resolved;
       currentLightboxList = imgs;
       const grid = getEl("asset-gallery-grid");
