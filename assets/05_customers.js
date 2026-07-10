@@ -575,6 +575,10 @@ function renderList(list, opts = {}) {
 }
 
 function openModal() {
+    // Vô hiệu hóa lượt decrypt sửa-hồ-sơ còn treo (nếu có) + gỡ khóa nút Lưu,
+    // tránh lượt cũ đè nhãn/trạng thái nút sau khi đã chuyển sang chế độ tạo mới.
+    window.__editCustModalSeq = (window.__editCustModalSeq || 0) + 1;
+    try { LoadingManager.hideButtonLoading(getEl('btn-save-cust')); } catch (e) { }
     getEl('add-modal').classList.remove('hidden');
     // Reset tất cả trường nhập thông tin khách hàng khi tạo mới
     getEl('new-name').value = '';
@@ -593,32 +597,54 @@ async function openEditCustomerModal() {
         return;
     }
 
+    // SNAPSHOT hồ sơ đang sửa TRƯỚC chuỗi await: user có thể điều hướng sang hồ
+    // sơ khác trong lúc chờ decrypt — mọi thứ điền vào form (kể cả edit-cust-id)
+    // phải lấy từ snapshot này, KHÔNG đọc lại currentCustomerData sống sau await
+    // (trước đây id đọc sau await -> bấm Lưu ghi dữ liệu hồ sơ A vào record B).
+    const asked = currentCustomerData;
+    const editSeq = (window.__editCustModalSeq = (window.__editCustModalSeq || 0) + 1);
+
     getEl('add-modal').classList.remove('hidden');
+
+    // Phần đồng bộ điền NGAY: id snapshot + reset field (không hiện dữ liệu sót
+    // của lần mở trước trong lúc chờ decrypt).
+    getEl('new-name').value = '';
+    getEl('new-phone').value = '';
+    if (getEl('new-cccd')) getEl('new-cccd').value = '';
+    getEl('edit-cust-id').value = asked.id || '';
+    getEl('modal-title-cust').textContent = "Chỉnh sửa hồ sơ";
+    getEl('btn-save-cust').textContent = "Cập nhật";
+
+    // Khóa nút Lưu trong lúc chờ decrypt: không cho lưu khi form chưa sẵn sàng.
+    const saveBtn = getEl('btn-save-cust');
+    try { LoadingManager.showButtonLoading(saveBtn, 'Đang tải...'); } catch (e) { }
 
     // Fill form — async decrypt + guard ciphertext (không đổ cpg1: vào ô input)
     let safeName = '', safePhone = '', safeCccd = '';
     try {
         if (typeof _displayPlainAsync === 'function') {
             [safeName, safePhone, safeCccd] = await Promise.all([
-                _displayPlainAsync(currentCustomerData.name, ''),
-                _displayPlainAsync(currentCustomerData.phone, ''),
-                _displayPlainAsync(currentCustomerData.cccd, ''),
+                _displayPlainAsync(asked.name, ''),
+                _displayPlainAsync(asked.phone, ''),
+                _displayPlainAsync(asked.cccd, ''),
             ]);
         } else {
-            safeName = (currentCustomerData.name && !_looksEncrypted(currentCustomerData.name)) ? currentCustomerData.name : '';
-            safePhone = (currentCustomerData.phone && !_looksEncrypted(currentCustomerData.phone)) ? currentCustomerData.phone : '';
-            safeCccd = (currentCustomerData.cccd && !_looksEncrypted(currentCustomerData.cccd)) ? currentCustomerData.cccd : '';
+            safeName = (asked.name && !_looksEncrypted(asked.name)) ? asked.name : '';
+            safePhone = (asked.phone && !_looksEncrypted(asked.phone)) ? asked.phone : '';
+            safeCccd = (asked.cccd && !_looksEncrypted(asked.cccd)) ? asked.cccd : '';
         }
     } catch (e) { }
+
+    // Chỉ lượt mở MỚI NHẤT được điền form + mở khóa nút (lượt cũ không đụng nút —
+    // lượt mới hơn / openModal đã tự lo trạng thái nút).
+    if (editSeq !== window.__editCustModalSeq) return;
+    try { LoadingManager.hideButtonLoading(saveBtn, 'Cập nhật'); } catch (e) { }
+    // Modal đã bị đóng trong lúc chờ -> không đổ dữ liệu cũ vào lần mở sau.
+    if (getEl('add-modal').classList.contains('hidden')) return;
 
     getEl('new-name').value = safeName;
     getEl('new-phone').value = safePhone;
     if (getEl('new-cccd')) getEl('new-cccd').value = safeCccd;
-    getEl('edit-cust-id').value = currentCustomerData.id || '';
-
-    // Update modal title and button
-    getEl('modal-title-cust').textContent = "Chỉnh sửa hồ sơ";
-    getEl('btn-save-cust').textContent = "Cập nhật";
 
     getEl('new-name').focus();
 }
