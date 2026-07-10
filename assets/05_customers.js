@@ -1293,6 +1293,33 @@ function switchTab(tabName) {
     if (typeof updateSelectionUI === 'function') updateSelectionUI();
 }
 
+// ==== Ghi chú (tab Info): xem trước, bấm mới sửa ====
+// Nguồn sự thật duy nhất = thuộc tính DOM readOnly của #info-notes (CSS ăn theo qua :read-only,
+// không thêm class JS-toggle riêng). Vào edit qua nút Sửa HOẶC tap thẳng vào textarea
+// (cùng data-action="enterNotesEditMode"). Không có nút Hủy: loadCustomerInfo() ghi đè .value
+// mỗi lần quay lại tab Info nên edit dở dang tự bị hủy sẵn.
+function enterNotesEditMode() {
+    const notesEl = getEl('info-notes');
+    if (!notesEl || !notesEl.readOnly) return; // đang edit rồi -> click chỉ đặt caret như bình thường
+    notesEl.readOnly = false;
+    const editBtn = getEl('btn-edit-notes');
+    const saveBtn = getEl('btn-save-notes');
+    if (editBtn) editBtn.classList.add('hidden');
+    if (saveBtn) saveBtn.classList.remove('hidden');
+    notesEl.focus();
+    const end = notesEl.value.length;
+    try { notesEl.setSelectionRange(end, end); } catch (e) { }
+}
+
+function exitNotesEditMode() {
+    const notesEl = getEl('info-notes');
+    if (notesEl) notesEl.readOnly = true;
+    const editBtn = getEl('btn-edit-notes');
+    const saveBtn = getEl('btn-save-notes');
+    if (editBtn) editBtn.classList.remove('hidden');
+    if (saveBtn) saveBtn.classList.add('hidden');
+}
+
 // Load customer info into Info tab
 // Uses currentCustomerData which is already decrypted in openFolder
 function loadCustomerInfo() {
@@ -1317,6 +1344,10 @@ function loadCustomerInfo() {
     const cccdEl = getEl('info-cccd');
     const createdEl = getEl('info-created');
     const notesEl = getEl('info-notes');
+
+    // Mỗi lần load lại tab Info (mở hồ sơ khác / quay lại tab) -> về chế độ xem,
+    // không rò rỉ trạng thái đang-sửa giữa các hồ sơ.
+    exitNotesEditMode();
 
     if (phoneEl) phoneEl.textContent = phone;
     if (cccdEl) cccdEl.textContent = cccd;
@@ -1378,6 +1409,10 @@ async function saveCustomerNotes() {
             currentCustomerData.notes = c.notes;
             currentCustomerData.updatedAt = c.updatedAt;
         }
+        // Chỉ nhánh thành công mới quay về chế độ xem — mọi đường lỗi/return sớm
+        // (guard chống mất dữ liệu, lỗi encryptText, putReq.onerror) giữ nguyên edit mode
+        // để user không mất text vừa gõ.
+        exitNotesEditMode();
         ErrorHandler.showSuccess('Đã lưu ghi chú');
     };
     putReq.onerror = (err) => ErrorHandler.showError('STORAGE', 'Lỗi lưu ghi chú.', err);

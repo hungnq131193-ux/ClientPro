@@ -18,22 +18,22 @@
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-vietnamese.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-latin.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-vietnamese.woff2">
-    <link rel="stylesheet" href="./assets/css/fonts.css?v=PERFFIX_20260710">
+    <link rel="stylesheet" href="./assets/css/fonts.css?v=NOTESEDIT_20260710">
     <!-- Tailwind (self-host) -->
     <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
     <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css">
     <link rel="stylesheet" href="./assets/css/app.patch.css">
     <!-- Lucide icons (self-host, xem assets/vendor/README.md) -->
-    <script defer src="./assets/vendor/lucide.min.js?v=PERFFIX_20260710"></script>
+    <script defer src="./assets/vendor/lucide.min.js?v=NOTESEDIT_20260710"></script>
     <!-- Transfer Backup uses TEXT chunks (no QR image) -->
     <!-- MapLibre GL JS is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
     <!-- CryptoJS library for hashing and encryption (self-host) -->
-    <script defer src="./assets/vendor/crypto-js.min.js?v=PERFFIX_20260710"></script>
+    <script defer src="./assets/vendor/crypto-js.min.js?v=NOTESEDIT_20260710"></script>
 
-    <script defer src="./assets/head.js?v=PERFFIX_20260710"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=PERFFIX_20260710">
+    <script defer src="./assets/head.js?v=NOTESEDIT_20260710"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=NOTESEDIT_20260710">
     <!-- REDESIGN LAYER (banking / Vietinbank) — nạp cuối để đè lớp giao diện, không đụng JS -->
-    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=PERFFIX_20260710">
+    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=NOTESEDIT_20260710">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <!-- style-src vẫn giữ 'unsafe-inline' trong vercel.json: hàng trăm thuộc tính style="..."
          và nhiều chỗ .style.cssText/.style.x trong assets/*.js dùng cho theme động, vị trí
@@ -412,12 +412,18 @@
                         <i data-lucide="file-text" class="w-5 h-5" style="color: var(--accent)"></i>
                         <span class="font-bold text-sm" style="color: var(--text-main)">Ghi chú</span>
                     </div>
-                    <button data-action="saveCustomerNotes" class="px-3 py-1 rounded-lg text-xs font-bold"
+                    <button data-action="enterNotesEditMode" id="btn-edit-notes" aria-label="Sửa ghi chú"
+                        class="p-2 rounded-xl hover:bg-white/10 transition" style="color: var(--text-sub)">
+                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                    </button>
+                    <button data-action="saveCustomerNotes" id="btn-save-notes"
+                        class="hidden px-3 py-1 rounded-lg text-xs font-bold"
                         style="background: var(--accent); color: white;">
                         <i data-lucide="save" class="w-3 h-3 inline mr-1"></i> Lưu
                     </button>
                 </div>
-                <textarea id="info-notes" rows="6" placeholder="Nhập ghi chú về khách hàng..."
+                <textarea id="info-notes" rows="6" readonly data-action="enterNotesEditMode"
+                    placeholder="Nhập ghi chú về khách hàng..."
                     class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm outline-none resize-none"
                     style="color: var(--text-main)"></textarea>
             </div>
@@ -538,35 +544,35 @@
     <div id="ui-modals-root"></div>
     <script src="./assets/ui/load_modals.js" defer></script>
 
-    <script src="./assets/00_globals.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/01_config.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/02_security.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/12_backup_core.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/13_ui_select_customers.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/15_auth_gate.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/03_map.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/04_ui_common.js?v=PERFFIX_20260710" defer></script>
+    <script src="./assets/00_globals.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/01_config.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/02_security.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/12_backup_core.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/13_ui_select_customers.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/15_auth_gate.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/03_map.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/04_ui_common.js?v=NOTESEDIT_20260710" defer></script>
     <!-- Chuẩn hóa error messages & loading states (ErrorHandler / LoadingManager / AppToast) -->
-    <script src="./assets/19_error_loading.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/05_customers.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/06_assets.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/08_images_camera.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/09_menu.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/09_backup_manager.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/09_donate.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/09_weather.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/07_drive.js?v=PERFFIX_20260710" defer></script>
+    <script src="./assets/19_error_loading.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/05_customers.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/06_assets.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/08_images_camera.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/09_menu.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/09_backup_manager.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/09_donate.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/09_weather.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/07_drive.js?v=NOTESEDIT_20260710" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=PERFFIX_20260710" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=NOTESEDIT_20260710" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=PERFFIX_20260710" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=NOTESEDIT_20260710" defer></script>
     <!-- Onboarding tour for new users -->
-    <script src="./assets/17_onboarding_tour.js?v=PERFFIX_20260710" defer></script>
+    <script src="./assets/17_onboarding_tour.js?v=NOTESEDIT_20260710" defer></script>
     <!-- Mở khóa sinh trắc học (Face ID / vân tay) - tính năng bổ sung, không thay đổi luồng PIN -->
-    <script src="./assets/18_biometric_unlock.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/10_bootstrap.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/11_edge_back_swipe.js?v=PERFFIX_20260710" defer></script>
-    <script src="./assets/pwa.js?v=PERFFIX_20260710" defer></script>
+    <script src="./assets/18_biometric_unlock.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/10_bootstrap.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=NOTESEDIT_20260710" defer></script>
+    <script src="./assets/pwa.js?v=NOTESEDIT_20260710" defer></script>
 </body>
 
 </html>

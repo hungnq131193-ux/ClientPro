@@ -429,6 +429,15 @@ body.theme-aurora #content-info .glass-panel {
   border-radius: 18px !important;
 }
 
+/* Ghi chú: readonly mặc định (xem trước, bấm mới sửa) — trạng thái theo thuộc tính DOM readOnly */
+#info-notes:read-only {
+  cursor: pointer;
+}
+
+#info-notes:not(:read-only) {
+  border-color: var(--accent);
+}
+
 body.theme-vietinbank #info-notes {
   background: #f4f8fd !important;
   border: 1px solid #e3ecf7 !important;
