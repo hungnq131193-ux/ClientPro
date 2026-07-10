@@ -1,7 +1,14 @@
 // =========================================================
 // CLIENTPRO USER GAS - PERSONAL DRIVE
-// v3 - BẮT BUỘC Access Token (fail-closed)
+// v4 - Báo trạng thái upload ảnh THẬT theo từng ảnh
 // Chức năng: Upload ảnh + Backup/Restore lên Drive cá nhân
+//
+// THAY ĐỔI CHÍNH SO VỚI v3:
+//   - handleUploadImages_: status top-level nay phản ánh kết quả thật:
+//     'success' (tất cả OK) / 'partial' (một phần OK) / 'error' (không ảnh nào OK),
+//     thêm field `failed` (số ảnh lỗi); mảng `files` LUÔN có 1 entry / 1 ảnh gửi lên
+//     (đúng thứ tự) để client đối chiếu và CHỈ xóa ảnh gốc đã lên Drive.
+//   - Không đổi/bỏ field nào app đang đọc (url/folderUrl/files/...).
 //
 // THAY ĐỔI BẢO MẬT CHÍNH SO VỚI v2:
 //   - ACCESS_TOKEN KHÔNG còn mặc định "mở". Server nay BẮT BUỘC token cho MỌI action
@@ -21,7 +28,7 @@
 //   2. Dán token vào app: Cài đặt Google Drive -> ô "Mã bảo mật (Access Token)".
 //   3. (Tùy chọn, lần đầu) chạy setupFolders() và revokePublicSharing() như v2.
 // =========================================================
-const BUILD_TAG = 'CLIENTPRO_USER_GAS_2026-07-04_v3_token';
+const BUILD_TAG = 'CLIENTPRO_USER_GAS_2026-07-10_v4_partial';
 
 // =======================
 // CONFIG - Folder names
@@ -260,7 +267,12 @@ function handleUploadImages_(data) {
   for (let i = 0; i < images.length; i++) {
     const img = images[i];
     const imageData = img && (img.data || img.base64);
-    if (!img || !imageData) continue;
+    // LUÔN push 1 entry / 1 ảnh đầu vào (giữ đúng thứ tự) để client đối chiếu
+    // theo index — client chỉ xóa ảnh gốc có entry thành công (có id).
+    if (!img || !imageData) {
+      results.push({ name: (img && img.name) || ('image_' + i), error: 'Thieu du lieu anh' });
+      continue;
+    }
 
     try {
       const name = String(img.name || ('image_' + Date.now() + '_' + i + '.jpg')).trim();
@@ -294,9 +306,16 @@ function handleUploadImages_(data) {
     }
   }
 
+  // status tổng hợp THẬT (v1.6.0): 'success' = mọi ảnh OK; 'partial' = chỉ một
+  // phần OK (client CHỈ xóa ảnh gốc đã lên Drive); 'error' = không ảnh nào lên.
+  // Không đổi field đã tồn tại (url/folderUrl/files) — chỉ thêm giá trị status
+  // mới + field failed (hợp đồng client↔script, CLAUDE.md §6.9).
+  const okCount = results.filter(function (r) { return r.id; }).length;
+  const failCount = results.length - okCount;
   return outputJSON_({
-    status: 'success',
-    message: 'Uploaded ' + results.filter(function (r) { return r.id; }).length + ' images',
+    status: failCount === 0 ? 'success' : (okCount > 0 ? 'partial' : 'error'),
+    message: 'Uploaded ' + okCount + ' images' + (failCount ? (', failed ' + failCount) : ''),
+    failed: failCount,
     folderId: subFolder.getId(),
     // GIỮ NGUYÊN: app đọc result.url sau khi upload ảnh
     url: subFolder.getUrl(),
