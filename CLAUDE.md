@@ -6,7 +6,7 @@
 
 **ClientPro** = PWA tĩnh thuần (vanilla JS ES6+, không framework, không build step) quản lý **khách hàng (KH)** + **tài sản bảo đảm (TSBĐ)**, tối ưu mobile. Không backend; dữ liệu lưu cục bộ (IndexedDB) và **mã hóa**; mở khóa bằng PIN hoặc WebAuthn PRF (Face ID/vân tay); offline-first qua Service Worker; deploy static trên Vercel với CSP nghiêm ngặt.
 
-- **Phiên bản**: 1.5.11 — nguồn duy nhất `package.json`, đồng bộ bằng `npm run sync:version` (§7).
+- **Phiên bản**: 1.6.0 — nguồn duy nhất `package.json`, đồng bộ bằng `npm run sync:version` (§7).
 - **License**: Proprietary — All Rights Reserved (tác giả Nguyễn Quốc Hưng). Demo: https://client-pro-beryl.vercel.app
 
 **Triết lý** (soi mọi thay đổi vào đây):
@@ -159,8 +159,8 @@ Khung chung cả 2 file: `doGet`/`doPost` → `handleRequest_()`, response qua `
 - Cấp khóa per-user (không khóa dùng chung): `issue_kdata` = `HMAC_SHA256(MASTER_SECRET, "personal:"+employeeId)` (cho Drive Backup); `issue_transfer_key` = `HMAC(..., "transfer:"+targetEmployeeId)` (cho Cloud Transfer; label khác → không giải mã chéo). MASTER_SECRET trong Script Properties (`setupMasterSecret()`).
 - Transfer P2P: `list_users`, `upload_backup` (ghi Sheet `Transfers` + file Drive folder `CLIENTPRO_TRANSFERS`, TTL 24h, giữ max 30 bản, id `T<timestamp>_<rand>`), `list_inbox`, `download_backup` (chỉ người nhận đọc được; hết hạn → tự xóa + đánh dấu `expired`), `delete_backup`. Trigger `cleanupExpiredTransfers` mỗi giờ. `ALLOW_DEBUG_ECHO=false`. Setup 1 lần: `setupStorage()`, `setupTriggers()`.
 
-**UserDriveAPI.gs** (v3, `BUILD_TAG` chứa `_v3_token`) — **mỗi user tự deploy** trên Google account của họ; URL + token dán vào Cài đặt trong app (→ `USER_SCRIPT_KEY`/`USER_TOKEN_KEY`). Độc lập hoàn toàn với Sheet Admin:
-- Ảnh: `upload`/`upload_images` → `CLIENTPRO_IMAGES/<folderName>/`, ép `DriveApp.Access.PRIVATE` (không share công khai); `search_folder` list ảnh theo folder.
+**UserDriveAPI.gs** (v4, `BUILD_TAG` chứa `_v4_partial`) — **mỗi user tự deploy** trên Google account của họ; URL + token dán vào Cài đặt trong app (→ `USER_SCRIPT_KEY`/`USER_TOKEN_KEY`). Độc lập hoàn toàn với Sheet Admin:
+- Ảnh: `upload`/`upload_images` → `CLIENTPRO_IMAGES/<folderName>/`, ép `DriveApp.Access.PRIVATE` (không share công khai); `search_folder` list ảnh theo folder. **Từ v4**: response upload báo trạng thái THẬT — `status` = `'success'` (mọi ảnh OK) / `'partial'` (một phần OK) / `'error'` (không ảnh nào OK), thêm field `failed` (số ảnh lỗi); `files[]` LUÔN có 1 entry / 1 ảnh gửi lên đúng thứ tự (entry lỗi có `.error` thay vì `.id`) — client (`_splitUploadResults`/07) đối chiếu theo index, CHỈ xóa ảnh gốc đã lên Drive.
 - Backup `.cpb` (blob client đã mã hóa sẵn — script không giải mã được): `backup`/`create_backup` (`CLIENTPRO_BACKUPS/*.cpb`, tự trim giữ 5 bản mới nhất), `list_backups`, `download_backup`/`restore`, `delete_backup` — 2 action cuối validate `isFileInBackupFolder_` (chặn dùng id lộ/đoán để đọc file Drive bất kỳ).
 - Auth **fail-closed**: token bắt buộc mọi action trừ `ping` (server chưa `setupToken()` → từ chối tất cả); so khớp `constantTimeEquals_()` (chống timing attack); token sinh ngẫu nhiên mạnh, lưu Script Properties. Limit: ≤30 ảnh/request, ảnh base64 ≤~12MB (~9MB gốc), backup base64 ≤~40MB (~30MB gốc). Setup: `setupToken()` (bắt buộc), tùy chọn `setupFolders()`; `revokePublicSharing()` = migrate 1 lần gỡ share công khai của bản trước v3 (idempotent).
 
@@ -176,7 +176,7 @@ Khung chung cả 2 file: `doGet`/`doPost` → `handleRequest_()`, response qua `
 
 **Hai định danh độc lập, mỗi loại 1 nguồn duy nhất**:
 - **A. Semver app** — nguồn `package.json → version`. **KHÔNG sửa tay** các file đích. Đổi package.json rồi `npm run sync:version` (`scripts/sync-version.mjs`, zero-dep) tự ghi ra: `manifest.json version`, `sw.js VERSION='v<sem>'`, `assets/pwa.js SW_BUILD='v<sem>'`, README.md (badge + mục "Quản lý phiên bản").
-- **B. Cache-buster asset** — nguồn `ASSET_V` trong `sw.js` (chuỗi tự do, hiện `V1511_20260710`), đổi tay khi thay asset. Phải đồng nhất với: **mọi** query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`.
+- **B. Cache-buster asset** — nguồn `ASSET_V` trong `sw.js` (chuỗi tự do, hiện `V160_20260710`), đổi tay khi thay asset. Phải đồng nhất với: **mọi** query `?v=` trong `index.html` và `MAPLIBRE_V` trong `assets/03_map.js`.
 - CI (`.github/workflows/ci.yml`, job `static-checks`) check cả hai: bước `sync-version.mjs --check` (semver + README) + bước version-sync (`?v=`/`MAPLIBRE_V`) + chặn CDN. Trước commit: `npm run check:version`.
 
 **sw.js**: precache toàn bộ shell + vendor + fonts + mọi module JS + modal HTML (**module mới → thêm vào precache list**). Runtime: same-origin cacheFirst/networkFirst; map tiles stale-while-revalidate 30 ngày (cache riêng); **OSRM không cache**; navigation SWR (user thấy bản mới ở lần mở tiếp theo); `skipWaiting` + message `SKIP_WAITING` để activate ngay. `assets/pwa.js`: đăng ký SW + xử lý update.
@@ -223,7 +223,16 @@ Chạy: `node --test 'tests/**/*.test.js'` (zero-dep, TAP) · `npm install && np
 
 ## 11. Trạng thái hiện tại (2026-07-10)
 
-- **v1.5.11**, `ASSET_V = V1511_20260710`.
+- **v1.6.0**, `ASSET_V = V160_20260710`.
+- **v1.6.0 — Sửa 8 lỗi logic (data integrity + race + treo UI)**, 3 nhóm nguyên nhân gốc: decrypt đồng bộ fail-open dùng sai chỗ; đọc global state sau chuỗi await dài thay vì snapshot; thiếu onerror/try-catch ở IDB request hiếm fail. Chi tiết:
+  1. **Backup/restore mất dữ liệu khi cache lạnh** (12/16 + test): `normalizeCustomerForExport` nay ASYNC dùng `decryptFieldAsync` thật (trước dùng `decryptText` fail-open → ciphertext lọt vào backup, restore bị guard chống double-encryption xóa trắng field). Restore backup cũ đã lỗi: `safeEncrypt` thử giải mã lại ciphertext — cùng khóa → khôi phục plaintext gốc; khác khóa → giữ nguyên ciphertext (R3). Test cache-lạnh trong `tests/backup.test.js` (+ helper `loadBackupCore`).
+  2. **Drive upload partial báo success giả** (gas/UserDriveAPI.gs v4 + 07): xem §6.9 — client chỉ xóa ảnh gốc đã lên Drive (`_splitUploadResults` + `_deleteSucceededUploadsOnly`), tương thích 2 chiều với server/client cũ.
+  3. **Ảnh gán nhầm hồ sơ khi lưu** (08 `saveImageToDB`): snapshot `currentCustomerId`/`currentAssetId` TRƯỚC chuỗi nén + mã hóa; thêm `addReq.onerror` (hết treo loader khi quota/constraint).
+  4. **Gallery hiện nhầm ảnh khi chuyển nhanh** (08): token `window.__galleryLoadSeq` (mirror `__openFolderSeq`) + snapshot customerId cho `loadAssetImages`/`loadImagesFiltered` — lượt decrypt cũ không ghi đè grid/lightbox list của đối tượng đang xem.
+  5. **Modal sửa KH/TSBĐ ghi nhầm hồ sơ** (05/06): snapshot record + id trước await (edit-cust-id không còn đọc `currentCustomerData` sống sau await), reset field ngay khi mở, khóa nút Lưu (`showButtonLoading`) trong lúc decrypt, token `__editCustModalSeq`/`__editAssetModalSeq` — chỉ lượt mở mới nhất điền form/mở khóa nút; `openModal`/`openAssetModal` bump token + gỡ khóa.
+  6. **Duplicate check CCCD/SĐT bỏ sót khi cache lạnh** (05 `checkDuplicateCustomer`): decrypt async thật thay `decryptText` đồng bộ.
+  7. **Share ảnh treo vô hạn** (08): `dataURLtoBlob` trả `null` an toàn (không throw); callback `req.onsuccess` bọc try/catch LUÔN resolve; mọi ảnh hỏng → báo lỗi rõ.
+  8. **Back-swipe cần bấm 2 lần** (11 `scanForOpens`): nhánh mới `opened && closed` cùng frame → `history.replaceState` đồng bộ tái dùng entry (net depth không đổi), hết entry "ma".
 - **v1.5.11 — Release bump đầy đủ**: bump đồng bộ cả semver (1.5.10 → 1.5.11 qua `sync:version`) lẫn cache-buster `ASSET_V` (`NOTESEDIT_20260710` → `V1511_20260710`, không đổi code) để mọi client cập nhật SW + tải lại toàn bộ asset, tránh lỗi cache lệch.
 - **v1.5.10 — Notes UX**: ô Ghi chú tab Info chuyển sang mô hình "xem trước, bấm mới sửa" — readonly mặc định, CHỈ nút Sửa (pencil `#btn-edit-notes`) mới vào chế độ gõ (tap vào ô chỉ xem/copy), nút Lưu (`#btn-save-notes`) chỉ hiện khi đang edit, tự về readonly sau lưu thành công / khi load lại tab Info (chi tiết §6.4/05).
 - **v1.5.9 — Perf + bugfix**: chống double-submit backup/restore nội bộ (`__backupInFlight`/`__restoreInFlight`, 09_backup_manager — mirror pattern 16); toast thành công upload Drive chỉ hiện khi `persistCurrentCustomer` trả `ok` (07, mirror `_doSaveAsset`/06; `!ok` → không hỏi xóa ảnh gốc); `capturePhoto` bọc try/finally đảm bảo `closeCamera()` chạy kể cả khi chụp lỗi (08); thêm `tx.onerror` cho 2 transaction `reconnectAssetDriveFolder` (07 — hết treo loading / nuốt lỗi im lặng); load-token `window.__openFolderSeq` chống race double-tap 2 hồ sơ (05, `openFolder`); debounce 120ms cho search picker KH (13) + map cluster repaint `moveend`/`zoomend` (03); polling cloud-transfer skip khi app khóa qua `isAppUnlocked()` (14).
@@ -232,4 +241,4 @@ Chạy: `node --test 'tests/**/*.test.js'` (zero-dep, TAP) · `npm install && np
 - Khi làm việc: giữ triết lý không-backend/local-first, không phình vendor không cần thiết, ưu tiên UX mobile mượt (animation/gesture/camera).
 
 ---
-*Tài liệu sống — cập nhật cùng mỗi thay đổi lớn. Last updated: 2026-07-10 (ICT). Phiên bản skill: 2.4 (v1.5.11 release bump).*
+*Tài liệu sống — cập nhật cùng mỗi thay đổi lớn. Last updated: 2026-07-10 (ICT). Phiên bản skill: 2.5 (v1.6.0 — 8 logic fixes).*
