@@ -95,7 +95,8 @@ test('B8: các nhánh xóa phải promisify transaction (onerror/onabort) và kh
 test('A1: onStart (touchstart) không được preventDefault — chỉ claim gesture trong onMove', () => {
   const src = read('assets/11_edge_back_swipe.js');
   const start = fnBody(src, 'onStart');
-  assert.ok(!/preventDefault/.test(start),
+  // Chỉ bắt LỜI GỌI thật `<x>.preventDefault(` — không bắt chữ trong comment.
+  assert.ok(!/\.\s*preventDefault\s*\(/.test(start),
     'touchstart chỉ ghi nhận candidate; preventDefault sớm giết synthetic click ở dải mép');
   const move = fnBody(src, 'onMove');
   assert.ok(/horizontal\s*&&\s*e\.cancelable[\s\S]{0,40}preventDefault/.test(move),
