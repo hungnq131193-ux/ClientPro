@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.6.4-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.6.5-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
@@ -13,6 +13,7 @@ ClientPro là PWA mobile-first để quản lý khách hàng và tài sản bả
 
 - Quản lý khách hàng, tài sản bảo đảm, ghi chú và ảnh.
 - AES-256-GCM cho dữ liệu cục bộ; mở khóa bằng PIN hoặc WebAuthn PRF.
+- Tự khóa khi ẩn app quá 15 giây (vuốt về màn hình chính/chuyển app): xóa khóa khỏi RAM và yêu cầu PIN/sinh trắc học khi mở lại.
 - Backup/restore `.cpb`, backup Drive và chuyển backup giữa user.
 - MapLibre + OSRM để hiển thị bản đồ và khoảng cách đường bộ.
 - PWA cài được, offline-first, camera, gallery và thao tác mobile.
@@ -83,8 +84,8 @@ GitHub Actions chạy static checks, crypto/data-integrity tests, Playwright, ax
 
 ## Phiên bản
 
-- **Phiên bản app (semver)** — hiện tại **`1.6.4`**. Nguồn duy nhất: `package.json`.
-- **cache-buster asset** — hiện tại **`V164_20260711`**. Nguồn: `ASSET_V` trong `sw.js`.
+- **Phiên bản app (semver)** — hiện tại **`1.6.5`**. Nguồn duy nhất: `package.json`.
+- **cache-buster asset** — hiện tại **`V165_20260711`**. Nguồn: `ASSET_V` trong `sw.js`.
 
 Sau khi đổi semver:
 
@@ -93,9 +94,9 @@ npm run sync:version
 npm run check:version
 ```
 
-## Bản sửa v1.6.2
+## Có gì mới v1.6.5
 
-Khi restore backup Google Drive từ Trung tâm Backup, modal được đóng ngay trước khi hiện global loader. Loader không còn bị modal che; không thay đổi z-index, `LoadingManager` hoặc logic restore khác.
+Tự khóa khi ẩn app: khi app bị ẩn (vuốt về màn hình chính hoặc chuyển sang app khác) quá 15 giây, khóa và cache dữ liệu được xóa khỏi RAM, màn hình PIN hiện lại; mở khóa bằng PIN hoặc sinh trắc học như bình thường. Độ trễ 15 giây tránh khóa oan các thao tác ngắn như chọn file, chia sẻ ảnh, cấp quyền GPS hoặc chuyển app nhanh để copy OTP. Tính năng luôn bật, không cần cài đặt.
 
 ## License
 

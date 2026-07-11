@@ -318,6 +318,19 @@ function clearMasterKeyMaterial() {
 }
 
 /**
+ * Khóa app: xóa key khỏi RAM + hiện màn hình PIN. Mở khóa lại đi qua validatePin()
+ * (completeUnlockDataLoad idempotent nên chạy lần 2 an toàn).
+ */
+function lockApp() {
+  if (!isAppUnlocked()) return;
+  // Chưa thiết lập PIN (đang setup/kích hoạt) -> không có gì để khóa về, tránh nhốt người dùng.
+  if (!localStorage.getItem(PIN_KEY)) return;
+  clearMasterKeyMaterial();
+  currentPin = "";
+  try { showLockScreen(); } catch (e) {}
+}
+
+/**
  * Prime tối thiểu sau unlock: chỉ token Drive (getUserToken đồng bộ).
  * Field KH/TSBĐ giải mã lazy qua decryptFieldAsync khi render.
  */
@@ -1381,3 +1394,57 @@ async function activateApp() {
     ErrorHandler.showError('NETWORK', "Lỗi kết nối khi kích hoạt. Vui lòng kiểm tra mạng và thử lại.", err);
   }
 }
+
+// ============================================================
+// Tự khóa khi ẩn app (vuốt về màn hình chính / chuyển app).
+// Ẩn quá AUTO_LOCK_HIDDEN_MS thì lockApp(): timer best-effort chạy lúc nền,
+// kèm kiểm tra bù khi hiện lại (timer nền có thể bị trình duyệt throttle).
+// Trễ 15s để không khóa oan các thao tác làm trang tạm "hidden" trên mobile
+// (file picker nhập .cpb, share sheet, cấp quyền GPS, chuyển app nhanh).
+// ============================================================
+const AUTO_LOCK_HIDDEN_MS = 15000;
+let _autoLockHiddenAt = 0;
+let _autoLockTimer = null;
+let _autoLockedWhileHidden = false;
+
+function _onAppHiddenForAutoLock() {
+  if (!isAppUnlocked() || !localStorage.getItem(PIN_KEY)) return;
+  _autoLockHiddenAt = Date.now();
+  if (_autoLockTimer) clearTimeout(_autoLockTimer);
+  _autoLockTimer = setTimeout(() => {
+    _autoLockTimer = null;
+    // Re-check: người dùng có thể đã quay lại trước khi timer nổ.
+    if (document.hidden && isAppUnlocked()) {
+      lockApp();
+      _autoLockedWhileHidden = true;
+    }
+  }, AUTO_LOCK_HIDDEN_MS);
+}
+
+function _onAppVisibleForAutoLock() {
+  if (_autoLockTimer) { clearTimeout(_autoLockTimer); _autoLockTimer = null; }
+  const hiddenAt = _autoLockHiddenAt;
+  _autoLockHiddenAt = 0;
+  // Bù cho timer bị throttle lúc nền: ẩn đủ lâu mà vẫn chưa khóa thì khóa ngay.
+  if (hiddenAt > 0 && Date.now() - hiddenAt >= AUTO_LOCK_HIDDEN_MS && isAppUnlocked()) {
+    lockApp();
+  }
+  // Khóa xảy ra lúc app còn ẩn: MutationObserver của sinh trắc học đã chạy khi
+  // hasFocus()=false nên chưa auto-prompt; nudge lại khi hiện.
+  if (_autoLockedWhileHidden) {
+    _autoLockedWhileHidden = false;
+    try { if (window.BiometricUnlock) window.BiometricUnlock.tryUnlock(true); } catch (e) {}
+  }
+}
+
+// Guard: test harness (tests/helpers/load-security.js) stub document không có addEventListener.
+try {
+  if (typeof document.addEventListener === "function") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) _onAppHiddenForAutoLock();
+      else _onAppVisibleForAutoLock();
+    });
+    // bfcache restore không phát visibilitychange trên mọi trình duyệt.
+    window.addEventListener("pageshow", () => { if (!document.hidden) _onAppVisibleForAutoLock(); });
+  }
+} catch (e) {}
