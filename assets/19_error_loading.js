@@ -570,12 +570,17 @@
   // Trả về Promise<boolean> (true = đồng ý, false = hủy). CSP-safe.
   // ----------------------------------------------------------
   let _confirmOpen = false;
+  // Tham chiếu cleanup của confirm đang mở. Khi một confirm mới thay thế confirm cũ,
+  // phải đóng confirm cũ qua cleanup chính thức (resolve(false) + gỡ listener) —
+  // chỉ remove() overlay sẽ để Promise treo vĩnh viễn và leak keydown listener,
+  // làm kẹt mọi cờ in-flight của caller đang await.
+  let _activeConfirmClose = null;
   function ClientProConfirm(message, opts) {
     opts = opts || {};
     return new Promise((resolve) => {
-      // Tránh chồng nhiều hộp thoại cùng lúc.
-      if (_confirmOpen) {
-        try { document.querySelectorAll('.cp-confirm-overlay').forEach((o) => o.remove()); } catch (e) {}
+      // Tránh chồng nhiều hộp thoại: confirm cũ được hủy như khi người dùng bấm Hủy.
+      if (_activeConfirmClose) {
+        try { _activeConfirmClose(false); } catch (e) {}
       }
       _confirmOpen = true;
 
@@ -631,11 +636,13 @@
         if (settled) return;
         settled = true;
         _confirmOpen = false;
+        if (_activeConfirmClose === cleanup) _activeConfirmClose = null;
         document.removeEventListener('keydown', onKey, true);
         overlay.classList.remove('cp-confirm-in');
         afterEnd(overlay, () => { try { overlay.remove(); } catch (e) {} });
         resolve(result);
       }
+      _activeConfirmClose = cleanup;
       function onKey(e) {
         if (e.key === 'Escape') { e.preventDefault(); cleanup(false); }
         else if (e.key === 'Enter') { e.preventDefault(); cleanup(true); }
@@ -647,6 +654,9 @@
       document.addEventListener('keydown', onKey, true);
 
       requestAnimationFrame(() => requestAnimationFrame(() => {
+        // Nếu confirm đã bị đóng (vd: bị confirm khác thay thế ngay lập tức)
+        // thì không animate-in lại overlay đang được gỡ bỏ.
+        if (settled) return;
         overlay.classList.add('cp-confirm-in');
         try { okBtn.focus(); } catch (e) {}
       }));

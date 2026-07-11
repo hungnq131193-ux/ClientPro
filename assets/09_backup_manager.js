@@ -348,6 +348,11 @@ async function _doBackupData() {
 }
 
 async function restoreData(input) {
+  // Lấy File hiện tại rồi reset input NGAY, vô điều kiện — phủ mọi nhánh
+  // (đang bận, app khóa, file lỗi, restore thất bại, exception, thành công).
+  // Không reset thì chọn lại đúng file cũ sẽ không bắn change event → nút chết.
+  const f = input && input.files && input.files[0];
+  try { if (input) input.value = ""; } catch (e) { }
   if (__restoreInFlight) return;
   __restoreInFlight = true;
   // FileReader hoàn tất trong callback async — cờ chỉ được giữ qua khỏi hàm này
@@ -363,7 +368,6 @@ async function restoreData(input) {
 
     // Đóng menu nếu đang mở (tránh lỗi khi gọi từ Backup Manager Modal)
     _closeMenuIfOpen();
-    const f = input.files && input.files[0];
     if (!f) return;
     // Đóng Backup Manager TRƯỚC global loader — cùng lớp lỗi đã vá ở
     // _doRestoreBackupFromApp (v1.6.1) và restoreFromDriveBackup (v1.6.2):

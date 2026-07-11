@@ -1,11 +1,14 @@
         function getEl(id) { return document.getElementById(id); }
-        // Debounce helper to avoid heavy work on every keystroke / rapid events
+        // Debounce helper to avoid heavy work on every keystroke / rapid events.
+        // Hàm trả về có .cancel() để hủy lần gọi đang chờ (vd: reset ô tìm kiếm).
         function debounce(fn, wait = 150) {
           let t;
-          return function debounced(...args) {
+          function debounced(...args) {
             clearTimeout(t);
             t = setTimeout(() => fn.apply(this, args), wait);
-          };
+          }
+          debounced.cancel = () => { clearTimeout(t); t = undefined; };
+          return debounced;
         }
 
         // =======================

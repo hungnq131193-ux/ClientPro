@@ -8,6 +8,16 @@ const SVG_ICONS = Object.freeze({
     phone: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.9 12.9 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.1 9.9a16 16 0 0 0 6 6l1.26-1.26a2 2 0 0 1 2.11-.45 12.9 12.9 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`,
 });
 
+// Promisify một IndexedDB transaction: resolve khi complete, reject khi error/abort.
+// Bắt buộc dùng cho các thao tác destructive để lỗi transaction không bị im lặng.
+function __custTxDone(tx) {
+    return new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('Transaction error'));
+        tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+    });
+}
+
 function setCustSelectionMode(enabled, options) {
     const opts = options || {};
     isCustSelectionMode = !!enabled;
@@ -139,12 +149,30 @@ async function sendSelectedCustomersToUser() {
         LoadingManager.hideGlobal(true);
     }
 }
+let __deleteSelectedCustInFlight = false;
 async function deleteSelectedCustomers() {
+    if (__deleteSelectedCustInFlight) return;
     if (selectedCustomers.size === 0) return;
     if (!(await ErrorHandler.confirm(`Xóa vĩnh viễn ${selectedCustomers.size} khách hàng?`, { title: "Xóa khách hàng", danger: true, confirmText: "Xóa vĩnh viễn" }))) return;
-    const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
-    selectedCustomers.forEach(custId => { custStore.delete(custId); imgStore.index('customerId').getAllKeys(custId).onsuccess = e => { e.target.result.forEach(imgId => imgStore.delete(imgId)); }; });
-    tx.oncomplete = () => { ErrorHandler.showSuccess("Đã xóa khách hàng đã chọn"); setCustSelectionMode(false); };
+    if (__deleteSelectedCustInFlight) return;
+    __deleteSelectedCustInFlight = true;
+    try {
+        // Snapshot ID trước khi mở transaction (không đọc lại global sau await).
+        const ids = Array.from(selectedCustomers);
+        // Một transaction duy nhất: atomic all-or-nothing — hoặc xóa hết KH đã chọn
+        // (kèm ảnh của họ) hoặc không xóa gì nếu transaction lỗi/abort.
+        const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
+        ids.forEach(custId => { custStore.delete(custId); imgStore.index('customerId').getAllKeys(custId).onsuccess = e => { e.target.result.forEach(imgId => imgStore.delete(imgId)); }; });
+        await __custTxDone(tx);
+        // Chỉ cập nhật UI + báo thành công SAU khi transaction commit.
+        ErrorHandler.showSuccess("Đã xóa khách hàng đã chọn");
+        setCustSelectionMode(false);
+    } catch (err) {
+        // Không xóa item khỏi UI, không báo thành công giả — dữ liệu chưa đổi.
+        ErrorHandler.showError('STORAGE', 'Xóa khách hàng thất bại — dữ liệu CHƯA thay đổi. Vui lòng thử lại.', err);
+    } finally {
+        __deleteSelectedCustInFlight = false;
+    }
 }
 
 // ============================================================
@@ -172,6 +200,14 @@ function openCustomerList(type) {
     else if (typeof nextFrame === 'function') nextFrame(() => screen.classList.remove('translate-x-full'));
     else setTimeout(() => screen.classList.remove('translate-x-full'), 10);
 
+    // Mở mới danh sách = query rỗng: ô tìm kiếm và danh sách phải phản ánh CÙNG
+    // một query. Xóa input + hủy debounce đang chờ để callback search cũ không
+    // chạy đè lên danh sách vừa mở lại.
+    const searchEl = getEl('search-input');
+    if (searchEl) searchEl.value = '';
+    if (window.__searchDebounced && typeof window.__searchDebounced.cancel === 'function') {
+        window.__searchDebounced.cancel();
+    }
     // Load ngay danh sách (không lazy/defer) để tránh cảm giác trễ khi bấm mở màn hình.
     loadCustomers('');
     try { lucide.createIcons(); } catch (e) { }
@@ -1031,13 +1067,28 @@ async function _doSaveCustomer(name, phoneNorm, cccd, editId) {
     }
 }
 
+let __deleteCustomerInFlight = false;
 async function deleteCurrentCustomer() {
+    if (__deleteCustomerInFlight) return;
+    // Snapshot ID trước confirm — không đọc lại global sau await để quyết định xóa gì.
+    const custId = currentCustomerId;
+    if (!custId) return;
     if (!(await ErrorHandler.confirm("Xóa toàn bộ hồ sơ khách hàng này?", { title: "Xác nhận xóa hồ sơ", danger: true, confirmText: "Xóa hồ sơ" }))) return;
+    if (__deleteCustomerInFlight) return;
+    __deleteCustomerInFlight = true;
     try {
         const tx = db.transaction(['images', 'customers'], 'readwrite'); const imgStore = tx.objectStore('images'); const custStore = tx.objectStore('customers');
-        if (imgStore.indexNames.contains('customerId')) { imgStore.index('customerId').getAllKeys(currentCustomerId).onsuccess = (e) => { e.target.result.forEach(key => imgStore.delete(key)); }; }
-        custStore.delete(currentCustomerId); tx.oncomplete = () => { closeFolder(); ErrorHandler.showSuccess("Đã xóa hồ sơ"); loadCustomers(); };
-    } catch (err) { window.location.reload(); }
+        if (imgStore.indexNames.contains('customerId')) { imgStore.index('customerId').getAllKeys(custId).onsuccess = (e) => { e.target.result.forEach(key => imgStore.delete(key)); }; }
+        custStore.delete(custId);
+        await __custTxDone(tx);
+        // Chỉ đóng hồ sơ + báo thành công SAU khi transaction commit.
+        closeFolder(); ErrorHandler.showSuccess("Đã xóa hồ sơ"); loadCustomers();
+    } catch (err) {
+        // Lỗi transaction phải được báo rõ; giữ nguyên UI/dữ liệu, không reload để che lỗi.
+        ErrorHandler.showError('STORAGE', 'Xóa hồ sơ thất bại — dữ liệu CHƯA thay đổi. Vui lòng thử lại.', err);
+    } finally {
+        __deleteCustomerInFlight = false;
+    }
 }
 
 async function deleteAsset(idx) {

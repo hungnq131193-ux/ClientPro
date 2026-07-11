@@ -179,7 +179,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (dbReadyResolve) dbReadyResolve();
   };
   // Debounce search to avoid decrypt + render on every single keystroke (mượt hơn với danh sách lớn)
+  // Giữ reference toàn cục để openCustomerList() hủy được debounce đang chờ khi reset tìm kiếm.
   const onSearchInput = (e) => loadCustomers(e.target.value);
-  getEl("search-input").addEventListener("input", (typeof debounce === 'function') ? debounce(onSearchInput, 180) : onSearchInput);
+  window.__searchDebounced = (typeof debounce === 'function') ? debounce(onSearchInput, 180) : onSearchInput;
+  getEl("search-input").addEventListener("input", window.__searchDebounced);
   setupSwipe();
 });

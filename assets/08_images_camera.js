@@ -150,15 +150,36 @@ function toggleImage(id, div) {
   }
   getEl("selection-count").textContent = selectedImages.size;
 }
+// Promisify một IndexedDB transaction: resolve khi complete, reject khi error/abort.
+// Bắt buộc dùng cho các thao tác destructive để lỗi transaction không bị im lặng.
+function __imgTxDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error("Transaction error"));
+    tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
+  });
+}
+
+let __deleteImagesInFlight = false;
 async function deleteSelectedImages() {
+  if (__deleteImagesInFlight) return;
   if (!selectedImages.size) return;
   if (!(await ErrorHandler.confirm(`Xóa ${selectedImages.size} ảnh đã chọn?`, { title: "Xóa ảnh", danger: true, confirmText: "Xóa" }))) return;
-  const tx = db.transaction(["images"], "readwrite");
-  selectedImages.forEach((id) => tx.objectStore("images").delete(id));
-  tx.oncomplete = () => {
+  if (__deleteImagesInFlight) return;
+  __deleteImagesInFlight = true;
+  try {
+    // Snapshot ID trước khi mở transaction. Một transaction duy nhất: all-or-nothing.
+    const ids = Array.from(selectedImages);
+    const tx = db.transaction(["images"], "readwrite");
+    ids.forEach((id) => tx.objectStore("images").delete(id));
+    await __imgTxDone(tx);
     ErrorHandler.showSuccess("Đã xóa ảnh đã chọn");
     setImageSelectionMode(false);
-  };
+  } catch (err) {
+    ErrorHandler.showError('STORAGE', 'Xóa ảnh thất bại — dữ liệu CHƯA thay đổi. Vui lòng thử lại.', err);
+  } finally {
+    __deleteImagesInFlight = false;
+  }
 }
 // Trả null (KHÔNG throw) khi input rỗng/không phải data URL hợp lệ — caller phải
 // kiểm null. Trước đây ''.split(',')[0].match(...) trả null -> null[1] throw
@@ -739,21 +760,33 @@ function shareOpenedImage() {
         });
     });
 }
+let __deleteOpenedImageInFlight = false;
 async function deleteOpenedImage() {
+  if (__deleteOpenedImageInFlight) return;
+  // Snapshot ID trước confirm — không đọc lại global sau await.
+  const imageId = currentImageId;
+  if (!imageId) return;
   if (!(await ErrorHandler.confirm("Hủy chứng từ này?", { title: "Xóa chứng từ", danger: true, confirmText: "Xóa" }))) return;
-  db
-    .transaction(["images"], "readwrite")
-    .objectStore("images")
-    .delete(currentImageId).onsuccess = () => {
-      closeLightbox();
-      if (
-        currentAssetId &&
-        getEl("screen-asset-gallery").classList.contains("translate-x-full") ===
-        false
-      )
-        loadAssetImages(currentAssetId);
-      else loadProfileImages();
-    };
+  if (__deleteOpenedImageInFlight) return;
+  __deleteOpenedImageInFlight = true;
+  try {
+    const tx = db.transaction(["images"], "readwrite");
+    tx.objectStore("images").delete(imageId);
+    await __imgTxDone(tx);
+    // Chỉ đóng lightbox + refresh gallery SAU khi transaction commit.
+    closeLightbox();
+    if (
+      currentAssetId &&
+      getEl("screen-asset-gallery").classList.contains("translate-x-full") ===
+      false
+    )
+      loadAssetImages(currentAssetId);
+    else loadProfileImages();
+  } catch (err) {
+    ErrorHandler.showError('STORAGE', 'Xóa chứng từ thất bại — dữ liệu CHƯA thay đổi. Vui lòng thử lại.', err);
+  } finally {
+    __deleteOpenedImageInFlight = false;
+  }
 }
 
 // Export for lazy loading wrapper

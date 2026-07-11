@@ -65,3 +65,84 @@ test('mở khóa PIN + tạo khách hàng -> IndexedDB lưu AES-GCM và giải m
   expect(res.cryptoV).toBe(2);
   expect(res.phone).toBe('0912345678');
 });
+
+// B9 + B8: search reset khi mở lại danh sách; xóa hồ sơ không reload trang và
+// báo đúng kết quả.
+test('B9/B8: mở lại danh sách reset tìm kiếm; xóa KH không reload, danh sách cập nhật', async ({ page }) => {
+  await page.addInitScript((env) => {
+    localStorage.setItem('app_activated', 'true');
+    localStorage.setItem('app_employee_id', 'TEST');
+    localStorage.setItem('app_pin', env);
+    localStorage.setItem('app_crypto_schema_v', '2');
+    // Tắt onboarding tour để tooltip z-[1002] không che các nút cần bấm.
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 1, completedAt: Date.now() }));
+    const o = sessionStorage.getItem.bind(sessionStorage);
+    sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
+  }, PIN_ENVELOPE);
+
+  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+
+  // Tạo một khách hàng để có dữ liệu trong danh sách.
+  await page.click('#btn-quick-add');
+  await page.waitForSelector('#add-modal', { state: 'visible' });
+  await page.fill('#new-name', 'KH Kiểm Thử B9');
+  await page.fill('#new-phone', '0900000009');
+  await page.click('[data-action="saveCustomer"]');
+  await page.waitForSelector('#add-modal', { state: 'hidden', timeout: 10_000 });
+
+  // Sau khi tạo, app tự mở màn hồ sơ của KH mới -> đóng lại để về dashboard.
+  await page.waitForFunction(
+    () => !document.getElementById('screen-folder').classList.contains('translate-x-full'),
+    undefined, { timeout: 10_000 }
+  );
+  await page.click('#screen-folder [data-action="closeFolder"]');
+  await page.waitForFunction(
+    () => document.getElementById('screen-folder').classList.contains('translate-x-full'),
+    undefined, { timeout: 10_000 }
+  );
+
+  // Mở danh sách "đang thẩm định", tìm chuỗi không khớp -> danh sách rỗng.
+  await page.click('[data-action="openCustomerList"][data-arg="pending"]');
+  await page.waitForSelector('#screen-customer-list', { state: 'visible' });
+  await expect(page.locator('.cust-card')).toHaveCount(1, { timeout: 10_000 });
+  await page.fill('#search-input', 'zzz-khong-khop');
+  await expect(page.locator('.cust-card')).toHaveCount(0, { timeout: 10_000 });
+
+  // Đóng rồi mở lại NGAY (trước cả khi debounce kịp chạy thêm) -> ô tìm kiếm phải
+  // rỗng và danh sách hiển thị đầy đủ, không bị callback search cũ ghi đè.
+  await page.click('[data-action="closeCustomerList"]');
+  await page.click('[data-action="openCustomerList"][data-arg="pending"]');
+  await expect(page.locator('#search-input')).toHaveValue('');
+  await expect(page.locator('.cust-card')).toHaveCount(1, { timeout: 10_000 });
+  // Chờ quá cửa sổ debounce (180ms) để chắc chắn không còn callback cũ ghi đè.
+  await page.waitForTimeout(400);
+  await expect(page.locator('.cust-card')).toHaveCount(1);
+
+  // B8: xóa hồ sơ qua confirm — không được reload trang, item biến mất sau commit.
+  // Marker trên window: reload thật sẽ xóa marker (history.pushState của
+  // edge-back-swipe làm framenavigated bắn nhầm nên không dùng được).
+  await page.evaluate(() => { window.__noReloadMarker = true; });
+  await page.click('.cust-card');
+  // #screen-folder ẩn bằng translate-x-full (không phải display:none) -> chờ class biến mất.
+  await page.waitForFunction(
+    () => !document.getElementById('screen-folder').classList.contains('translate-x-full'),
+    undefined, { timeout: 10_000 }
+  );
+  await page.click('[data-action="deleteCurrentCustomer"]');
+  await page.waitForSelector('.cp-confirm-overlay', { state: 'visible' });
+  await page.click('.cp-confirm-overlay .cp-confirm-ok');
+  await expect(page.locator('.cust-card')).toHaveCount(0, { timeout: 10_000 });
+  const markerAlive = await page.evaluate(() => window.__noReloadMarker === true);
+  expect(markerAlive, 'Xóa hồ sơ không được reload trang').toBeTruthy();
+
+  // Database thật sự trống.
+  const total = await page.evaluate(async () => new Promise((r) => {
+    const rq = db.transaction(['customers']).objectStore('customers').count();
+    rq.onsuccess = (e) => r(e.target.result);
+    rq.onerror = () => r(-1);
+  }));
+  expect(total).toBe(0);
+});
