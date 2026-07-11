@@ -124,7 +124,11 @@ async function sendSelectedCustomersToUser() {
             meta: { type: 'partial_customers', count: custIds.length }
         };
 
-        LoadingManager.showGlobal('Chọn người nhận...');
+        // Tắt loader TRƯỚC khi mở overlay chọn người nhận: bước chọn user là
+        // tương tác của người dùng (không phải đang xử lý), loader quay dưới
+        // overlay gây hiểu nhầm app treo. sendEncryptedRecord tự bật loader
+        // "Đang gửi bản ghi..." khi thực sự upload.
+        LoadingManager.hideGlobal(true);
         await CloudTransferUI.sendEncryptedRecord(rec);
 
         ErrorHandler.showSuccess('Đã gửi gói khách hàng (đã mã hóa)');
@@ -334,10 +338,14 @@ async function loadCustomers(query = '') {
     if (!listEl) return;
     listEl.dataset.loading = '1';
     listEl.dataset.token = loadToken;
-    // Giữ DOM hiện tại trong lúc đọc IndexedDB để tránh flash trắng/stale khi chuyển màn hoặc tab nhanh.
-    if (!listEl.children.length) {
+    // Chỉ giữ DOM hiện tại khi load lại CÙNG tab + query (tránh flash trắng khi
+    // chuyển màn nhanh). Đổi tab hoặc tìm kiếm thì thay ngay bằng "Đang tải..."
+    // để không hiển thị card cũ không khớp với bộ lọc mới.
+    const loadSig = `${activeListTab}|${q}`;
+    if (!listEl.children.length || listEl.dataset.sig !== loadSig) {
         listEl.innerHTML = `<div class="text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Đang tải danh sách khách hàng...</div>`;
     }
+    listEl.dataset.sig = loadSig;
 
     const all = await new Promise((resolve) => {
         const tx = db.transaction(['customers'], 'readonly');
@@ -738,7 +746,9 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'dup-warning-overlay';
-        overlay.className = 'fixed inset-0 z-[200] bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm';
+        // z-[300]: cảnh báo mở TRÊN modal thêm/sửa KH (add-modal z-[200]);
+        // cùng z-index thì thứ tự DOM quyết định nên có thể bị modal che.
+        overlay.className = 'fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm';
         document.body.appendChild(overlay);
     }
 

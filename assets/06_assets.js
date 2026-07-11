@@ -273,7 +273,7 @@ function renderAssets() {
     const mapLink = formatLink(decLink);
     const mapBtn = mapLink
       ? `<a data-map-link target="_blank" class="glass-btn flex-1 py-2.5 rounded-lg text-xs font-bold text-slate-300 flex items-center justify-center gap-1 hover:text-white"><i data-lucide="map" class="w-3 h-3"></i> Bản đồ</a>`
-      : `<span class="glass-btn flex-1 py-2.5 rounded-lg text-xs text-slate-500 text-center cursor-not-allowed opacity-50">No Map</span>`;
+      : `<span class="glass-btn flex-1 py-2.5 rounded-lg text-xs text-slate-500 text-center cursor-not-allowed opacity-50">Chưa có tọa độ</span>`;
 
     // Khung tĩnh (icon/badge rỗng); giá trị tài sản được gán qua textContent bên dưới để tránh chèn qua innerHTML
     const areaInfo = decArea

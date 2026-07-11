@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.6.2-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.6.3-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
@@ -83,8 +83,8 @@ GitHub Actions chạy static checks, crypto/data-integrity tests, Playwright, ax
 
 ## Phiên bản
 
-- **Phiên bản app (semver)** — hiện tại **`1.6.2`**. Nguồn duy nhất: `package.json`.
-- **cache-buster asset** — hiện tại **`V160_20260710`**. Nguồn: `ASSET_V` trong `sw.js`.
+- **Phiên bản app (semver)** — hiện tại **`1.6.3`**. Nguồn duy nhất: `package.json`.
+- **cache-buster asset** — hiện tại **`V163_20260711`**. Nguồn: `ASSET_V` trong `sw.js`.
 
 Sau khi đổi semver:
 

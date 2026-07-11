@@ -130,7 +130,7 @@ async function renderBackupList() {
       btn.addEventListener("click", handler);
       actions.appendChild(btn);
     };
-    addButton("Restore", "background: rgba(16,185,129,0.15); color: #34d399;", () => restoreBackupFromApp(b.id));
+    addButton("Khôi phục", "background: rgba(16,185,129,0.15); color: #34d399;", () => restoreBackupFromApp(b.id));
     addButton("Xuất file", "background: rgba(59,130,246,0.15); color: #60a5fa;", () => exportBackupFromApp(b.id));
     addButton("Gửi", "background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);", () => CloudTransferUI.sendBackupFromApp(b.id));
     addButton("Xóa", "background: rgba(239,68,68,0.15); color: #f87171;", () => deleteBackupFromApp(b.id));
@@ -281,7 +281,12 @@ async function _doBackupData() {
   // Đóng menu nếu đang mở
   _closeMenuIfOpen();
 
-  LoadingManager.showGlobal("Đóng gói (Bảo mật)...");
+  // Khi Backup Manager đang mở (vd bấm "Tạo & xuất file"), KHÔNG dùng global
+  // loader: #loader cùng z-index với modal nên bị che → app trông như treo.
+  // Giữ modal mở để danh sách backup được refresh ngay khi xong.
+  const bmModal = getEl("backup-manager-modal");
+  const useGlobalLoader = !bmModal || bmModal.classList.contains("hidden");
+  if (useGlobalLoader) LoadingManager.showGlobal("Đóng gói (Bảo mật)...");
 
   try {
     // Đọc + chuẩn hoá qua BackupCore: giải mã name/phone/cccd/notes + tài sản, bỏ driveLink,
@@ -338,7 +343,7 @@ async function _doBackupData() {
   } catch (err) {
     ErrorHandler.showError('BACKUP', "Không tạo được bản sao lưu. Vui lòng thử lại.", err);
   } finally {
-    LoadingManager.hideGlobal(true);
+    if (useGlobalLoader) LoadingManager.hideGlobal(true);
   }
 }
 
@@ -360,6 +365,10 @@ async function restoreData(input) {
     _closeMenuIfOpen();
     const f = input.files && input.files[0];
     if (!f) return;
+    // Đóng Backup Manager TRƯỚC global loader — cùng lớp lỗi đã vá ở
+    // _doRestoreBackupFromApp (v1.6.1) và restoreFromDriveBackup (v1.6.2):
+    // #loader cùng z-index với modal nên bị che, app trông như treo.
+    closeBackupManager();
     LoadingManager.showGlobal("Xác thực bảo mật...");
 
     // Phương án 1: mỗi lần bấm Restore sẽ verify lại và xin secret từ server

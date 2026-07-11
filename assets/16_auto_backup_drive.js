@@ -81,8 +81,8 @@
         btn.disabled = !!isLoading;
         btn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
         btn.innerHTML = isLoading
-            ? '<span class="inline-block w-3 h-3 mr-1 rounded-full border-2 border-current border-t-transparent animate-spin align-[-2px]"></span>Đang backup…'
-            : '<i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Backup ngay';
+            ? '<span class="inline-block w-3 h-3 mr-1 rounded-full border-2 border-current border-t-transparent animate-spin align-[-2px]"></span>Đang sao lưu…'
+            : '<i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Sao lưu ngay';
         try { if (!isLoading && window.lucide) lucide.createIcons(); } catch (e) { }
     }
 

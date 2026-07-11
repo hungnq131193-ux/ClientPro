@@ -13,7 +13,7 @@
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.6.2';
+const VERSION = 'v1.6.3';
 const STATIC_CACHE = `clientpro-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
@@ -31,7 +31,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'V160_20260710';
+const ASSET_V = 'V163_20260711';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -49,9 +49,9 @@ const STATIC_ASSETS = [
   // Fonts (self-host; woff2 được request từ fonts.css nên KHÔNG có query)
   `./assets/css/fonts.css?v=${ASSET_V}`,
 
-  // Tailwind (self-host)
-  './assets/css/tailwind.clientpro.css',
-  './assets/css/app.patch.css',
+  // Tailwind (self-host) — có ?v= để khớp index.html, tránh CSS stale sau deploy
+  `./assets/css/tailwind.clientpro.css?v=${ASSET_V}`,
+  `./assets/css/app.patch.css?v=${ASSET_V}`,
   `./assets/css/redesign.clientpro.css?v=${ASSET_V}`,
   `./assets/styles.css?v=${ASSET_V}`,
   `./assets/head.js?v=${ASSET_V}`,
