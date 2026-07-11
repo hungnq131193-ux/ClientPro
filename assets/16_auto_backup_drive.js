@@ -82,7 +82,7 @@
         btn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
         btn.innerHTML = isLoading
             ? '<span class="inline-block w-3 h-3 mr-1 rounded-full border-2 border-current border-t-transparent animate-spin align-[-2px]"></span>Đang backup…'
-            : '<i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Backup ngay';
+            : '<i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Sao lưu lên Drive';
         try { if (!isLoading && window.lucide) lucide.createIcons(); } catch (e) { }
     }
 
@@ -535,7 +535,7 @@
                 btn.addEventListener('click', handler);
                 actions.appendChild(btn);
             };
-            addButton('Restore', 'background: rgba(16,185,129,0.15); color: #34d399;', () => DriveBackup.restore(b.id));
+            addButton('Khôi phục', 'background: rgba(16,185,129,0.15); color: #34d399;', () => DriveBackup.restore(b.id));
             addButton('Gửi', 'background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);', () => DriveBackup.send(b.id, b.filename || 'Backup'));
             addButton('Xóa', 'background: rgba(239,68,68,0.15); color: #f87171;', () => DriveBackup.delete(b.id));
 

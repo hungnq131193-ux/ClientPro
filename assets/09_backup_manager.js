@@ -130,7 +130,7 @@ async function renderBackupList() {
       btn.addEventListener("click", handler);
       actions.appendChild(btn);
     };
-    addButton("Restore", "background: rgba(16,185,129,0.15); color: #34d399;", () => restoreBackupFromApp(b.id));
+    addButton("Khôi phục", "background: rgba(16,185,129,0.15); color: #34d399;", () => restoreBackupFromApp(b.id));
     addButton("Xuất file", "background: rgba(59,130,246,0.15); color: #60a5fa;", () => exportBackupFromApp(b.id));
     addButton("Gửi", "background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);", () => CloudTransferUI.sendBackupFromApp(b.id));
     addButton("Xóa", "background: rgba(239,68,68,0.15); color: #f87171;", () => deleteBackupFromApp(b.id));
@@ -281,7 +281,11 @@ async function _doBackupData() {
   // Đóng menu nếu đang mở
   _closeMenuIfOpen();
 
-  LoadingManager.showGlobal("Đóng gói (Bảo mật)...");
+  // #loader cùng z-index với Backup Manager — nếu modal đang mở thì không dùng
+  // global loader (sẽ bị che). Restore vẫn đóng modal trước (v1.6.1/v1.6.2).
+  const bm = getEl("backup-manager-modal");
+  const bmOpen = !!(bm && !bm.classList.contains("hidden"));
+  if (!bmOpen) LoadingManager.showGlobal("Đóng gói (Bảo mật)...");
 
   try {
     // Đọc + chuẩn hoá qua BackupCore: giải mã name/phone/cccd/notes + tài sản, bỏ driveLink,
@@ -330,15 +334,12 @@ async function _doBackupData() {
 
     // Nếu đang mở màn quản lý backup -> refresh list
     try {
-      const modal = getEl("backup-manager-modal");
-      if (modal && !modal.classList.contains("hidden")) {
-        await renderBackupList();
-      }
+      if (bmOpen) await renderBackupList();
     } catch (e) { }
   } catch (err) {
     ErrorHandler.showError('BACKUP', "Không tạo được bản sao lưu. Vui lòng thử lại.", err);
   } finally {
-    LoadingManager.hideGlobal(true);
+    if (!bmOpen) LoadingManager.hideGlobal(true);
   }
 }
 
@@ -356,8 +357,10 @@ async function restoreData(input) {
       return;
     }
 
-    // Đóng menu nếu đang mở (tránh lỗi khi gọi từ Backup Manager Modal)
+    // Đóng menu / Backup Manager trước loader — cùng pattern restore trong máy & Drive
+    // (v1.6.1/v1.6.2): tránh #loader bị modal z-[200] che.
     _closeMenuIfOpen();
+    closeBackupManager();
     const f = input.files && input.files[0];
     if (!f) return;
     LoadingManager.showGlobal("Xác thực bảo mật...");

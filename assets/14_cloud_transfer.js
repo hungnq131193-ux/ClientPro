@@ -651,7 +651,7 @@
         overlay.remove();
         await CloudTransferUI.acceptAndRestore(transferId);
       } catch (err) {
-        ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể restore bản ghi.', err);
+        ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể khôi phục bản ghi.', err);
       }
     });
 
@@ -666,58 +666,58 @@
       return;
     }
 
-    // Confirm and show loader
-    if (!(await ErrorHandler.confirm('Nhận và Restore bản ghi này?', { title: 'Nhận dữ liệu', confirmText: 'Nhận & Restore' }))) return;
+    if (!(await ErrorHandler.confirm('Nhận và khôi phục bản ghi này?', { title: 'Nhận dữ liệu', confirmText: 'Nhận & khôi phục' }))) return;
 
-    const loader = document.getElementById('loader');
-    const loaderText = document.getElementById('loader-text');
+    // Đóng Backup Manager trước loader — cùng pattern restore trong máy & Drive
+    // (v1.6.1/v1.6.2): tránh #loader bị modal z-[200] che.
+    if (typeof closeBackupManager === 'function') closeBackupManager();
+    LoadingManager.showGlobal('Xác thực bảo mật...');
 
-    if (loader) loader.classList.remove('hidden');
-    if (loaderText) loaderText.textContent = 'Xác thực bảo mật...';
-
-    // Strong gate: call ensureBackupSecret before download+decrypt
-    await ensureAuthOrThrow();
-
-    if (loaderText) loaderText.textContent = 'Đang tải bản ghi...';
-    const dl = await downloadInboxItem(transferId);
-
-    if (loaderText) loaderText.textContent = 'Đang restore...';
-
-    // Bản nhận được mã hóa bằng "khóa chuyển" của CHÍNH MÌNH (không phải khóa cá nhân),
-    // nên phải lấy transfer key của mình để giải mã.
-    if (typeof ensureTransferKey !== 'function') throw new Error('Thiếu cơ chế khóa chuyển');
-    const inboxKey = await ensureTransferKey();
-
-    // Reuse existing restore flow
-    if (typeof _restoreFromEncryptedContent === 'function') {
-      await _restoreFromEncryptedContent(dl.encrypted, inboxKey);
-    } else {
-      throw new Error('Thiếu hàm restore (_restoreFromEncryptedContent)');
-    }
-
-    // Best-effort delete on server (still auto-delete in 24h)
-    await deleteInboxItem(transferId);
-
-    // Clear pending notice if it matches
     try {
-      const p = localStorage.getItem(LS_PENDING_NOTICE);
-      if (p) {
-        const obj = JSON.parse(p);
-        if (obj && String(obj.transferId || obj.backupId) === String(transferId)) {
-          localStorage.removeItem(LS_PENDING_NOTICE);
-        }
+      // Strong gate: call ensureBackupSecret before download+decrypt
+      await ensureAuthOrThrow();
+
+      LoadingManager.showGlobal('Đang tải bản ghi...');
+      const dl = await downloadInboxItem(transferId);
+
+      LoadingManager.showGlobal('Đang khôi phục...');
+
+      // Bản nhận được mã hóa bằng "khóa chuyển" của CHÍNH MÌNH (không phải khóa cá nhân),
+      // nên phải lấy transfer key của mình để giải mã.
+      if (typeof ensureTransferKey !== 'function') throw new Error('Thiếu cơ chế khóa chuyển');
+      const inboxKey = await ensureTransferKey();
+
+      // Reuse existing restore flow
+      if (typeof _restoreFromEncryptedContent === 'function') {
+        await _restoreFromEncryptedContent(dl.encrypted, inboxKey);
+      } else {
+        throw new Error('Thiếu hàm restore (_restoreFromEncryptedContent)');
       }
-    } catch (e) {}
 
-    // Refresh UI
-    try {
-      if (typeof renderBackupList === 'function') await renderBackupList();
-      await CloudTransferUI.renderInbox();
-    } catch (e) {}
+      // Best-effort delete on server (still auto-delete in 24h)
+      await deleteInboxItem(transferId);
 
-    ErrorHandler.showSuccess('Đã nhận và khôi phục dữ liệu');
+      // Clear pending notice if it matches
+      try {
+        const p = localStorage.getItem(LS_PENDING_NOTICE);
+        if (p) {
+          const obj = JSON.parse(p);
+          if (obj && String(obj.transferId || obj.backupId) === String(transferId)) {
+            localStorage.removeItem(LS_PENDING_NOTICE);
+          }
+        }
+      } catch (e) {}
 
-    if (loader) loader.classList.add('hidden');
+      // Refresh UI
+      try {
+        if (typeof renderBackupList === 'function') await renderBackupList();
+        await CloudTransferUI.renderInbox();
+      } catch (e) {}
+
+      ErrorHandler.showSuccess('Đã nhận và khôi phục dữ liệu');
+    } finally {
+      LoadingManager.hideGlobal(true);
+    }
   }
 
   async function dismissItem(transferId) {
@@ -823,6 +823,9 @@
       }
 
       try {
+        // Ẩn loader (nếu caller bật "Chọn người nhận...") trước overlay chọn user —
+        // picker z-[10050] nằm trên #loader nhưng spinner nền vẫn gây nhiễu UX.
+        LoadingManager.hideGlobal(true);
         const u = await pickUserOverlay();
         if (!u) return;
 

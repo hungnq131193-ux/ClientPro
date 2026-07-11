@@ -124,7 +124,7 @@ async function sendSelectedCustomersToUser() {
             meta: { type: 'partial_customers', count: custIds.length }
         };
 
-        LoadingManager.showGlobal('Chọn người nhận...');
+        LoadingManager.hideGlobal(true);
         await CloudTransferUI.sendEncryptedRecord(rec);
 
         ErrorHandler.showSuccess('Đã gửi gói khách hàng (đã mã hóa)');
@@ -334,10 +334,9 @@ async function loadCustomers(query = '') {
     if (!listEl) return;
     listEl.dataset.loading = '1';
     listEl.dataset.token = loadToken;
-    // Giữ DOM hiện tại trong lúc đọc IndexedDB để tránh flash trắng/stale khi chuyển màn hoặc tab nhanh.
-    if (!listEl.children.length) {
-        listEl.innerHTML = `<div class="text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Đang tải danh sách khách hàng...</div>`;
-    }
+    // Luôn hiện trạng thái tải khi đổi tìm kiếm/tab — tránh giữ card cũ (sai tên/SĐT)
+    // trong lúc decrypt + lọc async. Lần đầu và lần sau đều dùng cùng placeholder.
+    listEl.innerHTML = `<div class="text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Đang tải danh sách khách hàng...</div>`;
 
     const all = await new Promise((resolve) => {
         const tx = db.transaction(['customers'], 'readonly');
@@ -738,7 +737,7 @@ function showDuplicateWarning(result, onIgnore, onViewCustomer) {
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'dup-warning-overlay';
-        overlay.className = 'fixed inset-0 z-[200] bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm';
+        overlay.className = 'fixed inset-0 z-[320] bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm';
         document.body.appendChild(overlay);
     }
 
