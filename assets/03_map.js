@@ -8,7 +8,7 @@ const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'V163_20260711';
+const MAPLIBRE_V = 'V164_20260711';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const MAP_STYLE_SAT = {
     version: 8,
@@ -180,8 +180,15 @@ async function getCurrentGPS() {
     if (__gpsBusy) return;
     __gpsBusy = true;
 
-    const loaderText = getEl('loader-text');
-    LoadingManager.showGlobal("Đang lấy tọa độ...");
+    // Không dùng global loader: nút GPS nằm trong #asset-modal (không thể đóng khi
+    // đang nhập form) nên #loader sẽ bị modal che. Báo trạng thái tại chỗ: spinner
+    // trên nút + message qua placeholder của ô tọa độ.
+    const gpsBtn = document.querySelector('[data-action="getCurrentGPS"]');
+    const inputLink = getEl('asset-link');
+    const origPlaceholder = inputLink ? inputLink.placeholder : "";
+    const setStatus = (msg) => { if (inputLink) inputLink.placeholder = msg; };
+    LoadingManager.showButtonLoading(gpsBtn);
+    setStatus("Đang lấy tọa độ...");
 
     try {
         // Tầng 1: hỏi nhanh — chấp nhận vị trí hệ thống vừa đo trong 30s gần nhất
@@ -193,7 +200,7 @@ async function getCurrentGPS() {
         }
 
         // Tầng 2: giữ GPS chạy liên tục để chờ khoá vệ tinh (tối đa 15s)
-        loaderText.textContent = "GPS yếu, đang dò vệ tinh...";
+        setStatus("GPS yếu, đang dò vệ tinh...");
         try {
             __gpsFillResult(await __gpsWatchFirstFix(15000));
             return;
@@ -202,7 +209,7 @@ async function getCurrentGPS() {
         }
 
         // Tầng 3: vị trí gần đúng qua Wi-Fi/mạng di động (gần như luôn có ngay)
-        loaderText.textContent = "Đang lấy vị trí gần đúng...";
+        setStatus("Đang lấy vị trí gần đúng...");
         __gpsFillResult(await __gpsGetOnce({ enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }));
     } catch (error) {
         let msg = "Lỗi GPS";
@@ -213,7 +220,8 @@ async function getCurrentGPS() {
         }
         ErrorHandler.showError('MAP', msg, error);
     } finally {
-        LoadingManager.hideGlobal(true);
+        LoadingManager.hideButtonLoading(gpsBtn);
+        if (inputLink) inputLink.placeholder = origPlaceholder;
         __gpsBusy = false;
     }
 }

@@ -466,11 +466,18 @@
       btn.textContent = "Đang xác thực...";
     }
 
-    const res = await enable(pin);
-
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = label;
+    let res;
+    try {
+      res = await enable(pin);
+    } catch (e) {
+      ErrorHandler.showError('AUTH', "Không thể bật mở khóa sinh trắc học.", e);
+      return;
+    } finally {
+      // Luôn khôi phục nút, kể cả khi enable() ném lỗi (mẫu 02_security.js).
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
     }
 
     if (res && res.ok) {

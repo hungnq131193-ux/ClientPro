@@ -304,9 +304,8 @@ body.theme-aurora {
   color: #f8fafc;
   line-height: 1.15;
   margin-bottom: 3px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  /* display:block (không flex) để text-overflow:ellipsis áp dụng cho text con */
+  display: block;
   font-size: 16px;
   white-space: nowrap;
   overflow: hidden;
