@@ -124,7 +124,11 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  // KHÔNG skipWaiting() ở install: SW mới chờ theo lifecycle chuẩn (đóng hết
+  // tab / mở lại app) rồi mới activate — build mới được phục vụ NGUYÊN KHỐI
+  // (HTML + asset cùng phiên bản), không bao giờ tự tạo mixed-version giữa
+  // phiên hay reload làm mất nội dung người dùng đang nhập. Trang vẫn có thể
+  // chủ động kích hoạt sớm qua message SKIP_WAITING bên dưới (hook có-đồng-thuận).
   event.waitUntil((async () => {
     const cache = await caches.open(STATIC_CACHE);
     // cache:'reload' giúp lấy bản mới nhất, tránh dính cache HTTP cũ khi deploy lại
@@ -247,13 +251,27 @@ function isSameOrigin(request) {
 }
 
 async function cacheFirst(event, request, cacheName, policy) {
+  // 1) Precache của ĐÚNG build này trước (exact match, kể cả query ?v=).
+  //    KHÔNG dùng caches.match() không scope — trong cửa sổ upgrade nó có thể
+  //    trả asset từ namespace của phiên bản cũ chưa bị activate dọn.
+  try {
+    const staticCache = await caches.open(STATIC_CACHE);
+    const pre = await staticCache.match(request);
+    if (pre) return pre;
+  } catch (e) { }
+
+  // 2) Runtime cache same-origin của build này.
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
   if (cached) return cached;
 
+  // 3) Network — chỉ response hợp lệ (res.ok) mới được lưu vào runtime cache;
+  //    không cache response lỗi (4xx/5xx) để không "đóng băng" trạng thái hỏng.
   const res = await fetch(request);
-  const toStore = stampResponseIfPossible(res.clone());
-  try { await cache.put(request, toStore); } catch (e) { }
+  if (res && res.ok) {
+    const toStore = stampResponseIfPossible(res.clone());
+    try { await cache.put(request, toStore); } catch (e) { }
+  }
   if (event && event.waitUntil) event.waitUntil(cleanupCache(cacheName, policy));
   return res;
 }

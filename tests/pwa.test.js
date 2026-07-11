@@ -16,8 +16,10 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+// Bỏ comment (// và /* */) để assertion không match chữ trong chú thích.
+const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
-test('sw.js: đăng ký đủ vòng đời install/activate/fetch + skipWaiting', () => {
+test('sw.js: đủ vòng đời install/activate/fetch; KHÔNG skipWaiting ở install (B7)', () => {
   const sw = read('sw.js');
   for (const ev of ['install', 'activate', 'fetch']) {
     assert.ok(
@@ -25,9 +27,20 @@ test('sw.js: đăng ký đủ vòng đời install/activate/fetch + skipWaiting'
       `Service Worker phải lắng nghe sự kiện "${ev}"`
     );
   }
-  assert.ok(/skipWaiting\(\)/.test(sw), 'Phải gọi skipWaiting() để kích hoạt bản mới ngay');
+  // B7: install KHÔNG được kích hoạt cưỡng bức — SW mới chờ lifecycle chuẩn.
+  const installBlock = stripComments(sw.slice(sw.indexOf("addEventListener('install'"), sw.indexOf("addEventListener('message'")));
+  assert.ok(installBlock.length > 0, 'Không cắt được install block');
+  assert.ok(!/skipWaiting\s*\(\)/.test(installBlock), 'install handler không được gọi skipWaiting()');
+  // Nhưng vẫn giữ hook kích hoạt có-đồng-thuận qua message.
   assert.ok(/SKIP_WAITING/.test(sw), 'Phải hỗ trợ message SKIP_WAITING');
   assert.ok(/caches\.open/.test(sw), 'Phải dùng Cache Storage API');
+});
+
+test('pwa.js: không force-reload khi controllerchange, không skipWaiting chủ động (B7)', () => {
+  const pwa = stripComments(read('assets/pwa.js'));
+  assert.ok(!/location\.reload/.test(pwa), 'Không được location.reload() khi SW update giữa phiên');
+  assert.ok(!/postMessage\(\s*\{\s*type:\s*["']SKIP_WAITING/.test(pwa), 'Không được gửi SKIP_WAITING chủ động');
+  assert.ok(/__swUpdatePending/.test(pwa), 'Phải đánh dấu bản cập nhật đang chờ');
 });
 
 test('sw.js: precache đủ shell + TẤT CẢ module JS nghiệp vụ (offline không thiếu file)', () => {
