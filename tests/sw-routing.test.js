@@ -93,21 +93,28 @@ test('A2: precache thắng runtime khi cả hai cùng có (asset đúng build đ
   assert.equal(res.body, 'static-version', 'STATIC_CACHE phải được ưu tiên trước runtime');
 });
 
-test('A2/upgrade: cache phiên bản cũ bị activate xóa; cache namespace hiện tại giữ nguyên', async () => {
+test('A2/upgrade: activate xóa cache ClientPro cũ (kể cả v1.6.5 và v1.0.0 lịch sử), giữ namespace hiện tại', async () => {
   const sw = loadSW();
-  // Giả lập cache của build cũ + cache không thuộc ClientPro trên cùng origin.
-  await sw.caches.open('clientpro-static-v0.9.9');
-  await sw.caches.open('clientpro-runtime-so-v0.9.9');
+  // Giả lập upgrade thật: client đang có cache của build nội bộ v1.6.5, và cả
+  // cache `clientpro-static-v1.0.0` LỊCH SỬ (commit 11ffdea) — public release
+  // 1.0.0 KHÔNG được trùng/tái dùng tên này (đã tách bằng CACHE_EPOCH).
+  await sw.caches.open('clientpro-static-v1.6.5');
+  await sw.caches.open('clientpro-runtime-so-v1.6.5');
+  await sw.caches.open('clientpro-static-v1.0.0');
   await sw.caches.open('other-app-cache');
   await sw.caches.open(sw.names.STATIC_CACHE);
+
+  assert.notEqual(sw.names.STATIC_CACHE, 'clientpro-static-v1.0.0',
+    'Tên cache hiện tại không được trùng tên lịch sử');
 
   await sw.listeners.activate({ waitUntil: (p) => p });
   // Chờ waitUntil promise chạy xong (listener trả promise qua waitUntil stub).
   await new Promise((r) => setTimeout(r, 20));
 
   const keys = await sw.caches.keys();
-  assert.ok(!keys.includes('clientpro-static-v0.9.9'), 'Cache ClientPro cũ phải bị xóa');
-  assert.ok(!keys.includes('clientpro-runtime-so-v0.9.9'), 'Runtime cache cũ phải bị xóa');
+  assert.ok(!keys.includes('clientpro-static-v1.6.5'), 'Cache v1.6.5 phải bị xóa khi upgrade');
+  assert.ok(!keys.includes('clientpro-runtime-so-v1.6.5'), 'Runtime cache v1.6.5 phải bị xóa');
+  assert.ok(!keys.includes('clientpro-static-v1.0.0'), 'Cache v1.0.0 lịch sử phải bị dọn');
   assert.ok(keys.includes('other-app-cache'), 'Cache không thuộc ClientPro không được đụng');
   assert.ok(keys.includes(sw.names.STATIC_CACHE), 'Cache build hiện tại phải giữ nguyên');
 });

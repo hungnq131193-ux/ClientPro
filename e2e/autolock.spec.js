@@ -1,4 +1,4 @@
-// E2E tự khóa khi ẩn app (v1.6.5): mô phỏng visibilitychange trong Chromium thật.
+// E2E tự khóa khi ẩn app: mô phỏng visibilitychange trong Chromium thật.
 // Ẩn < 15s -> không khóa; ẩn >= 15s (tua Date.now ở nhánh kiểm tra bù khi hiện lại)
 // -> #screen-lock hiện lại và mở khóa lại bằng PIN vẫn hoạt động bình thường.
 const { test, expect } = require('@playwright/test');

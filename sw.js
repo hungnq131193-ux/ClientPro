@@ -13,12 +13,19 @@
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.6.5';
-const STATIC_CACHE = `clientpro-static-${VERSION}`;
+const VERSION = 'v1.0.0';
+// CACHE_EPOCH: định danh "thế hệ" cache, tách khỏi semver. Lịch sử repo từng
+// dùng tên cache `clientpro-static-v1.0.0` (trước khi đánh số nội bộ 1.6.x);
+// public release quay về semver 1.0.0 nên nếu chỉ dùng VERSION, client cũ chưa
+// từng nâng cấp sẽ TRÙNG tên cache cũ và SW mới dùng nhầm asset cổ. Bump epoch
+// bất cứ khi nào semver có nguy cơ trùng một tên cache đã từng tồn tại; không
+// bao giờ tái sử dụng một tên lịch sử.
+const CACHE_EPOCH = 'e2';
+const STATIC_CACHE = `clientpro-${CACHE_EPOCH}-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
-const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
-const RUNTIME_CDN_CACHE = `clientpro-runtime-cdn-${VERSION}`;
-const RUNTIME_TILE_CACHE = `clientpro-runtime-tile-${VERSION}`;
+const RUNTIME_SAMEORIGIN_CACHE = `clientpro-${CACHE_EPOCH}-runtime-so-${VERSION}`;
+const RUNTIME_CDN_CACHE = `clientpro-${CACHE_EPOCH}-runtime-cdn-${VERSION}`;
+const RUNTIME_TILE_CACHE = `clientpro-${CACHE_EPOCH}-runtime-tile-${VERSION}`;
 
 // Cache limits (tuned for long-term stability on mobile devices)
 const LIMITS = {
@@ -31,7 +38,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'V165_20260711';
+const ASSET_V = 'V100_20260711';
 const STATIC_ASSETS = [
   './',
   './index.html',
