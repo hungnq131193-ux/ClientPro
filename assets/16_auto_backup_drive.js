@@ -22,6 +22,9 @@
     const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
     const MAX_DRIVE_BACKUPS = 3;
     let manualBackupInProgress = false;
+    // In-flight guard cho đường auto: chặn hai lần kiểm tra chạy chồng nhau
+    // (timer bootstrap + sự kiện unlock + visibilitychange có thể trùng thời điểm).
+    let autoBackupCheckInProgress = false;
 
     // ============================================================
     // HELPERS
@@ -113,6 +116,18 @@
     // AUTO BACKUP CHECK
     // ============================================================
     async function checkAndAutoBackupDaily() {
+        // Idempotent + single-flight: gọi bao nhiêu lần cũng chỉ một kiểm tra chạy;
+        // throttle 24h (LAST_AUTO_BACKUP) bảo đảm tối đa một backup/ngày.
+        if (autoBackupCheckInProgress) return;
+        autoBackupCheckInProgress = true;
+        try {
+            await _checkAndAutoBackupDailyInner();
+        } finally {
+            autoBackupCheckInProgress = false;
+        }
+    }
+
+    async function _checkAndAutoBackupDailyInner() {
         // Skip if disabled
         if (!isAutoBackupEnabled()) return;
 
@@ -575,6 +590,27 @@
                 });
             }
         }
+    }
+
+    // ============================================================
+    // B2: RE-CHECK SAU UNLOCK / KHI APP HIỆN LẠI
+    // Timer 15s trong bootstrap chạy khi app thường còn khóa -> checkDaily bị
+    // skip và cả phiên không backup. Đăng ký MỘT LẦN (module IIFE chạy một lần):
+    // - 'clientpro:unlocked' (02_security.js phát sau completeUnlockDataLoad):
+    //   kiểm tra lại ~3s sau unlock (nhường UI load xong).
+    // - visibilitychange -> visible: kiểm tra bù khi app quay lại foreground.
+    // Idempotent nhờ single-flight guard + throttle 24h; không tạo listener trùng.
+    // ============================================================
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener('clientpro:unlocked', function () {
+            setTimeout(function () {
+                try { checkAndAutoBackupDaily(); } catch (e) { }
+            }, 3000);
+        });
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) return;
+            try { checkAndAutoBackupDaily(); } catch (e) { }
+        });
     }
 
     // ============================================================

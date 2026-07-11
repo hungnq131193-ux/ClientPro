@@ -85,7 +85,7 @@ function loadSecurity() {
     db: null,                 // gán qua api.setDb(makeFakeDb(...)) khi test migration/prime
     queueMicrotask: (fn) => Promise.resolve().then(fn),
     getEl: () => null,
-    document: { getElementById: () => null, body: {}, querySelectorAll: () => [] },
+    document: { getElementById: () => null, body: {}, querySelector: () => null, querySelectorAll: () => [] },
     ErrorHandler: errorHandlerStub,
     window: { ErrorHandler: errorHandlerStub },
     setInterval: () => 0,
@@ -144,6 +144,15 @@ function loadSecurity() {
       isSafeImageUrl,
       isSafeDriveUrl,
       parseV2Envelope,
+      // B3: sealed KDATA cache
+      _readCachedKdataAsync,
+      _writeCachedKdata,
+      _flushPendingKdataCache,
+      getKdataRam: () => APP_BACKUP_KDATA_B64U,
+      setKdataRam: (v) => { APP_BACKUP_KDATA_B64U = v; },
+      getPendingKdata: () => __pendingKdataCache,
+      ensureBackupSecret,
+      completeUnlockDataLoad,
     };
   `;
 

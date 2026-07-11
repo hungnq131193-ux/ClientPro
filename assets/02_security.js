@@ -11,43 +11,160 @@ let masterKeyLegacy = null;   // passphrase CryptoJS "mk_..." — chỉ set khi 
 // Backup mới dùng global KDATA do GAS cấp (base64url, no padding) làm AES-GCM key.
 let APP_BACKUP_SECRET = "";
 let APP_BACKUP_KDATA_B64U = "";
+// v1 (legacy): {ts, kdata_b64u PLAINTEXT, identity} — CHỈ đọc để migrate, không ghi mới.
 const BACKUP_KDATA_CACHE_KEY = "app_backup_kdata_cache_v1";
+// v2 (sealed): {ts, identity, sealed: "cpg1:..."} — KDATA được niêm phong AES-GCM
+// dưới masterKey. KHÔNG BAO GIỜ persist KDATA plaintext vào browser storage.
+const BACKUP_KDATA_CACHE_KEY_V2 = "app_backup_kdata_cache_v2";
 const BACKUP_KDATA_CACHE_TTL_MS = 30 * 60 * 1000; // 30 phút
+// KDATA nhận được khi app còn khóa (vd AuthGate preflight) chờ seal trong RAM;
+// _flushPendingKdataCache() ghi xuống sau khi unlock. Bị xóa khi lockApp().
+let __pendingKdataCache = null;
 
 function _backupAuthIdentity(employeeId, deviceId) {
   const scopeUrl = (typeof ADMIN_SERVER_URL !== "undefined" && ADMIN_SERVER_URL) ? String(ADMIN_SERVER_URL) : "";
   return `${employeeId || ""}::${deviceId || ""}::${scopeUrl}`;
 }
 
-function _readCachedKdata(employeeId, deviceId) {
+function _parseKdataEnvelope(raw) {
   try {
-    const raw = localStorage.getItem(BACKUP_KDATA_CACHE_KEY);
-    if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
-    const ts = Number(parsed.ts || 0);
-    const kdata = parsed.kdata_b64u ? String(parsed.kdata_b64u) : "";
-    const identity = parsed.identity ? String(parsed.identity) : "";
-    if (!ts || !kdata || !identity) return null;
-    if (Date.now() - ts > BACKUP_KDATA_CACHE_TTL_MS) return null;
-    if (identity !== _backupAuthIdentity(employeeId, deviceId)) return null;
-    return { ts, kdata_b64u: kdata };
+    return parsed;
   } catch (e) {
     return null;
   }
 }
 
-function _writeCachedKdata(employeeId, deviceId, kdata_b64u) {
+/**
+ * Đọc KDATA cache. Async vì phải unseal bằng masterKey (AES-GCM).
+ * - Ưu tiên v2 (sealed): TTL + identity + unseal; hỏng/expired khi ĐÃ mở khóa -> xóa an toàn.
+ *   Khi CÒN khóa: trả null nhưng KHÔNG xóa (không phá giá trị tốt chỉ vì chưa có key).
+ * - v1 (plaintext legacy): chỉ đọc để migrate — seal -> ghi v2 -> ĐỌC LẠI XÁC MINH ->
+ *   mới xóa v1. Migration idempotent; v1 hỏng/hết hạn bị loại bỏ an toàn.
+ * - Pending RAM (nhận lúc còn khóa) được dùng làm nguồn cuối.
+ */
+async function _readCachedKdataAsync(employeeId, deviceId) {
+  const identity = _backupAuthIdentity(employeeId, deviceId);
+  const now = Date.now();
+
+  // 1) v2 sealed
   try {
+    const rawV2 = localStorage.getItem(BACKUP_KDATA_CACHE_KEY_V2);
+    if (rawV2) {
+      const p = _parseKdataEnvelope(rawV2);
+      const ts = p ? Number(p.ts || 0) : 0;
+      const sealed = p && p.sealed ? String(p.sealed) : "";
+      const pid = p && p.identity ? String(p.identity) : "";
+      const structOk = !!(p && ts && sealed && pid);
+      const fresh = structOk && (now - ts <= BACKUP_KDATA_CACHE_TTL_MS) && pid === identity;
+      if (!structOk) {
+        // JSON/cấu trúc hỏng: vô dụng với mọi khóa -> xóa an toàn.
+        try { localStorage.removeItem(BACKUP_KDATA_CACHE_KEY_V2); } catch (e) {}
+      } else if (fresh) {
+        if (masterCryptoKey && sealed.startsWith(GCM_PREFIX)) {
+          try {
+            const kdata = await _gcmDecryptField(sealed);
+            if (kdata) return { ts, kdata_b64u: kdata };
+          } catch (e) {
+            // Đã mở khóa mà không unseal được (sai khóa/tamper) -> giá trị chết, xóa.
+            try { localStorage.removeItem(BACKUP_KDATA_CACHE_KEY_V2); } catch (e2) {}
+          }
+        }
+        // Còn khóa: chưa unseal được nhưng KHÔNG xóa — trả null, thử lại sau unlock.
+      }
+      // Hết hạn/khác identity: để nguyên (ghi mới sẽ overwrite), trả null.
+    }
+  } catch (e) {}
+
+  // 2) v1 legacy plaintext -> migrate sang v2 (chỉ khi đã có masterKey)
+  try {
+    const rawV1 = localStorage.getItem(BACKUP_KDATA_CACHE_KEY);
+    if (rawV1) {
+      const p = _parseKdataEnvelope(rawV1);
+      const ts = p ? Number(p.ts || 0) : 0;
+      const kdata = p && p.kdata_b64u ? String(p.kdata_b64u) : "";
+      const pid = p && p.identity ? String(p.identity) : "";
+      const valid = !!(p && ts && kdata && pid) && pid === identity && (now - ts <= BACKUP_KDATA_CACHE_TTL_MS);
+      if (!valid) {
+        // Hỏng cấu trúc hoặc hết hạn: plaintext vô giá trị -> loại bỏ an toàn.
+        // (identity khác giữ nguyên — có thể thuộc cấu hình khác đang migrate dở.)
+        if (!p || !ts || !kdata || !pid || (now - ts > BACKUP_KDATA_CACHE_TTL_MS)) {
+          try { localStorage.removeItem(BACKUP_KDATA_CACHE_KEY); } catch (e) {}
+        }
+      } else if (masterCryptoKey) {
+        // Seal -> ghi v2 -> đọc lại xác minh -> CHỈ KHI ĐÓ mới xóa v1.
+        const migrated = await _writeCachedKdata(employeeId, deviceId, kdata, ts);
+        if (migrated) {
+          try { localStorage.removeItem(BACKUP_KDATA_CACHE_KEY); } catch (e) {}
+        }
+        return { ts, kdata_b64u: kdata };
+      } else {
+        // Còn khóa: dùng được giá trị legacy (chưa migrate được thì giữ nguyên v1).
+        return { ts, kdata_b64u: kdata };
+      }
+    }
+  } catch (e) {}
+
+  // 3) pending RAM (nhận lúc còn khóa trong phiên này)
+  if (__pendingKdataCache
+    && __pendingKdataCache.identity === identity
+    && (now - __pendingKdataCache.ts <= BACKUP_KDATA_CACHE_TTL_MS)) {
+    return { ts: __pendingKdataCache.ts, kdata_b64u: __pendingKdataCache.kdata_b64u };
+  }
+
+  return null;
+}
+
+/**
+ * Ghi KDATA cache. KHÔNG BAO GIỜ ghi plaintext xuống storage:
+ * - Đã mở khóa: seal AES-GCM dưới masterKey -> ghi v2 -> đọc lại xác minh.
+ * - Còn khóa: giữ trong RAM (__pendingKdataCache), flush sau unlock.
+ * Trả về true nếu đã persist + xác minh thành công.
+ */
+async function _writeCachedKdata(employeeId, deviceId, kdata_b64u, tsOverride) {
+  const kdata = String(kdata_b64u || "");
+  if (!kdata) return false;
+  const identity = _backupAuthIdentity(employeeId, deviceId);
+  const ts = tsOverride || Date.now();
+
+  if (!masterCryptoKey) {
+    __pendingKdataCache = { identity, kdata_b64u: kdata, ts };
+    return false;
+  }
+
+  try {
+    const sealed = await _gcmEncryptField(kdata);
     localStorage.setItem(
-      BACKUP_KDATA_CACHE_KEY,
-      JSON.stringify({
-        ts: Date.now(),
-        kdata_b64u: String(kdata_b64u || ""),
-        identity: _backupAuthIdentity(employeeId, deviceId),
-      })
+      BACKUP_KDATA_CACHE_KEY_V2,
+      JSON.stringify({ ts, identity, sealed })
+    );
+    // Đọc lại + unseal xác minh trước khi coi là thành công (an toàn dữ liệu).
+    const back = _parseKdataEnvelope(localStorage.getItem(BACKUP_KDATA_CACHE_KEY_V2) || "");
+    if (!back || String(back.sealed || "") !== sealed) return false;
+    const verify = await _gcmDecryptField(String(back.sealed));
+    return verify === kdata;
+  } catch (e) {
+    return false;
+  }
+}
+
+/** Flush KDATA đang chờ trong RAM xuống sealed cache sau khi unlock. Idempotent. */
+async function _flushPendingKdataCache() {
+  if (!__pendingKdataCache || !masterCryptoKey) return;
+  const pending = __pendingKdataCache;
+  if (Date.now() - pending.ts > BACKUP_KDATA_CACHE_TTL_MS) {
+    __pendingKdataCache = null;
+    return;
+  }
+  try {
+    const sealed = await _gcmEncryptField(pending.kdata_b64u);
+    localStorage.setItem(
+      BACKUP_KDATA_CACHE_KEY_V2,
+      JSON.stringify({ ts: pending.ts, identity: pending.identity, sealed })
     );
   } catch (e) {}
+  __pendingKdataCache = null;
 }
 
 /** Compute a SHA-256 hash of a string and return it as a hex string (Web Crypto API). */
@@ -313,6 +430,10 @@ async function _installMasterKey(mkStr) {
 function clearMasterKeyMaterial() {
   if (masterKeyBytes) { try { masterKeyBytes.fill(0); } catch (e) {} }
   masterKey = null; masterKeyBytes = null; masterCryptoKey = null; masterKeyLegacy = null;
+  // KDATA plaintext cũng là secret trong RAM -> xóa khi khóa (sealed v2 trong
+  // localStorage giữ nguyên vì đã là ciphertext).
+  APP_BACKUP_KDATA_B64U = "";
+  __pendingKdataCache = null;
   __fieldPlainCache.clear();
   __fieldDecryptPending.clear();
 }
@@ -428,12 +549,26 @@ async function completeUnlockDataLoad(pinForMigration, empForMigration) {
       try { ErrorHandler.logError("image-crypto-migration", e); } catch (_) {}
     }
     await primeFieldCache();
+    // Seal KDATA nhận được lúc còn khóa (AuthGate preflight) TRƯỚC khi phát
+    // sự kiện unlocked — auto-backup nghe sự kiện sẽ thấy cache sẵn, không
+    // phải xin lại KDATA từ GAS.
+    try { await _flushPendingKdataCache(); } catch (e) {}
     if (typeof loadCustomers === "function") {
       await loadCustomers((getEl("search-input") && getEl("search-input").value) || "");
     }
   } finally {
     _setUnlockLoading(false);
   }
+  // B2: báo cho các module (auto-backup Drive...) biết app vừa mở khóa xong.
+  // Guard đầy đủ vì test harness (tests/helpers/load-security.js) stub document
+  // không có dispatchEvent/CustomEvent. Dispatch lặp lại vô hại (listener idempotent).
+  try {
+    if (typeof document !== "undefined"
+      && typeof document.dispatchEvent === "function"
+      && typeof CustomEvent === "function") {
+      document.dispatchEvent(new CustomEvent("clientpro:unlocked"));
+    }
+  } catch (e) {}
 }
 
 // ============================================================
@@ -939,7 +1074,7 @@ async function ensureBackupSecret() {
   if (!employeeId) return { ok: false, message: "Chưa có mã nhân viên." };
 
   const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
-  const cached = _readCachedKdata(employeeId, deviceId);
+  const cached = await _readCachedKdataAsync(employeeId, deviceId);
   if (cached && cached.kdata_b64u) APP_BACKUP_KDATA_B64U = cached.kdata_b64u;
 
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
