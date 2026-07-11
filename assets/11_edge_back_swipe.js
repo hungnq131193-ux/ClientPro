@@ -356,9 +356,11 @@
     if (!fromLeftEdge && !fromRightEdge) return;
     if (shouldIgnoreTarget(e.target)) return;
 
-    // Claim gesture early to reduce browser "back"
-    if (e.cancelable) e.preventDefault();
-
+    // KHÔNG preventDefault ở touchstart: lúc này mới chỉ là "candidate".
+    // preventDefault sớm sẽ giết synthetic click -> tap vào card/ảnh/nút trong
+    // dải 28px hai mép thành vùng chết. Gesture chỉ được "claim" trong onMove
+    // khi di chuyển chứng minh đây là swipe thật (đủ ngưỡng, đúng hướng vào
+    // trong, ngang thắng dọc); tap/long-press/scroll dọc đi qua trong suốt.
     tracking = true;
     decided = false;
     horizontal = false;
@@ -393,15 +395,24 @@
         unbindMove();
         return;
       }
+      // Gesture vừa được CLAIM: chặn text selection ngoài ý muốn trong lúc kéo.
+      try { document.documentElement.classList.add('cp-swipe-noselect'); } catch (err) { }
     }
 
+    // Chỉ preventDefault SAU khi gesture đã được claim (và event còn cancelable)
+    // để không phá scroll/tap; mỗi move tiếp theo tiếp tục chặn scroll dọc lẫn vào.
     if (horizontal && e.cancelable) e.preventDefault();
+  }
+
+  function clearSwipeNoselect() {
+    try { document.documentElement.classList.remove('cp-swipe-noselect'); } catch (err) { }
   }
 
   function onEnd(e) {
     if (!tracking) return;
     tracking = false;
     unbindMove();
+    clearSwipeNoselect();
     if (!horizontal) return;
     if (!e.changedTouches || e.changedTouches.length !== 1) return; // multi-touch (e.g. pinch) already cleaned up above
 
@@ -431,7 +442,7 @@
 
     document.addEventListener('touchstart', onStart, { passive: false });
     document.addEventListener('touchend', onEnd, { passive: true });
-    document.addEventListener('touchcancel', function () { tracking = false; unbindMove(); }, { passive: true });
+    document.addEventListener('touchcancel', function () { tracking = false; unbindMove(); clearSwipeNoselect(); }, { passive: true });
 
     // -------- Real depth tracking (replaces the old "sentinel loop") --------
     // Chrome collapses/ignores repeated history.pushState() calls that keep

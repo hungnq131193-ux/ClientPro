@@ -282,8 +282,9 @@ async function _doBackupData() {
   _closeMenuIfOpen();
 
   // Khi Backup Manager đang mở (vd bấm "Tạo & xuất file"), KHÔNG dùng global
-  // loader: #loader cùng z-index với modal nên bị che → app trông như treo.
-  // Giữ modal mở để danh sách backup được refresh ngay khi xong.
+  // loader mà giữ modal mở để danh sách backup được refresh ngay khi xong.
+  // (Từ v1.0.0 loader đã nằm TRÊN business modal theo layering contract,
+  // nhưng UX ở đây vẫn đúng: backup trong máy nhanh, không cần che modal.)
   const bmModal = getEl("backup-manager-modal");
   const useGlobalLoader = !bmModal || bmModal.classList.contains("hidden");
   if (useGlobalLoader) LoadingManager.showGlobal("Đóng gói (Bảo mật)...");
@@ -369,9 +370,9 @@ async function restoreData(input) {
     // Đóng menu nếu đang mở (tránh lỗi khi gọi từ Backup Manager Modal)
     _closeMenuIfOpen();
     if (!f) return;
-    // Đóng Backup Manager TRƯỚC global loader — cùng lớp lỗi đã vá ở
-    // _doRestoreBackupFromApp (v1.6.1) và restoreFromDriveBackup (v1.6.2):
-    // #loader cùng z-index với modal nên bị che, app trông như treo.
+    // Đóng Backup Manager TRƯỚC global loader — giữ thứ tự đóng modal của flow
+    // (UX đúng: sau restore người dùng về danh sách, không quay lại modal).
+    // Từ v1.0.0 loader đã ở TRÊN business modal nên không còn bị che dù thứ tự đổi.
     closeBackupManager();
     LoadingManager.showGlobal("Xác thực bảo mật...");
 

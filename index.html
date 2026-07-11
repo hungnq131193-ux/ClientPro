@@ -109,7 +109,8 @@
                     data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div>
     </div>
 
-    <div id="loader" class="fixed inset-0 z-[500] flex flex-col items-center justify-center p-6 text-center">
+    <!-- z-index của #loader do styles.css quyết định (layering contract, hiện 250) -->
+    <div id="loader" class="fixed inset-0 flex flex-col items-center justify-center p-6 text-center">
         <div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4"
             style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div>
         <p id="loader-text" class="text-xs font-bold tracking-widest uppercase opacity-70"

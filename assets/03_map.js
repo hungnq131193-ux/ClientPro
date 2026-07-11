@@ -181,8 +181,9 @@ async function getCurrentGPS() {
     __gpsBusy = true;
 
     // Không dùng global loader: nút GPS nằm trong #asset-modal (không thể đóng khi
-    // đang nhập form) nên #loader sẽ bị modal che. Báo trạng thái tại chỗ: spinner
-    // trên nút + message qua placeholder của ô tọa độ.
+    // đang nhập form) — che cả form bằng loader toàn màn hình là sai UX cho một
+    // thao tác cục bộ. Báo trạng thái tại chỗ: spinner trên nút + message qua
+    // placeholder của ô tọa độ.
     const gpsBtn = document.querySelector('[data-action="getCurrentGPS"]');
     const inputLink = getEl('asset-link');
     const origPlaceholder = inputLink ? inputLink.placeholder : "";

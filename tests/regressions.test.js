@@ -92,6 +92,19 @@ test('B8: các nhánh xóa phải promisify transaction (onerror/onabort) và kh
   }
 });
 
+test('A1: onStart (touchstart) không được preventDefault — chỉ claim gesture trong onMove', () => {
+  const src = read('assets/11_edge_back_swipe.js');
+  const start = fnBody(src, 'onStart');
+  assert.ok(!/preventDefault/.test(start),
+    'touchstart chỉ ghi nhận candidate; preventDefault sớm giết synthetic click ở dải mép');
+  const move = fnBody(src, 'onMove');
+  assert.ok(/horizontal\s*&&\s*e\.cancelable[\s\S]{0,40}preventDefault/.test(move),
+    'preventDefault chỉ sau khi gesture được claim (horizontal) và event cancelable');
+  assert.ok(/cp-swipe-noselect/.test(move), 'Khi claim phải chặn text selection');
+  const end = fnBody(src, 'onEnd');
+  assert.ok(/clearSwipeNoselect/.test(end), 'onEnd phải gỡ chặn text selection');
+});
+
 test('B9: openCustomerList phải xóa ô tìm kiếm và hủy debounce đang chờ', () => {
   const cust = read('assets/05_customers.js');
   const body = fnBody(cust, 'openCustomerList');
