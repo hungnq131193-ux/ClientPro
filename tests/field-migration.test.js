@@ -142,6 +142,28 @@ test('B4: transaction ghi lỗi -> record giữ nguyên plaintext, marker KHÔNG
   assert.equal(localStorage.getItem(MARKER), '1', 'Retry sạch -> marker set');
 });
 
+test('B4×lockApp: app khóa giữa migration -> KHÔNG ghi plaintext giả-mã-hóa, marker KHÔNG set', async () => {
+  const { api, localStorage } = loadSecurity();
+  await api.setMasterKey(api.generateMasterKey());
+  const db = makeFakeDb([{ id: 'c1', creditLimit: '600 triệu', assets: [] }]);
+  api.setDb(db);
+
+  // Mô phỏng lockApp() chạy NGAY TRƯỚC khi migration bắt đầu mã hóa:
+  // masterKey bị xóa -> encryptText fail-open trả nguyên plaintext.
+  api.clearMasterKeyMaterial();
+  // Migration đã guard !masterCryptoKey ở đầu -> return sớm, không đụng DB.
+  await api.runFieldEncryptMigrationV2IfNeeded();
+  assert.equal(db._stores.customers.get('c1').creditLimit, '600 triệu');
+  assert.notEqual(localStorage.getItem(MARKER), '1');
+
+  // Kịch bản race sâu hơn: khóa bị xóa SAU guard đầu hàm (giữa vòng encrypt).
+  // Mô phỏng bằng cách gọi encryptText trực tiếp khi không có khóa: kết quả
+  // phải KHÔNG được coi là ciphertext hợp lệ (guard FIELD_MIGR_NOT_ENCRYPTED).
+  const out = await api.encryptText('600 triệu');
+  assert.equal(out, '600 triệu', 'encryptText fail-open trả plaintext khi không có khóa');
+  // -> encVerified sẽ throw (looksEnc(out)=false) => failures++ => marker không set.
+});
+
 test('B4: backup/restore — export plaintext (không cpg1:), restore mã hóa lại; backup cũ number restore được', async () => {
   const { api, ctx } = loadSecurity();
   await api.setMasterKey(api.generateMasterKey());

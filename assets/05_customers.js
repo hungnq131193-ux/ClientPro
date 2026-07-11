@@ -1140,7 +1140,13 @@ async function _encryptCreditLimitForWrite(v) {
     const s = (v === undefined || v === null) ? '' : String(v);
     if (!s) return '';
     if (typeof _looksEncrypted === 'function' && _looksEncrypted(s)) return s;
-    return await encryptText(s);
+    const out = await encryptText(s);
+    // encryptText fail-open khi app bị khóa giữa chừng (trả nguyên plaintext) —
+    // không được ghi plaintext xuống DB; throw để caller báo lỗi và dừng.
+    if (typeof _looksEncrypted === 'function' && !_looksEncrypted(out)) {
+        throw new Error('ENCRYPT_UNAVAILABLE');
+    }
+    return out;
 }
 async function confirmApproval() {
     const l = getEl('approve-limit').value;

@@ -540,6 +540,10 @@ async function runFieldEncryptMigrationV2IfNeeded() {
   const encVerified = async (v) => {
     const s = String(v);
     const enc = await encryptText(s); // throw nếu input giống ciphertext (chống double-encrypt)
+    // Race lockApp giữa migration: masterKey bị xóa -> encryptText trả NGUYÊN
+    // plaintext (fail-open) và verify plaintext==plaintext vẫn "pass" -> record
+    // sẽ bị ghi plaintext + marker set sai. Bắt buộc kết quả phải là ciphertext.
+    if (!looksEnc(enc)) throw new Error("FIELD_MIGR_NOT_ENCRYPTED");
     const back = await decryptFieldAsync(enc);
     if (back !== s) throw new Error("FIELD_MIGR_VERIFY_MISMATCH");
     return enc;
