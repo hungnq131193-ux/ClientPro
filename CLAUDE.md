@@ -6,8 +6,8 @@
 
 ClientPro là PWA mobile-first quản lý khách hàng và tài sản bảo đảm. Ứng dụng dùng vanilla JavaScript, HTML và CSS thuần; không framework, không bước build và không backend ứng dụng riêng. Dữ liệu nghiệp vụ nằm trên thiết bị, được mã hóa, hoạt động offline qua Service Worker và chỉ rời thiết bị khi người dùng chủ động dùng Google Drive/Google Apps Script.
 
-- Phiên bản: `1.6.3`
-- Cache-buster asset: `V163_20260711`
+- Phiên bản: `1.6.4`
+- Cache-buster asset: `V164_20260711`
 - Demo: https://client-pro-beryl.vercel.app
 - Database: IndexedDB `QLKH_Pro_V4`, schema version `5`
 - Runtime dependency: toàn bộ thư viện, font và icon được self-host trong `assets/`
@@ -218,6 +218,7 @@ Test chính:
 
 ## 9. Trạng thái hiện tại
 
+- `v1.6.4` — GPS trong form TSBĐ bỏ global loader (bị `#asset-modal` che do `#loader` z-index 200): dùng `LoadingManager.showButtonLoading()` trên nút GPS + message trạng thái qua placeholder `#asset-link` (khôi phục trong `finally`); `confirmEnable()` sinh trắc học bọc `enable(pin)` trong `try/catch/finally` để nút không kẹt "Đang xác thực..." khi throw; `.customer-name-line` đổi `display:flex` → `display:block` để `text-overflow:ellipsis` hiện "..." với tên dài.
 - `v1.6.3` — đóng Backup Manager trước loader khi nhập `.cpb` (`restoreData`) và nhận/khôi phục inbox (`acceptAndRestoreById`); backup trong máy bỏ global loader khi modal đang mở; guide tọa độ lên `z-[300]` (trên form TSBĐ) và sửa copy "nút Đỏ"; overlay cảnh báo trùng SĐT/CCCD lên `z-[300]`; danh sách KH thay card cũ bằng "Đang tải..." khi đổi tab/tìm kiếm; tắt loader trước overlay chọn người nhận khi gửi KH; thêm `?v=` cho Tailwind + app.patch.css; Việt hóa copy (Khôi phục, Đang tải..., Ủng hộ, Lên Drive, Chưa có tọa độ, Sao lưu ngay, KHÔNG CÓ ẢNH).
 - `v1.6.2` — restore Google Drive đóng `#backup-manager-modal` ngay trước khi gọi global loader trong `restoreFromDriveBackup(fileId)`.
 - `v1.6.1` — restore backup trong máy đóng `#backup-manager-modal` ngay trước khi gọi global loader trong `_doRestoreBackupFromApp(id)`. Không đổi z-index hoặc `LoadingManager`.
