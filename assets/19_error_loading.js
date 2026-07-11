@@ -386,7 +386,7 @@
   // ----------------------------------------------------------
   const LoadingManager = {
     _globalCount: 0,
-    _originalLoaderText: 'Loading...',
+    _originalLoaderText: 'Đang tải...',
 
     // Global overlay — tái sử dụng #loader sẵn có (spinner + #loader-text).
     showGlobal(message) {

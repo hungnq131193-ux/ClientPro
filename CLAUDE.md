@@ -6,8 +6,8 @@
 
 ClientPro là PWA mobile-first quản lý khách hàng và tài sản bảo đảm. Ứng dụng dùng vanilla JavaScript, HTML và CSS thuần; không framework, không bước build và không backend ứng dụng riêng. Dữ liệu nghiệp vụ nằm trên thiết bị, được mã hóa, hoạt động offline qua Service Worker và chỉ rời thiết bị khi người dùng chủ động dùng Google Drive/Google Apps Script.
 
-- Phiên bản: `1.6.2`
-- Cache-buster asset: `V160_20260710`
+- Phiên bản: `1.6.3`
+- Cache-buster asset: `V163_20260711`
 - Demo: https://client-pro-beryl.vercel.app
 - Database: IndexedDB `QLKH_Pro_V4`, schema version `5`
 - Runtime dependency: toàn bộ thư viện, font và icon được self-host trong `assets/`
@@ -145,7 +145,7 @@ kiểm tra unlock/masterKey + KDATA
 
 Restore là upsert, không xóa sạch database hiện tại. `safeEncrypt()` trong BackupCore cố giải mã ciphertext lọt vào backup cũ; nếu không thể thì giữ nguyên ciphertext theo quy tắc bảo toàn dữ liệu.
 
-Restore trong máy (v1.6.1) và restore Google Drive (v1.6.2) đều phải đóng Backup Manager **trước** global loader để loader không bị business modal che. Lệnh `closeBackupManager()` sau restore trong máy thành công vẫn được giữ và là no-op an toàn. Không sửa z-index toàn cục hoặc `LoadingManager` cho trường hợp này.
+Restore trong máy (v1.6.1), restore Google Drive (v1.6.2), nhập file `.cpb` và nhận/khôi phục inbox (v1.6.3) đều phải đóng Backup Manager **trước** global loader để loader không bị business modal che. Lệnh `closeBackupManager()` sau restore trong máy thành công vẫn được giữ và là no-op an toàn. Riêng backup trong máy khi Backup Manager đang mở (v1.6.3) thì **bỏ** global loader (cùng z-index nên bị che) và giữ modal mở để danh sách backup được refresh. Không sửa z-index toàn cục hoặc `LoadingManager` cho trường hợp này.
 
 ### Drive và Cloud Transfer
 
@@ -218,7 +218,8 @@ Test chính:
 
 ## 9. Trạng thái hiện tại
 
+- `v1.6.3` — đóng Backup Manager trước loader khi nhập `.cpb` (`restoreData`) và nhận/khôi phục inbox (`acceptAndRestoreById`); backup trong máy bỏ global loader khi modal đang mở; guide tọa độ lên `z-[300]` (trên form TSBĐ) và sửa copy "nút Đỏ"; overlay cảnh báo trùng SĐT/CCCD lên `z-[300]`; danh sách KH thay card cũ bằng "Đang tải..." khi đổi tab/tìm kiếm; tắt loader trước overlay chọn người nhận khi gửi KH; thêm `?v=` cho Tailwind + app.patch.css; Việt hóa copy (Khôi phục, Đang tải..., Ủng hộ, Lên Drive, Chưa có tọa độ, Sao lưu ngay, KHÔNG CÓ ẢNH).
 - `v1.6.2` — restore Google Drive đóng `#backup-manager-modal` ngay trước khi gọi global loader trong `restoreFromDriveBackup(fileId)`.
 - `v1.6.1` — restore backup trong máy đóng `#backup-manager-modal` ngay trước khi gọi global loader trong `_doRestoreBackupFromApp(id)`. Không đổi z-index hoặc `LoadingManager`.
 - `v1.6.0` — BackupCore export đã dùng async decrypt thật để tránh ciphertext `cpg1:` lọt vào backup khi cold cache; restore bảo toàn ciphertext cũ không giải mã được. Các flow async quan trọng đã áp dụng snapshot + sequence token/single-flight.
-- Mốc tài liệu: 2026-07-10 (ICT).
+- Mốc tài liệu: 2026-07-11 (ICT).

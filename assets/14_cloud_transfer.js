@@ -538,7 +538,7 @@
       const acceptBtn = document.createElement('button');
       acceptBtn.className = 'px-3 py-2 rounded-xl text-xs font-bold';
       acceptBtn.style.cssText = 'background: rgba(16,185,129,0.15); color: #34d399;';
-      acceptBtn.textContent = 'Nhận & Restore';
+      acceptBtn.textContent = 'Nhận & Khôi phục';
       acceptBtn.addEventListener('click', () => CloudTransferUI.acceptAndRestore(id));
       const dismissBtn = document.createElement('button');
       dismissBtn.className = 'px-3 py-2 rounded-xl text-xs font-bold';
@@ -630,11 +630,11 @@
         ]),
         el('div', { className: 'flex-1 min-w-0' }, [
           el('div', { className: 'font-extrabold', style: 'color: var(--text-main)' }, ['Bạn đã nhận được bản ghi từ ', fromEl]),
-          el('div', { className: 'text-[11px] opacity-70 mt-1', style: 'color: var(--text-sub)' }, ['Tệp: ', fileEl, '. Bấm “Nhận & Restore” để nhập dữ liệu.']),
+          el('div', { className: 'text-[11px] opacity-70 mt-1', style: 'color: var(--text-sub)' }, ['Tệp: ', fileEl, '. Bấm “Nhận & Khôi phục” để nhập dữ liệu.']),
         ]),
       ]),
       el('div', { className: 'flex gap-3 mt-4' }, [
-        el('button', { type: 'button', className: 'flex-1 py-3 rounded-xl font-extrabold', style: 'background: rgba(16,185,129,0.20); color: #34d399; border: 1px solid rgba(16,185,129,0.35)', dataset: { act: 'accept' }, text: 'Nhận & Restore' }),
+        el('button', { type: 'button', className: 'flex-1 py-3 rounded-xl font-extrabold', style: 'background: rgba(16,185,129,0.20); color: #34d399; border: 1px solid rgba(16,185,129,0.35)', dataset: { act: 'accept' }, text: 'Nhận & Khôi phục' }),
         el('button', { type: 'button', className: 'flex-1 py-3 rounded-xl font-bold', style: 'background: rgba(255,255,255,0.06); color: var(--text-main); border: 1px solid rgba(255,255,255,0.12)', dataset: { act: 'later' }, text: 'Để sau' }),
       ]),
     ]));
@@ -667,7 +667,11 @@
     }
 
     // Confirm and show loader
-    if (!(await ErrorHandler.confirm('Nhận và Restore bản ghi này?', { title: 'Nhận dữ liệu', confirmText: 'Nhận & Restore' }))) return;
+    if (!(await ErrorHandler.confirm('Nhận và khôi phục bản ghi này?', { title: 'Nhận dữ liệu', confirmText: 'Nhận & Khôi phục' }))) return;
+
+    // Đóng Backup Manager TRƯỚC khi hiện loader (flow này còn được gọi từ tab
+    // "Nhận từ user" trong modal) — #loader cùng z-index với modal nên bị che.
+    if (typeof closeBackupManager === 'function') closeBackupManager();
 
     const loader = document.getElementById('loader');
     const loaderText = document.getElementById('loader-text');
@@ -681,7 +685,7 @@
     if (loaderText) loaderText.textContent = 'Đang tải bản ghi...';
     const dl = await downloadInboxItem(transferId);
 
-    if (loaderText) loaderText.textContent = 'Đang restore...';
+    if (loaderText) loaderText.textContent = 'Đang khôi phục...';
 
     // Bản nhận được mã hóa bằng "khóa chuyển" của CHÍNH MÌNH (không phải khóa cá nhân),
     // nên phải lấy transfer key của mình để giải mã.
