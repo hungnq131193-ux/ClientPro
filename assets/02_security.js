@@ -518,6 +518,84 @@ async function runImageCryptoMigrationIfNeeded() {
   localStorage.setItem(IMG_SCHEMA_KEY, "1");
 }
 
+// ============================================================
+// Migration v1.0.0: mã hóa at-rest cho creditLimit (customer) và assets[].name —
+// hai trường trước đây chủ đích lưu plaintext. Idempotent + bảo toàn dữ liệu:
+// encrypt -> đọc lại xác minh -> mới đưa vào batch ghi; record lỗi GIỮ NGUYÊN
+// (không ghi đè, không dừng cả migration); marker chỉ set khi 100% sạch —
+// lần unlock sau tự retry phần còn lại. Chỉ chạy sau unlock (cần masterCryptoKey).
+// ============================================================
+const FIELD_ENCRYPT_V2_KEY = "app_field_encrypt_v2_done";
+
+async function runFieldEncryptMigrationV2IfNeeded() {
+  if (localStorage.getItem(FIELD_ENCRYPT_V2_KEY) === "1") return;
+  if (!masterCryptoKey || typeof db === "undefined" || !db) return;
+
+  const looksEnc = (v) => (typeof _looksEncrypted === "function")
+    ? _looksEncrypted(v)
+    : (typeof v === "string" && (v.startsWith("U2FsdGVk") || v.startsWith(GCM_PREFIX)));
+  const needsEncrypt = (v) => (typeof v === "number") || (typeof v === "string" && v !== "" && !looksEnc(v));
+
+  // Mã hóa + xác minh NGOÀI transaction (không await giữa transaction IndexedDB).
+  const encVerified = async (v) => {
+    const s = String(v);
+    const enc = await encryptText(s); // throw nếu input giống ciphertext (chống double-encrypt)
+    const back = await decryptFieldAsync(enc);
+    if (back !== s) throw new Error("FIELD_MIGR_VERIFY_MISMATCH");
+    return enc;
+  };
+
+  const all = await new Promise((resolve) => {
+    try {
+      const req = db.transaction(["customers"], "readonly").objectStore("customers").getAll();
+      req.onsuccess = (e) => resolve(e.target.result || []);
+      req.onerror = () => resolve([]);
+    } catch (e) { resolve([]); }
+  });
+
+  let failures = 0;
+  const updated = [];
+  for (const c of all) {
+    if (!c || !c.id) continue;
+    try {
+      const next = JSON.parse(JSON.stringify(c));
+      let changed = false;
+      if (needsEncrypt(next.creditLimit)) { next.creditLimit = await encVerified(next.creditLimit); changed = true; }
+      if (Array.isArray(next.assets)) {
+        for (const a of next.assets) {
+          if (a && needsEncrypt(a.name)) { a.name = await encVerified(a.name); changed = true; }
+        }
+      }
+      if (changed) updated.push(next);
+    } catch (e) {
+      failures++;
+    }
+  }
+
+  if (updated.length) {
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(["customers"], "readwrite");
+        const store = tx.objectStore("customers");
+        updated.forEach((c) => store.put(c));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error("FIELD_MIGR_TX_ERROR"));
+        tx.onabort = () => reject(tx.error || new Error("FIELD_MIGR_TX_ABORT"));
+      });
+    } catch (e) {
+      failures++;
+    }
+  }
+
+  if (failures === 0) {
+    localStorage.setItem(FIELD_ENCRYPT_V2_KEY, "1");
+  } else {
+    try {
+      ErrorHandler.showWarning(`Mã hóa bổ sung chưa hoàn tất cho ${failures} bản ghi — sẽ tự thử lại ở lần mở khóa sau.`);
+    } catch (e) {}
+  }
+}
+
 function _setUnlockLoading(on, msg) {
   const panel = getEl("pin-unlock-loading");
   const keypad = getEl("pin-keypad");
@@ -547,6 +625,11 @@ async function completeUnlockDataLoad(pinForMigration, empForMigration) {
       await runImageCryptoMigrationIfNeeded();
     } catch (e) {
       try { ErrorHandler.logError("image-crypto-migration", e); } catch (_) {}
+    }
+    try {
+      await runFieldEncryptMigrationV2IfNeeded();
+    } catch (e) {
+      try { ErrorHandler.logError("field-encrypt-migration-v2", e); } catch (_) {}
     }
     await primeFieldCache();
     // Seal KDATA nhận được lúc còn khóa (AuthGate preflight) TRƯỚC khi phát
@@ -595,7 +678,7 @@ async function _reencryptRecord(c) {
   const decLegacy = (v) => (typeof v === "string" && v.startsWith("U2FsdGVk"))
     ? (CryptoJS.AES.decrypt(v, masterKeyLegacy).toString(CryptoJS.enc.Utf8) || "") : v;
   const conv = async (v) => (typeof v === "string" && v.startsWith("U2FsdGVk")) ? await _gcmEncryptField(decLegacy(v)) : v;
-  for (const k of ["name", "phone", "cccd", "notes", "driveLink"]) if (c[k] !== undefined) c[k] = await conv(c[k]);
+  for (const k of ["name", "phone", "cccd", "notes", "creditLimit", "driveLink"]) if (c[k] !== undefined) c[k] = await conv(c[k]);
   if (Array.isArray(c.assets)) for (const a of c.assets) {
     for (const k of ["name", "link", "valuation", "loanValue", "area", "width", "onland", "year", "driveLink"]) if (a[k] !== undefined) a[k] = await conv(a[k]);
   }
@@ -870,6 +953,11 @@ function decryptCustomerObject(cust) {
   cust.phone = decryptText(cust.phone);
   // Giải mã thêm trường CCCD/CMND nếu tồn tại
   cust.cccd = decryptText(cust.cccd);
+  // v1.0.0: creditLimit mã hóa at rest — chỉ decrypt khi là string
+  // (record rất cũ có thể lưu number plaintext, giữ nguyên để migration xử lý).
+  if (typeof cust.creditLimit === "string" && cust.creditLimit) {
+    cust.creditLimit = decryptText(cust.creditLimit);
+  }
   if (cust.assets && Array.isArray(cust.assets)) {
     cust.assets.forEach((a) => {
       a.name = decryptText(a.name);

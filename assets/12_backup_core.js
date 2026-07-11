@@ -68,6 +68,11 @@
       safeDecryptAsync(cust.cccd),
       safeDecryptAsync(cust.notes)
     ]);
+    // v1.0.0: creditLimit mã hóa at rest -> export plaintext (backup không được chứa
+    // ciphertext). Number legacy coerce sang string; rỗng giữ nguyên.
+    if (cust.creditLimit !== undefined && cust.creditLimit !== null && cust.creditLimit !== '') {
+      cust.creditLimit = await safeDecryptAsync(String(cust.creditLimit));
+    }
     cust.driveLink = null;
 
     if (cust.assets && Array.isArray(cust.assets)) {
@@ -91,6 +96,12 @@
     cust.phone = await safeEncrypt(cust.phone);
     cust.cccd = await safeEncrypt(cust.cccd);
     cust.notes = await safeEncrypt(cust.notes);
+    // v1.0.0: creditLimit mã hóa at rest. safeEncrypt xử lý cả plaintext trong
+    // backup cũ (kể cả number) lẫn ciphertext lọt vào backup (rule R3 giữ nguyên
+    // khi không giải mã được — không ghi đè rỗng).
+    if (cust.creditLimit !== undefined && cust.creditLimit !== null && cust.creditLimit !== '') {
+      cust.creditLimit = await safeEncrypt(String(cust.creditLimit));
+    }
 
     if (cust.assets && Array.isArray(cust.assets)) {
       const out = [];

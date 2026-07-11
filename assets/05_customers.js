@@ -600,7 +600,18 @@ function renderList(list, opts = {}) {
             el.querySelector('.customer-name-line').textContent = displayName;
             el.querySelector('.phone-value').textContent = displayPhone;
             const clValueEl = el.querySelector('.cl-value');
-            if (clValueEl) clValueEl.textContent = c.creditLimit || '0';
+            if (clValueEl) {
+                const rawCl = c.creditLimit;
+                if (typeof _looksEncrypted === 'function' && _looksEncrypted(rawCl)) {
+                    // Không bao giờ render ciphertext; decrypt async rồi cập nhật tại chỗ.
+                    clValueEl.textContent = '•••';
+                    if (typeof _displayPlainAsync === 'function') {
+                        _displayPlainAsync(rawCl, '•••').then((v) => { clValueEl.textContent = v; }).catch(() => { });
+                    }
+                } else {
+                    clValueEl.textContent = rawCl || '0';
+                }
+            }
 
             const zaloBtn = el.querySelector('[data-action="zalo"]');
             zaloBtn.setAttribute('href', getZaloLink(c.phone));
@@ -1120,15 +1131,33 @@ async function deleteAsset(idx) {
 
 async function toggleCustomerStatus() { if (currentCustomerData.status === 'pending') { getEl('approve-modal').classList.remove('hidden'); getEl('approve-limit').value = ''; } else { if (await ErrorHandler.confirm("Thu hồi trạng thái đã duyệt của khách hàng này?", { title: "Thu hồi trạng thái", danger: true, confirmText: "Thu hồi" })) { currentCustomerData.status = 'pending'; updateCustomerAndReload(); } } }
 function closeApproveModal() { getEl('approve-modal').classList.add('hidden'); }
-function confirmApproval() {
+// v1.0.0: creditLimit mã hóa at rest. Chuẩn bị giá trị ghi DB:
+// - rỗng -> '' (không mã hóa ô trống thành chuỗi loằng ngoằng);
+// - đã là ciphertext (giá trị đọc từ DB lúc cold-cache chưa giải mã được) -> GIỮ NGUYÊN
+//   (không double-encrypt, không ghi đè rỗng);
+// - còn lại -> encryptText (await TRƯỚC khi mở transaction — quy tắc #4).
+async function _encryptCreditLimitForWrite(v) {
+    const s = (v === undefined || v === null) ? '' : String(v);
+    if (!s) return '';
+    if (typeof _looksEncrypted === 'function' && _looksEncrypted(s)) return s;
+    return await encryptText(s);
+}
+async function confirmApproval() {
     const l = getEl('approve-limit').value;
     if (!l) return ErrorHandler.showError('VALIDATION', "Vui lòng nhập hạn mức.");
     const prevStatus = currentCustomerData.status;
     const prevLimit = currentCustomerData.creditLimit;
+    // Mã hóa TRƯỚC khi vào persist (mutator chạy trong transaction, không await được).
+    let encLimit;
+    try {
+        encLimit = await _encryptCreditLimitForWrite(l);
+    } catch (err) {
+        return ErrorHandler.showError('STORAGE', 'Không thể mã hóa hạn mức. Vui lòng thử lại.', err);
+    }
     currentCustomerData.status = 'approved';
-    currentCustomerData.creditLimit = l;
+    currentCustomerData.creditLimit = l; // view model plaintext trong RAM (app đã unlock)
     closeApproveModal();
-    persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = l; }, (ok) => {
+    persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = encLimit; }, (ok) => {
         if (!ok) {
             // Ghi DB thất bại: hoàn tác in-memory, báo lỗi thay vì báo "Đã duyệt".
             currentCustomerData.status = prevStatus;
@@ -1141,8 +1170,16 @@ function confirmApproval() {
         loadCustomers(getEl('search-input').value);
     });
 }
-function updateCustomerAndReload() {
-    persistCurrentCustomer((rec) => { rec.status = currentCustomerData.status; rec.creditLimit = currentCustomerData.creditLimit; }, (ok) => {
+async function updateCustomerAndReload() {
+    // currentCustomerData.creditLimit là plaintext trong RAM (đã decrypt ở openFolder)
+    // -> phải mã hóa lại trước khi ghi; giá trị còn là ciphertext (cold-cache) giữ nguyên.
+    let encLimit;
+    try {
+        encLimit = await _encryptCreditLimitForWrite(currentCustomerData.creditLimit);
+    } catch (err) {
+        return ErrorHandler.showError('STORAGE', 'Không thể mã hóa hạn mức. Vui lòng thử lại.', err);
+    }
+    persistCurrentCustomer((rec) => { rec.status = currentCustomerData.status; rec.creditLimit = encLimit; }, (ok) => {
         if (!ok) {
             ErrorHandler.showError('STORAGE', 'Cập nhật trạng thái thất bại — dữ liệu CHƯA được lưu. Vui lòng thử lại.');
         }
@@ -1179,7 +1216,18 @@ function renderFolderHeader(data) {
         badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10";
         badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span class="badge-value"></span>`;
         const bv = badge.querySelector('.badge-value');
-        if (bv) bv.textContent = data.creditLimit;
+        if (bv) {
+            const rawLimit = data.creditLimit;
+            if (typeof _looksEncrypted === 'function' && _looksEncrypted(rawLimit)) {
+                // Cold-cache: không render ciphertext — hiện tạm rồi decrypt async cập nhật.
+                bv.textContent = '•••';
+                if (typeof _displayPlainAsync === 'function') {
+                    _displayPlainAsync(rawLimit, '•••').then((v) => { bv.textContent = v; }).catch(() => { });
+                }
+            } else {
+                bv.textContent = rawLimit;
+            }
+        }
     } else {
         badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
         badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`;

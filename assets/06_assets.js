@@ -225,12 +225,6 @@ function renderAssets() {
     return s;
   }
 
-  // MIGRATION (backward compatibility):
-  // Older app builds stored asset.name as CryptoJS ciphertext (starts with "U2FsdGVkX1").
-  // This breaks Drive folder reconnect for TSBĐ because the folderName becomes encrypted.
-  // We opportunistically migrate asset.name -> plaintext when we can decrypt it.
-  let _needSaveMigration = false;
-
   if (assets.length === 0) {
     list.innerHTML = `<div class="text-center py-20 text-slate-500"><i data-lucide="building" class="w-10 h-10 mx-auto mb-2 opacity-20"></i><p class="text-sm">Chưa có tài sản</p></div>`;
     lucide.createIcons();
@@ -250,18 +244,9 @@ function renderAssets() {
       : (_deepDecryptLabel(asset.name) || '');
     const _plain = (v, fb) => (typeof _displayPlain === 'function') ? _displayPlain(v, fb) : (decryptText(v) || fb || '');
 
-    // If name is still ciphertext (legacy CryptoJS hoặc đã migrate sang "cpg1:") nhưng
-    // decryptText() giải mã thành công ra plaintext, persist lại dạng plaintext.
-    // This is safe because asset.name is a display label (not used in cryptographic logic).
-    try {
-      if (typeof asset.name === "string" && _looksEncrypted(asset.name)) {
-        const dd = _deepDecryptLabel(asset.name);
-        if (dd && dd !== asset.name && !_looksEncrypted(dd)) {
-          asset.name = dd;
-          _needSaveMigration = true;
-        }
-      }
-    } catch (e) { }
+    // v1.0.0: asset.name mã hóa at rest — KHÔNG còn migration ngược về plaintext
+    // (trước đây renderAssets ghi plaintext trở lại DB). Cold-cache hiển thị
+    // fallback rồi decrypt async cập nhật tại chỗ (xem cuối vòng lặp).
     const decLink = _plain(asset.link, '');
     const decVal = _plain(asset.valuation, '');
     const decLoan = _plain(asset.loanValue, '');
@@ -291,7 +276,13 @@ function renderAssets() {
 
     el.innerHTML = ` <div class="flex justify-between items-start mb-1"> <div class="flex gap-3 items-center"> <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-white/10"><i data-lucide="map-pin" class="w-5 h-5"></i></div> <div><h4 class="font-bold text-white text-sm line-clamp-1 asset-name"></h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div> </div> <div class="flex gap-1"> <button data-asset-action="edit" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button> <button data-asset-action="delete" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button> </div> </div> ${onlandInfo} <div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"> <span>ĐG: <b class="text-emerald-400 text-sm asset-val"></b></span> <span>Vay: <b class="text-blue-400 text-sm asset-loan"></b></span> </div> <div class="flex gap-2"> ${mapBtn} <button data-asset-action="reference" class="glass-btn flex-1 py-2.5 text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button> </div> <button data-asset-action="gallery" class="glass-btn w-full py-2.5 text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white mt-1"><i data-lucide="image" class="w-3 h-3"></i> Kho Ảnh TSBĐ</button>`;
 
-    el.querySelector('.asset-name').textContent = decName;
+    const nameEl = el.querySelector('.asset-name');
+    nameEl.textContent = decName;
+    // Cold-cache: decName là fallback 'Đang tải...' -> decrypt async rồi cập nhật tại chỗ.
+    if (typeof _looksEncrypted === 'function' && _looksEncrypted(asset.name)
+      && typeof _displayPlainAsync === 'function') {
+      _displayPlainAsync(asset.name, decName).then((v) => { nameEl.textContent = v; }).catch(() => { });
+    }
     el.querySelector('.asset-val').textContent = decVal || "-";
     el.querySelector('.asset-loan').textContent = decLoan || "-";
     const areaEl = el.querySelector('.asset-area');
@@ -316,19 +307,6 @@ function renderAssets() {
     list.appendChild(el);
   });
   lucide.createIcons();
-
-  // Persist migration once per render to avoid many DB writes.
-  if (_needSaveMigration) {
-    try {
-      // Debounce lightly so UI remains smooth.
-      clearTimeout(window.__assetNameMigrationTimer);
-      window.__assetNameMigrationTimer = setTimeout(() => {
-        try {
-          persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; });
-        } catch (e) { }
-      }, 80);
-    } catch (e) { }
-  }
 }
 // Legacy asset gallery functions removed; canonical implementations live in assets/08_images_camera.js.
 
@@ -429,8 +407,8 @@ async function openEditAssetModal(index) {
 window.decryptCustomerAssetsAsync = async function decryptCustomerAssetsAsync(customer, opts) {
   if (!customer || !Array.isArray(customer.assets) || typeof decryptFieldAsync !== "function") return;
   const batchSize = (opts && opts.batchSize) || 6;
-  // "name" thường là plaintext (xem _doSaveAsset) nhưng bản ghi cũ có thể vẫn là ciphertext
-  // (legacy hoặc đã migrate sang "cpg1:") -> phải nạp cache cho nó, không chỉ các field TSBĐ khác.
+  // v1.0.0: "name" mã hóa at rest như các field khác (bản ghi rất cũ có thể còn
+  // plaintext trước khi migration chạy — decryptFieldAsync chấp nhận cả hai).
   const fields = ["name", "link", "valuation", "loanValue", "area", "width", "onland", "year"];
   for (let i = 0; i < customer.assets.length; i += batchSize) {
     const batch = customer.assets.slice(i, i + batchSize);
@@ -502,13 +480,12 @@ async function _doSaveAsset() {
 
   if (!currentCustomerData.assets) currentCustomerData.assets = [];
 
-  // --- FIX: KHÔNG MÃ HÓA TÊN TSBĐ (name) ---
-  // Tương thích dữ liệu cũ:
-  // - dữ liệu cũ: asset.name là ciphertext -> các chỗ render vẫn gọi decryptText(asset.name)
-  // - dữ liệu mới: asset.name là plaintext -> decryptText() sẽ fallback (hoặc trả nguyên bản) và UI vẫn hiển thị đúng
+  // v1.0.0: tên TSBĐ mã hóa at rest như mọi field khác (đảo quyết định
+  // "KHÔNG MÃ HÓA TÊN TSBĐ" cũ). Đường đọc chấp nhận cả plaintext legacy lẫn
+  // ciphertext; Drive folder name decrypt async trước khi ghép (07_drive.js).
   // Mã hóa TRƯỚC khi persist (persistCurrentCustomer mở transaction, không await bên trong).
   const assetObj = {
-    name: name,
+    name: await enc(name, prev && prev.name),
     link: await enc(link, prev && prev.link),
     valuation: await enc(getEl("asset-val").value, prev && prev.valuation),
     loanValue: await enc(getEl("asset-loan").value, prev && prev.loanValue),

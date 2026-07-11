@@ -146,3 +146,72 @@ test('B9/B8: mở lại danh sách reset tìm kiếm; xóa KH không reload, dan
   }));
   expect(total).toBe(0);
 });
+
+// B4: duyệt hạn mức qua UI -> IndexedDB lưu creditLimit mã hóa (cpg1:) nhưng
+// badge hiển thị plaintext; thêm TSBĐ -> asset.name mã hóa at rest.
+test('B4: creditLimit + asset.name mã hóa at rest, UI hiển thị plaintext', async ({ page }) => {
+  await page.addInitScript((env) => {
+    localStorage.setItem('app_activated', 'true');
+    localStorage.setItem('app_employee_id', 'TEST');
+    localStorage.setItem('app_pin', env);
+    localStorage.setItem('app_crypto_schema_v', '2');
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 1, completedAt: Date.now() }));
+    const o = sessionStorage.getItem.bind(sessionStorage);
+    sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
+  }, PIN_ENVELOPE);
+
+  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+
+  // Tạo khách hàng -> app tự mở màn hồ sơ.
+  await page.click('#btn-quick-add');
+  await page.waitForSelector('#add-modal', { state: 'visible' });
+  await page.fill('#new-name', 'KH B4 Test');
+  await page.fill('#new-phone', '0904444444');
+  await page.click('[data-action="saveCustomer"]');
+  await page.waitForSelector('#add-modal', { state: 'hidden', timeout: 10_000 });
+  await page.waitForFunction(() => !document.getElementById('screen-folder').classList.contains('translate-x-full'));
+
+  // Duyệt hạn mức qua UI.
+  await page.click('[data-action="toggleCustomerStatus"]');
+  await page.waitForSelector('#approve-modal', { state: 'visible' });
+  await page.fill('#approve-limit', '500 triệu');
+  await page.click('[data-action="confirmApproval"]');
+  await page.waitForSelector('#approve-modal', { state: 'hidden', timeout: 10_000 });
+
+  // Badge hiển thị plaintext hạn mức.
+  await expect(page.locator('#detail-status-badge .badge-value')).toHaveText('500 triệu', { timeout: 10_000 });
+
+  // Thêm một TSBĐ (nút nằm trong tab TSBĐ).
+  await page.click('#tab-btn-assets');
+  await page.click('[data-action="openAssetModal"]');
+  await page.waitForSelector('#asset-modal', { state: 'visible' });
+  await page.fill('#asset-name', 'Nhà đất B4 50m²');
+  await page.click('#btn-save-asset');
+  await page.waitForSelector('#asset-modal', { state: 'hidden', timeout: 10_000 });
+
+  // Tầng lưu trữ: creditLimit + asset.name phải là ciphertext cpg1:, decrypt lại đúng.
+  const res = await page.evaluate(async () => {
+    const all = await new Promise((r) => {
+      const rq = db.transaction(['customers']).objectStore('customers').getAll();
+      rq.onsuccess = (e) => r(e.target.result || []);
+      rq.onerror = () => r([]);
+    });
+    const c = all[0];
+    return {
+      limitEncrypted: String(c.creditLimit).startsWith('cpg1:'),
+      limitPlain: await decryptFieldAsync(c.creditLimit),
+      assetNameEncrypted: c.assets && c.assets[0] ? String(c.assets[0].name).startsWith('cpg1:') : null,
+      assetNamePlain: c.assets && c.assets[0] ? await decryptFieldAsync(c.assets[0].name) : null,
+    };
+  });
+  expect(res.limitEncrypted, 'creditLimit phải mã hóa at rest').toBeTruthy();
+  expect(res.limitPlain).toBe('500 triệu');
+  expect(res.assetNameEncrypted, 'asset.name phải mã hóa at rest').toBeTruthy();
+  expect(res.assetNamePlain).toBe('Nhà đất B4 50m²');
+
+  // UI danh sách TSBĐ hiển thị plaintext (không ciphertext, không kẹt fallback).
+  await expect(page.locator('#content-assets .asset-name').first()).toHaveText('Nhà đất B4 50m²');
+});
