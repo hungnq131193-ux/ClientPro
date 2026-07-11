@@ -123,6 +123,8 @@ function loadSecurity() {
       generateMasterKey,
       _installMasterKey,
       clearMasterKeyMaterial,
+      lockApp,
+      isAppUnlocked,
       _gcmEncryptField,
       _gcmDecryptField,
       primeFieldCache,

@@ -6,8 +6,8 @@
 
 ClientPro là PWA mobile-first quản lý khách hàng và tài sản bảo đảm. Ứng dụng dùng vanilla JavaScript, HTML và CSS thuần; không framework, không bước build và không backend ứng dụng riêng. Dữ liệu nghiệp vụ nằm trên thiết bị, được mã hóa, hoạt động offline qua Service Worker và chỉ rời thiết bị khi người dùng chủ động dùng Google Drive/Google Apps Script.
 
-- Phiên bản: `1.6.4`
-- Cache-buster asset: `V164_20260711`
+- Phiên bản: `1.6.5`
+- Cache-buster asset: `V165_20260711`
 - Demo: https://client-pro-beryl.vercel.app
 - Database: IndexedDB `QLKH_Pro_V4`, schema version `5`
 - Runtime dependency: toàn bộ thư viện, font và icon được self-host trong `assets/`
@@ -60,7 +60,7 @@ ui/load_modals
 |---|---|
 | `assets/00_globals.js` | Helper chung, state toàn cục, screen transition, guard hiển thị ciphertext, bảng `CLICK_ACTIONS`/`CHANGE_ACTIONS` |
 | `assets/01_config.js` | URL GAS, weather, donate, OSRM và các hằng số dùng chung |
-| `assets/02_security.js` | Master key, field/image cipher, PIN envelope, migration, backup envelope và security gate cục bộ |
+| `assets/02_security.js` | Master key, field/image cipher, PIN envelope, migration, backup envelope, security gate cục bộ và tự khóa khi ẩn app |
 | `assets/12_backup_core.js` | Nguồn chuẩn hóa duy nhất cho export/restore; decrypt thật khi export, re-encrypt khi restore |
 | `assets/15_auth_gate.js` | Preflight quyền thiết bị/tài khoản với Admin GAS |
 | `assets/03_map.js` | MapLibre, marker/cluster và khoảng cách đường OSRM |
@@ -88,6 +88,16 @@ ui/load_modals
 - WebAuthn PRF bảo vệ PIN, không thay thế luồng `validatePin()` và không bọc trực tiếp master key.
 - Dữ liệu legacy `U2FsdGVk...` dùng CryptoJS chỉ để đọc/migrate. Migration sang `cpg1:` là idempotent và resume-safe: stage khóa mới, migrate từng record, chỉ swap envelope sau khi hoàn tất.
 - Field mới dùng envelope `cpg1:` + base64url(`iv[12] || ciphertext || tag`). Ảnh data URL cũng được mã hóa at rest.
+
+### Tự khóa khi ẩn app (v1.6.5)
+
+Ẩn app (vuốt về màn hình chính/chuyển app) quá **15 giây** thì `lockApp()` trong `02_security.js` chạy: `clearMasterKeyMaterial()` xóa key + cache plaintext khỏi RAM rồi `showLockScreen()` đưa về màn hình PIN. Chi tiết phải giữ nguyên:
+
+- Trễ 15s là chủ đích, không giảm về 0: file picker nhập `.cpb`, share sheet, cấp quyền GPS và chuyển app nhanh đều làm trang tạm `hidden` trên mobile; khóa ngay sẽ phá các luồng đó.
+- Cơ chế kép: timer 15s chạy lúc nền (best-effort, re-check `document.hidden` + `isAppUnlocked()` trong callback) **và** kiểm tra bù khi `visibilitychange` → visible/`pageshow` (timer nền có thể bị throttle).
+- `lockApp()` là no-op khi chưa unlock hoặc chưa có `PIN_KEY` (đang setup/kích hoạt — không nhốt người dùng); `showLockScreen()` được bọc `try/catch` để chạy được trong test harness không có DOM.
+- Nếu khóa xảy ra lúc app còn ẩn, khi hiện lại sẽ nudge `BiometricUnlock.tryUnlock(true)` vì MutationObserver của sinh trắc học đã chạy lúc `hasFocus()=false` nên không tự prompt.
+- Đăng ký listener phải nằm sau guard `typeof document.addEventListener === "function"` — stub `document` của `tests/helpers/load-security.js` không có hàm này.
 
 ### Cold cache và fail-open
 
@@ -210,7 +220,7 @@ npm run check:version
 
 Test chính:
 
-- `tests/crypto.test.js`: field cipher, tamper, legacy, master key.
+- `tests/crypto.test.js`: field cipher, tamper, legacy, master key, `lockApp`.
 - `tests/backup.test.js`: `.cpb`, cold-cache export/restore và integrity.
 - `tests/data-integrity.test.js`, `tests/schema.test.js`: migration và data contract.
 - `tests/pwa.test.js`: Service Worker, precache và version.
@@ -218,6 +228,7 @@ Test chính:
 
 ## 9. Trạng thái hiện tại
 
+- `v1.6.5` — tự khóa khi ẩn app: `lockApp()` (clear key RAM + `showLockScreen()`) trong `02_security.js`, kích hoạt khi app ẩn ≥15s qua `visibilitychange`/`pageshow` (timer nền + kiểm tra bù khi hiện lại); nudge biometric khi khóa xảy ra lúc nền; listener có guard cho test harness; test `lockApp` trong `tests/crypto.test.js`.
 - `v1.6.4` — GPS trong form TSBĐ bỏ global loader (bị `#asset-modal` che do `#loader` z-index 200): dùng `LoadingManager.showButtonLoading()` trên nút GPS + message trạng thái qua placeholder `#asset-link` (khôi phục trong `finally`); `confirmEnable()` sinh trắc học bọc `enable(pin)` trong `try/catch/finally` để nút không kẹt "Đang xác thực..." khi throw; `.customer-name-line` đổi `display:flex` → `display:block` để `text-overflow:ellipsis` hiện "..." với tên dài.
 - `v1.6.3` — đóng Backup Manager trước loader khi nhập `.cpb` (`restoreData`) và nhận/khôi phục inbox (`acceptAndRestoreById`); backup trong máy bỏ global loader khi modal đang mở; guide tọa độ lên `z-[300]` (trên form TSBĐ) và sửa copy "nút Đỏ"; overlay cảnh báo trùng SĐT/CCCD lên `z-[300]`; danh sách KH thay card cũ bằng "Đang tải..." khi đổi tab/tìm kiếm; tắt loader trước overlay chọn người nhận khi gửi KH; thêm `?v=` cho Tailwind + app.patch.css; Việt hóa copy (Khôi phục, Đang tải..., Ủng hộ, Lên Drive, Chưa có tọa độ, Sao lưu ngay, KHÔNG CÓ ẢNH).
 - `v1.6.2` — restore Google Drive đóng `#backup-manager-modal` ngay trước khi gọi global loader trong `restoreFromDriveBackup(fileId)`.
