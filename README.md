@@ -1,189 +1,105 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0--hotfix.2-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
-[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
 **Demo:** https://client-pro-beryl.vercel.app
 
-ClientPro là PWA mobile-first để quản lý khách hàng và tài sản bảo đảm (TSBĐ), tối ưu cho Android Chrome và chế độ standalone. Ứng dụng viết bằng vanilla JavaScript — không framework, không bước build, không backend riêng. Dữ liệu nghiệp vụ nằm trên thiết bị, được mã hóa, hoạt động offline và chỉ rời thiết bị khi bạn chủ động dùng Google Drive/Google Apps Script.
-
-## Dành cho ai
-
-Cán bộ tín dụng, thẩm định hoặc bất kỳ ai cần quản lý hồ sơ khách hàng kèm tài sản bảo đảm ngay trên điện thoại: chụp ảnh hiện trạng, lưu tọa độ, tham khảo giá quanh vị trí, sao lưu và chia sẻ hồ sơ an toàn giữa các đồng nghiệp.
+ClientPro là PWA mobile-first quản lý khách hàng và tài sản bảo đảm trên điện thoại. Ứng dụng hoạt động offline, lưu dữ liệu nghiệp vụ trên thiết bị và kết nối Google Drive/Google Apps Script cho các tác vụ do người dùng chủ động thực hiện.
 
 ## Tính năng
 
-### Quản lý khách hàng
-- Danh sách theo trạng thái (đang thẩm định / đã vay), tìm kiếm tiếng Việt không dấu, gọi điện/Zalo một chạm.
-- Hồ sơ chi tiết: thông tin, ghi chú, hạn mức tín dụng (duyệt/thu hồi), chọn nhiều để xóa hoặc gửi cho user khác.
+- Quản lý khách hàng, trạng thái hồ sơ, ghi chú và hạn mức tín dụng.
+- Quản lý tài sản bảo đảm, định giá, mức vay, hiện trạng và tọa độ.
+- Chụp, lưu, xem, chọn, chia sẻ và tải ảnh lên Google Drive.
+- Bản đồ MapLibre GL, gom cụm điểm và khoảng cách đường bộ qua OSRM.
+- Backup Manager, file backup mã hóa .cpb, Drive backup và Cloud Transfer.
+- PWA standalone, app shell offline, PIN, sinh trắc học và tự khóa.
 
-### Tài sản bảo đảm
-- CRUD tài sản với mô tả, định giá, mức vay, diện tích, mặt tiền, năm, tài sản trên đất và tọa độ (link Google Maps hoặc GPS trực tiếp).
-- Tham khảo giá: tìm các TSBĐ khác quanh vị trí, khoảng cách theo đường bộ (OSRM) hoặc đường chim bay.
+## Bảo mật và dữ liệu
 
-### Ảnh và Google Drive
-- Chụp ảnh trong app hoặc chọn từ máy; ảnh được mã hóa trước khi lưu; gallery, lightbox, chia sẻ, chọn nhiều.
-- Tải ảnh hồ sơ/TSBĐ lên Google Drive cá nhân qua Google Apps Script của chính bạn; dọn ảnh gốc sau khi upload để tiết kiệm bộ nhớ.
+- Dữ liệu nghiệp vụ lưu trong IndexedDB trên thiết bị.
+- Field nhạy cảm và ảnh dùng AES-256-GCM qua WebCrypto.
+- Master key được niêm phong bằng PIN với PBKDF2-SHA256 và chỉ tồn tại trong RAM khi mở khóa.
+- KDATA cho backup chỉ lưu ở dạng niêm phong.
+- Thư viện và font được self-host; CSP giới hạn script về cùng nguồn.
+- Xóa dữ liệu trang web sẽ xóa IndexedDB; hãy duy trì backup định kỳ.
 
-### Bản đồ
-- MapLibre GL self-host + cluster marker; hai kiểu nền (tối/vệ tinh); khoảng cách tuyến đường qua OSRM.
-
-### Offline / PWA
-- Cài được lên màn hình chính; toàn bộ app shell, module, font và thư viện được precache — mở được hoàn toàn offline, không phụ thuộc HTTP cache của trình duyệt.
-- Cập nhật phiên bản an toàn: bản mới tự áp dụng ở lần mở app tiếp theo, **không bao giờ tự reload giữa phiên** làm mất nội dung đang nhập.
-
-### Backup / Restore
-- Backup nội bộ mã hóa (danh sách trong Backup Manager), xuất/nhập file `.cpb`.
-- Backup Google Drive thủ công + tự động hằng ngày (giữ tối đa 3 bản), khôi phục từ danh sách Drive.
-- Cloud Transfer: gửi hồ sơ/backup cho user khác qua hộp thư mã hóa riêng người nhận (tự hết hạn sau 24 giờ).
-
-## Bảo mật và quyền riêng tư
-
-- Dữ liệu lưu trong IndexedDB **trên thiết bị của bạn**; các trường nghiệp vụ (tên, SĐT, CCCD, ghi chú, hạn mức, thông tin TSBĐ) và ảnh được mã hóa AES-256-GCM (WebCrypto) bằng master key ngẫu nhiên 32 byte.
-- Master key được niêm phong bằng PIN 6 số (PBKDF2-SHA256 + AES-GCM) và chỉ tồn tại trong RAM khi app mở khóa; hỗ trợ mở khóa sinh trắc học (WebAuthn PRF).
-- Tự khóa khi ẩn app quá 15 giây: xóa khóa và cache dữ liệu khỏi RAM, yêu cầu PIN/sinh trắc học khi mở lại.
-- Mọi thao tác lưu (hồ sơ, tài sản, ghi chú) đều tự kiểm tra dữ liệu đã được mã hóa trước khi ghi xuống máy — nếu app vừa tự khóa đúng lúc đang lưu, thao tác dừng và báo lỗi thay vì lưu dữ liệu chưa mã hóa.
-- Khóa backup (KDATA) do máy chủ quản trị cấp **không lưu plaintext** trong trình duyệt — chỉ lưu bản đã niêm phong bằng master key.
-- CSP `script-src 'self'`, toàn bộ thư viện/font self-host, không CDN runtime.
-- Lưu ý trung thực: không hệ thống nào an toàn tuyệt đối. Ai có PIN của bạn sẽ mở được dữ liệu; hãy giữ PIN cẩn thận và sao lưu định kỳ.
-
-## Lưu ý an toàn dữ liệu khi backup/restore
-
-- Backup `.cpb` được mã hóa bằng KDATA (không phụ thuộc master key của máy), vì vậy **cần mạng và tài khoản được cấp quyền** khi tạo/khôi phục backup.
-- Restore là **upsert** (ghi đè theo ID, không xóa dữ liệu hiện có) và mọi trường được mã hóa lại bằng khóa của thiết bị đích.
-- Backup tạo từ các phiên bản cũ (kể cả hạn mức lưu dạng số) vẫn khôi phục được trên phiên bản hiện tại.
-- Nếu app tự khóa đúng lúc đang đóng gói backup, quá trình sẽ dừng và báo lỗi — không bao giờ âm thầm tạo bản backup hỏng.
-- Xóa app / xóa dữ liệu trang web sẽ xóa toàn bộ IndexedDB — hãy chắc chắn đã có backup trước.
-
-## Tech stack
+## Công nghệ
 
 | Phần | Công nghệ |
 |---|---|
-| Frontend | Vanilla JavaScript ES6+, HTML5, CSS3 |
-| Storage | IndexedDB + localStorage |
-| Encryption | WebCrypto AES-256-GCM, PBKDF2-SHA256; CryptoJS chỉ cho legacy |
+| Frontend | Vanilla JavaScript, HTML5, CSS3 |
+| Storage | IndexedDB, localStorage |
+| Encryption | WebCrypto AES-256-GCM, PBKDF2-SHA256 |
 | Biometrics | WebAuthn PRF |
-| Map | MapLibre GL + supercluster + OSRM |
-| PWA | Service Worker + Web App Manifest |
-| Cloud | Google Drive + Google Apps Script |
+| Map | MapLibre GL, Supercluster, OSRM |
+| PWA | Service Worker, Web App Manifest |
+| Cloud | Google Drive, Google Apps Script |
 | Hosting | Vercel static |
 | Tests | Node test runner, Playwright, axe, Lighthouse CI |
 
 ## Cấu trúc
 
-```text
-index.html                  App shell và thứ tự load module
-assets/00…19_*.js           Module vanilla JS đánh số theo tầng phụ thuộc
-assets/ui/modals/           HTML fragment của modal
-assets/vendor/, fonts/      Dependency self-host
-assets/12_backup_core.js    Chuẩn hóa export/restore
-assets/09_backup_manager.js Backup Manager và restore `.cpb`
-sw.js, assets/pwa.js        Offline cache và cập nhật PWA
-gas/                        Admin GAS và User Drive GAS
-tests/, e2e/                Test unit/integration và trình duyệt
-CLAUDE.md                   Kiến trúc, quy tắc security và pattern async
-```
-
-Thứ tự thực thi nằm trong `index.html`; số file chỉ mô tả tầng phụ thuộc. Xem [`CLAUDE.md`](CLAUDE.md) trước khi sửa code liên quan encryption, backup/restore hoặc async state.
-
-## Cài PWA trên Android
-
-1. Mở https://client-pro-beryl.vercel.app bằng Chrome.
-2. Menu ⋮ → **Thêm vào Màn hình chính** (hoặc banner "Cài đặt ứng dụng").
-3. Mở app từ icon — chạy standalone, hoạt động offline sau lần tải đầu.
+- index.html: app shell và thứ tự load module.
+- assets/00…19_*.js: module nghiệp vụ theo tầng phụ thuộc.
+- assets/ui/modals/: HTML fragment của modal.
+- assets/vendor/ và assets/fonts/: dependency self-host.
+- gas/: Admin GAS và User Drive GAS.
+- tests/ và e2e/: kiểm tra tự động.
+- CLAUDE.md: hướng dẫn kỹ thuật và quy tắc an toàn.
 
 ## Chạy local
 
-Không cần build hoặc cài dependency để chạy app:
+    git clone https://github.com/hungnq131193-ux/ClientPro.git
+    cd ClientPro
+    python3 -m http.server 8080
 
-```bash
-git clone https://github.com/hungnq131193-ux/ClientPro.git
-cd ClientPro
-python3 -m http.server 8080
-```
-
-Mở `http://localhost:8080`. Service Worker, WebCrypto và camera cần HTTPS hoặc localhost.
+Mở http://localhost:8080. Service Worker, WebCrypto và camera cần HTTPS hoặc localhost.
 
 ## Kiểm tra
 
-Unit/integration test dùng Node built-in runner và không cần `npm install`:
+    npm test
+    npm run check:version
+    node --check sw.js
+    find assets -name '*.js' -print0 | xargs -0 -n1 node --check
 
-```bash
-npm test
-npm run check:version
-node --check sw.js
-find assets -name '*.js' -print0 | xargs -0 -n1 node --check
-```
+E2E:
 
-E2E cần cài dev dependencies:
+    npm install
+    npm run test:e2e
 
-```bash
-npm install
-npm run test:e2e
-```
+## Deploy
 
-GitHub Actions chạy static checks, crypto/data-integrity tests, Playwright, axe và Lighthouse.
+Repository là static site và có thể import trực tiếp vào Vercel, không cần build command. Header bảo mật và CSP nằm trong vercel.json.
 
-## Deploy (Vercel)
+## Google Apps Script và Drive
 
-Repo là static site thuần — import vào Vercel là chạy, không cần build command. Header bảo mật và CSP nằm trong `vercel.json`. Deploy tĩnh nơi khác cũng được, miễn phục vụ đúng cây file và HTTPS.
+- gas/AdminAPI.gs: kích hoạt thiết bị, cấp KDATA và điều phối chuyển dữ liệu.
+- gas/UserDriveAPI.gs: kết nối Drive cá nhân để lưu ảnh và backup.
+- Không commit token hoặc secret vào repository.
 
-## Cấu hình Google Apps Script / Drive
+## Quản lý phiên bản
 
-- **Admin GAS** (`gas/AdminAPI.gs`): kích hoạt thiết bị, cấp KDATA cho backup và điều phối chuyển hồ sơ giữa user. URL cấu hình trong `assets/01_config.js`.
-- **User Drive GAS** (`gas/UserDriveAPI.gs`): mỗi người dùng tự deploy về Drive của mình để lưu ảnh và file backup cá nhân; dán URL + token vào phần cài đặt trong app.
-- Không commit token/secret vào repo; token trong app được niêm phong bằng master key trước khi lưu.
+- **Phiên bản app (semver)** — hiện tại **`2.0.0`**. Nguồn duy nhất: package.json.
+- **cache-buster asset** — hiện tại **`V200_20260712`**. Nguồn: ASSET_V trong sw.js.
 
-## Phiên bản
+Sau khi thay đổi phiên bản:
 
-- **Phiên bản app (semver)** — hiện tại **`1.0.0-hotfix.2`**. Nguồn duy nhất: `package.json`.
-- **cache-buster asset** — hiện tại **`V100_20260711`**. Nguồn: `ASSET_V` trong `sw.js`.
+    npm run sync:version
+    npm run check:version
 
-Sau khi đổi semver:
+## Cài PWA trên Android
 
-```bash
-npm run sync:version
-npm run check:version
-```
+1. Mở demo bằng Chrome.
+2. Chọn Thêm vào Màn hình chính hoặc Cài đặt ứng dụng.
+3. Mở ClientPro từ icon trên màn hình chính.
 
-## Có gì mới v1.0.0-hotfix.2
+## Ủng hộ
 
-Bản vá an toàn dữ liệu và độ ổn định sau đợt rà soát toàn dự án — không thay đổi tính năng:
-
-- **Không còn nguy cơ lưu dữ liệu chưa mã hóa**: nếu app tự khóa (ẩn quá 15 giây) đúng lúc bạn đang lưu tài sản bảo đảm hoặc ghi chú, thao tác lưu dừng lại và báo lỗi rõ ràng — trước đây một số trường có thể bị ghi xuống máy ở dạng chưa mã hóa trong tình huống hiếm này.
-- Lưu ghi chú chỉ báo "Đã lưu" khi dữ liệu thực sự đã ghi xong vào máy; lỗi ghi giữa chừng giữ nguyên nội dung bạn đang gõ để không mất chữ.
-- Ảnh chụp ngay sau khi đóng nhanh hộp thoại sửa tài sản không còn nguy cơ bị gán nhầm vào tài sản vừa đóng.
-- Hết các trường hợp loader quay vô hạn ("Đang lưu ảnh...", "Đang tìm TSBĐ...") khi trình duyệt hủy giao dịch ghi giữa chừng — lỗi được báo rõ thay vì kẹt tới khi mở lại app.
-- Upload ảnh hồ sơ lên Drive không còn khả năng tạo folder tên rỗng/sai khi dữ liệu chưa kịp giải mã — app chờ giải mã xong hoặc dừng và báo lỗi.
-- Xóa ảnh gốc sau khi upload và các bước nâng cấp dữ liệu nội bộ báo lỗi đầy đủ trong mọi tình huống hủy giao dịch hiếm gặp.
-
-## Có gì mới v1.0.0-hotfix.1
-
-Bản vá ổn định sau đợt rà soát toàn diện — không thay đổi tính năng:
-
-- Offline đáng tin cậy hơn: lỗi máy chủ thoáng qua khi app tự cập nhật nền không còn khả năng ghi đè bản cache tốt của trang — không còn nguy cơ mở app offline gặp trang lỗi bị "đóng băng".
-- Modal "Tham khảo giá" không còn hiển thị nhầm dữ liệu của tài sản khác khi mở/đóng nhanh liên tiếp.
-- Lưu hồ sơ/tài sản và backup nội bộ không còn nguy cơ "kẹt" vĩnh viễn (nút không phản hồi cho tới khi mở lại app) nếu trình duyệt hủy giao dịch ghi giữa chừng.
-- Backup an toàn hơn: nếu app tự khóa (ẩn quá 15 giây) đúng lúc đang đóng gói backup, quá trình dừng và báo lỗi thay vì âm thầm tạo bản backup hỏng có thể mất dữ liệu khi khôi phục trên máy khác.
-- Lỗi khi "Nhận & Khôi phục" hồ sơ từ user khác được hiển thị rõ ràng thay vì im lặng như không có gì xảy ra.
-
-## Có gì mới v1.0.0 (bản phát hành công khai đầu tiên)
-
-- Tap ở hai mép màn hình hoạt động như tap ở giữa (hết "vùng chết" 28px); vuốt mép để Back vẫn giữ nguyên.
-- Offline chạy hoàn toàn bằng precache của đúng phiên bản — không còn phụ thuộc HTTP cache.
-- Cập nhật phiên bản không tự reload giữa phiên — không mất nội dung đang nhập.
-- Loader toàn cục không còn bị modal che (chuẩn hóa lớp hiển thị).
-- Hạn mức tín dụng và tên TSBĐ được mã hóa khi lưu (dữ liệu cũ tự nâng cấp an toàn sau khi mở khóa).
-- Khóa backup KDATA chỉ lưu dạng niêm phong; xóa sạch khỏi RAM khi khóa app.
-- Auto-backup Drive chạy đúng cả khi mở khóa muộn; mỗi thao tác xóa/khôi phục chỉ chạy một lần; lỗi được báo rõ ràng thay vì im lặng.
-- Chọn lại đúng file `.cpb` vừa chọn vẫn hoạt động; ô tìm kiếm và danh sách luôn đồng bộ.
-
-## Ủng hộ (Donate)
-
-Nếu ClientPro hữu ích với bạn, có thể ủng hộ tác giả ngay trong app: **Menu → Ủng hộ** (quét mã QR).
+Trong app, mở Menu → Ủng hộ để quét mã QR.
 
 ## License
 
-Proprietary — All Rights Reserved. Xem [`LICENSE`](LICENSE).
+Proprietary — All Rights Reserved. Xem LICENSE.
