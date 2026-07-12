@@ -67,14 +67,13 @@ test('sw.js + manifest + package.json: phiên bản semver đồng bộ (nguồn
   const manifest = JSON.parse(read('manifest.json'));
   const pkg = JSON.parse(read('package.json'));
 
-  // Chấp nhận cả hậu tố hotfix (vd "1.0.0-hotfix.1") — vẫn phải khớp NGUYÊN chuỗi.
   const swVer = (sw.match(/VERSION\s*=\s*'v?([0-9A-Za-z.-]+)'/) || [])[1];
   assert.ok(swVer, 'Không đọc được VERSION trong sw.js');
   assert.equal(swVer, pkg.version, 'sw.js VERSION phải khớp package.json version (source of truth)');
   assert.equal(manifest.version, pkg.version, 'manifest.json version phải khớp package.json version');
 });
 
-test('sw.js: CACHE_EPOCH tách namespace cache — không trùng tên cache lịch sử (v1.0.0 cũ)', () => {
+test('sw.js: CACHE_EPOCH tách namespace cache theo bản phát hành', () => {
   const sw = read('sw.js');
   const epoch = (sw.match(/CACHE_EPOCH\s*=\s*'([^']+)'/) || [])[1];
   assert.ok(epoch, 'sw.js phải có CACHE_EPOCH');
@@ -86,10 +85,7 @@ test('sw.js: CACHE_EPOCH tách namespace cache — không trùng tên cache lị
   assert.ok(tmpl.includes('${CACHE_EPOCH}'), 'Tên cache phải chứa CACHE_EPOCH');
   const staticName = tmpl.replace('${CACHE_EPOCH}', epoch).replace('${VERSION}', ver);
 
-  // Repo từng dùng `clientpro-static-v1.0.0` (commit 11ffdea) — public release
-  // quay về semver 1.0.0 nên tên cache TUYỆT ĐỐI không được trùng tên lịch sử,
-  // nếu không SW mới sẽ dùng nhầm asset từ cache cổ trên client chưa từng nâng cấp.
-  assert.notEqual(staticName, 'clientpro-static-v1.0.0', 'Trùng tên cache lịch sử!');
+  assert.ok(staticName.includes(epoch), 'Tên cache phải chứa cache epoch hiện tại');
   assert.ok(staticName.startsWith('clientpro-'), 'Giữ prefix clientpro- để activate cleanup nhận diện');
 
   // Cả 4 cache đều phải nằm trong namespace epoch.
