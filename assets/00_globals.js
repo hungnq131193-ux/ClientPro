@@ -12,6 +12,24 @@
         }
 
         // =======================
+        // GLOBAL RESTORE MUTEX
+        // Mọi luồng restore (file .cpb, app backup nội bộ, Drive, inbox cloud) đều
+        // funnel qua _restoreFromEncryptedContent -> BackupCore.restoreAllTransactional.
+        // Mutex dùng chung này ngăn HAI nguồn restore chạy đồng thời (last-writer-wins
+        // / trộn dữ liệu). Cờ per-source (__restoreInFlight/__acceptRestoreInFlight)
+        // vẫn giữ để chống double-tap trong cùng một nguồn.
+        // =======================
+        window.__globalRestoreInFlight = false;
+        window.acquireGlobalRestore = function () {
+          if (window.__globalRestoreInFlight) return false;
+          window.__globalRestoreInFlight = true;
+          return true;
+        };
+        window.releaseGlobalRestore = function () {
+          window.__globalRestoreInFlight = false;
+        };
+
+        // =======================
         // DISPLAY / CIPHERTEXT GUARDS (v1.5.8)
         // decryptText() fail-open: cache-miss với "cpg1:" trả nguyên ciphertext.
         // Mọi chỗ textContent / .value / img.src PHẢI qua helper này — không hard-code

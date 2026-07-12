@@ -191,3 +191,38 @@ test('B2: completeUnlockDataLoad phát clientpro:unlocked (có document.dispatch
   await rich.api.completeUnlockDataLoad();
   assert.ok(events.includes('clientpro:unlocked'), 'Phải dispatch clientpro:unlocked sau unlock');
 });
+
+test('B3 (item 3): v1 plaintext + v2 sealed cùng tồn tại sau unlock -> v1 bị dọn NGAY (độc lập v2)', async () => {
+  const { api, localStorage, ctx } = loadSecurity();
+  await api.setMasterKey(api.generateMasterKey());
+  const kdata = randomKdataB64u();
+  // v2 sealed hợp lệ (đã unlock).
+  await api._writeCachedKdata(EMP, DEV, kdata);
+  assert.ok(localStorage.getItem(V2), 'Phải có v2 sealed');
+  // Leftover v1 plaintext legacy cùng identity (kịch bản người nâng cấp từ bản cũ).
+  localStorage.setItem(V1, JSON.stringify({ ts: Date.now(), kdata_b64u: kdata, identity: identity(ctx) }));
+
+  const read = await api._readCachedKdataAsync(EMP, DEV);
+  assert.equal(read.kdata_b64u, kdata, 'v2 vẫn dùng được');
+  assert.equal(localStorage.getItem(V1), null, 'v1 plaintext phải bị dọn ngay khi đã có v2 hợp lệ');
+  assertNoPlaintextInStorage(localStorage, kdata);
+});
+
+test('B3 (item 8): _flushPendingKdataCache khi setItem lỗi (quota) -> GIỮ pending, không mất KDATA', async () => {
+  const { api, localStorage } = loadSecurity();
+  const kdata = randomKdataB64u();
+  await api._writeCachedKdata(EMP, DEV, kdata); // còn khóa -> pending RAM (không đụng storage)
+  await api.setMasterKey(api.generateMasterKey());
+
+  const origSet = localStorage.setItem;
+  localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+  try {
+    await api._flushPendingKdataCache();
+  } finally {
+    localStorage.setItem = origSet;
+  }
+
+  const pending = api.getPendingKdata();
+  assert.ok(pending && pending.kdata_b64u === kdata, 'setItem lỗi -> pending phải được giữ để thử lại lần sau');
+  assert.equal(localStorage.getItem(V2), null, 'v2 không được ghi khi setItem lỗi');
+});

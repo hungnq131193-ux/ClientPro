@@ -38,6 +38,33 @@
 
   const LS_LAST_INBOX_HASH = 'clientpro_inbox_last_seen_hash';
   const LS_PENDING_NOTICE = 'clientpro_inbox_pending_notice';
+  // Idempotency BỀN VỮNG cho inbox restore: các transferId đã restore thành công.
+  // Set RAM (__restoredInboxIds) mất khi reload; nếu restore OK nhưng xóa remote
+  // thất bại, sau reload người dùng bấm lại sẽ restore lần hai và ghi đè chỉnh sửa.
+  // Persist ID ở đây (cap FIFO) để chống restore đúp qua reload.
+  const LS_CONSUMED_TRANSFER_IDS = 'clientpro_inbox_consumed_ids';
+  const CONSUMED_IDS_CAP = 200;
+
+  function _readConsumedTransferIds() {
+    try {
+      const raw = localStorage.getItem(LS_CONSUMED_TRANSFER_IDS);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.map(String) : [];
+    } catch (e) { return []; }
+  }
+  function _isConsumedTransferId(id) {
+    return _readConsumedTransferIds().indexOf(String(id)) !== -1;
+  }
+  function _markConsumedTransferId(id) {
+    try {
+      const key = String(id);
+      const list = _readConsumedTransferIds();
+      if (list.indexOf(key) !== -1) return;
+      list.push(key);
+      while (list.length > CONSUMED_IDS_CAP) list.shift();
+      localStorage.setItem(LS_CONSUMED_TRANSFER_IDS, JSON.stringify(list));
+    } catch (e) {}
+  }
 
   function now() { return Date.now(); }
 
@@ -209,7 +236,7 @@
 
     return await new Promise((resolve) => {
       const overlay = document.createElement('div');
-      overlay.className = 'fixed inset-0 z-[10060] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
+      overlay.className = 'fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
 
       overlay.appendChild(el('div', { className: 'glass-panel w-full max-w-md rounded-2xl border border-white/10 overflow-hidden' }, [
         el('div', { className: 'px-4 py-3 flex items-center justify-between border-b border-white/10' }, [
@@ -620,7 +647,7 @@
     const transferId = payload.transferId || payload.backupId || '';
 
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 z-[10080] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4';
+    overlay.className = 'fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4';
     const fromEl = el('span', { style: 'color:#60a5fa' });
     const fileEl = el('span', {});
     overlay.appendChild(el('div', { className: 'glass-panel w-full max-w-md rounded-2xl p-5 border border-white/10 shadow-2xl' }, [
@@ -695,7 +722,10 @@
       await ensureAuthOrThrow();
 
       const idKey = String(transferId);
-      if (!__restoredInboxIds.has(idKey)) {
+      // Đã restore rồi (trong phiên HOẶC ở phiên trước — bền vững qua reload):
+      // bỏ qua download+restore, chỉ chạy phần "thử xóa remote" bên dưới. Tách bạch
+      // "restore" khỏi "thử xóa lại" -> không bao giờ restore đúp qua reload.
+      if (!__restoredInboxIds.has(idKey) && !_isConsumedTransferId(idKey)) {
         if (loaderText) loaderText.textContent = 'Đang tải bản ghi...';
         const dl = await downloadInboxItem(transferId);
 
@@ -712,7 +742,10 @@
         } else {
           throw new Error('Thiếu hàm restore (_restoreFromEncryptedContent)');
         }
+        // Đánh dấu consumed (RAM + BỀN VỮNG) NGAY sau khi restore OK, TRƯỚC khi thử
+        // xóa remote — nếu xóa remote fail rồi reload, lần bấm sau sẽ không restore lại.
         __restoredInboxIds.add(idKey);
+        _markConsumedTransferId(idKey);
       }
 
       // Xóa remote CHỈ sau khi restore đã thành công (bây giờ hoặc lần trước).
@@ -893,6 +926,10 @@
     },
 
     showReceiveNotice() {
+      // Không hiện thông báo nhận dữ liệu khi app đang khóa — overlay ở lớp business
+      // modal (200) nằm DƯỚI màn khóa (300), nhưng tránh mọi khả năng lộ tên người
+      // gửi/file trên màn khóa và không dựng DOM thừa khi chưa mở khóa.
+      if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) return;
       let payload = null;
       try {
         const raw = localStorage.getItem(LS_PENDING_NOTICE);
@@ -916,7 +953,11 @@
       this._pollStarted = true;
 
       // initial poll after a short delay (let DB/init complete)
-      setTimeout(() => { pollInboxAndNotify(); }, 3500);
+      setTimeout(() => {
+        // Không poll mạng/hiện toast khi app còn khóa (cùng guard với interval bên dưới).
+        try { if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) return; } catch (e) {}
+        pollInboxAndNotify();
+      }, 3500);
 
       setInterval(() => {
         // only poll when tab visible (reduce noise)

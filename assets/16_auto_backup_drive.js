@@ -91,6 +91,8 @@
 
     async function performManualBackupNow() {
         if (manualBackupInProgress) return false;
+        // Không chạy đồng thời với auto-backup check (tránh tạo backup Drive trùng).
+        if (autoBackupCheckInProgress) return false;
         manualBackupInProgress = true;
         setManualBackupButtonLoading(true);
         setDriveBackupStatus('Đã nhận lệnh. Đang xác thực và đóng gói backup…', 'working');
@@ -119,6 +121,8 @@
         // Idempotent + single-flight: gọi bao nhiêu lần cũng chỉ một kiểm tra chạy;
         // throttle 24h (LAST_AUTO_BACKUP) bảo đảm tối đa một backup/ngày.
         if (autoBackupCheckInProgress) return;
+        // Không chạy đồng thời với backup thủ công (tránh tạo backup Drive trùng).
+        if (manualBackupInProgress) return;
         autoBackupCheckInProgress = true;
         try {
             await _checkAndAutoBackupDailyInner();

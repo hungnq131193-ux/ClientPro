@@ -65,7 +65,13 @@ async function _readCachedKdataAsync(employeeId, deviceId) {
         if (masterCryptoKey && sealed.startsWith(GCM_PREFIX)) {
           try {
             const kdata = await _gcmDecryptField(sealed);
-            if (kdata) return { ts, kdata_b64u: kdata };
+            if (kdata) {
+              // Đã có v2 sealed dùng được -> v1 plaintext legacy (nếu còn) là rủi ro
+              // thuần, dọn NGAY (độc lập với việc migrate v1). Vá B3: v1 không được
+              // tồn tại vô thời hạn sau khi người dùng đã có cache v2 hợp lệ.
+              try { if (localStorage.getItem(BACKUP_KDATA_CACHE_KEY)) localStorage.removeItem(BACKUP_KDATA_CACHE_KEY); } catch (e3) {}
+              return { ts, kdata_b64u: kdata };
+            }
           } catch (e) {
             // Đã mở khóa mà không unseal được (sai khóa/tamper) -> giá trị chết, xóa.
             try { localStorage.removeItem(BACKUP_KDATA_CACHE_KEY_V2); } catch (e2) {}
@@ -163,8 +169,10 @@ async function _flushPendingKdataCache() {
       BACKUP_KDATA_CACHE_KEY_V2,
       JSON.stringify({ ts: pending.ts, identity: pending.identity, sealed })
     );
+    // Chỉ nhả pending khi ĐÃ persist thành công. Nếu setItem throw (vd quota),
+    // giữ pending trong RAM để lần flush/unlock sau thử lại — không mất KDATA.
+    __pendingKdataCache = null;
   } catch (e) {}
-  __pendingKdataCache = null;
 }
 
 /** Compute a SHA-256 hash of a string and return it as a hex string (Web Crypto API). */
@@ -549,13 +557,22 @@ async function runFieldEncryptMigrationV2IfNeeded() {
     return enc;
   };
 
-  const all = await new Promise((resolve) => {
-    try {
-      const req = db.transaction(["customers"], "readonly").objectStore("customers").getAll();
-      req.onsuccess = (e) => resolve(e.target.result || []);
-      req.onerror = () => resolve([]);
-    } catch (e) { resolve([]); }
-  });
+  // Đọc lỗi IndexedDB KHÔNG được coi là "danh sách rỗng" -> nếu coi rỗng thì
+  // failures=0 và marker sẽ set sai, bỏ lỡ migrate vĩnh viễn. Reject để return
+  // sớm mà KHÔNG set marker (lần unlock sau tự retry).
+  let all;
+  try {
+    all = await new Promise((resolve, reject) => {
+      try {
+        const req = db.transaction(["customers"], "readonly").objectStore("customers").getAll();
+        req.onsuccess = (e) => resolve(e.target.result || []);
+        req.onerror = () => reject(req.error || new Error("FIELD_MIGR_READ_ERROR"));
+      } catch (e) { reject(e); }
+    });
+  } catch (e) {
+    try { ErrorHandler.showWarning("Mã hóa bổ sung tạm hoãn do lỗi đọc dữ liệu — sẽ tự thử lại ở lần mở khóa sau."); } catch (e2) {}
+    return;
+  }
 
   let failures = 0;
   const updated = [];
@@ -1363,25 +1380,15 @@ async function saveSecuritySetup() {
     if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
   }
   resetPinFailures();
-  // Gate bảo mật có thể hiện trước khi IndexedDB mở xong — chờ db để migration
-  // không bị bỏ qua vì `!db`.
-  try { if (window.__dbReady) await window.__dbReady; } catch (e) { }
-  // Đảm bảo dữ liệu ở định dạng AES-GCM mới nhất (idempotent):
-  // - Fresh install (MK2, không legacy) -> chỉ đánh dấu schema='2'.
-  // - Sau khôi phục mà dữ liệu còn CryptoJS -> migrate ngay dưới PIN vừa đặt.
+  // Gom mọi đường unlock về MỘT pipeline duy nhất (completeUnlockDataLoad):
+  // chờ __dbReady, chạy CẢ 3 migration (gồm field-encrypt v2 — vá B4), primeFieldCache,
+  // FLUSH KDATA pending (seal — vá B3), loadCustomers, và DISPATCH clientpro:unlocked
+  // (vá B2: auto-backup nghe được ngay trong phiên thiết lập/khôi phục đầu tiên).
+  // Trước đây đoạn này tự làm thủ công và bỏ sót v2-migration/flush-KDATA/dispatch.
   try {
-    await runFieldCryptoMigrationIfNeeded(pin, ans);
+    await completeUnlockDataLoad(pin, ans);
   } catch (e) {
-    try { ErrorHandler.logError("crypto-migration", e); } catch (_) {}
-  }
-  try {
-    await runImageCryptoMigrationIfNeeded();
-  } catch (e) {
-    try { ErrorHandler.logError("image-crypto-migration", e); } catch (_) {}
-  }
-  await primeFieldCache();
-  if (typeof loadCustomers === "function") {
-    await loadCustomers("");
+    try { ErrorHandler.logError("setup-unlock-pipeline", e); } catch (_) {}
   }
   // PIN vừa đổi: enrollment sinh trắc học cũ (nếu có) mã hóa PIN cũ nên không còn hợp lệ.
   try { if (window.BiometricUnlock) window.BiometricUnlock.onPinChanged(); } catch (e) { }

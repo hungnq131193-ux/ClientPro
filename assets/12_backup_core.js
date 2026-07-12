@@ -53,11 +53,14 @@
       }
     }
     if (!t.trim()) return '';
-    try {
-      return await encryptText(t);
-    } catch (e) {
-      return '';
-    }
+    // FAIL-CLOSED: encryptText() fail-open trả NGUYÊN plaintext khi masterKey mất
+    // (vd auto-lock ẩn app >15s giữa lúc normalize backup lớn). Nếu để nguyên,
+    // record sẽ được ghi plaintext nhưng gắn cryptoV=2 -> reader tưởng đã mã hóa.
+    // Bắt buộc kết quả PHẢI là ciphertext; nếu không -> throw để HỦY TOÀN BỘ restore
+    // (normalize chạy trước khi mở transaction nên chưa record nào bị ghi).
+    const enc = await encryptText(t);
+    if (!_looksEncrypted(enc)) throw new Error('RESTORE_ENCRYPT_FAILED');
+    return enc;
   }
 
   async function normalizeCustomerForExport(c) {
@@ -192,6 +195,9 @@
   async function _restoreTransactional(payload) {
     assertDeps();
     if (!payload || !Array.isArray(payload.customers)) throw new Error('Payload restore không hợp lệ');
+    // Fail-closed: app phải đang mở khóa để re-encrypt được. Nếu đã bị lock (mất
+    // masterKey) thì hủy ngay — không để safeEncrypt fail-open ghi plaintext.
+    if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) throw new Error('APP_LOCKED');
 
     // Mã hóa lại TẤT CẢ customer TRƯỚC khi mở transaction (safeEncrypt/AES-GCM async —
     // không được await giữa một transaction IndexedDB).

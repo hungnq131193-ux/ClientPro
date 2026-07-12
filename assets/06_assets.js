@@ -204,8 +204,8 @@ function renderAssets() {
 
   // Try to fully unwrap old/double-encrypted labels (best-effort).
   // Some historical records could be encrypted more than once during migrations.
-  // asset.name is NOT encrypted for new writes (xem _doSaveAsset), nhưng bản ghi cũ
-  // (trước fix "KHÔNG MÃ HÓA TÊN") có thể vẫn là ciphertext, và migration GCM
+  // v1.0.0: asset.name ĐÃ mã hóa at rest cho ghi mới (xem enc() trong _doSaveAsset).
+  // Bản ghi cũ có thể là plaintext hoặc ciphertext legacy, và migration GCM
   // (_reencryptRecord trong 02_security.js) chuyển ciphertext legacy đó sang "cpg1:" —
   // phải dùng decryptText() (hiểu cả 2 dạng) thay vì chỉ strip tiền tố "U2FsdGVkX1",
   // nếu không name sẽ hiện nguyên ciphertext "cpg1:..." sau khi migrate (bug v1.5.6).
@@ -383,7 +383,7 @@ async function openEditAssetModal(index) {
   // Bảo vệ: nếu sau khi cố giải mã vẫn còn dạng ciphertext (khóa sai / dữ liệu hỏng), để ô
   // TRỐNG thay vì hiện chuỗi mã hóa — và tuyệt đối không cho _doSaveAsset mã hóa lại chuỗi đó
   // (xem encAssetField trong _doSaveAsset, giữ nguyên ciphertext gốc khi ô để trống).
-  // name: bản ghi mới là plaintext; bản ghi cũ/migrated có thể là ciphertext → cùng guard.
+  // name: đã giải mã ở trên để điền form; nếu vẫn còn ciphertext (khóa sai) → cùng guard để trống.
   getEl("asset-name").value = (name && !_looksEncrypted(name)) ? name : "";
   getEl("asset-link").value = (link && !_looksEncrypted(link)) ? link : "";
   getEl("asset-val").value = (val && !_looksEncrypted(val)) ? val : "";

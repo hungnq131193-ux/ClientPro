@@ -10,7 +10,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadSecurity, loadBackupCore, randomKdataB64u } = require('./helpers/load-security');
+const { loadSecurity, loadBackupCore, randomKdataB64u, makeFakeDb } = require('./helpers/load-security');
 
 // Ảnh giả lập (data URL) để kiểm tra backup KHÔNG làm hỏng payload lớn/nhị phân.
 function fakeImageDataUrl(kb) {
@@ -222,4 +222,49 @@ test('backup: KDATA sai độ dài (không phải 32 byte) -> KDATA_INVALID_LEN'
     () => api.encryptBackupPayload('x', shortKey),
     /KDATA_INVALID_LEN/
   );
+});
+
+// ============================================================================
+// FAIL-CLOSED restore (item 1): nếu masterKey mất (auto-lock ẩn app >15s giữa lúc
+// normalize backup lớn), safeEncrypt KHÔNG được fail-open trả plaintext rồi gắn
+// cryptoV=2. Restore phải HỦY (throw), không ghi record plaintext giả-mã-hóa.
+// ============================================================================
+test('restore fail-closed: mất masterKey -> normalizeCustomerForRestore THROW, không trả plaintext', async () => {
+  const { api, ctx } = loadSecurity();
+  await api.setMasterKey(api.generateMasterKey());
+  const BackupCore = loadBackupCore(ctx);
+
+  // Mô phỏng auto-lock giữa chừng: xóa key ngay trước khi re-encrypt.
+  api.clearMasterKeyMaterial();
+
+  await assert.rejects(
+    () => BackupCore.normalizeCustomerForRestore({
+      id: 'c1', name: 'Alice', creditLimit: '500',
+      assets: [{ id: 'a1', name: 'House' }],
+    }),
+    /RESTORE_ENCRYPT_FAILED/,
+    'Mất khóa phải throw thay vì trả plaintext gắn cryptoV=2'
+  );
+});
+
+test('restore fail-closed: app khóa -> restoreAllTransactional THROW, DB không bị ghi', async () => {
+  const { api, ctx } = loadSecurity();
+  await api.setMasterKey(api.generateMasterKey());
+  const BackupCore = loadBackupCore(ctx);
+  const db = makeFakeDb([]);
+  api.setDb(db);
+  ctx.db = db;
+
+  api.clearMasterKeyMaterial(); // app locked
+
+  await assert.rejects(
+    () => BackupCore.restoreAllTransactional({
+      v: 1.1,
+      customers: [{ id: 'c1', name: 'Alice', creditLimit: '500', assets: [{ id: 'a1', name: 'House' }] }],
+      images: [],
+    }),
+    /APP_LOCKED|RESTORE_ENCRYPT_FAILED/,
+    'Restore khi khóa phải throw'
+  );
+  assert.equal(db._stores.customers.size, 0, 'Không record nào được ghi khi restore fail-closed');
 });

@@ -115,3 +115,41 @@ test('B9: openCustomerList phải xóa ô tìm kiếm và hủy debounce đang c
   const globals = read('assets/00_globals.js');
   assert.ok(/debounced\.cancel\s*=/.test(globals), 'debounce() phải có .cancel()');
 });
+
+test('item 7: overlay cloud không dùng z-index >1000 (chỉ onboarding được phép >=1000)', () => {
+  for (const p of ['assets/14_cloud_transfer.js', 'assets/13_ui_select_customers.js']) {
+    const src = read(p);
+    assert.ok(!/z-\[\s*(?:[1-9]\d{3,})\s*\]/.test(src),
+      `${p}: overlay không được dùng z-index >=1000 (phá layering contract §9)`);
+  }
+});
+
+test('item 6: _restoreFromEncryptedContent phải qua mutex restore toàn cục (acquire/release)', () => {
+  const src = read('assets/09_backup_manager.js');
+  const body = fnBody(src, '_restoreFromEncryptedContent');
+  assert.ok(/acquireGlobalRestore\s*\(/.test(body), 'Phải acquire mutex restore toàn cục');
+  assert.ok(/finally\s*\{[\s\S]*releaseGlobalRestore\s*\(/.test(body), 'Phải release mutex trong finally');
+
+  const globals = read('assets/00_globals.js');
+  assert.ok(/acquireGlobalRestore\s*=/.test(globals) && /releaseGlobalRestore\s*=/.test(globals),
+    '00_globals.js phải định nghĩa mutex restore toàn cục');
+});
+
+test('item 2: inbox restore có tập ID consumed BỀN VỮNG (idempotent qua reload)', () => {
+  const src = read('assets/14_cloud_transfer.js');
+  assert.ok(/clientpro_inbox_consumed_ids/.test(src), 'Phải có key localStorage cho ID đã consumed');
+  const body = fnBody(src, 'acceptAndRestoreById');
+  assert.ok(/_isConsumedTransferId\s*\(/.test(body), 'Phải kiểm tra consumed set bền vững trước khi restore');
+  assert.ok(/_markConsumedTransferId\s*\(/.test(body), 'Phải đánh dấu consumed sau restore thành công');
+  // Đánh dấu consumed phải nằm TRƯỚC khi thử xóa remote (tách restore khỏi cleanup).
+  const markIdx = body.indexOf('_markConsumedTransferId');
+  const deleteIdx = body.indexOf('deleteInboxItem');
+  assert.ok(markIdx >= 0 && deleteIdx > markIdx, 'Đánh dấu consumed phải trước deleteInboxItem');
+});
+
+test('item 5: saveSecuritySetup đi qua pipeline unlock duy nhất (completeUnlockDataLoad)', () => {
+  const src = read('assets/02_security.js');
+  const body = fnBody(src, 'saveSecuritySetup');
+  assert.ok(/completeUnlockDataLoad\s*\(/.test(body),
+    'saveSecuritySetup phải gọi completeUnlockDataLoad (gồm migration v2 + flush KDATA + dispatch unlocked)');
+});

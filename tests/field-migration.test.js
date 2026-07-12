@@ -164,6 +164,28 @@ test('B4×lockApp: app khóa giữa migration -> KHÔNG ghi plaintext giả-mã-
   // -> encVerified sẽ throw (looksEnc(out)=false) => failures++ => marker không set.
 });
 
+test('B4 (item 4): getAll đọc lỗi IndexedDB -> marker KHÔNG set, KHÔNG coi là danh sách rỗng', async () => {
+  const { api, localStorage } = loadSecurity();
+  await api.setMasterKey(api.generateMasterKey());
+  // db mà getAll() bắn onerror (đọc lỗi) thay vì trả []. Trước fix, code coi là []
+  // -> failures=0 -> set marker sai (bỏ lỡ migrate vĩnh viễn).
+  const db = {
+    transaction: () => ({
+      objectStore: () => ({
+        getAll: () => {
+          const r = { onsuccess: null, onerror: null, result: undefined, error: new Error('READ_FAIL') };
+          Promise.resolve().then(() => { if (r.onerror) r.onerror({ target: r }); });
+          return r;
+        },
+      }),
+    }),
+  };
+  api.setDb(db);
+
+  await api.runFieldEncryptMigrationV2IfNeeded();
+  assert.notEqual(localStorage.getItem(MARKER), '1', 'Đọc lỗi -> marker tuyệt đối không được set');
+});
+
 test('B4: backup/restore — export plaintext (không cpg1:), restore mã hóa lại; backup cũ number restore được', async () => {
   const { api, ctx } = loadSecurity();
   await api.setMasterKey(api.generateMasterKey());

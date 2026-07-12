@@ -231,28 +231,41 @@ async function _restoreFromEncryptedContent(encryptedContent, keyOverrideB64u) {
     throw new Error("App locked");
   }
 
-  // Khóa giải mã: mặc định khóa cá nhân; cho phép override (vd transfer key khi nhận
-  // backup từ user khác — bản mã được mã hóa bằng khóa hộp thư của người nhận).
-  const decKey = keyOverrideB64u || APP_BACKUP_KDATA_B64U;
-
-  // Giải mã (AES-GCM envelope v2 + tương thích legacy CryptoJS v1)
-  let decryptedStr = "";
-  try {
-    if (typeof decryptBackupPayload === 'function') {
-      const out = await decryptBackupPayload(String(encryptedContent || ''), decKey);
-      decryptedStr = out && out.plaintext ? out.plaintext : '';
-    }
-  } catch (e) {
-    decryptedStr = '';
+  // Mutex restore TOÀN CỤC: đây là choke point duy nhất mà file/app-backup/Drive/inbox
+  // đều đi qua trước khi ghi DB. Từ chối nếu đã có một restore khác đang chạy — tránh
+  // trạng thái last-writer-wins / trộn dữ liệu từ hai backup.
+  if (typeof window !== "undefined" && typeof window.acquireGlobalRestore === "function"
+    && !window.acquireGlobalRestore()) {
+    throw new Error("Đang có thao tác khôi phục khác đang chạy. Vui lòng thử lại sau.");
   }
+  try {
+    // Khóa giải mã: mặc định khóa cá nhân; cho phép override (vd transfer key khi nhận
+    // backup từ user khác — bản mã được mã hóa bằng khóa hộp thư của người nhận).
+    const decKey = keyOverrideB64u || APP_BACKUP_KDATA_B64U;
 
-  if (!decryptedStr) throw new Error('Decryption failed');
+    // Giải mã (AES-GCM envelope v2 + tương thích legacy CryptoJS v1)
+    let decryptedStr = "";
+    try {
+      if (typeof decryptBackupPayload === 'function') {
+        const out = await decryptBackupPayload(String(encryptedContent || ''), decKey);
+        decryptedStr = out && out.plaintext ? out.plaintext : '';
+      }
+    } catch (e) {
+      decryptedStr = '';
+    }
 
-  const data = JSON.parse(decryptedStr);
+    if (!decryptedStr) throw new Error('Decryption failed');
 
-  // Ghi vào DB qua BackupCore: mã hóa lại các trường (name/phone/cccd/notes + tài sản)
-  // và upsert customers/images trong 1 transaction. Nguồn logic duy nhất ở 12_backup_core.js.
-  await BackupCore.restoreAllTransactional(data);
+    const data = JSON.parse(decryptedStr);
+
+    // Ghi vào DB qua BackupCore: mã hóa lại các trường (name/phone/cccd/notes + tài sản)
+    // và upsert customers/images trong 1 transaction. Nguồn logic duy nhất ở 12_backup_core.js.
+    await BackupCore.restoreAllTransactional(data);
+  } finally {
+    if (typeof window !== "undefined" && typeof window.releaseGlobalRestore === "function") {
+      window.releaseGlobalRestore();
+    }
+  }
 }
 
 

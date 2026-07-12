@@ -46,7 +46,7 @@
   function renderPicker(list, resolve) {
     const overlay = document.createElement('div');
     // IMPORTANT: must be above other modals (z-index 9999) to avoid being hidden behind it.
-    overlay.className = 'fixed inset-0 z-[10050] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
+    overlay.className = 'fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
 
     overlay.appendChild(el('div', { className: 'glass-panel w-full max-w-md rounded-2xl border border-white/10 overflow-hidden' }, [
       el('div', { className: 'px-4 py-3 flex items-center justify-between border-b border-white/10' }, [
