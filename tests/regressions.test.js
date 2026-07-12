@@ -153,3 +153,61 @@ test('item 5: saveSecuritySetup đi qua pipeline unlock duy nhất (completeUnlo
   assert.ok(/completeUnlockDataLoad\s*\(/.test(body),
     'saveSecuritySetup phải gọi completeUnlockDataLoad (gồm migration v2 + flush KDATA + dispatch unlocked)');
 });
+
+// ---------------------------------------------------------------------------
+// Tripwire cho các fix v1.0.0-hotfix.1 (#1 nằm ở sw-routing.test.js — functional).
+// ---------------------------------------------------------------------------
+
+test('hotfix.1 #2: referenceAssetPrice có seq guard cho lần render đầu; closeRefModal hủy kết quả chờ', () => {
+  const src = read('assets/06_assets.js');
+  const ref = fnBody(src, 'referenceAssetPrice');
+  assert.ok(/const seq\s*=\s*\+\+__refPriceSeq/.test(ref), 'Phải snapshot seq ngay khi mở tham khảo giá');
+  assert.ok(/seq\s*!==\s*__refPriceSeq/.test(ref), 'Callback phải kiểm seq trước khi ghi DOM/mở modal');
+  const close = fnBody(src, 'closeRefModal');
+  assert.ok(/__refPriceSeq\+\+/.test(close), 'Đóng modal phải tăng seq để hủy kết quả về muộn');
+});
+
+test('hotfix.1 #3/#6: transaction ghi phải wire đủ onabort (guard không được treo vĩnh viễn)', () => {
+  // 09_backup_manager: _idbPutBackup/_idbDeleteBackup (giữ __backupInFlight sống)
+  const bm = read('assets/09_backup_manager.js');
+  for (const fn of ['_idbPutBackup', '_idbDeleteBackup']) {
+    const body = fnBody(bm, fn);
+    for (const ev of ['oncomplete', 'onerror', 'onabort']) {
+      assert.ok(body.includes(ev), `${fn}: thiếu ${ev}`);
+    }
+  }
+
+  // 05_customers: _doSaveCustomer — CẢ HAI nhánh ghi (update + create)
+  const cust = read('assets/05_customers.js');
+  const save = fnBody(cust, '_doSaveCustomer');
+  const abortCount = (save.match(/wtx\.onabort/g) || []).length;
+  assert.equal(abortCount, 2, '_doSaveCustomer: cả hai transaction ghi phải có wtx.onabort');
+
+  // 04_ui_common: persistCurrentCustomer — onDone phải chạy trên mọi kết cục,
+  // và chỉ đúng MỘT lần (error bubble rồi abort không được gọi đôi).
+  const ui = read('assets/04_ui_common.js');
+  const persist = fnBody(ui, 'persistCurrentCustomer');
+  for (const ev of ['oncomplete', 'onerror', 'onabort']) {
+    assert.ok(persist.includes(ev), `persistCurrentCustomer: thiếu ${ev}`);
+  }
+  assert.ok(/settled/.test(persist), 'persistCurrentCustomer: onDone phải được chốt gọi một lần (settled guard)');
+});
+
+test('hotfix.1 #4: export backup fail-closed khi mất masterKey giữa chừng (không ghi ciphertext vào backup)', () => {
+  const src = read('assets/12_backup_core.js');
+  const norm = fnBody(src, 'normalizeCustomerForExport');
+  const count = (norm.match(/_assertUnlockedForExport\s*\(\)/g) || []).length;
+  assert.ok(count >= 2, 'normalizeCustomerForExport phải kiểm unlock TRƯỚC và SAU chuỗi decrypt');
+  for (const fn of ['exportAll', 'exportCustomersByIds']) {
+    const body = fnBody(src, fn);
+    assert.ok(/_assertUnlockedForExport\s*\(\)/.test(body), `${fn}: thiếu check fail-closed`);
+  }
+});
+
+test('hotfix.1 #5: CloudTransferUI.acceptAndRestore báo lỗi qua ErrorHandler (không nuốt im lặng)', () => {
+  const src = read('assets/14_cloud_transfer.js');
+  const m = src.match(/async acceptAndRestore\(backupId\)\s*\{[\s\S]*?\n    \},/);
+  assert.ok(m, 'Không tìm thấy CloudTransferUI.acceptAndRestore');
+  assert.ok(/catch\s*\([A-Za-z_$][\w$]*\)\s*\{[\s\S]*ErrorHandler\.showError/.test(m[0]),
+    'acceptAndRestore phải catch và báo lỗi qua ErrorHandler.showError');
+});

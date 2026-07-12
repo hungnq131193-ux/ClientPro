@@ -39,6 +39,9 @@ async function _idbPutBackup(rec) {
     tx.objectStore(BACKUP_STORE).put(rec);
     tx.oncomplete = () => resolve(true);
     tx.onerror = (e) => reject(e);
+    // Abort không kèm request error (quota, versionchange...) chỉ bắn onabort —
+    // thiếu nó promise treo vĩnh viễn và __backupInFlight kẹt tới khi reload.
+    tx.onabort = (e) => reject(tx.error || e);
   });
 }
 
@@ -48,6 +51,7 @@ async function _idbDeleteBackup(id) {
     tx.objectStore(BACKUP_STORE).delete(id);
     tx.oncomplete = () => resolve(true);
     tx.onerror = (e) => reject(e);
+    tx.onabort = (e) => reject(tx.error || e);
   });
 }
 
