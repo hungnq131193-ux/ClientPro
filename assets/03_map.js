@@ -8,7 +8,7 @@ const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'V100_20260711';
+const MAPLIBRE_V = 'V200_20260712';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const MAP_STYLE_SAT = {
     version: 8,
