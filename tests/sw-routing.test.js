@@ -119,6 +119,49 @@ test('A2/upgrade: activate xóa cache ClientPro cũ (kể cả v1.6.5 và v1.0.0
   assert.ok(keys.includes(sw.names.STATIC_CACHE), 'Cache build hiện tại phải giữ nguyên');
 });
 
+test('hotfix.1 #1: navigation revalidate không ghi đè app shell tốt bằng response lỗi (5xx)', async () => {
+  const sw = loadSW();
+  const url = `${ORIGIN}/`;
+  const runtime = await sw.caches.open(sw.names.RUNTIME_SAMEORIGIN_CACHE);
+  await runtime.put(new FakeRequest(url), new FakeResponse('good-shell', { status: 200 }));
+
+  // Lỗi server thoáng qua đúng lúc revalidate nền chạy.
+  sw.setNetwork(() => new FakeResponse('server-error', { status: 500 }));
+  const res = await sw.dispatchFetch(new FakeRequest(url, { mode: 'navigate' }));
+  assert.equal(res.body, 'good-shell', 'Navigation phải trả cache ngay (stale-while-revalidate)');
+  await new Promise((r) => setTimeout(r, 20)); // chờ revalidate nền kết thúc
+
+  const after = await runtime.match(new FakeRequest(url));
+  assert.equal(after.body, 'good-shell', 'Response 5xx không được ghi đè navigation cache tốt');
+  assert.equal(after.status, 200);
+
+  // Revalidate thành công vẫn phải cập nhật cache (guard không được over-block).
+  sw.setNetwork(() => new FakeResponse('new-shell', { status: 200 }));
+  await sw.dispatchFetch(new FakeRequest(url, { mode: 'navigate' }));
+  await new Promise((r) => setTimeout(r, 20));
+  const updated = await runtime.match(new FakeRequest(url));
+  assert.equal(updated.body, 'new-shell', 'Response ok phải được revalidate vào cache');
+});
+
+test('hotfix.1 #1: networkFirst (same-origin không phải asset) không cache response lỗi', async () => {
+  const sw = loadSW();
+  const url = `${ORIGIN}/api/config`;
+  const runtime = await sw.caches.open(sw.names.RUNTIME_SAMEORIGIN_CACHE);
+  await runtime.put(new FakeRequest(url), new FakeResponse('good-data', { status: 200 }));
+
+  sw.setNetwork(() => new FakeResponse('boom', { status: 503 }));
+  const res = await sw.dispatchFetch(new FakeRequest(url));
+  assert.equal(res.status, 503, 'networkFirst vẫn trả response lỗi cho trang tự xử lý');
+
+  const after = await runtime.match(new FakeRequest(url));
+  assert.equal(after.body, 'good-data', 'Response lỗi không được ghi đè entry tốt trong runtime cache');
+
+  // Offline sau đó vẫn phục vụ được bản tốt từ cache.
+  sw.setNetwork(() => { throw new Error('offline'); });
+  const res2 = await sw.dispatchFetch(new FakeRequest(url));
+  assert.equal(res2.body, 'good-data', 'Offline phải fallback về bản tốt trong cache');
+});
+
 test('B7: install handler không gọi skipWaiting; message SKIP_WAITING vẫn hoạt động', async () => {
   const sw = loadSW();
   // Network trả 200 cho mọi precache request để install chạy trọn vẹn.

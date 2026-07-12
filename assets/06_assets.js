@@ -22,6 +22,11 @@ function referenceAssetPrice(assetIndex) {
     return;
   }
 
+  // Seq guard cho CẢ lần render đầu (không chỉ bước OSRM): trong lúc chờ decrypt
+  // hàng loạt, user có thể đóng modal hoặc mở tham khảo cho tài sản khác — callback
+  // cũ về muộn không được phép ghi đè #ref-results / mở lại modal với dữ liệu sai.
+  const seq = ++__refPriceSeq;
+
   LoadingManager.showGlobal("Đang tìm kiếm & so sánh...");
 
   const tx = db.transaction(["customers"], "readonly");
@@ -47,6 +52,13 @@ function referenceAssetPrice(assetIndex) {
       });
       // Giới hạn concurrency nhẹ: chờ tất cả (số field thường < vài trăm)
       try { await Promise.all(primeJobs); } catch (err) { }
+    }
+
+    // Kết quả cũ (đã đóng modal / đã mở tham khảo cho tài sản khác) -> bỏ,
+    // chỉ nhả đúng phần loader của lời gọi này (refcount, không force).
+    if (seq !== __refPriceSeq) {
+      LoadingManager.hideGlobal();
+      return;
     }
 
     customers.forEach((cust) => {
@@ -103,7 +115,7 @@ function referenceAssetPrice(assetIndex) {
     const top = candidates.slice(0, 30);
     showRefModal(top.slice(0, 20));
 
-    enhanceRefWithRoadDistances(targetLoc, top, ++__refPriceSeq);
+    enhanceRefWithRoadDistances(targetLoc, top, seq);
   };
 }
 
@@ -194,6 +206,8 @@ function showRefModal(results) {
   modal.classList.remove("hidden");
 }
 function closeRefModal() {
+  // Đóng modal -> vô hiệu hóa mọi kết quả đang chờ (render đầu lẫn OSRM).
+  __refPriceSeq++;
   getEl("ref-price-modal").classList.add("hidden");
 }
 

@@ -13,7 +13,7 @@
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.0.0-hotfix.1';
 // CACHE_EPOCH: định danh "thế hệ" cache, tách khỏi semver. Lịch sử repo từng
 // dùng tên cache `clientpro-static-v1.0.0` (trước khi đánh số nội bộ 1.6.x);
 // public release quay về semver 1.0.0 nên nếu chỉ dùng VERSION, client cũ chưa
@@ -295,8 +295,13 @@ async function networkFirst(event, request, cacheName, policy) {
     // is visible immediately instead of waiting behind an intermediate cache.
     const networkRequest = new Request(request, { cache: 'reload' });
     const res = preloaded || await fetch(networkRequest);
-    const toStore = stampResponseIfPossible(res.clone());
-    try { await cache.put(request, toStore); } catch (e) { }
+    // Chỉ cache response hợp lệ (res.ok) — giống guard trong cacheFirst. Response
+    // lỗi (4xx/5xx) mà put vào cache sẽ ghi đè bản shell tốt và "đóng băng" trang
+    // lỗi cho lần mở offline tiếp theo.
+    if (res && res.ok) {
+      const toStore = stampResponseIfPossible(res.clone());
+      try { await cache.put(request, toStore); } catch (e) { }
+    }
     if (event && event.waitUntil) event.waitUntil(cleanupCache(cacheName, policy));
     return res;
   } catch (e) {
@@ -320,8 +325,13 @@ async function navigationStaleWhileRevalidate(event, request, cacheName, policy)
   const revalidate = (async () => {
     const preloaded = preload ? await preload : null;
     const res = preloaded || (await fetch(new Request(request, { cache: 'reload' })));
-    const toStore = stampResponseIfPossible(res.clone());
-    try { await cache.put(request, toStore); } catch (e) { }
+    // Chỉ cache response hợp lệ (res.ok): một lỗi 5xx thoáng qua khi revalidate
+    // nền không được ghi đè navigation cache tốt (nếu không, lần mở app tiếp
+    // theo — nhất là offline — sẽ phục vụ trang lỗi thay vì app shell thật).
+    if (res && res.ok) {
+      const toStore = stampResponseIfPossible(res.clone());
+      try { await cache.put(request, toStore); } catch (e) { }
+    }
     await cleanupCache(cacheName, policy);
     return res;
   })().catch(() => null);

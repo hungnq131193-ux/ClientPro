@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.0.0--hotfix.1-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
@@ -52,7 +52,8 @@ Cán bộ tín dụng, thẩm định hoặc bất kỳ ai cần quản lý hồ
 
 - Backup `.cpb` được mã hóa bằng KDATA (không phụ thuộc master key của máy), vì vậy **cần mạng và tài khoản được cấp quyền** khi tạo/khôi phục backup.
 - Restore là **upsert** (ghi đè theo ID, không xóa dữ liệu hiện có) và mọi trường được mã hóa lại bằng khóa của thiết bị đích.
-- Backup tạo từ các phiên bản cũ (kể cả hạn mức lưu dạng số) vẫn khôi phục được trên v1.0.0.
+- Backup tạo từ các phiên bản cũ (kể cả hạn mức lưu dạng số) vẫn khôi phục được trên phiên bản hiện tại.
+- Nếu app tự khóa đúng lúc đang đóng gói backup, quá trình sẽ dừng và báo lỗi — không bao giờ âm thầm tạo bản backup hỏng.
 - Xóa app / xóa dữ liệu trang web sẽ xóa toàn bộ IndexedDB — hãy chắc chắn đã có backup trước.
 
 ## Tech stack
@@ -136,7 +137,7 @@ Repo là static site thuần — import vào Vercel là chạy, không cần bui
 
 ## Phiên bản
 
-- **Phiên bản app (semver)** — hiện tại **`1.0.0`**. Nguồn duy nhất: `package.json`.
+- **Phiên bản app (semver)** — hiện tại **`1.0.0-hotfix.1`**. Nguồn duy nhất: `package.json`.
 - **cache-buster asset** — hiện tại **`V100_20260711`**. Nguồn: `ASSET_V` trong `sw.js`.
 
 Sau khi đổi semver:
@@ -145,6 +146,16 @@ Sau khi đổi semver:
 npm run sync:version
 npm run check:version
 ```
+
+## Có gì mới v1.0.0-hotfix.1
+
+Bản vá ổn định sau đợt rà soát toàn diện — không thay đổi tính năng:
+
+- Offline đáng tin cậy hơn: lỗi máy chủ thoáng qua khi app tự cập nhật nền không còn khả năng ghi đè bản cache tốt của trang — không còn nguy cơ mở app offline gặp trang lỗi bị "đóng băng".
+- Modal "Tham khảo giá" không còn hiển thị nhầm dữ liệu của tài sản khác khi mở/đóng nhanh liên tiếp.
+- Lưu hồ sơ/tài sản và backup nội bộ không còn nguy cơ "kẹt" vĩnh viễn (nút không phản hồi cho tới khi mở lại app) nếu trình duyệt hủy giao dịch ghi giữa chừng.
+- Backup an toàn hơn: nếu app tự khóa (ẩn quá 15 giây) đúng lúc đang đóng gói backup, quá trình dừng và báo lỗi thay vì âm thầm tạo bản backup hỏng có thể mất dữ liệu khi khôi phục trên máy khác.
+- Lỗi khi "Nhận & Khôi phục" hồ sơ từ user khác được hiển thị rõ ràng thay vì im lặng như không có gì xảy ra.
 
 ## Có gì mới v1.0.0 (bản phát hành công khai đầu tiên)
 

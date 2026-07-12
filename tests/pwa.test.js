@@ -67,7 +67,8 @@ test('sw.js + manifest + package.json: phiên bản semver đồng bộ (nguồn
   const manifest = JSON.parse(read('manifest.json'));
   const pkg = JSON.parse(read('package.json'));
 
-  const swVer = (sw.match(/VERSION\s*=\s*'v?([0-9.]+)'/) || [])[1];
+  // Chấp nhận cả hậu tố hotfix (vd "1.0.0-hotfix.1") — vẫn phải khớp NGUYÊN chuỗi.
+  const swVer = (sw.match(/VERSION\s*=\s*'v?([0-9A-Za-z.-]+)'/) || [])[1];
   assert.ok(swVer, 'Không đọc được VERSION trong sw.js');
   assert.equal(swVer, pkg.version, 'sw.js VERSION phải khớp package.json version (source of truth)');
   assert.equal(manifest.version, pkg.version, 'manifest.json version phải khớp package.json version');
@@ -78,7 +79,8 @@ test('sw.js: CACHE_EPOCH tách namespace cache — không trùng tên cache lị
   const epoch = (sw.match(/CACHE_EPOCH\s*=\s*'([^']+)'/) || [])[1];
   assert.ok(epoch, 'sw.js phải có CACHE_EPOCH');
 
-  const ver = (sw.match(/VERSION\s*=\s*'(v?[0-9.]+)'/) || [])[1];
+  const ver = (sw.match(/VERSION\s*=\s*'(v?[0-9A-Za-z.-]+)'/) || [])[1];
+  assert.ok(ver, 'Không đọc được VERSION trong sw.js');
   const tmpl = (sw.match(/STATIC_CACHE\s*=\s*`([^`]+)`/) || [])[1];
   assert.ok(tmpl, 'Không đọc được template STATIC_CACHE');
   assert.ok(tmpl.includes('${CACHE_EPOCH}'), 'Tên cache phải chứa CACHE_EPOCH');

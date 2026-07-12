@@ -909,6 +909,11 @@
     async acceptAndRestore(backupId) {
       try {
         await acceptAndRestoreById(backupId);
+      } catch (err) {
+        // Đồng bộ với nút "Nhận & Khôi phục" của buildReceiveNotice: lỗi (mạng,
+        // thiếu transfer key, decrypt hỏng...) phải hiện cho người dùng, không
+        // được nuốt im lặng thành unhandled rejection.
+        ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể restore bản ghi.', err);
       } finally {
         try {
           const loader = document.getElementById('loader');

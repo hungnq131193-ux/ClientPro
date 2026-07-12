@@ -212,6 +212,14 @@ function persistCurrentCustomer(mutate, onDone) {
         const tx = db.transaction(['customers'], 'readwrite');
         const store = tx.objectStore('customers');
         let ok = false;
+        // onDone gọi đúng MỘT lần: request error bubble lên tx.onerror rồi tx tự
+        // abort bắn tiếp onabort — không có guard thì onDone chạy hai lần.
+        let settled = false;
+        const finish = (result) => {
+            if (settled) return;
+            settled = true;
+            if (typeof onDone === 'function') onDone(result);
+        };
         store.get(id).onsuccess = (e) => {
             const rec = e.target.result;
             if (!rec) return;
@@ -223,8 +231,12 @@ function persistCurrentCustomer(mutate, onDone) {
             store.put(rec);
             ok = true;
         };
-        tx.oncomplete = () => { if (typeof onDone === 'function') onDone(ok); };
-        tx.onerror = () => { if (typeof onDone === 'function') onDone(false); };
+        tx.oncomplete = () => finish(ok);
+        tx.onerror = () => finish(false);
+        // Abort không kèm request error (quota, versionchange...) chỉ bắn onabort —
+        // thiếu nó onDone không bao giờ chạy, caller (saveAsset qua __assetSaveInFlight...)
+        // kẹt guard vĩnh viễn tới khi reload app.
+        tx.onabort = () => finish(false);
     } catch (err) {
         if (window.ErrorHandler) ErrorHandler.logError('persistCurrentCustomer error', err);
         if (typeof onDone === 'function') onDone(false);

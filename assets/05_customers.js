@@ -1043,6 +1043,9 @@ async function _doSaveCustomer(name, phoneNorm, cccd, editId) {
                 putReq.onsuccess = () => resolve();
                 putReq.onerror = () => reject(putReq.error || new Error('put failed'));
                 wtx.onerror = () => reject(wtx.error || new Error('tx failed'));
+                // Abort không kèm request error (quota, versionchange...) chỉ bắn
+                // onabort — thiếu nó promise treo vĩnh viễn và __custWriteInFlight kẹt.
+                wtx.onabort = () => reject(wtx.error || new Error('tx aborted'));
             });
             finalize(editId);
         } else {
@@ -1067,6 +1070,7 @@ async function _doSaveCustomer(name, phoneNorm, cccd, editId) {
                 putReq.onsuccess = () => resolve();
                 putReq.onerror = () => reject(putReq.error || new Error('put failed'));
                 wtx.onerror = () => reject(wtx.error || new Error('tx failed'));
+                wtx.onabort = () => reject(wtx.error || new Error('tx aborted'));
             });
             finalize(newId);
         }

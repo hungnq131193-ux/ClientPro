@@ -63,7 +63,20 @@
     return enc;
   }
 
+  // FAIL-CLOSED cho export (đối xứng với check APP_LOCKED của _restoreTransactional):
+  // safeDecryptAsync KHÔNG reject khi mất khóa — decryptFieldAsync fail-open trả
+  // nguyên ciphertext. Nếu auto-lock (ẩn app >15s) xảy ra giữa lúc export lớn,
+  // ciphertext lọt vào các field mà backup coi là plaintext; restore trên thiết bị
+  // khác (khóa khác) sẽ mất name/phone/cccd... vĩnh viễn mà không có cảnh báo nào.
+  // Kiểm trước và sau mỗi customer để hủy toàn bộ export thay vì ghi backup hỏng.
+  function _assertUnlockedForExport() {
+    if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
+      throw new Error('APP_LOCKED');
+    }
+  }
+
   async function normalizeCustomerForExport(c) {
+    _assertUnlockedForExport();
     const cust = deepClone(c);
     [cust.name, cust.phone, cust.cccd, cust.notes] = await Promise.all([
       safeDecryptAsync(cust.name),
@@ -89,6 +102,9 @@
       }));
     }
 
+    // Khóa app rơi giữa chuỗi decrypt phía trên -> các field vừa "giải mã" thực chất
+    // còn nguyên ciphertext. Throw để caller (09/16/05) hủy backup và báo lỗi thật.
+    _assertUnlockedForExport();
     return cust;
   }
 
@@ -175,6 +191,7 @@
   }
 
   async function exportAll() {
+    _assertUnlockedForExport();
     const customers = await _getAllCustomersRaw();
     return {
       v: 1.1,
@@ -184,6 +201,7 @@
   }
 
   async function exportCustomersByIds(customerIds) {
+    _assertUnlockedForExport();
     const customers = await _getCustomersByIdsRaw(customerIds);
     return {
       v: 1.1,
