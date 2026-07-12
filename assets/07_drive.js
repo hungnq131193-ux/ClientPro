@@ -184,9 +184,17 @@ function _deleteSucceededUploadsOnly(succeededImgs, onDone) {
     const txDel = db.transaction(['images'], 'readwrite');
     succeededImgs.forEach(img => txDel.objectStore('images').delete(img.id));
     txDel.oncomplete = () => { if (typeof onDone === 'function') onDone(); };
-    txDel.onerror = () => {
+    // onabort bắt buộc: tx có thể abort KHÔNG kèm request error (quota, versionchange) —
+    // khi đó onerror không bắn, ảnh gốc còn nguyên mà không ai báo. Settled guard vì
+    // request error bubble lên tx.onerror rồi tx abort bắn tiếp onabort (2 sự kiện/1 thất bại).
+    let delSettled = false;
+    const delFail = () => {
+        if (delSettled) return;
+        delSettled = true;
         ErrorHandler.showError('STORAGE', 'Không xóa được ảnh gốc trong máy.', txDel.error);
     };
+    txDel.onerror = delFail;
+    txDel.onabort = delFail;
 }
 
 // 3. Hàm hiển thị nút mở Drive
@@ -464,10 +472,18 @@ async function reconnectAssetDriveFolder() {
                 ErrorHandler.showSuccess("Đã kết nối lại folder TSBĐ!");
             };
             // Transaction lỗi: phải tắt loading (nếu không overlay treo vĩnh viễn) + báo lỗi.
-            tx.onerror = (e) => {
+            // onabort bắt buộc: tx có thể abort KHÔNG kèm request error (quota, versionchange)
+            // — khi đó onerror không bắn và loader "Đang tìm TSBĐ..." kẹt tới khi reload.
+            // Settled guard: error bubble rồi abort bắn tiếp — chỉ báo lỗi một lần.
+            let txSettled = false;
+            const txFail = (e) => {
+                if (txSettled) return;
+                txSettled = true;
                 LoadingManager.hideGlobal(true);
                 ErrorHandler.showError('STORAGE', 'Tìm thấy folder nhưng CHƯA lưu được link vào hồ sơ. Vui lòng thử lại.', e);
             };
+            tx.onerror = txFail;
+            tx.onabort = txFail;
         } else {
             LoadingManager.hideGlobal(true);
             ErrorHandler.showWarning("Không tìm thấy folder: " + folderName);
@@ -581,6 +597,25 @@ async function uploadToGoogleDrive() {
 
         LoadingManager.showGlobal("Đang sao lưu ảnh lên Google Drive...");
 
+        // Tên folder Drive phải dựng từ decrypt async THẬT (§13): _displayText đồng bộ
+        // fail-open khi cold-cache — folder tên rác kiểu " - " vẫn upload. Không giải mã
+        // được -> dừng + báo lỗi (mirror guard trong reconnectAssetDriveFolder).
+        const namePlain = (typeof _displayPlainAsync === 'function')
+            ? await _displayPlainAsync(currentCustomerData.name, '')
+            : _displayText(currentCustomerData.name);
+        const cccdPlain = (typeof _displayPlainAsync === 'function')
+            ? await _displayPlainAsync(currentCustomerData.cccd, '')
+            : _displayText(currentCustomerData.cccd);
+        const phonePlain = (typeof _displayPlainAsync === 'function')
+            ? await _displayPlainAsync(currentCustomerData.phone, '')
+            : _displayText(currentCustomerData.phone);
+        const folderSuffix = cccdPlain || phonePlain;
+        if (!namePlain || !folderSuffix || _looksEncrypted(namePlain) || _looksEncrypted(folderSuffix)) {
+            LoadingManager.hideGlobal(true);
+            ErrorHandler.showWarning('Không thể đọc tên/CCCD/SĐT khách hàng (dữ liệu chưa giải mã được). Vui lòng thử lại sau khi mở khóa.');
+            return;
+        }
+
         const resolvedImages = await Promise.all(imagesToUpload.map(async (img, idx) => ({
             name: `hoso_${Date.now()}_${idx}.jpg`,
             data: (typeof decryptImageData === 'function') ? await decryptImageData(img.data) : img.data,
@@ -591,7 +626,7 @@ async function uploadToGoogleDrive() {
             action: 'upload', // <--- Báo cho Script biết là muốn Upload
             token: getUserToken(),
             // Ưu tiên đặt tên folder theo CCCD, fallback sang SĐT nếu chưa có CCCD
-            folderName: `${_displayText(currentCustomerData.name)} - ${_displayText(currentCustomerData.cccd) || _displayText(currentCustomerData.phone)}`,
+            folderName: `${namePlain} - ${folderSuffix}`,
             images: resolvedImages,
         };
 

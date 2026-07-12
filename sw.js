@@ -13,7 +13,7 @@
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.0.0-hotfix.1';
+const VERSION = 'v1.0.0-hotfix.2';
 // CACHE_EPOCH: định danh "thế hệ" cache, tách khỏi semver. Lịch sử repo từng
 // dùng tên cache `clientpro-static-v1.0.0` (trước khi đánh số nội bộ 1.6.x);
 // public release quay về semver 1.0.0 nên nếu chỉ dùng VERSION, client cũ chưa

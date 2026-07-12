@@ -619,12 +619,18 @@ function saveImageToDB(rawBase64) {
         createdAt: Date.now(),
       };
 
-      const addReq = db
-        .transaction(["images"], "readwrite")
-        .objectStore("images")
-        .add(newImg);
+      const imgTx = db.transaction(["images"], "readwrite");
+      imgTx.objectStore("images").add(newImg);
 
-      addReq.onsuccess = () => {
+      // Success UI chỉ sau COMMIT (oncomplete) — add onsuccess chưa bảo đảm đã ghi.
+      // onabort bắt buộc: tx có thể abort KHÔNG kèm request error (quota, versionchange),
+      // khi đó onerror không bắn — loader "Đang lưu ảnh..." treo vĩnh viễn và Promise
+      // của saveImageToDB không bao giờ resolve. Settled guard: request error bubble lên
+      // tx.onerror rồi abort bắn tiếp onabort — hai sự kiện cho một thất bại, chốt một lần.
+      let imgTxSettled = false;
+      imgTx.oncomplete = () => {
+        if (imgTxSettled) return;
+        imgTxSettled = true;
         LoadingManager.hideGlobal(true);
         ErrorHandler.showSuccess("Đã lưu ảnh");
 
@@ -642,13 +648,17 @@ function saveImageToDB(rawBase64) {
         resolve();
       };
 
-      // Lỗi ghi IDB (quota/constraint) hiếm nhưng có thật: không có onerror thì
-      // loader "Đang lưu ảnh..." treo vĩnh viễn (hideGlobal chỉ nằm trong onsuccess).
-      addReq.onerror = () => {
+      // Lỗi ghi IDB (quota/constraint) hiếm nhưng có thật: không có onerror/onabort thì
+      // loader "Đang lưu ảnh..." treo vĩnh viễn (hideGlobal chỉ nằm trong oncomplete).
+      const imgTxFail = () => {
+        if (imgTxSettled) return;
+        imgTxSettled = true;
         LoadingManager.hideGlobal(true);
-        ErrorHandler.showError('STORAGE', 'Không lưu được ảnh vào máy. Kiểm tra dung lượng bộ nhớ rồi thử lại.', addReq.error);
+        ErrorHandler.showError('STORAGE', 'Không lưu được ảnh vào máy. Kiểm tra dung lượng bộ nhớ rồi thử lại.', imgTx.error);
         resolve();
       };
+      imgTx.onerror = imgTxFail;
+      imgTx.onabort = imgTxFail;
     });
   });
 }

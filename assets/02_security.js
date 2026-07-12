@@ -518,9 +518,14 @@ async function runImageCryptoMigrationIfNeeded() {
     await new Promise((resolve, reject) => {
       img.data = enc;
       img.imgCryptoV = 1;
-      const p = db.transaction(["images"], "readwrite").objectStore("images").put(img);
-      p.onsuccess = () => resolve();
-      p.onerror = () => reject(p.error);
+      // Resolve trên oncomplete (không phải put onsuccess) + reject cả onabort:
+      // tx có thể abort KHÔNG kèm request error — thiếu onabort là promise treo
+      // vĩnh viễn giữa unlock flow (mirror __imgTxDone, 08_images_camera.js).
+      const tx = db.transaction(["images"], "readwrite");
+      tx.objectStore("images").put(img);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error("Transaction error"));
+      tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
     });
   }
   localStorage.setItem(IMG_SCHEMA_KEY, "1");
@@ -762,9 +767,13 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
     if (!c || c.cryptoV === 2) continue;   // idempotent: đã GCM thì bỏ qua (resume sau crash)
     await _reencryptRecord(c);
     await new Promise((resolve, reject) => {
-      const p = db.transaction(["customers"], "readwrite").objectStore("customers").put(c);
-      p.onsuccess = () => resolve();
-      p.onerror = () => reject(p.error);
+      // Resolve trên oncomplete + reject cả onabort: tx có thể abort KHÔNG kèm
+      // request error — thiếu onabort là promise treo vĩnh viễn giữa migration.
+      const tx = db.transaction(["customers"], "readwrite");
+      tx.objectStore("customers").put(c);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error("Transaction error"));
+      tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
     });
   }
   await _migrateDriveToken();

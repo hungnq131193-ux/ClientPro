@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0--hotfix.1-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.0.0--hotfix.2-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
@@ -44,6 +44,7 @@ Cán bộ tín dụng, thẩm định hoặc bất kỳ ai cần quản lý hồ
 - Dữ liệu lưu trong IndexedDB **trên thiết bị của bạn**; các trường nghiệp vụ (tên, SĐT, CCCD, ghi chú, hạn mức, thông tin TSBĐ) và ảnh được mã hóa AES-256-GCM (WebCrypto) bằng master key ngẫu nhiên 32 byte.
 - Master key được niêm phong bằng PIN 6 số (PBKDF2-SHA256 + AES-GCM) và chỉ tồn tại trong RAM khi app mở khóa; hỗ trợ mở khóa sinh trắc học (WebAuthn PRF).
 - Tự khóa khi ẩn app quá 15 giây: xóa khóa và cache dữ liệu khỏi RAM, yêu cầu PIN/sinh trắc học khi mở lại.
+- Mọi thao tác lưu (hồ sơ, tài sản, ghi chú) đều tự kiểm tra dữ liệu đã được mã hóa trước khi ghi xuống máy — nếu app vừa tự khóa đúng lúc đang lưu, thao tác dừng và báo lỗi thay vì lưu dữ liệu chưa mã hóa.
 - Khóa backup (KDATA) do máy chủ quản trị cấp **không lưu plaintext** trong trình duyệt — chỉ lưu bản đã niêm phong bằng master key.
 - CSP `script-src 'self'`, toàn bộ thư viện/font self-host, không CDN runtime.
 - Lưu ý trung thực: không hệ thống nào an toàn tuyệt đối. Ai có PIN của bạn sẽ mở được dữ liệu; hãy giữ PIN cẩn thận và sao lưu định kỳ.
@@ -137,7 +138,7 @@ Repo là static site thuần — import vào Vercel là chạy, không cần bui
 
 ## Phiên bản
 
-- **Phiên bản app (semver)** — hiện tại **`1.0.0-hotfix.1`**. Nguồn duy nhất: `package.json`.
+- **Phiên bản app (semver)** — hiện tại **`1.0.0-hotfix.2`**. Nguồn duy nhất: `package.json`.
 - **cache-buster asset** — hiện tại **`V100_20260711`**. Nguồn: `ASSET_V` trong `sw.js`.
 
 Sau khi đổi semver:
@@ -146,6 +147,17 @@ Sau khi đổi semver:
 npm run sync:version
 npm run check:version
 ```
+
+## Có gì mới v1.0.0-hotfix.2
+
+Bản vá an toàn dữ liệu và độ ổn định sau đợt rà soát toàn dự án — không thay đổi tính năng:
+
+- **Không còn nguy cơ lưu dữ liệu chưa mã hóa**: nếu app tự khóa (ẩn quá 15 giây) đúng lúc bạn đang lưu tài sản bảo đảm hoặc ghi chú, thao tác lưu dừng lại và báo lỗi rõ ràng — trước đây một số trường có thể bị ghi xuống máy ở dạng chưa mã hóa trong tình huống hiếm này.
+- Lưu ghi chú chỉ báo "Đã lưu" khi dữ liệu thực sự đã ghi xong vào máy; lỗi ghi giữa chừng giữ nguyên nội dung bạn đang gõ để không mất chữ.
+- Ảnh chụp ngay sau khi đóng nhanh hộp thoại sửa tài sản không còn nguy cơ bị gán nhầm vào tài sản vừa đóng.
+- Hết các trường hợp loader quay vô hạn ("Đang lưu ảnh...", "Đang tìm TSBĐ...") khi trình duyệt hủy giao dịch ghi giữa chừng — lỗi được báo rõ thay vì kẹt tới khi mở lại app.
+- Upload ảnh hồ sơ lên Drive không còn khả năng tạo folder tên rỗng/sai khi dữ liệu chưa kịp giải mã — app chờ giải mã xong hoặc dừng và báo lỗi.
+- Xóa ảnh gốc sau khi upload và các bước nâng cấp dữ liệu nội bộ báo lỗi đầy đủ trong mọi tình huống hủy giao dịch hiếm gặp.
 
 ## Có gì mới v1.0.0-hotfix.1
 
