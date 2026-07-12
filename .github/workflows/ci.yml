@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           # Phiên bản app (semver): manifest.json = sw.js VERSION = pwa.js SW_BUILD.
-          # So sánh NGUYÊN chuỗi version (kể cả hậu tố hotfix, vd "1.0.0-hotfix.1").
+          # So sánh nguyên chuỗi version ổn định.
           MANIFEST_VER=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' manifest.json | sed -E 's/.*"([^"]+)"$/\1/')
           SW_VERSION=$(grep -oE "VERSION[[:space:]]*=[[:space:]]*'v?[0-9A-Za-z.-]+'" sw.js | sed -E "s/.*'v?([^']+)'.*/\1/")
           PWA_BUILD=$(grep -oE "SW_BUILD[[:space:]]*=[[:space:]]*'v?[0-9A-Za-z.-]+'" assets/pwa.js | sed -E "s/.*'v?([^']+)'.*/\1/")
