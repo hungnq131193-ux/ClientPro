@@ -211,3 +211,80 @@ test('hotfix.1 #5: CloudTransferUI.acceptAndRestore báo lỗi qua ErrorHandler 
   assert.ok(/catch\s*\([A-Za-z_$][\w$]*\)\s*\{[\s\S]*ErrorHandler\.showError/.test(m[0]),
     'acceptAndRestore phải catch và báo lỗi qua ErrorHandler.showError');
 });
+
+// ---------------------------------------------------------------------------
+// Tripwire cho các fix v1.0.0-hotfix.2 — hai lớp lỗi hotfix.1 đã sửa nơi khác
+// nhưng bỏ sót: (1) encryptText fail-open ghi plaintext vào field mã hóa at rest,
+// (2) transaction ghi thiếu onabort (promise/loader treo vĩnh viễn).
+// ---------------------------------------------------------------------------
+
+test('hotfix.2 #1: _doSaveAsset không được ghi plaintext khi mất masterKey (gate + post-check enc)', () => {
+  const src = read('assets/06_assets.js');
+  const body = fnBody(src, '_doSaveAsset');
+  // Gate đầu hàm: chưa mở khóa thì chặn ngay (mirror saveCustomer).
+  assert.ok(/!masterKey/.test(body) && /ErrorHandler\.showError\(\s*'AUTH'/.test(body),
+    '_doSaveAsset: thiếu security gate !masterKey (encryptText fail-open sẽ ghi plaintext)');
+  // Post-check trong enc(): lock GIỮA chuỗi await -> encryptText trả plaintext -> phải throw.
+  assert.ok(/_looksEncrypted\s*\(\s*out\s*\)/.test(body) && /ENCRYPT_UNAVAILABLE/.test(body),
+    '_doSaveAsset/enc: thiếu post-check _looksEncrypted + throw ENCRYPT_UNAVAILABLE (mirror _encryptCreditLimitForWrite)');
+});
+
+test('hotfix.2 #2: closeAssetModal phải hủy lượt decrypt đang treo của openEditAssetModal', () => {
+  const src = read('assets/06_assets.js');
+  const body = fnBody(src, 'closeAssetModal');
+  assert.ok(/__editAssetModalSeq/.test(body),
+    'closeAssetModal: phải bump __editAssetModalSeq — tail decrypt cũ sẽ set lại currentAssetId sau khi đóng');
+  assert.ok(/edit-asset-index/.test(body),
+    'closeAssetModal: phải reset edit-asset-index (guard thứ hai của openEditAssetModal)');
+});
+
+test('hotfix.2 #3: saveCustomerNotes — post-check plaintext + tx đủ oncomplete/onerror/onabort + success sau commit', () => {
+  const src = read('assets/05_customers.js');
+  const body = fnBody(src, 'saveCustomerNotes');
+  assert.ok(/_looksEncrypted\s*\(\s*encNotes\s*\)/.test(body),
+    'saveCustomerNotes: thiếu post-check _looksEncrypted(encNotes) — encryptText fail-open sẽ ghi plaintext notes');
+  for (const ev of ['wtx.oncomplete', 'wtx.onerror', 'wtx.onabort']) {
+    assert.ok(body.includes(ev), `saveCustomerNotes: thiếu ${ev}`);
+  }
+  // Success UI (exitNotesEditMode + toast) phải nằm trong oncomplete, không phải put onsuccess.
+  const okIdx = body.indexOf('wtx.oncomplete');
+  const exitIdx = body.indexOf('exitNotesEditMode', body.indexOf('encNotes'));
+  assert.ok(okIdx >= 0 && exitIdx > okIdx, 'saveCustomerNotes: success UI phải chạy SAU commit (trong oncomplete)');
+  assert.ok(/notesTxSettled/.test(body), 'saveCustomerNotes: cần settled guard (error bubble rồi abort bắn đôi)');
+});
+
+test('hotfix.2 #4/#5: transaction ghi trong 07_drive.js phải wire onabort', () => {
+  const src = read('assets/07_drive.js');
+  for (const fn of ['reconnectAssetDriveFolder', '_deleteSucceededUploadsOnly']) {
+    const body = fnBody(src, fn);
+    assert.ok(/\bonabort\b/.test(body), `${fn}: thiếu onabort — abort không kèm request error sẽ treo loader/im lặng`);
+  }
+});
+
+test('hotfix.2 #6: uploadToGoogleDrive dựng folder name từ decrypt async THẬT (không dùng _displayText đồng bộ)', () => {
+  const src = read('assets/07_drive.js');
+  const body = fnBody(src, 'uploadToGoogleDrive');
+  assert.ok(/_displayPlainAsync/.test(body),
+    'uploadToGoogleDrive: folderName phải qua _displayPlainAsync (decrypt thật, §13)');
+  assert.ok(/_looksEncrypted\s*\(/.test(body) && /return;/.test(body),
+    'uploadToGoogleDrive: decrypt fail phải dừng + báo lỗi, không upload folder tên rác');
+  assert.ok(!/folderName:\s*`\$\{_displayText\(/.test(body),
+    'uploadToGoogleDrive: không được dựng folderName trực tiếp từ _displayText đồng bộ');
+});
+
+test('hotfix.2 #7: saveImageToDB — transaction lưu ảnh đủ oncomplete/onerror/onabort', () => {
+  const src = read('assets/08_images_camera.js');
+  const body = fnBody(src, 'saveImageToDB');
+  for (const ev of ['oncomplete', 'onerror', 'onabort']) {
+    assert.ok(body.includes(ev), `saveImageToDB: thiếu ${ev} — loader "Đang lưu ảnh..." sẽ treo vĩnh viễn`);
+  }
+  assert.ok(/imgTxSettled/.test(body), 'saveImageToDB: cần settled guard (error bubble rồi abort bắn đôi)');
+});
+
+test('hotfix.2 #8: put-wrapper trong 2 migration của 02_security.js phải reject cả onabort', () => {
+  const src = read('assets/02_security.js');
+  for (const fn of ['runImageCryptoMigrationIfNeeded', 'runFieldCryptoMigrationIfNeeded']) {
+    const body = fnBody(src, fn);
+    assert.ok(/\bonabort\b/.test(body), `${fn}: thiếu onabort — migration treo giữa unlock flow khi tx abort`);
+  }
+});

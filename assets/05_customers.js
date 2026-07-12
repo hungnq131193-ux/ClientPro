@@ -1539,23 +1539,43 @@ async function saveCustomerNotes() {
         ErrorHandler.showError('STORAGE', 'Không thể lưu ghi chú (dữ liệu không hợp lệ). Vui lòng thử lại.', e);
         return;
     }
+    // encryptText fail-open khi app bị khóa giữa chừng (trả nguyên plaintext) — notes thuộc
+    // danh sách mã hóa at rest, không được ghi plaintext xuống DB. Ghi chú rỗng cho qua
+    // (mirror _encryptCreditLimitForWrite); giữ edit mode để user không mất text vừa gõ.
+    if (notesText && typeof _looksEncrypted === 'function' && !_looksEncrypted(encNotes)) {
+        ErrorHandler.showError('AUTH', 'Chưa mở khóa dữ liệu — ghi chú CHƯA được lưu. Vui lòng mở khóa rồi thử lại.');
+        return;
+    }
 
     c.notes = encNotes;
     c.updatedAt = Date.now();
 
-    // Ghi (transaction thuần đồng bộ).
+    // Ghi (transaction thuần đồng bộ). Success UI chỉ chạy sau COMMIT (oncomplete) —
+    // put onsuccess chưa bảo đảm dữ liệu đã ghi (tx vẫn có thể abort sau đó, ví dụ quota).
+    // onabort bắt buộc: tx có thể abort mà KHÔNG có request error đi trước, khi đó onerror
+    // không bắn — thiếu onabort là "Đã lưu"/im lặng giả. Settled guard: error bubble lên
+    // tx.onerror rồi tx abort bắn tiếp onabort — hai sự kiện cho một thất bại, chỉ báo một lần.
     const wtx = db.transaction(['customers'], 'readwrite');
-    const putReq = wtx.objectStore('customers').put(c);
-    putReq.onsuccess = () => {
+    wtx.objectStore('customers').put(c);
+    let notesTxSettled = false;
+    wtx.oncomplete = () => {
+        if (notesTxSettled) return;
+        notesTxSettled = true;
         if (currentCustomerData && currentCustomerData.id === currentCustomerId) {
             currentCustomerData.notes = c.notes;
             currentCustomerData.updatedAt = c.updatedAt;
         }
         // Chỉ nhánh thành công mới quay về chế độ xem — mọi đường lỗi/return sớm
-        // (guard chống mất dữ liệu, lỗi encryptText, putReq.onerror) giữ nguyên edit mode
+        // (guard chống mất dữ liệu, lỗi encryptText, onerror/onabort) giữ nguyên edit mode
         // để user không mất text vừa gõ.
         exitNotesEditMode();
         ErrorHandler.showSuccess('Đã lưu ghi chú');
     };
-    putReq.onerror = (err) => ErrorHandler.showError('STORAGE', 'Lỗi lưu ghi chú.', err);
+    const notesTxFail = (err) => {
+        if (notesTxSettled) return;
+        notesTxSettled = true;
+        ErrorHandler.showError('STORAGE', 'Lỗi lưu ghi chú.', err || wtx.error);
+    };
+    wtx.onerror = notesTxFail;
+    wtx.onabort = notesTxFail;
 }

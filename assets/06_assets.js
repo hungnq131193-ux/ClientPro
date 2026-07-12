@@ -436,6 +436,11 @@ window.decryptCustomerAssetsAsync = async function decryptCustomerAssetsAsync(cu
   }
 };
 function closeAssetModal() {
+  // Vô hiệu hóa lượt decrypt openEditAssetModal còn treo: không bump seq thì tail của
+  // lượt cũ vẫn qua được cả 2 guard (seq + edit-asset-index) và set LẠI currentAssetId
+  // sau khi modal đã đóng — phá đúng cái reset bên dưới (ảnh chụp sau bị gán nhầm assetId).
+  window.__editAssetModalSeq = (window.__editAssetModalSeq || 0) + 1;
+  getEl("edit-asset-index").value = "";
   getEl("asset-modal").classList.add("hidden");
   // Hủy sửa TSBĐ -> không còn "đang thao tác" trên tài sản đó nữa, tránh ảnh chụp
   // sau đó (vd. ở tab Hình ảnh hồ sơ) bị gán nhầm assetId của tài sản vừa hủy sửa.
@@ -461,6 +466,13 @@ async function saveAsset() {
 }
 
 async function _doSaveAsset() {
+  // Security gate: chưa có masterKey (chưa mở khóa / vừa bị auto-lock) thì không cho lưu
+  // — encryptText fail-open trả nguyên plaintext, thiếu gate này là ghi plaintext vào DB
+  // (mirror gate trong saveCustomer, 05_customers.js).
+  if (typeof masterKey === 'undefined' || !masterKey) {
+    return ErrorHandler.showError('AUTH', 'Chưa mở khóa dữ liệu. Vui lòng mở khóa trước khi lưu tài sản.');
+  }
+
   // Lấy giá trị từ các ô nhập liệu
   const name = getEl("asset-name").value.trim();
   let link = getEl("asset-link").value.trim();
@@ -483,7 +495,14 @@ async function _doSaveAsset() {
       if (origField && _looksEncrypted(decryptText(origField))) return origField;
       return "";
     }
-    return await encryptText(v);
+    const out = await encryptText(v);
+    // encryptText fail-open khi app bị khóa GIỮA chuỗi await (auto-lock 15s khi ẩn app):
+    // trả nguyên plaintext. Không được ghi plaintext xuống DB — throw để saveAsset()
+    // báo lỗi qua ErrorHandler và dừng (mirror _encryptCreditLimitForWrite, 05_customers.js).
+    if (typeof _looksEncrypted === 'function' && !_looksEncrypted(out)) {
+      throw new Error('ENCRYPT_UNAVAILABLE');
+    }
+    return out;
   };
 
   // Xử lý link map
