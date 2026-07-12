@@ -33,9 +33,7 @@ function die(msg) {
 // --- Đọc nguồn ---------------------------------------------------------------
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const SEM = String(pkg.version || '');
-// Chấp nhận cả hậu tố kiểu pre-release/hotfix (vd "1.0.0-hotfix.1") — core vẫn
-// phải là X.Y.Z; hậu tố chỉ gồm [0-9A-Za-z.-] để an toàn cho tên cache/URL badge.
-if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/.test(SEM)) die(`package.json "version" không phải semver hợp lệ: "${SEM}"`);
+if (!/^\d+\.\d+\.\d+$/.test(SEM)) die(`package.json "version" không phải semver ổn định: "${SEM}"`);
 
 const swSrc = readFileSync(join(ROOT, 'sw.js'), 'utf8');
 const assetVMatch = swSrc.match(/ASSET_V\s*=\s*'([^']+)'/);
@@ -48,9 +46,8 @@ const rules = [
   { file: 'manifest.json', label: 'manifest.version',      mid: SEM,        re: /("version"\s*:\s*")([^"]+)(")/ },
   { file: 'sw.js',         label: 'sw.VERSION',            mid: `v${SEM}`,  re: /(VERSION\s*=\s*')(v?[0-9A-Za-z.-]+)(')/ },
   { file: 'assets/pwa.js', label: 'pwa.SW_BUILD',          mid: `v${SEM}`,  re: /(SW_BUILD\s*=\s*')(v?[0-9A-Za-z.-]+)(')/ },
-  // shields.io: dấu "-" trong text badge phải escape thành "--".
-  { file: 'README.md',     label: 'README badge',          mid: SEM.replace(/-/g, '--'), re: /(badge\/version-)(.+?)(-blue\.svg)/ },
-  { file: 'README.md',     label: 'README semver hiện tại', mid: SEM,       re: /(Phiên bản app \(semver\)\*\* — hiện tại \*\*`)([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(`\*\*)/ },
+  { file: 'README.md',     label: 'README badge',          mid: SEM, re: /(badge\/version-)(.+?)(-blue\.svg)/ },
+  { file: 'README.md',     label: 'README semver hiện tại', mid: SEM,       re: /(Phiên bản app \(semver\)\*\* — hiện tại \*\*`)([0-9]+\.[0-9]+\.[0-9]+)(`\*\*)/ },
   { file: 'README.md',     label: 'README ASSET_V',        mid: ASSET_V,    re: /(cache-buster asset[^\n]*?hiện tại \*\*`)([^`]+)(`)/ },
 ];
 

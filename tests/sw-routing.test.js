@@ -93,33 +93,25 @@ test('A2: precache thắng runtime khi cả hai cùng có (asset đúng build đ
   assert.equal(res.body, 'static-version', 'STATIC_CACHE phải được ưu tiên trước runtime');
 });
 
-test('A2/upgrade: activate xóa cache ClientPro cũ (kể cả v1.6.5 và v1.0.0 lịch sử), giữ namespace hiện tại', async () => {
+test('A2/upgrade: activate dọn cache ClientPro ngoài allowlist và giữ namespace hiện tại', async () => {
   const sw = loadSW();
-  // Giả lập upgrade thật: client đang có cache của build nội bộ v1.6.5, và cả
-  // cache `clientpro-static-v1.0.0` LỊCH SỬ (commit 11ffdea) — public release
-  // 1.0.0 KHÔNG được trùng/tái dùng tên này (đã tách bằng CACHE_EPOCH).
-  await sw.caches.open('clientpro-static-v1.6.5');
-  await sw.caches.open('clientpro-runtime-so-v1.6.5');
-  await sw.caches.open('clientpro-static-v1.0.0');
+  await sw.caches.open('clientpro-stale-static');
+  await sw.caches.open('clientpro-stale-runtime');
   await sw.caches.open('other-app-cache');
   await sw.caches.open(sw.names.STATIC_CACHE);
-
-  assert.notEqual(sw.names.STATIC_CACHE, 'clientpro-static-v1.0.0',
-    'Tên cache hiện tại không được trùng tên lịch sử');
 
   await sw.listeners.activate({ waitUntil: (p) => p });
   // Chờ waitUntil promise chạy xong (listener trả promise qua waitUntil stub).
   await new Promise((r) => setTimeout(r, 20));
 
   const keys = await sw.caches.keys();
-  assert.ok(!keys.includes('clientpro-static-v1.6.5'), 'Cache v1.6.5 phải bị xóa khi upgrade');
-  assert.ok(!keys.includes('clientpro-runtime-so-v1.6.5'), 'Runtime cache v1.6.5 phải bị xóa');
-  assert.ok(!keys.includes('clientpro-static-v1.0.0'), 'Cache v1.0.0 lịch sử phải bị dọn');
+  assert.ok(!keys.includes('clientpro-stale-static'), 'Static cache ngoài allowlist phải bị xóa');
+  assert.ok(!keys.includes('clientpro-stale-runtime'), 'Runtime cache ngoài allowlist phải bị xóa');
   assert.ok(keys.includes('other-app-cache'), 'Cache không thuộc ClientPro không được đụng');
   assert.ok(keys.includes(sw.names.STATIC_CACHE), 'Cache build hiện tại phải giữ nguyên');
 });
 
-test('hotfix.1 #1: navigation revalidate không ghi đè app shell tốt bằng response lỗi (5xx)', async () => {
+test('cache safety #1: navigation revalidate không ghi đè app shell tốt bằng response lỗi (5xx)', async () => {
   const sw = loadSW();
   const url = `${ORIGIN}/`;
   const runtime = await sw.caches.open(sw.names.RUNTIME_SAMEORIGIN_CACHE);
@@ -143,7 +135,7 @@ test('hotfix.1 #1: navigation revalidate không ghi đè app shell tốt bằng 
   assert.equal(updated.body, 'new-shell', 'Response ok phải được revalidate vào cache');
 });
 
-test('hotfix.1 #1: networkFirst (same-origin không phải asset) không cache response lỗi', async () => {
+test('cache safety #1: networkFirst (same-origin không phải asset) không cache response lỗi', async () => {
   const sw = loadSW();
   const url = `${ORIGIN}/api/config`;
   const runtime = await sw.caches.open(sw.names.RUNTIME_SAMEORIGIN_CACHE);

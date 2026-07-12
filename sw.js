@@ -1,26 +1,8 @@
-// BUILD: 2026-07-08_v1.4.2_refui
-// ClientPro Service Worker (runtime-first, PWA-safe)
-// v1.4.2: chuẩn hóa error messages & loading states (module 19_error_loading.js:
-// ErrorHandler + LoadingManager + AppToast 4 loại) + precache module mới.
-// v1.4.1: gọn UI modal Tham khảo giá — bỏ ghi chú đường bộ/chim bay, chấm tin cậy
-// và dòng trạng thái đếm kết quả; chỉ hiển thị khoảng cách (ưu tiên đường bộ khi có).
-// v1.4.0: cải thiện độ chính xác khoảng cách đường bộ (siết ngưỡng bám đường
-// 500m -> 150m, thêm sanity check tỉ lệ vòng vèo, modal Tham khảo giá hiển thị
-// kèm chim bay + chỉ báo độ tin cậy).
-// v1.3.0: navigation chuyển sang stale-while-revalidate (mở app từ cache,
-// cập nhật ngầm) + cắt font latin-ext/Inter 300 khỏi precache.
-// v1.2.0: đồng bộ redesign (tag REDESIGN_20260705) + self-host vendor (lucide,
-// crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
-
-// Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.0.0-hotfix.2';
-// CACHE_EPOCH: định danh "thế hệ" cache, tách khỏi semver. Lịch sử repo từng
-// dùng tên cache `clientpro-static-v1.0.0` (trước khi đánh số nội bộ 1.6.x);
-// public release quay về semver 1.0.0 nên nếu chỉ dùng VERSION, client cũ chưa
-// từng nâng cấp sẽ TRÙNG tên cache cũ và SW mới dùng nhầm asset cổ. Bump epoch
-// bất cứ khi nào semver có nguy cơ trùng một tên cache đã từng tồn tại; không
-// bao giờ tái sử dụng một tên lịch sử.
-const CACHE_EPOCH = 'e2';
+// ClientPro Service Worker — offline-first cache and update lifecycle.
+// Bump version when changing static assets or cache behavior.
+const VERSION = 'v2.0.0';
+// Cache generation identifier. Bump for every major public release.
+const CACHE_EPOCH = 'e3';
 const STATIC_CACHE = `clientpro-${CACHE_EPOCH}-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-${CACHE_EPOCH}-runtime-so-${VERSION}`;
@@ -38,7 +20,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'V100_20260711';
+const ASSET_V = 'V200_20260712';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -162,7 +144,7 @@ self.addEventListener('activate', (event) => {
       }
     } catch (e) { }
 
-    // Xóa cache cũ
+    // Dọn cache ngoài allowlist
     const keys = await caches.keys();
     await Promise.all(
       keys
@@ -260,7 +242,7 @@ function isSameOrigin(request) {
 async function cacheFirst(event, request, cacheName, policy) {
   // 1) Precache của ĐÚNG build này trước (exact match, kể cả query ?v=).
   //    KHÔNG dùng caches.match() không scope — trong cửa sổ upgrade nó có thể
-  //    trả asset từ namespace của phiên bản cũ chưa bị activate dọn.
+  //    trả asset từ namespace của cache khác chưa bị activate dọn.
   try {
     const staticCache = await caches.open(STATIC_CACHE);
     const pre = await staticCache.match(request);
