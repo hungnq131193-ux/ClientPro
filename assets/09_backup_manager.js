@@ -231,28 +231,41 @@ async function _restoreFromEncryptedContent(encryptedContent, keyOverrideB64u) {
     throw new Error("App locked");
   }
 
-  // Khóa giải mã: mặc định khóa cá nhân; cho phép override (vd transfer key khi nhận
-  // backup từ user khác — bản mã được mã hóa bằng khóa hộp thư của người nhận).
-  const decKey = keyOverrideB64u || APP_BACKUP_KDATA_B64U;
-
-  // Giải mã (AES-GCM envelope v2 + tương thích legacy CryptoJS v1)
-  let decryptedStr = "";
-  try {
-    if (typeof decryptBackupPayload === 'function') {
-      const out = await decryptBackupPayload(String(encryptedContent || ''), decKey);
-      decryptedStr = out && out.plaintext ? out.plaintext : '';
-    }
-  } catch (e) {
-    decryptedStr = '';
+  // Mutex restore TOÀN CỤC: đây là choke point duy nhất mà file/app-backup/Drive/inbox
+  // đều đi qua trước khi ghi DB. Từ chối nếu đã có một restore khác đang chạy — tránh
+  // trạng thái last-writer-wins / trộn dữ liệu từ hai backup.
+  if (typeof window !== "undefined" && typeof window.acquireGlobalRestore === "function"
+    && !window.acquireGlobalRestore()) {
+    throw new Error("Đang có thao tác khôi phục khác đang chạy. Vui lòng thử lại sau.");
   }
+  try {
+    // Khóa giải mã: mặc định khóa cá nhân; cho phép override (vd transfer key khi nhận
+    // backup từ user khác — bản mã được mã hóa bằng khóa hộp thư của người nhận).
+    const decKey = keyOverrideB64u || APP_BACKUP_KDATA_B64U;
 
-  if (!decryptedStr) throw new Error('Decryption failed');
+    // Giải mã (AES-GCM envelope v2 + tương thích legacy CryptoJS v1)
+    let decryptedStr = "";
+    try {
+      if (typeof decryptBackupPayload === 'function') {
+        const out = await decryptBackupPayload(String(encryptedContent || ''), decKey);
+        decryptedStr = out && out.plaintext ? out.plaintext : '';
+      }
+    } catch (e) {
+      decryptedStr = '';
+    }
 
-  const data = JSON.parse(decryptedStr);
+    if (!decryptedStr) throw new Error('Decryption failed');
 
-  // Ghi vào DB qua BackupCore: mã hóa lại các trường (name/phone/cccd/notes + tài sản)
-  // và upsert customers/images trong 1 transaction. Nguồn logic duy nhất ở 12_backup_core.js.
-  await BackupCore.restoreAllTransactional(data);
+    const data = JSON.parse(decryptedStr);
+
+    // Ghi vào DB qua BackupCore: mã hóa lại các trường (name/phone/cccd/notes + tài sản)
+    // và upsert customers/images trong 1 transaction. Nguồn logic duy nhất ở 12_backup_core.js.
+    await BackupCore.restoreAllTransactional(data);
+  } finally {
+    if (typeof window !== "undefined" && typeof window.releaseGlobalRestore === "function") {
+      window.releaseGlobalRestore();
+    }
+  }
 }
 
 
@@ -282,8 +295,9 @@ async function _doBackupData() {
   _closeMenuIfOpen();
 
   // Khi Backup Manager đang mở (vd bấm "Tạo & xuất file"), KHÔNG dùng global
-  // loader: #loader cùng z-index với modal nên bị che → app trông như treo.
-  // Giữ modal mở để danh sách backup được refresh ngay khi xong.
+  // loader mà giữ modal mở để danh sách backup được refresh ngay khi xong.
+  // (Từ v1.0.0 loader đã nằm TRÊN business modal theo layering contract,
+  // nhưng UX ở đây vẫn đúng: backup trong máy nhanh, không cần che modal.)
   const bmModal = getEl("backup-manager-modal");
   const useGlobalLoader = !bmModal || bmModal.classList.contains("hidden");
   if (useGlobalLoader) LoadingManager.showGlobal("Đóng gói (Bảo mật)...");
@@ -348,6 +362,11 @@ async function _doBackupData() {
 }
 
 async function restoreData(input) {
+  // Lấy File hiện tại rồi reset input NGAY, vô điều kiện — phủ mọi nhánh
+  // (đang bận, app khóa, file lỗi, restore thất bại, exception, thành công).
+  // Không reset thì chọn lại đúng file cũ sẽ không bắn change event → nút chết.
+  const f = input && input.files && input.files[0];
+  try { if (input) input.value = ""; } catch (e) { }
   if (__restoreInFlight) return;
   __restoreInFlight = true;
   // FileReader hoàn tất trong callback async — cờ chỉ được giữ qua khỏi hàm này
@@ -363,11 +382,10 @@ async function restoreData(input) {
 
     // Đóng menu nếu đang mở (tránh lỗi khi gọi từ Backup Manager Modal)
     _closeMenuIfOpen();
-    const f = input.files && input.files[0];
     if (!f) return;
-    // Đóng Backup Manager TRƯỚC global loader — cùng lớp lỗi đã vá ở
-    // _doRestoreBackupFromApp (v1.6.1) và restoreFromDriveBackup (v1.6.2):
-    // #loader cùng z-index với modal nên bị che, app trông như treo.
+    // Đóng Backup Manager TRƯỚC global loader — giữ thứ tự đóng modal của flow
+    // (UX đúng: sau restore người dùng về danh sách, không quay lại modal).
+    // Từ v1.0.0 loader đã ở TRÊN business modal nên không còn bị che dù thứ tự đổi.
     closeBackupManager();
     LoadingManager.showGlobal("Xác thực bảo mật...");
 

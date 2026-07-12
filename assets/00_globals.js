@@ -1,12 +1,33 @@
         function getEl(id) { return document.getElementById(id); }
-        // Debounce helper to avoid heavy work on every keystroke / rapid events
+        // Debounce helper to avoid heavy work on every keystroke / rapid events.
+        // Hàm trả về có .cancel() để hủy lần gọi đang chờ (vd: reset ô tìm kiếm).
         function debounce(fn, wait = 150) {
           let t;
-          return function debounced(...args) {
+          function debounced(...args) {
             clearTimeout(t);
             t = setTimeout(() => fn.apply(this, args), wait);
-          };
+          }
+          debounced.cancel = () => { clearTimeout(t); t = undefined; };
+          return debounced;
         }
+
+        // =======================
+        // GLOBAL RESTORE MUTEX
+        // Mọi luồng restore (file .cpb, app backup nội bộ, Drive, inbox cloud) đều
+        // funnel qua _restoreFromEncryptedContent -> BackupCore.restoreAllTransactional.
+        // Mutex dùng chung này ngăn HAI nguồn restore chạy đồng thời (last-writer-wins
+        // / trộn dữ liệu). Cờ per-source (__restoreInFlight/__acceptRestoreInFlight)
+        // vẫn giữ để chống double-tap trong cùng một nguồn.
+        // =======================
+        window.__globalRestoreInFlight = false;
+        window.acquireGlobalRestore = function () {
+          if (window.__globalRestoreInFlight) return false;
+          window.__globalRestoreInFlight = true;
+          return true;
+        };
+        window.releaseGlobalRestore = function () {
+          window.__globalRestoreInFlight = false;
+        };
 
         // =======================
         // DISPLAY / CIPHERTEXT GUARDS (v1.5.8)

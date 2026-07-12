@@ -85,7 +85,7 @@ function loadSecurity() {
     db: null,                 // gán qua api.setDb(makeFakeDb(...)) khi test migration/prime
     queueMicrotask: (fn) => Promise.resolve().then(fn),
     getEl: () => null,
-    document: { getElementById: () => null, body: {}, querySelectorAll: () => [] },
+    document: { getElementById: () => null, body: {}, querySelector: () => null, querySelectorAll: () => [] },
     ErrorHandler: errorHandlerStub,
     window: { ErrorHandler: errorHandlerStub },
     setInterval: () => 0,
@@ -144,6 +144,17 @@ function loadSecurity() {
       isSafeImageUrl,
       isSafeDriveUrl,
       parseV2Envelope,
+      // B4: migration mã hóa creditLimit + asset.name
+      runFieldEncryptMigrationV2IfNeeded,
+      // B3: sealed KDATA cache
+      _readCachedKdataAsync,
+      _writeCachedKdata,
+      _flushPendingKdataCache,
+      getKdataRam: () => APP_BACKUP_KDATA_B64U,
+      setKdataRam: (v) => { APP_BACKUP_KDATA_B64U = v; },
+      getPendingKdata: () => __pendingKdataCache,
+      ensureBackupSecret,
+      completeUnlockDataLoad,
     };
   `;
 
@@ -182,33 +193,63 @@ function makeFakeDb(customers = [], images = []) {
   for (const c of customers) stores.customers.set(c.id, c);
   for (const im of images) stores.images.set(im.id, im);
 
-  function makeReq(compute) {
-    const r = { onsuccess: null, onerror: null, result: undefined, error: null };
-    Promise.resolve().then(() => {
-      try {
-        r.result = compute();            // real IDB đặt cả request.result LẪN event.target.result
-        if (r.onsuccess) r.onsuccess({ target: r });
-      } catch (e) {
-        r.error = e;
-        if (r.onerror) r.onerror({ target: r });
-      }
-    });
-    return r;
-  }
-  function objectStore(name) {
-    const m = stores[name];
-    return {
-      get: (k) => makeReq(() => m.get(k)),
-      getAll: () => makeReq(() => [...m.values()]),
-      getAllKeys: () => makeReq(() => [...m.keys()]),
-      put: (v) => makeReq(() => { m.set(v.id, v); return v.id; }),
-      delete: (k) => makeReq(() => { m.delete(k); return undefined; }),
-    };
-  }
   return {
     _stores: stores,
     objectStoreNames: { contains: (n) => n in stores },
-    transaction: () => ({ objectStore }),
+    // Mỗi transaction() trả một tx object hỗ trợ oncomplete/onerror/onabort
+    // (như IDB thật): oncomplete bắn qua microtask khi mọi request đã settle;
+    // request lỗi -> tx.onerror. Additive — test cũ chỉ dùng request.onsuccess
+    // vẫn chạy nguyên.
+    transaction: function transaction() {
+      const tx = { oncomplete: null, onerror: null, onabort: null, error: null };
+      let pending = 0;
+      let failed = false;
+      let finished = false;
+      function settle() {
+        if (finished || pending > 0) return;
+        // Chờ thêm 1 microtask: callback onsuccess có thể enqueue request mới
+        // (pattern getAllKeys().onsuccess -> delete từng key giữ tx sống).
+        Promise.resolve().then(() => {
+          if (finished || pending > 0) return;
+          finished = true;
+          if (failed) { if (tx.onerror) tx.onerror({ target: tx }); }
+          else if (tx.oncomplete) tx.oncomplete({ target: tx });
+        });
+      }
+      function makeReq(compute) {
+        const r = { onsuccess: null, onerror: null, result: undefined, error: null };
+        pending++;
+        Promise.resolve().then(() => {
+          try {
+            r.result = compute();        // real IDB đặt cả request.result LẪN event.target.result
+            if (r.onsuccess) r.onsuccess({ target: r });
+          } catch (e) {
+            r.error = e;
+            tx.error = e;
+            failed = true;
+            if (r.onerror) r.onerror({ target: r });
+          } finally {
+            pending--;
+            settle();
+          }
+        });
+        return r;
+      }
+      function objectStore(name) {
+        const m = stores[name];
+        return {
+          get: (k) => makeReq(() => m.get(k)),
+          getAll: () => makeReq(() => [...m.values()]),
+          getAllKeys: () => makeReq(() => [...m.keys()]),
+          put: (v) => makeReq(() => { m.set(v.id, v); return v.id; }),
+          delete: (k) => makeReq(() => { m.delete(k); return undefined; }),
+        };
+      }
+      tx.objectStore = objectStore;
+      // Transaction rỗng (không request nào) vẫn complete như IDB thật.
+      Promise.resolve().then(settle);
+      return tx;
+    },
   };
 }
 

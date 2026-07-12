@@ -38,6 +38,33 @@
 
   const LS_LAST_INBOX_HASH = 'clientpro_inbox_last_seen_hash';
   const LS_PENDING_NOTICE = 'clientpro_inbox_pending_notice';
+  // Idempotency BỀN VỮNG cho inbox restore: các transferId đã restore thành công.
+  // Set RAM (__restoredInboxIds) mất khi reload; nếu restore OK nhưng xóa remote
+  // thất bại, sau reload người dùng bấm lại sẽ restore lần hai và ghi đè chỉnh sửa.
+  // Persist ID ở đây (cap FIFO) để chống restore đúp qua reload.
+  const LS_CONSUMED_TRANSFER_IDS = 'clientpro_inbox_consumed_ids';
+  const CONSUMED_IDS_CAP = 200;
+
+  function _readConsumedTransferIds() {
+    try {
+      const raw = localStorage.getItem(LS_CONSUMED_TRANSFER_IDS);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.map(String) : [];
+    } catch (e) { return []; }
+  }
+  function _isConsumedTransferId(id) {
+    return _readConsumedTransferIds().indexOf(String(id)) !== -1;
+  }
+  function _markConsumedTransferId(id) {
+    try {
+      const key = String(id);
+      const list = _readConsumedTransferIds();
+      if (list.indexOf(key) !== -1) return;
+      list.push(key);
+      while (list.length > CONSUMED_IDS_CAP) list.shift();
+      localStorage.setItem(LS_CONSUMED_TRANSFER_IDS, JSON.stringify(list));
+    } catch (e) {}
+  }
 
   function now() { return Date.now(); }
 
@@ -209,7 +236,7 @@
 
     return await new Promise((resolve) => {
       const overlay = document.createElement('div');
-      overlay.className = 'fixed inset-0 z-[10060] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
+      overlay.className = 'fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4';
 
       overlay.appendChild(el('div', { className: 'glass-panel w-full max-w-md rounded-2xl border border-white/10 overflow-hidden' }, [
         el('div', { className: 'px-4 py-3 flex items-center justify-between border-b border-white/10' }, [
@@ -620,7 +647,7 @@
     const transferId = payload.transferId || payload.backupId || '';
 
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 z-[10080] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4';
+    overlay.className = 'fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4';
     const fromEl = el('span', { style: 'color:#60a5fa' });
     const fileEl = el('span', {});
     overlay.appendChild(el('div', { className: 'glass-panel w-full max-w-md rounded-2xl p-5 border border-white/10 shadow-2xl' }, [
@@ -658,70 +685,99 @@
     return overlay;
   }
 
+  // In-flight guard cho inbox restore: double-tap "Nhận & Khôi phục" chỉ được tạo
+  // đúng MỘT download/restore/delete. Cùng semantics với __restoreInFlight của
+  // 09_backup_manager nhưng tách cờ riêng (lifecycle khác nhau).
+  let __acceptRestoreInFlight = false;
+  // ID đã restore thành công trong phiên: nếu restore OK nhưng xóa remote thất bại,
+  // lần retry cleanup KHÔNG được restore dữ liệu thêm lần nữa.
+  const __restoredInboxIds = new Set();
+
   async function acceptAndRestoreById(transferId) {
     if (!transferId) throw new Error('Thiếu mã bản ghi');
-    if (typeof requireUnlockedForRestore === 'function' && !requireUnlockedForRestore()) return;
-    if ((typeof isAppUnlocked === 'function' && !isAppUnlocked()) || typeof masterKey === 'undefined' || !masterKey) {
-      ErrorHandler.showWarning('Vui lòng mở khóa dữ liệu trước khi khôi phục.');
-      return;
-    }
-
-    // Confirm and show loader
-    if (!(await ErrorHandler.confirm('Nhận và khôi phục bản ghi này?', { title: 'Nhận dữ liệu', confirmText: 'Nhận & Khôi phục' }))) return;
-
-    // Đóng Backup Manager TRƯỚC khi hiện loader (flow này còn được gọi từ tab
-    // "Nhận từ user" trong modal) — #loader cùng z-index với modal nên bị che.
-    if (typeof closeBackupManager === 'function') closeBackupManager();
-
-    const loader = document.getElementById('loader');
-    const loaderText = document.getElementById('loader-text');
-
-    if (loader) loader.classList.remove('hidden');
-    if (loaderText) loaderText.textContent = 'Xác thực bảo mật...';
-
-    // Strong gate: call ensureBackupSecret before download+decrypt
-    await ensureAuthOrThrow();
-
-    if (loaderText) loaderText.textContent = 'Đang tải bản ghi...';
-    const dl = await downloadInboxItem(transferId);
-
-    if (loaderText) loaderText.textContent = 'Đang khôi phục...';
-
-    // Bản nhận được mã hóa bằng "khóa chuyển" của CHÍNH MÌNH (không phải khóa cá nhân),
-    // nên phải lấy transfer key của mình để giải mã.
-    if (typeof ensureTransferKey !== 'function') throw new Error('Thiếu cơ chế khóa chuyển');
-    const inboxKey = await ensureTransferKey();
-
-    // Reuse existing restore flow
-    if (typeof _restoreFromEncryptedContent === 'function') {
-      await _restoreFromEncryptedContent(dl.encrypted, inboxKey);
-    } else {
-      throw new Error('Thiếu hàm restore (_restoreFromEncryptedContent)');
-    }
-
-    // Best-effort delete on server (still auto-delete in 24h)
-    await deleteInboxItem(transferId);
-
-    // Clear pending notice if it matches
+    if (__acceptRestoreInFlight) return;
+    // Đặt cờ TRƯỚC lần await đầu tiên; nhả trong finally trên mọi nhánh.
+    __acceptRestoreInFlight = true;
     try {
-      const p = localStorage.getItem(LS_PENDING_NOTICE);
-      if (p) {
-        const obj = JSON.parse(p);
-        if (obj && String(obj.transferId || obj.backupId) === String(transferId)) {
-          localStorage.removeItem(LS_PENDING_NOTICE);
-        }
+      if (typeof requireUnlockedForRestore === 'function' && !requireUnlockedForRestore()) return;
+      if ((typeof isAppUnlocked === 'function' && !isAppUnlocked()) || typeof masterKey === 'undefined' || !masterKey) {
+        ErrorHandler.showWarning('Vui lòng mở khóa dữ liệu trước khi khôi phục.');
+        return;
       }
-    } catch (e) {}
 
-    // Refresh UI
-    try {
-      if (typeof renderBackupList === 'function') await renderBackupList();
-      await CloudTransferUI.renderInbox();
-    } catch (e) {}
+      // Confirm and show loader
+      if (!(await ErrorHandler.confirm('Nhận và khôi phục bản ghi này?', { title: 'Nhận dữ liệu', confirmText: 'Nhận & Khôi phục' }))) return;
 
-    ErrorHandler.showSuccess('Đã nhận và khôi phục dữ liệu');
+      // Đóng Backup Manager TRƯỚC khi hiện loader (flow này còn được gọi từ tab
+      // "Nhận từ user" trong modal) — giữ thứ tự đóng modal của flow (UX đúng).
+      if (typeof closeBackupManager === 'function') closeBackupManager();
 
-    if (loader) loader.classList.add('hidden');
+      const loader = document.getElementById('loader');
+      const loaderText = document.getElementById('loader-text');
+
+      if (loader) loader.classList.remove('hidden');
+      if (loaderText) loaderText.textContent = 'Xác thực bảo mật...';
+
+      // Strong gate: call ensureBackupSecret before download+decrypt
+      await ensureAuthOrThrow();
+
+      const idKey = String(transferId);
+      // Đã restore rồi (trong phiên HOẶC ở phiên trước — bền vững qua reload):
+      // bỏ qua download+restore, chỉ chạy phần "thử xóa remote" bên dưới. Tách bạch
+      // "restore" khỏi "thử xóa lại" -> không bao giờ restore đúp qua reload.
+      if (!__restoredInboxIds.has(idKey) && !_isConsumedTransferId(idKey)) {
+        if (loaderText) loaderText.textContent = 'Đang tải bản ghi...';
+        const dl = await downloadInboxItem(transferId);
+
+        if (loaderText) loaderText.textContent = 'Đang khôi phục...';
+
+        // Bản nhận được mã hóa bằng "khóa chuyển" của CHÍNH MÌNH (không phải khóa cá nhân),
+        // nên phải lấy transfer key của mình để giải mã.
+        if (typeof ensureTransferKey !== 'function') throw new Error('Thiếu cơ chế khóa chuyển');
+        const inboxKey = await ensureTransferKey();
+
+        // Reuse existing restore flow. Lỗi ở đây throw ra ngoài → KHÔNG xóa remote.
+        if (typeof _restoreFromEncryptedContent === 'function') {
+          await _restoreFromEncryptedContent(dl.encrypted, inboxKey);
+        } else {
+          throw new Error('Thiếu hàm restore (_restoreFromEncryptedContent)');
+        }
+        // Đánh dấu consumed (RAM + BỀN VỮNG) NGAY sau khi restore OK, TRƯỚC khi thử
+        // xóa remote — nếu xóa remote fail rồi reload, lần bấm sau sẽ không restore lại.
+        __restoredInboxIds.add(idKey);
+        _markConsumedTransferId(idKey);
+      }
+
+      // Xóa remote CHỈ sau khi restore đã thành công (bây giờ hoặc lần trước).
+      // Vẫn best-effort (server tự xóa sau 24h) nhưng phải báo cho người dùng biết.
+      const remoteDeleted = await deleteInboxItem(transferId);
+      if (remoteDeleted === false) {
+        ErrorHandler.showWarning('Đã khôi phục nhưng chưa xóa được bản ghi trên server (sẽ tự xóa sau 24h).');
+      }
+
+      // Clear pending notice if it matches
+      try {
+        const p = localStorage.getItem(LS_PENDING_NOTICE);
+        if (p) {
+          const obj = JSON.parse(p);
+          if (obj && String(obj.transferId || obj.backupId) === String(transferId)) {
+            localStorage.removeItem(LS_PENDING_NOTICE);
+          }
+        }
+      } catch (e) {}
+
+      // Refresh UI
+      try {
+        if (typeof renderBackupList === 'function') await renderBackupList();
+        await CloudTransferUI.renderInbox();
+      } catch (e) {}
+
+      ErrorHandler.showSuccess('Đã nhận và khôi phục dữ liệu');
+
+      if (loader) loader.classList.add('hidden');
+    } finally {
+      __acceptRestoreInFlight = false;
+    }
   }
 
   async function dismissItem(transferId) {
@@ -870,6 +926,10 @@
     },
 
     showReceiveNotice() {
+      // Không hiện thông báo nhận dữ liệu khi app đang khóa — overlay ở lớp business
+      // modal (200) nằm DƯỚI màn khóa (300), nhưng tránh mọi khả năng lộ tên người
+      // gửi/file trên màn khóa và không dựng DOM thừa khi chưa mở khóa.
+      if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) return;
       let payload = null;
       try {
         const raw = localStorage.getItem(LS_PENDING_NOTICE);
@@ -893,7 +953,11 @@
       this._pollStarted = true;
 
       // initial poll after a short delay (let DB/init complete)
-      setTimeout(() => { pollInboxAndNotify(); }, 3500);
+      setTimeout(() => {
+        // Không poll mạng/hiện toast khi app còn khóa (cùng guard với interval bên dưới).
+        try { if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) return; } catch (e) {}
+        pollInboxAndNotify();
+      }, 3500);
 
       setInterval(() => {
         // only poll when tab visible (reduce noise)

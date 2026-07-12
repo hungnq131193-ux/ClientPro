@@ -582,10 +582,29 @@ input::placeholder {
   display: block;
 }
 
+/* ==========================================================================
+   Z-INDEX LAYERING CONTRACT (nguồn duy nhất — mọi thay đổi phải cập nhật bảng này)
+   60/70   menu overlay / settings menu
+   120     donate modal
+   200     business modal (backup-manager, asset, add, approve, ref-price, camera)
+   250     #loader — global loader: TRÊN mọi business modal, DƯỚI security/confirm
+   300     guide modal, #screen-lock (màn khóa không bao giờ bị loader che)
+   305/310 activation modal / setup-lock modal
+   400/500 #toast / #app-toast-container
+   600     .cp-confirm-overlay (confirm luôn trên loader — người dùng phải bấm được)
+   1000+   onboarding tour
+   ========================================================================== */
 #loader {
   backdrop-filter: blur(8px);
   background: rgba(0, 0, 0, 0.6);
-  z-index: 200;
+  z-index: 250;
+}
+
+/* A1: trong lúc edge-swipe được claim, chặn text selection ngoài ý muốn */
+.cp-swipe-noselect,
+.cp-swipe-noselect * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
 }
 
 #toast {

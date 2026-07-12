@@ -270,7 +270,19 @@ async function uploadAssetToDrive() {
             return;
         }
 
-        const assetNamePlain = _displayText(currentAsset.name);
+        // v1.0.0: asset.name mã hóa at rest — decrypt async THẬT trước khi dựng
+        // folderName; không giải mã được thì DỪNG, không đưa ciphertext/rỗng lên Drive.
+        const assetNamePlain = (typeof _displayPlainAsync === 'function')
+            ? await _displayPlainAsync(currentAsset.name, '')
+            : _displayText(currentAsset.name);
+        const custNamePlain = (typeof _displayPlainAsync === 'function')
+            ? await _displayPlainAsync(currentCustomerData.name, '')
+            : _displayText(currentCustomerData.name);
+        if (!assetNamePlain || !custNamePlain) {
+            LoadingManager.hideGlobal(true);
+            ErrorHandler.showWarning('Không thể đọc tên TSBĐ/khách hàng (dữ liệu chưa giải mã được). Vui lòng thử lại.');
+            return;
+        }
         if (!(await ErrorHandler.confirm(`Tải lên ${imagesToUpload.length} ảnh của tài sản "${assetNamePlain}" lên Drive?`, { title: "Tải ảnh lên Drive", confirmText: "Tải lên" }))) {
             LoadingManager.hideGlobal(true);
             return;
@@ -280,7 +292,6 @@ async function uploadAssetToDrive() {
 
         // Đặt tên Folder: [Tên Khách] - [Tên Tài Sản]
         // Ví dụ: Nguyen Van A - Nhà Đất 50m2
-        const custNamePlain = _displayText(currentCustomerData.name);
         const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
 
         const resolvedImages = await Promise.all(imagesToUpload.map(async (img, idx) => ({
@@ -397,50 +408,34 @@ async function reconnectAssetDriveFolder() {
 
     LoadingManager.showGlobal("Đang tìm TSBĐ...");
     
-    // IMPORTANT:
-    // Nhiều build dùng decryptCustomerSummary() để tăng hiệu năng danh sách khách hàng.
-    // Hàm này cố tình KHÔNG giải mã assets => asset.name có thể vẫn là ciphertext (U2FsdGVk...).
-    // Vì vậy, khi "Tìm kết nối cũ" phải lấy tên TSBĐ theo nguồn UI (đã hiển thị plaintext)
-    // hoặc giải mã best-effort, thay vì dùng trực tiếp asset.name trong bộ nhớ.
-    const custNamePlain = _displayText(currentCustomerData.name);
+    // v1.0.0: asset.name mã hóa at rest — folderName phải được dựng từ plaintext
+    // decrypt THẬT (async), tuyệt đối không đưa ciphertext vào tên folder Drive.
+    const custNamePlain = (typeof _displayPlainAsync === 'function')
+        ? await _displayPlainAsync(currentCustomerData.name, '')
+        : _displayText(currentCustomerData.name);
 
     let assetNamePlain = '';
     // 1) Ưu tiên lấy từ UI gallery (đã decrypt để hiển thị)
     try {
         const uiName = (getEl && getEl('gallery-asset-name') ? getEl('gallery-asset-name').textContent : '') || '';
         const uiTrim = String(uiName).trim();
-        if (uiTrim && !_isCryptoJSCiphertext(uiTrim)) assetNamePlain = uiTrim;
+        if (uiTrim && uiTrim !== 'Đang tải...' && !_isCryptoJSCiphertext(uiTrim)) assetNamePlain = uiTrim;
     } catch (e) {}
-    // 2) Fallback: decrypt từ data hiện tại
-    if (!assetNamePlain) assetNamePlain = _displayText(currentCustomerData.assets[assetIndex].name);
-    // 3) Nếu vẫn là ciphertext thì không dựng folderName sai; báo rõ để tránh tìm sai.
-    if (!assetNamePlain || _isCryptoJSCiphertext(assetNamePlain)) {
+    // 2) Fallback: decrypt async THẬT từ data hiện tại (không dựa cache nóng)
+    if (!assetNamePlain) {
+        assetNamePlain = (typeof _displayPlainAsync === 'function')
+            ? await _displayPlainAsync(currentCustomerData.assets[assetIndex].name, '')
+            : _displayText(currentCustomerData.assets[assetIndex].name);
+    }
+    // 3) Không giải mã được -> KHÔNG dựng folderName sai; báo rõ và dừng.
+    if (!custNamePlain || !assetNamePlain || _isCryptoJSCiphertext(assetNamePlain) || _isCryptoJSCiphertext(custNamePlain)) {
         LoadingManager.hideGlobal(true);
-        ErrorHandler.showWarning('Không thể đọc tên TSBĐ (dữ liệu cũ đang mã hóa). Vui lòng mở Kho Ảnh TSBĐ để app tự giải mã tên, rồi thử lại.');
+        ErrorHandler.showWarning('Không thể đọc tên TSBĐ/khách hàng (dữ liệu chưa giải mã được). Vui lòng thử lại sau khi mở khóa.');
         return;
     }
 
     const folderName = `${custNamePlain} - TSBĐ: ${assetNamePlain}`;
-
-    // Auto-migrate: nếu asset.name đang là ciphertext nhưng UI đã có plaintext, lưu ngược lại DB để lần sau ổn định.
-    try {
-        const rawName = currentCustomerData.assets[assetIndex].name;
-        if (_isCryptoJSCiphertext(String(rawName)) && assetNamePlain) {
-            const txM = db.transaction(['customers'], 'readwrite');
-            const stM = txM.objectStore('customers');
-            stM.get(currentCustomerData.id).onsuccess = (e) => {
-                const rec = e.target.result;
-                if (rec && rec.assets && rec.assets[assetIndex]) {
-                    rec.assets[assetIndex].name = assetNamePlain;
-                    stM.put(rec);
-                }
-            };
-            // Auto-migrate phụ: lỗi ghi không cần chặn flow, nhưng không được nuốt im lặng.
-            txM.onerror = (e) => {
-                ErrorHandler.logError('reconnectAssetDriveFolder: auto-migrate asset name failed', e);
-            };
-        }
-    } catch (e) {}
+    // (v1.0.0: bỏ auto-migrate ghi plaintext asset.name ngược vào DB — name giữ mã hóa at rest.)
 
     try {
         const response = await fetch(userUrl, {

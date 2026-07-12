@@ -13,12 +13,19 @@
 // crypto-js, maplibre-gl) và font trong assets/vendor + assets/fonts.
 
 // Bump version when changing static asset list / gate behavior
-const VERSION = 'v1.6.5';
-const STATIC_CACHE = `clientpro-static-${VERSION}`;
+const VERSION = 'v1.0.0';
+// CACHE_EPOCH: định danh "thế hệ" cache, tách khỏi semver. Lịch sử repo từng
+// dùng tên cache `clientpro-static-v1.0.0` (trước khi đánh số nội bộ 1.6.x);
+// public release quay về semver 1.0.0 nên nếu chỉ dùng VERSION, client cũ chưa
+// từng nâng cấp sẽ TRÙNG tên cache cũ và SW mới dùng nhầm asset cổ. Bump epoch
+// bất cứ khi nào semver có nguy cơ trùng một tên cache đã từng tồn tại; không
+// bao giờ tái sử dụng một tên lịch sử.
+const CACHE_EPOCH = 'e2';
+const STATIC_CACHE = `clientpro-${CACHE_EPOCH}-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
-const RUNTIME_SAMEORIGIN_CACHE = `clientpro-runtime-so-${VERSION}`;
-const RUNTIME_CDN_CACHE = `clientpro-runtime-cdn-${VERSION}`;
-const RUNTIME_TILE_CACHE = `clientpro-runtime-tile-${VERSION}`;
+const RUNTIME_SAMEORIGIN_CACHE = `clientpro-${CACHE_EPOCH}-runtime-so-${VERSION}`;
+const RUNTIME_CDN_CACHE = `clientpro-${CACHE_EPOCH}-runtime-cdn-${VERSION}`;
+const RUNTIME_TILE_CACHE = `clientpro-${CACHE_EPOCH}-runtime-tile-${VERSION}`;
 
 // Cache limits (tuned for long-term stability on mobile devices)
 const LIMITS = {
@@ -31,7 +38,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'V165_20260711';
+const ASSET_V = 'V100_20260711';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -124,7 +131,11 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  // KHÔNG skipWaiting() ở install: SW mới chờ theo lifecycle chuẩn (đóng hết
+  // tab / mở lại app) rồi mới activate — build mới được phục vụ NGUYÊN KHỐI
+  // (HTML + asset cùng phiên bản), không bao giờ tự tạo mixed-version giữa
+  // phiên hay reload làm mất nội dung người dùng đang nhập. Trang vẫn có thể
+  // chủ động kích hoạt sớm qua message SKIP_WAITING bên dưới (hook có-đồng-thuận).
   event.waitUntil((async () => {
     const cache = await caches.open(STATIC_CACHE);
     // cache:'reload' giúp lấy bản mới nhất, tránh dính cache HTTP cũ khi deploy lại
@@ -247,13 +258,27 @@ function isSameOrigin(request) {
 }
 
 async function cacheFirst(event, request, cacheName, policy) {
+  // 1) Precache của ĐÚNG build này trước (exact match, kể cả query ?v=).
+  //    KHÔNG dùng caches.match() không scope — trong cửa sổ upgrade nó có thể
+  //    trả asset từ namespace của phiên bản cũ chưa bị activate dọn.
+  try {
+    const staticCache = await caches.open(STATIC_CACHE);
+    const pre = await staticCache.match(request);
+    if (pre) return pre;
+  } catch (e) { }
+
+  // 2) Runtime cache same-origin của build này.
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
   if (cached) return cached;
 
+  // 3) Network — chỉ response hợp lệ (res.ok) mới được lưu vào runtime cache;
+  //    không cache response lỗi (4xx/5xx) để không "đóng băng" trạng thái hỏng.
   const res = await fetch(request);
-  const toStore = stampResponseIfPossible(res.clone());
-  try { await cache.put(request, toStore); } catch (e) { }
+  if (res && res.ok) {
+    const toStore = stampResponseIfPossible(res.clone());
+    try { await cache.put(request, toStore); } catch (e) { }
+  }
   if (event && event.waitUntil) event.waitUntil(cleanupCache(cacheName, policy));
   return res;
 }

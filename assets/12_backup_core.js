@@ -53,11 +53,14 @@
       }
     }
     if (!t.trim()) return '';
-    try {
-      return await encryptText(t);
-    } catch (e) {
-      return '';
-    }
+    // FAIL-CLOSED: encryptText() fail-open trả NGUYÊN plaintext khi masterKey mất
+    // (vd auto-lock ẩn app >15s giữa lúc normalize backup lớn). Nếu để nguyên,
+    // record sẽ được ghi plaintext nhưng gắn cryptoV=2 -> reader tưởng đã mã hóa.
+    // Bắt buộc kết quả PHẢI là ciphertext; nếu không -> throw để HỦY TOÀN BỘ restore
+    // (normalize chạy trước khi mở transaction nên chưa record nào bị ghi).
+    const enc = await encryptText(t);
+    if (!_looksEncrypted(enc)) throw new Error('RESTORE_ENCRYPT_FAILED');
+    return enc;
   }
 
   async function normalizeCustomerForExport(c) {
@@ -68,6 +71,11 @@
       safeDecryptAsync(cust.cccd),
       safeDecryptAsync(cust.notes)
     ]);
+    // v1.0.0: creditLimit mã hóa at rest -> export plaintext (backup không được chứa
+    // ciphertext). Number legacy coerce sang string; rỗng giữ nguyên.
+    if (cust.creditLimit !== undefined && cust.creditLimit !== null && cust.creditLimit !== '') {
+      cust.creditLimit = await safeDecryptAsync(String(cust.creditLimit));
+    }
     cust.driveLink = null;
 
     if (cust.assets && Array.isArray(cust.assets)) {
@@ -91,6 +99,12 @@
     cust.phone = await safeEncrypt(cust.phone);
     cust.cccd = await safeEncrypt(cust.cccd);
     cust.notes = await safeEncrypt(cust.notes);
+    // v1.0.0: creditLimit mã hóa at rest. safeEncrypt xử lý cả plaintext trong
+    // backup cũ (kể cả number) lẫn ciphertext lọt vào backup (rule R3 giữ nguyên
+    // khi không giải mã được — không ghi đè rỗng).
+    if (cust.creditLimit !== undefined && cust.creditLimit !== null && cust.creditLimit !== '') {
+      cust.creditLimit = await safeEncrypt(String(cust.creditLimit));
+    }
 
     if (cust.assets && Array.isArray(cust.assets)) {
       const out = [];
@@ -181,6 +195,9 @@
   async function _restoreTransactional(payload) {
     assertDeps();
     if (!payload || !Array.isArray(payload.customers)) throw new Error('Payload restore không hợp lệ');
+    // Fail-closed: app phải đang mở khóa để re-encrypt được. Nếu đã bị lock (mất
+    // masterKey) thì hủy ngay — không để safeEncrypt fail-open ghi plaintext.
+    if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) throw new Error('APP_LOCKED');
 
     // Mã hóa lại TẤT CẢ customer TRƯỚC khi mở transaction (safeEncrypt/AES-GCM async —
     // không được await giữa một transaction IndexedDB).

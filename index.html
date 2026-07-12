@@ -18,22 +18,22 @@
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-vietnamese.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-latin.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-vietnamese.woff2">
-    <link rel="stylesheet" href="./assets/css/fonts.css?v=V165_20260711">
+    <link rel="stylesheet" href="./assets/css/fonts.css?v=V100_20260711">
     <!-- Tailwind (self-host) -->
     <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
-    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=V165_20260711">
-    <link rel="stylesheet" href="./assets/css/app.patch.css?v=V165_20260711">
+    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=V100_20260711">
+    <link rel="stylesheet" href="./assets/css/app.patch.css?v=V100_20260711">
     <!-- Lucide icons (self-host, xem assets/vendor/README.md) -->
-    <script defer src="./assets/vendor/lucide.min.js?v=V165_20260711"></script>
+    <script defer src="./assets/vendor/lucide.min.js?v=V100_20260711"></script>
     <!-- Transfer Backup uses TEXT chunks (no QR image) -->
     <!-- MapLibre GL JS is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
     <!-- CryptoJS library for hashing and encryption (self-host) -->
-    <script defer src="./assets/vendor/crypto-js.min.js?v=V165_20260711"></script>
+    <script defer src="./assets/vendor/crypto-js.min.js?v=V100_20260711"></script>
 
-    <script defer src="./assets/head.js?v=V165_20260711"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=V165_20260711">
+    <script defer src="./assets/head.js?v=V100_20260711"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=V100_20260711">
     <!-- REDESIGN LAYER (banking / Vietinbank) — nạp cuối để đè lớp giao diện, không đụng JS -->
-    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=V165_20260711">
+    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=V100_20260711">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <!-- style-src vẫn giữ 'unsafe-inline' trong vercel.json: hàng trăm thuộc tính style="..."
          và nhiều chỗ .style.cssText/.style.x trong assets/*.js dùng cho theme động, vị trí
@@ -109,7 +109,8 @@
                     data-lucide="trash-2" class="w-4 h-4"></i> Xóa</button></div>
     </div>
 
-    <div id="loader" class="fixed inset-0 z-[500] flex flex-col items-center justify-center p-6 text-center">
+    <!-- z-index của #loader do styles.css quyết định (layering contract, hiện 250) -->
+    <div id="loader" class="fixed inset-0 flex flex-col items-center justify-center p-6 text-center">
         <div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4"
             style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div>
         <p id="loader-text" class="text-xs font-bold tracking-widest uppercase opacity-70"
@@ -543,35 +544,35 @@
     <div id="ui-modals-root"></div>
     <script src="./assets/ui/load_modals.js" defer></script>
 
-    <script src="./assets/00_globals.js?v=V165_20260711" defer></script>
-    <script src="./assets/01_config.js?v=V165_20260711" defer></script>
-    <script src="./assets/02_security.js?v=V165_20260711" defer></script>
-    <script src="./assets/12_backup_core.js?v=V165_20260711" defer></script>
-    <script src="./assets/13_ui_select_customers.js?v=V165_20260711" defer></script>
-    <script src="./assets/15_auth_gate.js?v=V165_20260711" defer></script>
-    <script src="./assets/03_map.js?v=V165_20260711" defer></script>
-    <script src="./assets/04_ui_common.js?v=V165_20260711" defer></script>
+    <script src="./assets/00_globals.js?v=V100_20260711" defer></script>
+    <script src="./assets/01_config.js?v=V100_20260711" defer></script>
+    <script src="./assets/02_security.js?v=V100_20260711" defer></script>
+    <script src="./assets/12_backup_core.js?v=V100_20260711" defer></script>
+    <script src="./assets/13_ui_select_customers.js?v=V100_20260711" defer></script>
+    <script src="./assets/15_auth_gate.js?v=V100_20260711" defer></script>
+    <script src="./assets/03_map.js?v=V100_20260711" defer></script>
+    <script src="./assets/04_ui_common.js?v=V100_20260711" defer></script>
     <!-- Chuẩn hóa error messages & loading states (ErrorHandler / LoadingManager / AppToast) -->
-    <script src="./assets/19_error_loading.js?v=V165_20260711" defer></script>
-    <script src="./assets/05_customers.js?v=V165_20260711" defer></script>
-    <script src="./assets/06_assets.js?v=V165_20260711" defer></script>
-    <script src="./assets/08_images_camera.js?v=V165_20260711" defer></script>
-    <script src="./assets/09_menu.js?v=V165_20260711" defer></script>
-    <script src="./assets/09_backup_manager.js?v=V165_20260711" defer></script>
-    <script src="./assets/09_donate.js?v=V165_20260711" defer></script>
-    <script src="./assets/09_weather.js?v=V165_20260711" defer></script>
-    <script src="./assets/07_drive.js?v=V165_20260711" defer></script>
+    <script src="./assets/19_error_loading.js?v=V100_20260711" defer></script>
+    <script src="./assets/05_customers.js?v=V100_20260711" defer></script>
+    <script src="./assets/06_assets.js?v=V100_20260711" defer></script>
+    <script src="./assets/08_images_camera.js?v=V100_20260711" defer></script>
+    <script src="./assets/09_menu.js?v=V100_20260711" defer></script>
+    <script src="./assets/09_backup_manager.js?v=V100_20260711" defer></script>
+    <script src="./assets/09_donate.js?v=V100_20260711" defer></script>
+    <script src="./assets/09_weather.js?v=V100_20260711" defer></script>
+    <script src="./assets/07_drive.js?v=V100_20260711" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=V165_20260711" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=V100_20260711" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=V165_20260711" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=V100_20260711" defer></script>
     <!-- Onboarding tour for new users -->
-    <script src="./assets/17_onboarding_tour.js?v=V165_20260711" defer></script>
+    <script src="./assets/17_onboarding_tour.js?v=V100_20260711" defer></script>
     <!-- Mở khóa sinh trắc học (Face ID / vân tay) - tính năng bổ sung, không thay đổi luồng PIN -->
-    <script src="./assets/18_biometric_unlock.js?v=V165_20260711" defer></script>
-    <script src="./assets/10_bootstrap.js?v=V165_20260711" defer></script>
-    <script src="./assets/11_edge_back_swipe.js?v=V165_20260711" defer></script>
-    <script src="./assets/pwa.js?v=V165_20260711" defer></script>
+    <script src="./assets/18_biometric_unlock.js?v=V100_20260711" defer></script>
+    <script src="./assets/10_bootstrap.js?v=V100_20260711" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=V100_20260711" defer></script>
+    <script src="./assets/pwa.js?v=V100_20260711" defer></script>
 </body>
 
 </html>

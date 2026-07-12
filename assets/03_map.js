@@ -8,7 +8,7 @@ const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'V165_20260711';
+const MAPLIBRE_V = 'V100_20260711';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const MAP_STYLE_SAT = {
     version: 8,
@@ -181,8 +181,9 @@ async function getCurrentGPS() {
     __gpsBusy = true;
 
     // Không dùng global loader: nút GPS nằm trong #asset-modal (không thể đóng khi
-    // đang nhập form) nên #loader sẽ bị modal che. Báo trạng thái tại chỗ: spinner
-    // trên nút + message qua placeholder của ô tọa độ.
+    // đang nhập form) — che cả form bằng loader toàn màn hình là sai UX cho một
+    // thao tác cục bộ. Báo trạng thái tại chỗ: spinner trên nút + message qua
+    // placeholder của ô tọa độ.
     const gpsBtn = document.querySelector('[data-action="getCurrentGPS"]');
     const inputLink = getEl('asset-link');
     const origPlaceholder = inputLink ? inputLink.placeholder : "";

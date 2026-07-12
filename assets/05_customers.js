@@ -8,6 +8,16 @@ const SVG_ICONS = Object.freeze({
     phone: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.9 12.9 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.1 9.9a16 16 0 0 0 6 6l1.26-1.26a2 2 0 0 1 2.11-.45 12.9 12.9 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`,
 });
 
+// Promisify một IndexedDB transaction: resolve khi complete, reject khi error/abort.
+// Bắt buộc dùng cho các thao tác destructive để lỗi transaction không bị im lặng.
+function __custTxDone(tx) {
+    return new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('Transaction error'));
+        tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+    });
+}
+
 function setCustSelectionMode(enabled, options) {
     const opts = options || {};
     isCustSelectionMode = !!enabled;
@@ -139,12 +149,30 @@ async function sendSelectedCustomersToUser() {
         LoadingManager.hideGlobal(true);
     }
 }
+let __deleteSelectedCustInFlight = false;
 async function deleteSelectedCustomers() {
+    if (__deleteSelectedCustInFlight) return;
     if (selectedCustomers.size === 0) return;
     if (!(await ErrorHandler.confirm(`Xóa vĩnh viễn ${selectedCustomers.size} khách hàng?`, { title: "Xóa khách hàng", danger: true, confirmText: "Xóa vĩnh viễn" }))) return;
-    const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
-    selectedCustomers.forEach(custId => { custStore.delete(custId); imgStore.index('customerId').getAllKeys(custId).onsuccess = e => { e.target.result.forEach(imgId => imgStore.delete(imgId)); }; });
-    tx.oncomplete = () => { ErrorHandler.showSuccess("Đã xóa khách hàng đã chọn"); setCustSelectionMode(false); };
+    if (__deleteSelectedCustInFlight) return;
+    __deleteSelectedCustInFlight = true;
+    try {
+        // Snapshot ID trước khi mở transaction (không đọc lại global sau await).
+        const ids = Array.from(selectedCustomers);
+        // Một transaction duy nhất: atomic all-or-nothing — hoặc xóa hết KH đã chọn
+        // (kèm ảnh của họ) hoặc không xóa gì nếu transaction lỗi/abort.
+        const tx = db.transaction(['customers', 'images'], 'readwrite'); const custStore = tx.objectStore('customers'); const imgStore = tx.objectStore('images');
+        ids.forEach(custId => { custStore.delete(custId); imgStore.index('customerId').getAllKeys(custId).onsuccess = e => { e.target.result.forEach(imgId => imgStore.delete(imgId)); }; });
+        await __custTxDone(tx);
+        // Chỉ cập nhật UI + báo thành công SAU khi transaction commit.
+        ErrorHandler.showSuccess("Đã xóa khách hàng đã chọn");
+        setCustSelectionMode(false);
+    } catch (err) {
+        // Không xóa item khỏi UI, không báo thành công giả — dữ liệu chưa đổi.
+        ErrorHandler.showError('STORAGE', 'Xóa khách hàng thất bại — dữ liệu CHƯA thay đổi. Vui lòng thử lại.', err);
+    } finally {
+        __deleteSelectedCustInFlight = false;
+    }
 }
 
 // ============================================================
@@ -172,6 +200,14 @@ function openCustomerList(type) {
     else if (typeof nextFrame === 'function') nextFrame(() => screen.classList.remove('translate-x-full'));
     else setTimeout(() => screen.classList.remove('translate-x-full'), 10);
 
+    // Mở mới danh sách = query rỗng: ô tìm kiếm và danh sách phải phản ánh CÙNG
+    // một query. Xóa input + hủy debounce đang chờ để callback search cũ không
+    // chạy đè lên danh sách vừa mở lại.
+    const searchEl = getEl('search-input');
+    if (searchEl) searchEl.value = '';
+    if (window.__searchDebounced && typeof window.__searchDebounced.cancel === 'function') {
+        window.__searchDebounced.cancel();
+    }
     // Load ngay danh sách (không lazy/defer) để tránh cảm giác trễ khi bấm mở màn hình.
     loadCustomers('');
     try { lucide.createIcons(); } catch (e) { }
@@ -564,7 +600,18 @@ function renderList(list, opts = {}) {
             el.querySelector('.customer-name-line').textContent = displayName;
             el.querySelector('.phone-value').textContent = displayPhone;
             const clValueEl = el.querySelector('.cl-value');
-            if (clValueEl) clValueEl.textContent = c.creditLimit || '0';
+            if (clValueEl) {
+                const rawCl = c.creditLimit;
+                if (typeof _looksEncrypted === 'function' && _looksEncrypted(rawCl)) {
+                    // Không bao giờ render ciphertext; decrypt async rồi cập nhật tại chỗ.
+                    clValueEl.textContent = '•••';
+                    if (typeof _displayPlainAsync === 'function') {
+                        _displayPlainAsync(rawCl, '•••').then((v) => { clValueEl.textContent = v; }).catch(() => { });
+                    }
+                } else {
+                    clValueEl.textContent = rawCl || '0';
+                }
+            }
 
             const zaloBtn = el.querySelector('[data-action="zalo"]');
             zaloBtn.setAttribute('href', getZaloLink(c.phone));
@@ -1031,13 +1078,28 @@ async function _doSaveCustomer(name, phoneNorm, cccd, editId) {
     }
 }
 
+let __deleteCustomerInFlight = false;
 async function deleteCurrentCustomer() {
+    if (__deleteCustomerInFlight) return;
+    // Snapshot ID trước confirm — không đọc lại global sau await để quyết định xóa gì.
+    const custId = currentCustomerId;
+    if (!custId) return;
     if (!(await ErrorHandler.confirm("Xóa toàn bộ hồ sơ khách hàng này?", { title: "Xác nhận xóa hồ sơ", danger: true, confirmText: "Xóa hồ sơ" }))) return;
+    if (__deleteCustomerInFlight) return;
+    __deleteCustomerInFlight = true;
     try {
         const tx = db.transaction(['images', 'customers'], 'readwrite'); const imgStore = tx.objectStore('images'); const custStore = tx.objectStore('customers');
-        if (imgStore.indexNames.contains('customerId')) { imgStore.index('customerId').getAllKeys(currentCustomerId).onsuccess = (e) => { e.target.result.forEach(key => imgStore.delete(key)); }; }
-        custStore.delete(currentCustomerId); tx.oncomplete = () => { closeFolder(); ErrorHandler.showSuccess("Đã xóa hồ sơ"); loadCustomers(); };
-    } catch (err) { window.location.reload(); }
+        if (imgStore.indexNames.contains('customerId')) { imgStore.index('customerId').getAllKeys(custId).onsuccess = (e) => { e.target.result.forEach(key => imgStore.delete(key)); }; }
+        custStore.delete(custId);
+        await __custTxDone(tx);
+        // Chỉ đóng hồ sơ + báo thành công SAU khi transaction commit.
+        closeFolder(); ErrorHandler.showSuccess("Đã xóa hồ sơ"); loadCustomers();
+    } catch (err) {
+        // Lỗi transaction phải được báo rõ; giữ nguyên UI/dữ liệu, không reload để che lỗi.
+        ErrorHandler.showError('STORAGE', 'Xóa hồ sơ thất bại — dữ liệu CHƯA thay đổi. Vui lòng thử lại.', err);
+    } finally {
+        __deleteCustomerInFlight = false;
+    }
 }
 
 async function deleteAsset(idx) {
@@ -1069,15 +1131,39 @@ async function deleteAsset(idx) {
 
 async function toggleCustomerStatus() { if (currentCustomerData.status === 'pending') { getEl('approve-modal').classList.remove('hidden'); getEl('approve-limit').value = ''; } else { if (await ErrorHandler.confirm("Thu hồi trạng thái đã duyệt của khách hàng này?", { title: "Thu hồi trạng thái", danger: true, confirmText: "Thu hồi" })) { currentCustomerData.status = 'pending'; updateCustomerAndReload(); } } }
 function closeApproveModal() { getEl('approve-modal').classList.add('hidden'); }
-function confirmApproval() {
+// v1.0.0: creditLimit mã hóa at rest. Chuẩn bị giá trị ghi DB:
+// - rỗng -> '' (không mã hóa ô trống thành chuỗi loằng ngoằng);
+// - đã là ciphertext (giá trị đọc từ DB lúc cold-cache chưa giải mã được) -> GIỮ NGUYÊN
+//   (không double-encrypt, không ghi đè rỗng);
+// - còn lại -> encryptText (await TRƯỚC khi mở transaction — quy tắc #4).
+async function _encryptCreditLimitForWrite(v) {
+    const s = (v === undefined || v === null) ? '' : String(v);
+    if (!s) return '';
+    if (typeof _looksEncrypted === 'function' && _looksEncrypted(s)) return s;
+    const out = await encryptText(s);
+    // encryptText fail-open khi app bị khóa giữa chừng (trả nguyên plaintext) —
+    // không được ghi plaintext xuống DB; throw để caller báo lỗi và dừng.
+    if (typeof _looksEncrypted === 'function' && !_looksEncrypted(out)) {
+        throw new Error('ENCRYPT_UNAVAILABLE');
+    }
+    return out;
+}
+async function confirmApproval() {
     const l = getEl('approve-limit').value;
     if (!l) return ErrorHandler.showError('VALIDATION', "Vui lòng nhập hạn mức.");
     const prevStatus = currentCustomerData.status;
     const prevLimit = currentCustomerData.creditLimit;
+    // Mã hóa TRƯỚC khi vào persist (mutator chạy trong transaction, không await được).
+    let encLimit;
+    try {
+        encLimit = await _encryptCreditLimitForWrite(l);
+    } catch (err) {
+        return ErrorHandler.showError('STORAGE', 'Không thể mã hóa hạn mức. Vui lòng thử lại.', err);
+    }
     currentCustomerData.status = 'approved';
-    currentCustomerData.creditLimit = l;
+    currentCustomerData.creditLimit = l; // view model plaintext trong RAM (app đã unlock)
     closeApproveModal();
-    persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = l; }, (ok) => {
+    persistCurrentCustomer((rec) => { rec.status = 'approved'; rec.creditLimit = encLimit; }, (ok) => {
         if (!ok) {
             // Ghi DB thất bại: hoàn tác in-memory, báo lỗi thay vì báo "Đã duyệt".
             currentCustomerData.status = prevStatus;
@@ -1090,8 +1176,16 @@ function confirmApproval() {
         loadCustomers(getEl('search-input').value);
     });
 }
-function updateCustomerAndReload() {
-    persistCurrentCustomer((rec) => { rec.status = currentCustomerData.status; rec.creditLimit = currentCustomerData.creditLimit; }, (ok) => {
+async function updateCustomerAndReload() {
+    // currentCustomerData.creditLimit là plaintext trong RAM (đã decrypt ở openFolder)
+    // -> phải mã hóa lại trước khi ghi; giá trị còn là ciphertext (cold-cache) giữ nguyên.
+    let encLimit;
+    try {
+        encLimit = await _encryptCreditLimitForWrite(currentCustomerData.creditLimit);
+    } catch (err) {
+        return ErrorHandler.showError('STORAGE', 'Không thể mã hóa hạn mức. Vui lòng thử lại.', err);
+    }
+    persistCurrentCustomer((rec) => { rec.status = currentCustomerData.status; rec.creditLimit = encLimit; }, (ok) => {
         if (!ok) {
             ErrorHandler.showError('STORAGE', 'Cập nhật trạng thái thất bại — dữ liệu CHƯA được lưu. Vui lòng thử lại.');
         }
@@ -1128,7 +1222,18 @@ function renderFolderHeader(data) {
         badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10";
         badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span class="badge-value"></span>`;
         const bv = badge.querySelector('.badge-value');
-        if (bv) bv.textContent = data.creditLimit;
+        if (bv) {
+            const rawLimit = data.creditLimit;
+            if (typeof _looksEncrypted === 'function' && _looksEncrypted(rawLimit)) {
+                // Cold-cache: không render ciphertext — hiện tạm rồi decrypt async cập nhật.
+                bv.textContent = '•••';
+                if (typeof _displayPlainAsync === 'function') {
+                    _displayPlainAsync(rawLimit, '•••').then((v) => { bv.textContent = v; }).catch(() => { });
+                }
+            } else {
+                bv.textContent = rawLimit;
+            }
+        }
     } else {
         badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
         badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`;
