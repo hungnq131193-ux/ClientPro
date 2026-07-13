@@ -17,10 +17,11 @@
 
 | Hạng mục | Giá trị hiện tại | Nguồn xác thực |
 |---|---|---|
-| Phiên bản app (semver) | `2.0.0` | `package.json` (single source of truth) |
-| Cache-buster asset | `V200_20260712` | `ASSET_V` trong `sw.js` |
-| Cache epoch | `e3` | `CACHE_EPOCH` trong `sw.js` |
-| Tên cache SW | `clientpro-e3-{static,runtime-so,runtime-cdn,runtime-tile}-<ver>` | `sw.js` |
+| Tên phát hành (release) | `Genesis` | tên phát hành công khai; hiển thị trong app |
+| Phiên bản app (semver) | `2.0.0` | `package.json` (single source of truth — số kỹ thuật nội bộ, không hiển thị cho người dùng) |
+| Cache-buster asset | `GENESIS_20260713` | `ASSET_V` trong `sw.js` |
+| Cache epoch | `genesis` | `CACHE_EPOCH` trong `sw.js` |
+| Tên cache SW | `clientpro-genesis-{static,runtime-so,runtime-cdn,runtime-tile}-<ver>` | `sw.js` |
 | Database | `QLKH_Pro_V4`, schema **version 5** | `assets/10_bootstrap.js` (`indexedDB.open`) |
 | Object stores | `customers`, `images`, `backups` (đều `keyPath: "id"`) | `assets/10_bootstrap.js` |
 | Thứ tự thực thi module | xem §4 | `index.html` |
