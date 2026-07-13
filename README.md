@@ -6,7 +6,7 @@
 
 **Demo:** https://client-pro-beryl.vercel.app
 
-ClientPro là PWA mobile-first quản lý **khách hàng** và **tài sản bảo đảm** trên điện thoại. Ứng dụng hoạt động offline, lưu toàn bộ dữ liệu nghiệp vụ **cục bộ trên thiết bị**, và chỉ kết nối Google Drive / Google Apps Script cho các tác vụ do người dùng chủ động thực hiện (backup, chuyển dữ liệu).
+**ClientPro Genesis** là PWA mobile-first quản lý **khách hàng** và **tài sản bảo đảm** trên điện thoại. Ứng dụng hoạt động offline, lưu toàn bộ dữ liệu nghiệp vụ **cục bộ trên thiết bị**, và chỉ kết nối Google Drive / Google Apps Script cho các tác vụ do người dùng chủ động thực hiện (backup, chuyển dữ liệu).
 
 Ứng dụng viết bằng vanilla JavaScript, **zero-dependency lúc runtime, không build step** — mở thẳng bằng static server là chạy.
 
@@ -93,8 +93,9 @@ Repository là static site và có thể import trực tiếp vào Vercel, khôn
 
 ## Quản lý phiên bản
 
-- **Phiên bản app (semver)** — hiện tại **`2.0.0`**. Nguồn duy nhất: `package.json`.
-- **cache-buster asset** — hiện tại **`V200_20260712`**. Nguồn: `ASSET_V` trong `sw.js`.
+- **Tên phát hành** — **Genesis**. Đây là tên phát hành công khai của ClientPro.
+- **Phiên bản app (semver)** — hiện tại **`2.0.0`**. Số kỹ thuật nội bộ giữ cho tooling đồng bộ và tương thích, không hiển thị cho người dùng. Nguồn duy nhất: `package.json`.
+- **cache-buster asset** — hiện tại **`GENESIS_20260713`**. Nguồn: `ASSET_V` trong `sw.js`.
 
 Sau khi thay đổi phiên bản, đồng bộ ra mọi nơi (manifest, SW, PWA, README):
 

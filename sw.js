@@ -2,7 +2,7 @@
 // Bump version when changing static assets or cache behavior.
 const VERSION = 'v2.0.0';
 // Cache generation identifier. Bump for every major public release.
-const CACHE_EPOCH = 'e3';
+const CACHE_EPOCH = 'genesis';
 const STATIC_CACHE = `clientpro-${CACHE_EPOCH}-static-${VERSION}`;
 // Runtime caches are split by purpose to control growth over long-term use.
 const RUNTIME_SAMEORIGIN_CACHE = `clientpro-${CACHE_EPOCH}-runtime-so-${VERSION}`;
@@ -20,7 +20,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'V200_20260712';
+const ASSET_V = 'GENESIS_20260713';
 const STATIC_ASSETS = [
   './',
   './index.html',
