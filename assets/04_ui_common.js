@@ -337,6 +337,13 @@ function getZaloLink(phone) {
 function isMobileDevice() {
     return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
 }
+function isIOSDevice() {
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+}
+function isStandaloneDisplay() {
+    return window.navigator.standalone === true
+        || !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+}
 function getTelLink(phone) {
     const p = normalizePhoneForLink(phone);
     return p ? `tel:+${p}` : '#';
@@ -357,6 +364,16 @@ function openZaloChat(phone) {
     // trang zalo.me nếu máy chưa cài Zalo, nên không cần dò app đã mở hay
     // chưa bằng timer nữa.
     if (isMobileDevice()) {
+        // Riêng iOS chạy PWA standalone (Add to Home Screen): app sống trong
+        // WKWebView không có hook Universal Link, location.href sẽ tải hẳn
+        // trang zalo.me bên trong webview thay vì chuyển app. window.open
+        // thoát ra Safari thật — nơi Universal Link chuyển app ngay; nếu
+        // popup bị chặn thì rơi về location.href như cũ.
+        if (isIOSDevice() && isStandaloneDisplay()) {
+            const win = window.open(fallback, '_blank', 'noopener');
+            if (!win) window.location.href = fallback;
+            return;
+        }
         window.location.href = fallback;
         return;
     }
