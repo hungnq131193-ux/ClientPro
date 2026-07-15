@@ -31,6 +31,13 @@ function setCustSelectionMode(enabled, options) {
     }
     const count = getEl('cust-selection-count');
     if (count) count.textContent = selectedCustomers.size;
+    // Nút "Chọn" trên toolbar (discoverability, bổ sung cho long-press): đồng bộ
+    // nhãn Chọn ↔ Xong + aria-pressed theo trạng thái selection mode.
+    const selBtn = getEl('btn-cust-select');
+    if (selBtn) {
+        selBtn.textContent = isCustSelectionMode ? 'Xong' : 'Chọn';
+        selBtn.setAttribute('aria-pressed', isCustSelectionMode ? 'true' : 'false');
+    }
     if (!opts.skipReload) loadCustomers(getEl('search-input').value);
 }
 function toggleCustSelectionMode() {
@@ -293,6 +300,100 @@ function _custSig(c) {
     return `${c && c.id ? c.id : ''}|${c && c.name ? c.name : ''}|${c && c.phone ? c.phone : ''}|${c && c.cccd ? c.cccd : ''}|${c && c.status ? c.status : ''}|${c && c.creditLimit ? c.creditLimit : ''}`;
 }
 
+// =======================
+// SEARCH SÂU (notes + TSBĐ): cache blob đã chuẩn hóa, tách khỏi __custSummaryCache
+// để mở list không query không phải decrypt notes/assets. Chỉ RAM — xóa khi lockApp
+// (clearMasterKeyMaterial), không bao giờ persist plaintext.
+// =======================
+const __custSearchBlobCache = window.__custSearchBlobCache || (window.__custSearchBlobCache = new Map());
+
+function _custDeepSig(c) {
+    // Signature từ ciphertext (GCM re-encrypt luôn đổi IV nên đuôi chuỗi đủ phân biệt);
+    // giữ sig ngắn bằng length + đuôi thay vì nguyên văn ciphertext dài.
+    const part = (v) => { const s = String(v == null ? '' : v); return s.length + ':' + s.slice(-24); };
+    const assetsSig = (Array.isArray(c.assets) ? c.assets : [])
+        .map((a) => `${a && a.id ? a.id : ''}~${part(a && a.name)}~${part(a && a.onland)}`).join(';');
+    return `${part(c.notes)}|${assetsSig}`;
+}
+
+async function _ensureSearchBlobAsync(c) {
+    if (!c) return c;
+    const dsig = _custDeepSig(c);
+    const cached = __custSearchBlobCache.get(c.id);
+    if (cached && cached.dsig === dsig) {
+        c._nNotes = cached.nNotes;
+        c._nAssetsBlob = cached.nAssetsBlob;
+        return c;
+    }
+    if (typeof decryptFieldAsync !== 'function') { c._nNotes = ''; c._nAssetsBlob = ''; return c; }
+    // Decrypt thất bại -> bỏ field đó khỏi match (KHÔNG ghi fallback rỗng về DB,
+    // chỉ là chỉ số tìm kiếm trong RAM).
+    const plain = async (v) => {
+        if (v === undefined || v === null || v === '') return '';
+        try {
+            const out = await decryptFieldAsync(v);
+            return (out && !_looksEncrypted(String(out))) ? String(out) : '';
+        } catch (e) { return ''; }
+    };
+    const notesPlain = await plain(c.notes);
+    const parts = [];
+    for (const a of (Array.isArray(c.assets) ? c.assets : [])) {
+        if (!a) continue;
+        const [an, ao] = await Promise.all([plain(a.name), plain(a.onland)]);
+        if (an) parts.push(_normVi(an));
+        if (ao) parts.push(_normVi(ao));
+    }
+    const nNotes = _normVi(notesPlain);
+    const nAssetsBlob = parts.join('\n');
+    __custSearchBlobCache.set(c.id, { dsig, nNotes, nAssetsBlob });
+    c._nNotes = nNotes;
+    c._nAssetsBlob = nAssetsBlob;
+    return c;
+}
+
+// Sort danh sách KH (Workstream B): state phiên, không persist.
+// 'recent' = thứ tự hiện tại (duyệt từ cuối getAll -> mới hơn trước).
+let customerListSort = 'recent';
+function setCustomerSort(value) {
+    const v = (value === 'name-asc' || value === 'name-desc') ? value : 'recent';
+    // No-op khi không đổi: click thuần mở dropdown <select> cũng dispatch tới đây.
+    if (v === customerListSort) return;
+    customerListSort = v;
+    const sel = getEl('customer-sort-select');
+    if (sel && sel.value !== v) sel.value = v;
+    loadCustomers(getEl('search-input') ? getEl('search-input').value : '');
+}
+
+// creditLimit trong entry cache: `limit` = plaintext (undefined nếu chưa giải mã được —
+// KHÔNG bao giờ lưu/hiện ciphertext), `nLimit` = chuỗi số đã strip space cho search.
+function _applySummaryCacheEntry(c, cached) {
+    c.name = cached.name;
+    c.phone = cached.phone;
+    c.cccd = cached.cccd;
+    // Chỉ số tìm kiếm đã chuẩn hóa (bỏ dấu / bỏ khoảng trắng) — dùng lại qua từng keystroke.
+    c._nName = cached.nName; c._nPhone = cached.nPhone; c._nCccd = cached.nCccd;
+    c._plainLimit = cached.limit; c._nLimit = cached.nLimit;
+}
+
+function _storeSummaryCacheEntry(c, sig, limitPlain) {
+    const nName = _normVi(c.name), nPhone = _stripSpaces(c.phone), nCccd = _stripSpaces(c.cccd);
+    const limit = (limitPlain === undefined || _looksEncrypted(limitPlain)) ? undefined : String(limitPlain == null ? '' : limitPlain);
+    const nLimit = (limit === undefined) ? undefined : _stripSpaces(limit);
+    __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd, ok: true, nName, nPhone, nCccd, limit, nLimit });
+    c._nName = nName; c._nPhone = nPhone; c._nCccd = nCccd;
+    c._plainLimit = limit; c._nLimit = nLimit;
+}
+
+// Giải mã creditLimit best-effort, KHÔNG fail-open ciphertext: trả undefined khi chưa mở được.
+function _limitPlainSync(raw) {
+    if (raw === undefined || raw === null || raw === '') return '';
+    let s = String(raw);
+    if (_looksEncrypted(s) && typeof decryptText === 'function') {
+        try { const out = decryptText(s); if (out) s = String(out); } catch (e) { }
+    }
+    return _looksEncrypted(s) ? undefined : s;
+}
+
 function _ensureSummaryDecrypted(c) {
     if (!c) return c;
     if (!c.assets) c.assets = [];
@@ -301,11 +402,7 @@ function _ensureSummaryDecrypted(c) {
     const sig = _custSig(c);
     const cached = __custSummaryCache.get(c.id);
     if (cached && cached.sig === sig && cached.ok === true) {
-        c.name = cached.name;
-        c.phone = cached.phone;
-        c.cccd = cached.cccd;
-        // Chỉ số tìm kiếm đã chuẩn hóa (bỏ dấu / bỏ khoảng trắng) — dùng lại qua từng keystroke.
-        c._nName = cached.nName; c._nPhone = cached.nPhone; c._nCccd = cached.nCccd;
+        _applySummaryCacheEntry(c, cached);
         return c;
     }
 
@@ -314,9 +411,7 @@ function _ensureSummaryDecrypted(c) {
 
     const ok = !_looksEncrypted(c.name) && !_looksEncrypted(c.phone) && !_looksEncrypted(c.cccd);
     if (ok) {
-        const nName = _normVi(c.name), nPhone = _stripSpaces(c.phone), nCccd = _stripSpaces(c.cccd);
-        __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd, ok: true, nName, nPhone, nCccd });
-        c._nName = nName; c._nPhone = nPhone; c._nCccd = nCccd;
+        _storeSummaryCacheEntry(c, sig, _limitPlainSync(c.creditLimit));
     } else {
         __custSummaryCache.delete(c.id);
     }
@@ -331,10 +426,17 @@ async function _ensureSummaryDecryptedAsync(c) {
     const sig = _custSig(c);
     const cached = __custSummaryCache.get(c.id);
     if (cached && cached.sig === sig && cached.ok === true) {
-        c.name = cached.name;
-        c.phone = cached.phone;
-        c.cccd = cached.cccd;
-        c._nName = cached.nName; c._nPhone = cached.nPhone; c._nCccd = cached.nCccd;
+        // Entry được tạo bởi đường sync lúc cache lạnh có thể chưa có limit -> nâng cấp tại chỗ.
+        if (cached.limit === undefined && c.creditLimit && typeof decryptFieldAsync === 'function') {
+            try {
+                const lim = await decryptFieldAsync(c.creditLimit);
+                if (lim !== undefined && lim !== null && !_looksEncrypted(String(lim))) {
+                    cached.limit = String(lim);
+                    cached.nLimit = _stripSpaces(cached.limit);
+                }
+            } catch (e) { }
+        }
+        _applySummaryCacheEntry(c, cached);
         return c;
     }
 
@@ -350,14 +452,46 @@ async function _ensureSummaryDecryptedAsync(c) {
 
     const ok = !_looksEncrypted(c.name) && !_looksEncrypted(c.phone) && !_looksEncrypted(c.cccd);
     if (ok) {
-        const nName = _normVi(c.name), nPhone = _stripSpaces(c.phone), nCccd = _stripSpaces(c.cccd);
-        __custSummaryCache.set(c.id, { sig, name: c.name, phone: c.phone, cccd: c.cccd, ok: true, nName, nPhone, nCccd });
-        c._nName = nName; c._nPhone = nPhone; c._nCccd = nCccd;
+        let limitPlain;
+        if (c.creditLimit === undefined || c.creditLimit === null || c.creditLimit === '') limitPlain = '';
+        else if (typeof decryptFieldAsync === 'function') {
+            try {
+                const lim = await decryptFieldAsync(c.creditLimit);
+                limitPlain = (lim !== undefined && lim !== null && !_looksEncrypted(String(lim))) ? String(lim) : undefined;
+            } catch (e) { limitPlain = undefined; }
+        } else limitPlain = _limitPlainSync(c.creditLimit);
+        _storeSummaryCacheEntry(c, sig, limitPlain);
     } else {
         __custSummaryCache.delete(c.id);
     }
     return c;
 }
+
+/**
+ * Prime cache summary (name/phone/cccd/creditLimit) cho TOÀN BỘ khách hàng — gọi từ
+ * completeUnlockDataLoad (02_security.js) TRƯỚC lần loadCustomers đầu sau unlock để
+ * list render plaintext ngay, không flash "Đang tải..." / "•••" (Workstream D).
+ * Đọc getAll xong (transaction đã complete) rồi mới decrypt — không await crypto trong tx.
+ * Chỉ nạp RAM cache; không prime khi app đang khóa.
+ */
+async function primeCustomerSummaryCache() {
+    if (!db) return;
+    if (typeof masterKey === 'undefined' || !masterKey) return;
+    const all = await new Promise((resolve) => {
+        try {
+            const tx = db.transaction(['customers'], 'readonly');
+            const req = tx.objectStore('customers').getAll();
+            req.onsuccess = (e) => resolve(e.target.result || []);
+            req.onerror = () => resolve([]);
+        } catch (e) { resolve([]); }
+    });
+    // Batch nhỏ để không chiếm main thread quá lâu (loader unlock vẫn đang hiện).
+    const BATCH = 20;
+    for (let i = 0; i < all.length; i += BATCH) {
+        await Promise.all(all.slice(i, i + BATCH).map((c) => _ensureSummaryDecryptedAsync(c).catch(() => { })));
+    }
+}
+window.primeCustomerSummaryCache = primeCustomerSummaryCache;
 
 async function _decryptSummariesBatch(customers) {
     if (!customers || !customers.length) return;
@@ -400,19 +534,33 @@ async function loadCustomers(query = '') {
 
         if (q) {
             await _ensureSummaryDecryptedAsync(c);
+            // Blob tìm kiếm sâu (notes + tên/vị trí TSBĐ) — decrypt lazy, cache theo deep-sig.
+            await _ensureSearchBlobAsync(c);
             // Dùng chỉ số đã chuẩn hóa (cache) -> không tính lại mỗi keystroke.
             const qNorm = _normVi(q);
             const qDigits = _stripSpaces(q);
             const nameMatch = (c._nName || '').includes(qNorm);
             const phoneMatch = (c._nPhone || '').includes(qDigits);
             const cccdMatch = (c._nCccd || '').includes(qDigits);
-            if (!nameMatch && !phoneMatch && !cccdMatch) continue;
+            const limitMatch = (c._nLimit || '').includes(qDigits);
+            const notesMatch = (c._nNotes || '').includes(qNorm);
+            const assetsMatch = (c._nAssetsBlob || '').includes(qNorm);
+            if (!nameMatch && !phoneMatch && !cccdMatch && !limitMatch && !notesMatch && !assetsMatch) continue;
         }
 
         list.push(c);
     }
 
     if (window.__customerListLoadToken !== loadToken) return;
+
+    // Sort áp SAU filter, TRƯỚC render. Sort theo tên cần plaintext của cả list —
+    // decrypt summary trước (cache hit sau prime unlock nên thường rẻ).
+    if (customerListSort === 'name-asc' || customerListSort === 'name-desc') {
+        await _decryptSummariesBatch(list);
+        if (window.__customerListLoadToken !== loadToken) return;
+        const dir = customerListSort === 'name-desc' ? -1 : 1;
+        list.sort((a, b) => dir * String(a._nName || '').localeCompare(String(b._nName || ''), 'vi'));
+    }
 
     const summaryCounts = all.reduce((acc, c) => {
         if (!c) return acc;
@@ -491,7 +639,7 @@ function renderList(list, opts = {}) {
                     <strong>${approved}</strong>
                 </div>
                 <div class="customer-kpi pending">
-                    <p>Thẩm định</p>
+                    <p>Đang thẩm định</p>
                     <strong>${pending}</strong>
                 </div>
             </div>
@@ -511,7 +659,7 @@ function renderList(list, opts = {}) {
             if (query) {
                 LoadingManager.showSearchEmptyState(listEl, {
                     title: 'Không tìm thấy khách hàng',
-                    message: `Không có hồ sơ nào khớp với “${query}”. Thử từ khóa hoặc số điện thoại khác.`,
+                    message: `Không có hồ sơ nào khớp với “${query}”. Thử tên, SĐT, CCCD, ghi chú hoặc tài sản bảo đảm khác.`,
                     actionText: 'Xóa tìm kiếm',
                     onAction: () => { const s = getEl('search-input'); if (s) { s.value = ''; } loadCustomers(''); },
                 });
@@ -519,7 +667,7 @@ function renderList(list, opts = {}) {
                 LoadingManager.showEmptyState(listEl, {
                     icon: 'folder',
                     title: 'Chưa có hồ sơ ở mục này',
-                    message: activeListTab === 'approved' ? 'Chưa có khách hàng nào được duyệt.' : 'Chưa có khách hàng nào ở trạng thái thẩm định.',
+                    message: activeListTab === 'approved' ? 'Chưa có khách hàng nào đã vay.' : 'Chưa có khách hàng nào đang thẩm định.',
                     actionText: 'Xem tất cả',
                     onAction: () => { if (typeof openCustomerList === 'function') openCustomerList('all'); else { activeListTab = 'all'; loadCustomers(); } },
                 });
@@ -559,11 +707,11 @@ function renderList(list, opts = {}) {
             }, { ignoreSelector: '.action-btn,button,a,input,textarea,select,label,[data-long-press-ignore]' });
         }
 
-            const statusTone = isApproved ? 'Đã duyệt vay' : 'Đang thẩm định';
+            const statusTone = isApproved ? 'Đã vay' : 'Đang thẩm định';
             const limitHtml = isApproved
                 ? `<div class="flex items-center gap-1.5 mt-2">
                     <span class="customer-chip approved">
-                        ${SVG_ICONS.checkCircle} HM: <span class="cl-value"></span>
+                        ${SVG_ICONS.checkCircle} Hạn mức: <span class="cl-value"></span> trđ
                     </span>
                    </div>`
                 : `<div class="flex items-center gap-1.5 mt-2">
@@ -573,10 +721,13 @@ function renderList(list, opts = {}) {
                    </div>`;
             const checkIcon = isCustSelectionMode ? `<div class="select-ring">${SVG_ICONS.check}</div>` : '';
 
-            // Fallback if data still looks encrypted
-            const displayName = (c.name && !_looksEncrypted(c.name)) ? c.name : 'Đang tải...';
+            // Fallback khi field còn ciphertext (hiếm sau khi prime unlock): placeholder
+            // trung tính "—" thống nhất trên cả card (không xen kẽ "Đang tải..."/"•••"),
+            // rồi decrypt async cập nhật tại chỗ bên dưới.
+            const nameMissing = !!(c.name && _looksEncrypted(c.name));
+            const displayName = (c.name && !nameMissing) ? c.name : (nameMissing ? '—' : 'Chưa có tên');
             const displayPhone = (c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--';
-            const displayInitial = displayName.charAt(0).toUpperCase();
+            const displayInitial = nameMissing ? '?' : displayName.charAt(0).toUpperCase();
 
             // Avatar styling - glow for approved
             const avatarClass = isApproved ? 'customer-avatar approved' : 'customer-avatar pending';
@@ -596,17 +747,26 @@ function renderList(list, opts = {}) {
                             <a data-action="call" class="action-btn customer-action-btn call">${SVG_ICONS.phone}</a>
                         </div>`;
 
-            el.querySelector('.avatar-initial').textContent = displayInitial;
-            el.querySelector('.customer-name-line').textContent = displayName;
+            const avatarEl = el.querySelector('.avatar-initial');
+            const nameLineEl = el.querySelector('.customer-name-line');
+            avatarEl.textContent = displayInitial;
+            nameLineEl.textContent = displayName;
             el.querySelector('.phone-value').textContent = displayPhone;
+            if (nameMissing && typeof _displayPlainAsync === 'function') {
+                // Không bao giờ render ciphertext; decrypt async rồi cập nhật tại chỗ.
+                _displayPlainAsync(c.name, '—').then((v) => {
+                    nameLineEl.textContent = v;
+                    avatarEl.textContent = (v && v !== '—') ? v.charAt(0).toUpperCase() : '?';
+                }).catch(() => { });
+            }
             const clValueEl = el.querySelector('.cl-value');
             if (clValueEl) {
-                const rawCl = c.creditLimit;
+                // Ưu tiên plaintext từ summary cache (đã prime sau unlock — không flash).
+                const rawCl = (c._plainLimit !== undefined) ? c._plainLimit : c.creditLimit;
                 if (typeof _looksEncrypted === 'function' && _looksEncrypted(rawCl)) {
-                    // Không bao giờ render ciphertext; decrypt async rồi cập nhật tại chỗ.
-                    clValueEl.textContent = '•••';
+                    clValueEl.textContent = '—';
                     if (typeof _displayPlainAsync === 'function') {
-                        _displayPlainAsync(rawCl, '•••').then((v) => { clValueEl.textContent = v; }).catch(() => { });
+                        _displayPlainAsync(rawCl, '—').then((v) => { clValueEl.textContent = v; }).catch(() => { });
                     }
                 } else {
                     clValueEl.textContent = rawCl || '0';
@@ -1240,7 +1400,7 @@ function renderFolderHeader(data) {
         }
     } else {
         badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
-        badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>THẨM ĐỊNH</span>`;
+        badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>ĐANG THẨM ĐỊNH</span>`;
     }
     try { lucide.createIcons(); } catch (e) { }
 }

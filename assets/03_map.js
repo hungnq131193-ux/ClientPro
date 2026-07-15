@@ -8,7 +8,7 @@ const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'ONBOARD_20260715';
+const MAPLIBRE_V = 'UXLIST_20260715';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const MAP_STYLE_SAT = {
     version: 8,
@@ -549,7 +549,7 @@ function _buildMapPopupCard(props) {
     const infoDiv = document.createElement('div');
     const statusSpan = document.createElement('span');
     statusSpan.className = isApproved ? 'map-tag approved' : 'map-tag pending';
-    statusSpan.textContent = isApproved ? 'Đã Duyệt' : 'Thẩm định';
+    statusSpan.textContent = isApproved ? 'Đã vay' : 'Đang thẩm định';
     infoDiv.appendChild(statusSpan);
 
     const nameDiv = document.createElement('div');
