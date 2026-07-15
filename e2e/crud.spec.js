@@ -75,7 +75,7 @@ test('B9/B8: mở lại danh sách reset tìm kiếm; xóa KH không reload, dan
     localStorage.setItem('app_pin', env);
     localStorage.setItem('app_crypto_schema_v', '2');
     // Tắt onboarding tour để tooltip z-[1002] không che các nút cần bấm.
-    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 2, completedAt: Date.now() }));
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 3, completedAt: Date.now() }));
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
@@ -155,7 +155,7 @@ test('B4: creditLimit + asset.name mã hóa at rest, UI hiển thị plaintext',
     localStorage.setItem('app_employee_id', 'TEST');
     localStorage.setItem('app_pin', env);
     localStorage.setItem('app_crypto_schema_v', '2');
-    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 2, completedAt: Date.now() }));
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 3, completedAt: Date.now() }));
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
