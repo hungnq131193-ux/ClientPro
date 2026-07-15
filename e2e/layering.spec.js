@@ -19,7 +19,7 @@ async function unlock(page) {
     localStorage.setItem('app_employee_id', 'TEST');
     localStorage.setItem('app_pin', env);
     localStorage.setItem('app_crypto_schema_v', '2');
-    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 1, completedAt: Date.now() }));
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 2, completedAt: Date.now() }));
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);

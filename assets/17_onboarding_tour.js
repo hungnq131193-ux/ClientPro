@@ -5,7 +5,7 @@
 
 (function () {
     const TOUR_KEY = 'clientpro_onboarding_done';
-    const TOUR_VERSION = 1; // Increment to show tour again after major updates
+    const TOUR_VERSION = 2; // Increment to show tour again after major updates
 
     // Tour steps configuration
     const tourSteps = [
@@ -36,8 +36,14 @@
         {
             target: '#btn-open-menu',
             title: '⚙️ Cài đặt',
-            content: 'Đổi giao diện, sao lưu dữ liệu, kết nối Google Drive.',
+            content: 'Đổi giao diện, sao lưu và khôi phục dữ liệu.',
             position: 'bottom-left'
+        },
+        {
+            target: 'button[data-action="toggleDashboardDriveConfig"]',
+            title: '☁️ Cài đặt Google Drive',
+            content: 'Nhập Link Script cá nhân để sao lưu ảnh khách hàng lên Google Drive của bạn.',
+            position: 'top-left'
         },
         {
             target: null,

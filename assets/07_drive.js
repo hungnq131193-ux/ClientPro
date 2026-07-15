@@ -20,6 +20,46 @@ function toggleDashboardDriveConfig() {
         if (input) setTimeout(() => input.focus(), 80);
     }
 }
+// Đưa người dùng về Dashboard rồi mở panel "Cài đặt Google Drive".
+// GAS cá nhân nay cấu hình ở Dashboard (#dashboard-drive-config), KHÔNG còn trong menu Cài đặt —
+// nên các confirm "Chưa cấu hình Drive" phải hướng tới đây thay vì gọi toggleMenu().
+function openDashboardDriveConfigGuide() {
+    // 1) Đóng menu Cài đặt nếu đang mở.
+    if (typeof _closeMenuIfOpen === 'function') _closeMenuIfOpen();
+
+    // 2) Đóng các màn đang chồng lên Dashboard (folder / danh sách KH) để lộ nút cấu hình.
+    try {
+        const folderScreen = getEl('screen-folder');
+        if (folderScreen && !folderScreen.classList.contains('hidden')
+            && !folderScreen.classList.contains('translate-x-full')
+            && typeof closeFolder === 'function') {
+            closeFolder();
+        }
+    } catch (e) { }
+    try {
+        const listScreen = getEl('screen-customer-list');
+        if (listScreen && !listScreen.classList.contains('hidden')
+            && !listScreen.classList.contains('translate-x-full')
+            && typeof closeCustomerList === 'function') {
+            closeCustomerList();
+        }
+    } catch (e) { }
+
+    // 3) Mở panel cấu hình — CHỈ toggle khi đang ẩn để không vô tình đóng panel đã mở.
+    //    Chờ animation đóng màn (slideScreenOut ~300-360ms) trước khi mở & cuộn tới.
+    setTimeout(() => {
+        const panel = getEl('dashboard-drive-config');
+        if (panel && panel.classList.contains('hidden') && typeof toggleDashboardDriveConfig === 'function') {
+            toggleDashboardDriveConfig();
+        }
+        try {
+            if (panel && typeof panel.scrollIntoView === 'function') {
+                panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        } catch (e) { }
+    }, 380);
+}
+
 // Mã bảo mật (Access Token) cho Script Drive cá nhân (UserAPI).
 // Server UserAPI bắt buộc token; app gửi kèm mỗi request (trong body, KHÔNG qua query URL).
 //
@@ -246,8 +286,8 @@ async function uploadAssetToDrive() {
     // Lấy link Script cá nhân
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (await ErrorHandler.confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm 'Vào Cài đặt' để nhập Link Script của bạn.", { title: "Chưa cấu hình Drive", confirmText: "Vào Cài đặt" })) {
-            toggleMenu();
+        if (await ErrorHandler.confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Vào Dashboard → Cài đặt Google Drive để nhập Link Script của bạn.", { title: "Chưa cấu hình Drive", confirmText: "Cài đặt Drive" })) {
+            openDashboardDriveConfigGuide();
         }
         return;
     }
@@ -406,7 +446,7 @@ function renderAssetDriveStatus(url) {
 async function reconnectAssetDriveFolder() {
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (await ErrorHandler.confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm 'Vào Cài đặt' để nhập Link Script của bạn.", { title: "Chưa cấu hình Drive", confirmText: "Vào Cài đặt" })) toggleMenu();
+        if (await ErrorHandler.confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Vào Dashboard → Cài đặt Google Drive để nhập Link Script của bạn.", { title: "Chưa cấu hình Drive", confirmText: "Cài đặt Drive" })) openDashboardDriveConfigGuide();
         return;
     }
 
@@ -498,7 +538,7 @@ async function reconnectDriveFolder() {
     // Lấy link Script cá nhân; nếu chưa cấu hình thì nhắc người dùng cài đặt
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (await ErrorHandler.confirm("Chưa cấu hình Script! Vào cài đặt ngay?", { title: "Chưa cấu hình Drive", confirmText: "Vào Cài đặt" })) toggleMenu();
+        if (await ErrorHandler.confirm("Chưa cấu hình Script! Vào Dashboard → Cài đặt Google Drive ngay?", { title: "Chưa cấu hình Drive", confirmText: "Cài đặt Drive" })) openDashboardDriveConfigGuide();
         return;
     }
     // Không có dữ liệu khách hàng hiện tại thì dừng
@@ -563,8 +603,8 @@ async function uploadToGoogleDrive() {
     // Lấy link Script cá nhân cho upload tài sản
     const userUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if (!userUrl || userUrl.length < 10) {
-        if (await ErrorHandler.confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Bấm 'Vào Cài đặt' để nhập Link Script của bạn.", { title: "Chưa cấu hình Drive", confirmText: "Vào Cài đặt" })) {
-            toggleMenu();
+        if (await ErrorHandler.confirm("Bạn chưa cấu hình nơi lưu ảnh cá nhân! Vào Dashboard → Cài đặt Google Drive để nhập Link Script của bạn.", { title: "Chưa cấu hình Drive", confirmText: "Cài đặt Drive" })) {
+            openDashboardDriveConfigGuide();
         }
         return;
     }
