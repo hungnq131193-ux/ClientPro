@@ -444,6 +444,10 @@ function clearMasterKeyMaterial() {
   __pendingKdataCache = null;
   __fieldPlainCache.clear();
   __fieldDecryptPending.clear();
+  // Cache plaintext của danh sách KH (summary + blob tìm kiếm, 05_customers.js)
+  // cũng là secret trong RAM -> xóa cùng lúc với __fieldPlainCache khi khóa.
+  try { if (window.__custSummaryCache) window.__custSummaryCache.clear(); } catch (e) {}
+  try { if (window.__custSearchBlobCache) window.__custSearchBlobCache.clear(); } catch (e) {}
 }
 
 /**
@@ -658,6 +662,12 @@ async function completeUnlockDataLoad(pinForMigration, empForMigration) {
       try { ErrorHandler.logError("field-encrypt-migration-v2", e); } catch (_) {}
     }
     await primeFieldCache();
+    // Prime summary list (name/phone/cccd/creditLimit) TRƯỚC loadCustomers đầu tiên:
+    // list render plaintext ngay sau unlock, không flash "Đang tải..."/"•••".
+    // Chỉ nạp RAM cache (05_customers.js) — bị xóa lại trong clearMasterKeyMaterial.
+    try {
+      if (typeof primeCustomerSummaryCache === "function") await primeCustomerSummaryCache();
+    } catch (e) {}
     // Seal KDATA nhận được lúc còn khóa (AuthGate preflight) TRƯỚC khi phát
     // sự kiện unlocked — auto-backup nghe sự kiện sẽ thấy cache sẵn, không
     // phải xin lại KDATA từ GAS.

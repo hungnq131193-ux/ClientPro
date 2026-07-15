@@ -7,9 +7,11 @@
 
 (function () {
     const TOUR_KEY = 'clientpro_onboarding_done';
-    const TOUR_VERSION = 3; // Increment to show tour again after major updates
+    const TOUR_VERSION = 4; // Increment to show tour again after major updates
 
-    // Tour steps configuration
+    // Tour steps configuration.
+    // Mọi target phải là phần tử VISIBLE trên Dashboard sau unlock — không spotlight
+    // phần tử nằm trong màn hình đang ẩn (positionStep fallback về center nếu thiếu).
     const tourSteps = [
         {
             target: null, // Welcome screen - no target
@@ -19,10 +21,10 @@
             position: 'center'
         },
         {
-            target: '#search-input',
+            target: 'button[data-action="openCustomerList"][data-arg="pending"]',
             icon: '🔍',
-            title: 'Tìm kiếm nhanh',
-            content: 'Gõ tên hoặc số điện thoại để tìm khách hàng ngay lập tức.',
+            title: 'Danh sách & tìm kiếm',
+            content: 'Chạm vào ô này để mở danh sách khách hàng, rồi dùng ô tìm kiếm ở đầu danh sách để tìm theo tên, SĐT, CCCD...',
             position: 'bottom'
         },
         {
@@ -40,17 +42,24 @@
             position: 'top-left'
         },
         {
+            target: 'button[data-action="openBackupManager"]',
+            icon: '💾',
+            title: 'Sao lưu & khôi phục',
+            content: 'Sao lưu dữ liệu lên Drive hoặc xuất file, và khôi phục khi cần.',
+            position: 'top-left'
+        },
+        {
             target: '#btn-open-menu',
             icon: '⚙️',
             title: 'Cài đặt',
-            content: 'Đổi giao diện, sao lưu và khôi phục dữ liệu.',
+            content: 'Đổi giao diện, bảo mật PIN / sinh trắc học và ủng hộ.',
             position: 'bottom-left'
         },
         {
             target: 'button[data-action="toggleDashboardDriveConfig"]',
             icon: '☁️',
             title: 'Cài đặt Google Drive',
-            content: 'Nhập Link Script cá nhân để sao lưu ảnh khách hàng lên Google Drive của bạn.',
+            content: 'Cấu hình Google Drive để lưu ảnh hồ sơ của bạn.',
             position: 'top-left'
         },
         {

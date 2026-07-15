@@ -170,7 +170,7 @@ function showRefModal(results) {
     m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
   results.forEach((item, idx) => {
     const distStr = fmtDist(item.distance);
-    const valStr = item.valuation.toLocaleString("vi-VN") + " tr₫";
+    const valStr = item.valuation.toLocaleString("vi-VN") + " trđ";
     const assetName = item.assetName || "";
     const customerName = item.customerName || "";
     const area = item.area || "";

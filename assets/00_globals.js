@@ -234,6 +234,9 @@
             // --- 1 tham số literal, lấy từ data-arg ---
             setTheme: (el) => setTheme(el.dataset.arg),
             openCustomerList: (el) => openCustomerList(el.dataset.arg),
+            // <select> sort danh sách KH: giá trị lấy từ .value; click thuần (mở dropdown)
+            // cũng dispatch tới đây nhưng setCustomerSort no-op khi giá trị không đổi.
+            setCustomerSort: (el) => setCustomerSort(el.value),
             switchTab: (el) => switchTab(el.dataset.arg),
             tryOpenCamera: (el) => tryOpenCamera(el.dataset.arg),
             enterPin: (el) => enterPin(Number(el.dataset.arg)),
@@ -252,6 +255,7 @@
           const CHANGE_ACTIONS = {
             handleFileUpload: (el) => handleFileUpload(el, el.dataset.arg),
             restoreData: (el) => restoreData(el),
+            setCustomerSort: (el) => setCustomerSort(el.value),
           };
 
           function dispatch(map, ev) {
