@@ -18,8 +18,8 @@
 | Hạng mục | Giá trị hiện tại | Nguồn xác thực |
 |---|---|---|
 | Tên phát hành (release) | `Genesis` | tên phát hành công khai; không còn hiển thị trong UI app |
-| Phiên bản app (semver) | `1.0.1` | `package.json` (single source of truth — số kỹ thuật nội bộ, không hiển thị cho người dùng) |
-| Cache-buster asset | `FIXDRIVE_20260714` | `ASSET_V` trong `sw.js` |
+| Phiên bản app (semver) | `1.0.2` | `package.json` (single source of truth — số kỹ thuật nội bộ, không hiển thị cho người dùng) |
+| Cache-buster asset | `ONBOARD_20260715` | `ASSET_V` trong `sw.js` |
 | Cache epoch | `genesis` | `CACHE_EPOCH` trong `sw.js` |
 | Tên cache SW | `clientpro-genesis-{static,runtime-so,runtime-cdn,runtime-tile}-<ver>` | `sw.js` |
 | Database | `QLKH_Pro_V4`, schema **version 5** | `assets/10_bootstrap.js` (`indexedDB.open`) |
