@@ -17,7 +17,7 @@
             target: null, // Welcome screen - no target
             icon: '👋',
             title: 'Chào mừng đến ClientPro!',
-            content: 'Ứng dụng quản lý khách hàng chuyên nghiệp dành cho cán bộ tín dụng. Cùng xem nhanh các tính năng chính nhé!',
+            content: 'Ứng dụng quản lý khách hàng chuyên nghiệp dành cho cán bộ tín dụng. Cùng xem nhanh các tính năng chính.',
             position: 'center'
         },
         {

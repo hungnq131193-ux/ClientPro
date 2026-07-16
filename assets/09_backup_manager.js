@@ -214,7 +214,7 @@ async function _doRestoreBackupFromApp(id) {
   if (!(await ErrorHandler.confirm(`Khôi phục dữ liệu từ bản sao lưu:\n\n${rec.filename}\n\nTiếp tục?`, { title: "Khôi phục dữ liệu", confirmText: "Khôi phục" }))) return;
 
   closeBackupManager();
-  LoadingManager.showGlobal("Đồng bộ...");
+  LoadingManager.showGlobal("Đang khôi phục…");
 
   try {
     await _restoreFromEncryptedContent(rec.encrypted);
@@ -304,7 +304,7 @@ async function _doBackupData() {
   // nhưng UX ở đây vẫn đúng: backup trong máy nhanh, không cần che modal.)
   const bmModal = getEl("backup-manager-modal");
   const useGlobalLoader = !bmModal || bmModal.classList.contains("hidden");
-  if (useGlobalLoader) LoadingManager.showGlobal("Đóng gói (Bảo mật)...");
+  if (useGlobalLoader) LoadingManager.showGlobal("Đang mã hóa bản sao lưu…");
 
   try {
     // Đọc + chuẩn hoá qua BackupCore: giải mã name/phone/cccd/notes + tài sản, bỏ driveLink,
@@ -396,7 +396,7 @@ async function restoreData(input) {
     // Phương án 1: mỗi lần bấm Restore sẽ verify lại và xin secret từ server
     if (!(await requireBackupSecretOrAlert())) { LoadingManager.hideGlobal(true); return; }
 
-    LoadingManager.showGlobal("Đồng bộ...");
+    LoadingManager.showGlobal("Đang khôi phục…");
     const r = new FileReader();
     r.onload = async (e) => {
       try {
