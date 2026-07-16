@@ -8,7 +8,7 @@ const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'UXREFINE_20260716';
+const MAPLIBRE_V = 'COPYNORM_20260716';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 // Theme sáng dùng nền bản đồ sáng (Carto Positron — cùng host với dark-matter,
 // đã nằm trong CSP connect-src/img-src, không thêm origin mới).
