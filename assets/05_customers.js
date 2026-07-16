@@ -714,7 +714,7 @@ function renderList(list, opts = {}) {
             const limitHtml = isApproved
                 ? `<div class="flex items-center gap-1.5 mt-2">
                     <span class="customer-chip approved">
-                        ${SVG_ICONS.checkCircle} Hạn mức: <span class="cl-value"></span> trđ
+                        ${SVG_ICONS.checkCircle} Hạn mức: <span class="cl-value"></span>
                     </span>
                    </div>`
                 : `<div class="flex items-center gap-1.5 mt-2">
@@ -766,13 +766,15 @@ function renderList(list, opts = {}) {
             if (clValueEl) {
                 // Ưu tiên plaintext từ summary cache (đã prime sau unlock — không flash).
                 const rawCl = (c._plainLimit !== undefined) ? c._plainLimit : c.creditLimit;
+                // Đơn vị "trđ" chỉ thêm khi giá trị thuần số (đồng bộ badge hồ sơ) —
+                // tránh "500 triệu trđ" khi người dùng đã gõ kèm chữ.
                 if (typeof _looksEncrypted === 'function' && _looksEncrypted(rawCl)) {
                     clValueEl.textContent = '—';
                     if (typeof _displayPlainAsync === 'function') {
-                        _displayPlainAsync(rawCl, '—').then((v) => { clValueEl.textContent = v; }).catch(() => { });
+                        _displayPlainAsync(rawCl, '—').then((v) => { clValueEl.textContent = _fmtLimitDisplay(v); }).catch(() => { });
                     }
                 } else {
-                    clValueEl.textContent = rawCl || '0';
+                    clValueEl.textContent = _fmtLimitDisplay(rawCl || '0');
                 }
             }
 
@@ -1362,6 +1364,15 @@ async function updateCustomerAndReload() {
     });
 }
 
+// Đơn vị hạn mức khi hiển thị (v1.0.5): giá trị thuần số thêm " trđ" cho rõ ngữ
+// cảnh (thống nhất badge hồ sơ với chip danh sách). Giá trị người dùng tự gõ kèm
+// chữ ("500 triệu") giữ nguyên. Chỉ là chuỗi hiển thị — KHÔNG đổi dữ liệu lưu DB.
+function _fmtLimitDisplay(v) {
+    const s = String(v === undefined || v === null ? '' : v).trim();
+    if (!s || s === '•••' || s === '—') return s;
+    return /^[\d.,\s]+$/.test(s) ? s + ' trđ' : s;
+}
+
 function renderFolderHeader(data) {
     if (!data) return;
     // Guard ciphertext: sync decryptText có thể trả nguyên "cpg1:..." khi cache chưa nạp.
@@ -1386,24 +1397,31 @@ function renderFolderHeader(data) {
     const badge = getEl('detail-status-badge');
     if (!badge) return;
     if (data.status === 'approved') {
-        badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10";
-        badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span class="badge-value"></span>`;
+        badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/10";
+        badge.innerHTML = `<i data-lucide="badge-check" class="w-3.5 h-3.5"></i> <span class="badge-value"></span><span class="badge-unit"></span>`;
         const bv = badge.querySelector('.badge-value');
+        const bu = badge.querySelector('.badge-unit');
+        // .badge-value chỉ chứa plaintext hạn mức (e2e assert nguyên văn);
+        // đơn vị "trđ" (khi giá trị thuần số) nằm ở .badge-unit kế bên.
+        const setLimit = (v) => {
+            bv.textContent = v;
+            if (bu) bu.textContent = (_fmtLimitDisplay(v) !== String(v)) ? ' trđ' : '';
+        };
         if (bv) {
             const rawLimit = data.creditLimit;
             if (typeof _looksEncrypted === 'function' && _looksEncrypted(rawLimit)) {
                 // Cold-cache: không render ciphertext — hiện tạm rồi decrypt async cập nhật.
-                bv.textContent = '•••';
+                setLimit('•••');
                 if (typeof _displayPlainAsync === 'function') {
-                    _displayPlainAsync(rawLimit, '•••').then((v) => { bv.textContent = v; }).catch(() => { });
+                    _displayPlainAsync(rawLimit, '•••').then((v) => { setLimit(v); }).catch(() => { });
                 }
             } else {
-                bv.textContent = rawLimit;
+                setLimit(rawLimit);
             }
         }
     } else {
-        badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
-        badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>ĐANG THẨM ĐỊNH</span>`;
+        badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
+        badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>Đang thẩm định</span>`;
     }
     try { lucide.createIcons(); } catch (e) { }
 }
@@ -1554,8 +1572,8 @@ function switchTab(tabName) {
     const tabImages = getEl('tab-btn-images');
     const tabAssets = getEl('tab-btn-assets');
 
-    const activeClass = "glass-tab-active flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all";
-    const inactiveClass = "glass-tab-inactive flex-1 py-2.5 text-xs font-bold uppercase rounded-lg transition-all hover:bg-white/5";
+    const activeClass = "glass-tab-active flex-1 py-2.5 text-xs font-bold rounded-lg transition-all";
+    const inactiveClass = "glass-tab-inactive flex-1 py-2.5 text-xs font-bold rounded-lg transition-all hover:bg-white/5";
 
     // Reset all tabs
     if (tabInfo) tabInfo.className = inactiveClass;

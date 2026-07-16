@@ -1106,3 +1106,271 @@ body.theme-vietinbank .app-toast-error { background: #fef2f2; }
 body.theme-vietinbank .app-toast-warning { background: #fffbeb; }
 body.theme-vietinbank .app-toast-success { background: #ecfdf5; }
 body.theme-vietinbank .app-toast-info { background: #eff6ff; }
+
+/* ============================================================
+   UI DETAIL POLISH v1.0.5 (2026-07-16) — chau chuốt chi tiết:
+   safe-area (map/camera/lightbox/dock), vùng chạm ≥44px, toast
+   không che navigation, brand accent cho confirm/empty/map,
+   dashboard/list/folder polish. Chỉ trình bày, không đổi hành vi.
+   ============================================================ */
+
+/* --- A1. Map: control tránh notch / home indicator, nút zoom ≥44px --- */
+#screen-map [data-action="toggleMap"] {
+  top: calc(1rem + var(--sat, 0px)) !important;
+  left: calc(1rem + var(--sal, 0px)) !important;
+}
+#screen-map [data-action="locateMe"] {
+  bottom: calc(2rem + var(--sab, 0px)) !important;
+  right: calc(1.5rem + var(--sar, 0px)) !important;
+}
+#screen-map .maplibregl-ctrl-top-right {
+  top: calc(0.5rem + var(--sat, 0px));
+  right: calc(0.5rem + var(--sar, 0px));
+}
+#screen-map .maplibregl-ctrl-bottom-left {
+  bottom: calc(0.5rem + var(--sab, 0px));
+  left: calc(0.5rem + var(--sal, 0px));
+}
+#screen-map .maplibregl-ctrl-group button {
+  min-width: 44px !important;
+  min-height: 44px !important;
+}
+
+/* --- A2. Camera: nút đóng dưới notch, cụm chụp trên home indicator --- */
+#camera-modal [data-action="closeCamera"] {
+  top: calc(2rem + var(--sat, 0px)) !important;
+  right: calc(1.5rem + var(--sar, 0px)) !important;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#camera-modal .absolute.bottom-10 {
+  bottom: calc(2.5rem + var(--sab, 0px)) !important;
+}
+
+/* --- A3. Lightbox: counter trái / actions phải, đều trên home indicator --- */
+#lightbox-counter {
+  bottom: calc(3rem + var(--sab, 0px)) !important;
+  left: calc(1.5rem + var(--sal, 0px));
+  right: auto;
+}
+#lightbox .absolute.bottom-12.right-6 {
+  bottom: calc(3rem + var(--sab, 0px)) !important;
+  right: calc(1.5rem + var(--sar, 0px)) !important;
+}
+#lightbox .lightbox-nav.left-4 { left: calc(1rem + var(--sal, 0px)) !important; }
+#lightbox .lightbox-nav.right-4 { right: calc(1rem + var(--sar, 0px)) !important; }
+#lightbox [data-action="closeLightbox"] { right: calc(1.5rem + var(--sar, 0px)); }
+
+/* --- A4. Dock hành động hồ sơ / kho ảnh: đệm safe-area đáy --- */
+#screen-folder .glass-panel.border-t,
+#screen-asset-gallery .glass-panel.border-t {
+  padding-bottom: calc(1rem + var(--sab, 0px)) !important;
+}
+
+/* --- A5. Vùng chạm chuẩn ≥44×44 cho các nút chính --- */
+/* Nút đóng modal (X) — phần lớn đang chỉ 20–36px */
+#add-modal [data-action="closeModal"],
+#asset-modal .asset-modal-close,
+#donate-modal [data-action="closeDonateModal"],
+#guide-modal [data-action="closeGuideModal"],
+#ref-price-modal [data-action="closeRefModal"],
+#backup-manager-modal button[data-action="closeBackupManager"],
+#biometric-setup-modal [data-action="BiometricUnlock.closeSetup"],
+#setup-lock-modal [data-action="closeSetupModal"] {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm, 12px);
+}
+/* Pencil sửa hồ sơ / ghi chú */
+.profile-glass-box [data-action="openEditCustomerModal"],
+#btn-edit-notes {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Gọi / Zalo / trạng thái trên header hồ sơ */
+#btn-detail-call,
+#btn-detail-zalo,
+#detail-status-badge {
+  min-height: 44px;
+}
+/* Nút gọi / Zalo trên thẻ danh sách KH (đè 36px của lớp redesign phía trên) */
+.customer-action-btn {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: var(--radius-sm, 12px) !important;
+}
+/* Swatch chọn theme + nút menu cài đặt */
+.theme-btn-sm {
+  min-height: 44px !important;
+  aspect-ratio: 1;
+  max-height: none !important;
+  border-radius: 10px;
+}
+.settings-btn {
+  min-height: 44px;
+  font-size: 13px;
+  padding: 12px;
+}
+/* Tour hướng dẫn */
+.tour-skip,
+.tour-btn {
+  min-height: 44px;
+}
+/* Chip / nút trong Trung tâm sao lưu */
+.backup-action-card,
+.backup-mini-tab {
+  min-height: 44px;
+}
+.backup-list-action {
+  min-height: 44px;
+}
+.backup-drive-btn,
+.backup-export-btn {
+  min-height: 48px;
+}
+
+/* --- B1. Toast: hạ dưới cụm header 2 hàng (search/toolbar), gọn bề ngang --- */
+#app-toast-container {
+  top: calc(6.75rem + var(--sat, 0px));
+  max-width: min(88vw, 340px);
+}
+
+/* --- B2. Toast legacy #toast đồng bộ ngôn ngữ với .app-toast --- */
+#toast {
+  border-radius: 14px !important;
+  border-left: 4px solid #10b981 !important;
+}
+
+/* Weather pill: nền trắng mờ + chữ trắng đủ tương phản trên header mọi theme */
+.glass-header [data-action="refreshWeather"] {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: #ffffff !important;
+}
+#current-weather {
+  max-width: min(42vw, 180px) !important;
+}
+
+/* --- B4. Confirm / empty-state CTA dùng accent thương hiệu --- */
+.cp-confirm-ok {
+  background: var(--accent, #005b9f);
+}
+.cp-confirm-ok-danger { background: #dc2626; }
+.cp-state-action {
+  background: var(--accent, #005b9f);
+}
+
+/* --- B5. Map style control active theo accent (theme tối) --- */
+.map-style-control button.active {
+  background: color-mix(in srgb, var(--accent, #38bdf8) 35%, transparent);
+}
+
+/* --- D1. Quick actions: 2×2 trên màn hẹp, chữ đọc được --- */
+@media (max-width: 390px) {
+  #folder-view .quick-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  #folder-view .quick-action-btn strong {
+    font-size: 12px !important;
+  }
+  /* Asset modal: 3 ô Diện tích / Mặt tiền / Xây dựng xuống 2 cột */
+  #asset-modal .grid-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* --- D2. Selection bar trên theme sáng: nút Gửi + đếm xanh brand --- */
+body.theme-vietinbank #cust-selection-bar [data-action="sendSelectedCustomersToUser"] {
+  background: rgba(0, 91, 159, 0.08) !important;
+  color: #005b9f !important;
+  border-color: rgba(0, 91, 159, 0.22) !important;
+}
+body.theme-vietinbank #selection-bar .text-blue-400,
+body.theme-vietinbank #cust-selection-count {
+  color: #005b9f !important;
+}
+
+/* --- D3. Tab Thông tin: ẩn dock khi cả hai cụm hành động đều ẩn --- */
+#screen-folder .folder-actions-dock:not(:has(> :not(.hidden))) {
+  display: none !important;
+}
+
+/* --- D5. Tab chưa chọn trên header gradient: đủ tương phản ở CẢ 4 theme --- */
+body.theme-midnight #screen-folder [data-action="switchTab"]:not(.glass-tab-active),
+body.theme-ocean #screen-folder [data-action="switchTab"]:not(.glass-tab-active),
+body.theme-aurora #screen-folder [data-action="switchTab"]:not(.glass-tab-active) {
+  color: rgba(255, 255, 255, 0.86) !important;
+  opacity: 1 !important;
+}
+
+/* --- D7. Modal phụ trợ dùng accent thương hiệu thay emerald/pink/indigo --- */
+/* Approve: giữ ngữ nghĩa "duyệt" nhưng theo brand */
+#approve-modal .glass-panel { border-color: color-mix(in srgb, var(--accent) 24%, transparent) !important; }
+#approve-modal .bg-emerald-500\/20 {
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+}
+#approve-modal .text-emerald-400 { color: var(--accent) !important; }
+#approve-modal #approve-limit {
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent) !important;
+  color: var(--accent) !important;
+}
+#approve-modal #approve-limit:focus { border-color: var(--accent) !important; }
+#approve-modal #approve-limit::placeholder {
+  color: color-mix(in srgb, var(--accent) 40%, transparent) !important;
+}
+#approve-modal .bg-emerald-600 {
+  background: var(--accent-gradient) !important;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 26%, transparent) !important;
+}
+/* Theme sáng: đè override cũ (specificity cao hơn) để giữ đúng accent brand */
+body.theme-vietinbank #approve-modal #approve-limit {
+  background: rgba(0, 91, 159, 0.06) !important;
+  color: #005b9f !important;
+}
+/* Guide + ref-price: heading theo accent (kèm bản theme sáng để thắng remap cũ) */
+#guide-modal h3.text-emerald-400,
+#ref-price-modal h3.text-emerald-400,
+#guide-modal p b.text-emerald-400,
+body.theme-vietinbank #guide-modal h3.text-emerald-400,
+body.theme-vietinbank #ref-price-modal h3.text-emerald-400,
+body.theme-vietinbank #guide-modal p b.text-emerald-400 { color: var(--accent) !important; }
+/* Donate: giữ icon trái tim, khung chuyển xanh brand */
+#donate-modal .glass-panel { border-color: color-mix(in srgb, var(--accent) 26%, transparent) !important; }
+#donate-modal .bg-pink-500\/20 {
+  background: color-mix(in srgb, var(--accent) 15%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent) !important;
+  color: var(--accent) !important;
+}
+
+/* --- D8. Donate QR: khung giữ chỗ + ảnh contain nền trắng --- */
+#donate-modal .donate-qr-frame {
+  min-height: 236px;
+  min-width: 236px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#donate-qr-img {
+  object-fit: contain;
+  background: #ffffff;
+  /* Ảnh hỏng: Chrome hiện alt text — alt đã là thông điệp hướng dẫn dự phòng */
+  color: #12284c;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* --- E4. Skeleton theo token theme (không flash tối trên nền sáng) --- */
+.skeleton-card {
+  background: var(--bg-panel, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-panel, rgba(255, 255, 255, 0.06));
+}

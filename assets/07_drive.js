@@ -131,7 +131,7 @@ async function saveScriptUrl() {
     const tokenInput = getEl('dashboard-drive-token');
     const token = tokenInput ? tokenInput.value.trim() : getUserToken();
     if (!token) {
-        ErrorHandler.showWarning("Vui lòng nhập Mã bảo mật (Access Token) của Script cá nhân!");
+        ErrorHandler.showWarning("Vui lòng nhập Mã bảo mật của Script cá nhân!");
         if (tokenInput) tokenInput.focus();
         return;
     }

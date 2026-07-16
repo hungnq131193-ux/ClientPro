@@ -10,7 +10,7 @@
             </div>
             <h3 class="font-bold text-lg mb-1" style="color: var(--text-main)">Ủng hộ tác giả</h3>
             <p class="text-xs mb-4 opacity-70" style="color: var(--text-sub)">
-                Nếu ClientPro giúp anh/chị tối ưu công việc, có thể mời Hưng một ly cà phê ☕ qua VietQR.
+                Nếu ClientPro giúp anh/chị tối ưu công việc, có thể mời Hưng một ly cà phê qua VietQR.
             </p>
             
             <div class="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-left text-xs mb-4">
@@ -28,12 +28,13 @@
                 </div>
             </div>
             
-            <div class="bg-white rounded-2xl p-3 shadow-inner">
-                <!-- QR VietQR auto tạo từ API img.vietqr.io -->
+            <div class="bg-white rounded-2xl p-3 shadow-inner donate-qr-frame">
+                <!-- QR VietQR auto tạo từ API img.vietqr.io.
+                     Khi ảnh không tải được, Chrome hiển thị alt — alt chính là thông điệp dự phòng. -->
                 <img
     id="donate-qr-img"
     src="https://img.vietqr.io/image/vietinbank-888886838888-compact.jpg?accountName=NGUYEN%20QUOC%20HUNG&addInfo=Ung%20ho%20tac%20gia%20ClientPro"
-    alt="VietQR - VietinBank 888886838888"
+    alt="Không tải được mã QR — dùng nút Sao chép STK phía trên để chuyển khoản."
     class="w-56 h-56 object-contain mx-auto"
 />
             </div>

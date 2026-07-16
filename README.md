@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.0.5-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 
 **Demo:** https://client-pro-beryl.vercel.app
@@ -94,8 +94,8 @@ Repository là static site và có thể import trực tiếp vào Vercel, khôn
 ## Quản lý phiên bản
 
 - **Tên phát hành** — **Genesis**. Đây là tên phát hành công khai của ClientPro.
-- **Phiên bản app (semver)** — hiện tại **`1.0.4`**. Số kỹ thuật nội bộ giữ cho tooling đồng bộ và tương thích, không hiển thị cho người dùng. Nguồn duy nhất: `package.json`.
-- **cache-buster asset** — hiện tại **`UIPOLISH_20260716`**. Nguồn: `ASSET_V` trong `sw.js`.
+- **Phiên bản app (semver)** — hiện tại **`1.0.5`**. Số kỹ thuật nội bộ giữ cho tooling đồng bộ và tương thích, không hiển thị cho người dùng. Nguồn duy nhất: `package.json`.
+- **cache-buster asset** — hiện tại **`UIPOLISH2_20260716`**. Nguồn: `ASSET_V` trong `sw.js`.
 
 Sau khi thay đổi phiên bản, đồng bộ ra mọi nơi (manifest, SW, PWA, README):
 

@@ -2,6 +2,10 @@
 
 :root {
   --app-height: 100dvh;
+  /* Token bo góc dùng chung (card/chip/modal) — E2 polish v1.0.5 */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
   /* iOS Safe Area (PWA/standalone). Defaults to 0 on Android/Desktop. */
   --sat: 0px;
   /* safe-area-inset-top */
@@ -182,9 +186,9 @@ body.theme-aurora {
 }
 
 .glass-panel-lite.selected {
-  outline: 2px solid rgba(129, 140, 248, 0.95);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
-  box-shadow: 0 16px 38px rgba(79, 70, 229, 0.32);
+  box-shadow: 0 16px 38px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 /* Customer list: status bar without per-item inline boxShadow */
@@ -404,8 +408,8 @@ body.theme-aurora {
 }
 
 #search-input:focus {
-  border-color: rgba(129, 140, 248, 0.7) !important;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .customer-select-toggle {
@@ -524,7 +528,7 @@ body.theme-aurora {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--text-sub) 35%, transparent);
   border-radius: 2px;
 }
 
@@ -536,15 +540,19 @@ textarea {
   transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-input:focus {
+/* Focus theo token theme: KHÔNG dùng nền đen cứng (phá form trên theme sáng) */
+input:focus,
+textarea:focus,
+select:focus {
   border-color: var(--accent) !important;
-  background: rgba(0, 0, 0, 0.4) !important;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  background: var(--input-bg, var(--bg-panel)) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: var(--text-sub) !important;
-  opacity: 0.5;
+  opacity: 0.72;
 }
 
 .img-grid-container {
@@ -620,8 +628,9 @@ input::placeholder {
 }
 
 .keypad-btn {
-  width: 72px;
-  height: 72px;
+  /* 66px: thống nhất với lớp redesign (trước đây 72 vs 66 conflict) */
+  width: 66px;
+  height: 66px;
   border-radius: 50%;
   font-size: 26px;
   font-weight: 600;
@@ -764,7 +773,7 @@ input::placeholder {
 
 .glass-panel.selected {
   border-color: var(--accent) !important;
-  background: rgba(99, 102, 241, 0.1) !important;
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
   box-shadow: 0 0 0 1px var(--accent);
 }
 
@@ -1002,8 +1011,9 @@ input::placeholder {
 
 /* --- iOS Safe-Area fixes for fixed overlays (avoid status bar / notch overlap) --- */
 #toast {
-  /* Dưới hàng tiêu đề header — không che nút back / title (đồng bộ #app-toast-container) */
-  top: calc(4.25rem + var(--sat));
+  /* Dưới CẢ cụm header 2 hàng (title + search/toolbar) — không che back / search
+     (đồng bộ #app-toast-container trong redesign.clientpro.css) */
+  top: calc(6.75rem + var(--sat));
 }
 
 #settings-menu {
@@ -1763,46 +1773,8 @@ input::placeholder {
 
 #folder-view .dashboard-drive-row button { min-height: 44px; }
 
-/* Dashboard theme sync: keep dashboard surfaces aligned with the active app theme. */
-.dashboard-date-ticker {
-  overflow: hidden;
-  border-radius: 999px;
-  padding: 10px 0;
-  color: var(--text-main);
-  background: linear-gradient(135deg, var(--bg-panel), rgba(255,255,255,0.08));
-  border: 1px solid var(--border-panel);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255,255,255,0.12);
-}
-
-.dashboard-date-ticker span {
-  display: inline-block;
-  min-width: 100%;
-  padding-left: 100%;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.01em;
-  animation: dashboardTicker 16s linear infinite;
-}
-
-@keyframes dashboardTicker {
-  from { transform: translateX(0); }
-  to { transform: translateX(-100%); }
-}
-
-/* Perf: dừng ticker khi có màn hình khác trượt đè lên dashboard
-   (dashboard vẫn được paint phía dưới nên animation chạy nền tốn GPU vô ích).
-   Trình duyệt cũ không hỗ trợ :has() sẽ bỏ qua rule này — hành vi như cũ. */
-body:has(.app-container:not(#screen-dashboard):not(.translate-x-full):not(.hidden)) .dashboard-date-ticker span {
-  animation-play-state: paused;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-date-ticker span {
-    padding-left: 16px;
-    animation: none;
-  }
-}
+/* Dashboard theme sync: keep dashboard surfaces aligned with the active app theme.
+   (E8 v1.0.5: đã xóa CSS chết .dashboard-date-ticker — DOM không còn phần tử này.) */
 
 #folder-view .dashboard-card {
   color: var(--text-main) !important;
@@ -1858,40 +1830,6 @@ body:has(.app-container:not(#screen-dashboard):not(.translate-x-full):not(.hidde
 .vietin-sub {
   color: #47637f;
   text-shadow: none;
-}
-
-.dashboard-date-ticker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  margin: -2px 0 10px;
-  overflow: visible;
-  border-radius: 16px;
-  padding: 10px 12px;
-  color: #f8fafc;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(15, 46, 89, 0.82));
-  border: 1px solid rgba(125, 211, 252, 0.22);
-  box-shadow: 0 10px 24px rgba(2, 8, 23, 0.24), inset 0 1px 0 rgba(255,255,255,0.10);
-}
-
-.dashboard-date-icon {
-  flex: 0 0 auto;
-  color: #7dd3fc;
-}
-
-.dashboard-date-ticker span {
-  display: block;
-  min-width: 0;
-  padding-left: 0;
-  white-space: normal;
-  font-size: 13px;
-  line-height: 1.35;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-  color: #ffffff;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.32);
-  animation: none;
 }
 
 #folder-view.dashboard-scroll {
@@ -2234,32 +2172,33 @@ body:has(.app-container:not(#screen-dashboard):not(.translate-x-full):not(.hidde
 .backup-list-info .text-\[11px\] { overflow-wrap: anywhere; word-break: break-word; }
 .backup-list-actions { display: flex; gap: 8px; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
 .backup-list-action { min-width: 0; border-radius: 12px; padding: 8px 10px; font-size: 11px; font-weight: 800; line-height: 1.1; white-space: nowrap; }
+/* Máy hẹp (≤420px): GIỮ SÀN vùng chạm ≥44px và chữ control ≥12px.
+   Density lấy từ padding/gap nhỏ hơn — KHÔNG bao giờ thu chữ nút dưới 12px. */
 @media (max-width: 420px) {
   #backup-manager-modal > .relative { padding: 4px !important; align-items: flex-end; overflow: hidden; }
   .backup-manager-shell { width: calc(100dvw - 8px); max-width: calc(100dvw - 8px); height: calc(100dvh - 8px); max-height: calc(100dvh - 8px); border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; touch-action: pan-y !important; }
-  .backup-manager-shell > .px-5 { padding: 8px 10px !important; flex: 0 0 auto; }
-  .backup-manager-shell h3 { font-size: 15px !important; line-height: 1.2; }
-  .backup-manager-shell h3 + p { font-size: 10px !important; line-height: 1.25; }
+  .backup-manager-shell > .px-5 { padding: 10px 12px !important; flex: 0 0 auto; }
+  .backup-manager-shell h3 { font-size: 16px !important; line-height: 1.2; }
   .backup-manager-subtitle, .backup-list-caption, .backup-local-desc { display: none !important; }
-  .backup-manager-content { flex: 1 1 0; height: 100%; max-height: none; min-height: 0; padding: 4px 5px 12px !important; gap: 4px; overflow-y: auto !important; overflow-x: hidden !important; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; touch-action: pan-y !important; display: block; scrollbar-width: thin; }
+  .backup-manager-content { flex: 1 1 0; height: 100%; max-height: none; min-height: 0; padding: 6px 6px 12px !important; gap: 6px; overflow-y: auto !important; overflow-x: hidden !important; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; touch-action: pan-y !important; display: block; scrollbar-width: thin; }
   .backup-manager-content::after { content: ""; display: block; height: max(10px, env(safe-area-inset-bottom)); }
-  .backup-section { padding: 6px; border-radius: 12px; margin-bottom: 4px; }
-  .backup-section-head { gap: 5px; margin-bottom: 4px; }
-  .backup-kicker { font-size: 8.5px; margin-bottom: 2px; }
-  .backup-section h4 { font-size: 12px; }
-  .backup-desc { font-size: 9.5px; line-height: 1.28; }
+  .backup-section { padding: 10px; border-radius: var(--radius-sm, 12px); margin-bottom: 6px; }
+  .backup-section-head { gap: 6px; margin-bottom: 6px; }
+  .backup-kicker { font-size: 10px; margin-bottom: 2px; }
+  .backup-section h4 { font-size: 13px; }
+  .backup-desc { font-size: 11px; line-height: 1.35; }
   .backup-section--primary > .backup-desc, .backup-section--warning .backup-desc { display: none; }
-  .backup-drive-btn, .backup-export-btn { margin-top: 4px; padding: 6px 9px; border-radius: 10px; font-size: 10px; }
-  .drive-backup-status { margin-top: 4px; padding: 4px 6px; font-size: 9px; line-height: 1.18; }
-  .backup-inline-pane { padding-top: 4px; margin-top: 4px !important; overflow: visible; touch-action: pan-y !important; }
-  .backup-action-grid, .backup-action-grid--local { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
-  .backup-action-card, .backup-mini-tab { min-height: 31px; padding: 5px 4px; border-radius: 10px; gap: 3px; font-size: 9px; line-height: 1.05; }
-  .backup-action-card svg, .backup-mini-tab svg { width: 13px; height: 13px; flex: 0 0 auto; }
-  .backup-pill { white-space: normal; text-align: right; padding: 3px 6px; font-size: 9px; }
-  .backup-list-card { padding: 6px; margin-bottom: 4px; }
-  .backup-list-row { flex-direction: column; gap: 7px; }
-  .backup-list-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: 5px; }
-  .backup-list-action { width: 100%; padding: 5px 3px; font-size: 9px; white-space: normal; }
+  .backup-drive-btn, .backup-export-btn { margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-sm, 12px); font-size: 13px; min-height: 48px; }
+  .drive-backup-status { margin-top: 6px; padding: 7px 8px; font-size: 11px; line-height: 1.3; }
+  .backup-inline-pane { padding-top: 6px; margin-top: 6px !important; overflow: visible; touch-action: pan-y !important; }
+  .backup-action-grid, .backup-action-grid--local { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .backup-action-card, .backup-mini-tab { min-height: 44px; padding: 6px 5px; border-radius: var(--radius-sm, 12px); gap: 4px; font-size: 12px; line-height: 1.15; flex-wrap: wrap; }
+  .backup-action-card svg, .backup-mini-tab svg { width: 14px; height: 14px; flex: 0 0 auto; }
+  .backup-pill { white-space: normal; text-align: right; padding: 4px 7px; font-size: 11px; }
+  .backup-list-card { padding: 8px; margin-bottom: 6px; }
+  .backup-list-row { flex-direction: column; gap: 8px; }
+  .backup-list-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: 6px; }
+  .backup-list-action { width: 100%; min-height: 44px; padding: 6px 4px; font-size: 12px; white-space: normal; }
   #drive-backup-list, #backup-list, #inbox-list { touch-action: pan-y !important; }
 }
 
