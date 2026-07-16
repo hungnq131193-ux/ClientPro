@@ -363,7 +363,7 @@
         }
 
         if (!serverUrl) {
-            throw new Error('Chưa cấu hình Google Drive cá nhân. Mở Dashboard → "Cài đặt Google Drive" để nhập Link GAS và Mã bảo mật.');
+            throw new Error('Chưa cấu hình Google Drive cá nhân. Mở Dashboard → "Cài đặt Google Drive" để nhập Link Script và Mã bảo mật.');
         }
 
         // POST với token trong body (không đưa token vào query URL để tránh lộ qua

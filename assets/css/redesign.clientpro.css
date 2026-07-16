@@ -844,9 +844,10 @@ body.theme-vietinbank .cp-state { color: #475569; }
 /* Viền focus cho người dùng bàn phím (inputs đang dùng outline:none).
    :focus-visible chỉ hiện khi điều hướng bằng bàn phím, không phiền khi chạm. */
 :focus-visible {
-  outline: 2px solid var(--accent, #2563eb);
+  outline: 2px solid var(--accent, #005b9f);
   outline-offset: 2px;
-  border-radius: 4px;
+  /* KHÔNG ép border-radius ở đây: rule cũ (4px) đè bo góc riêng của phần tử
+     (vd keypad tròn 50% thành vuông khi focus). Outline tự bám theo bo góc. */
 }
 /* Không hiện outline khi tương tác bằng chuột/chạm (trình duyệt hiện đại tự phân biệt). */
 :focus:not(:focus-visible) { outline: none; }
@@ -1172,6 +1173,10 @@ body.theme-vietinbank .app-toast-info { background: #eff6ff; }
 
 /* --- A5. Vùng chạm chuẩn ≥44×44 cho các nút chính --- */
 /* Nút đóng modal (X) — phần lớn đang chỉ 20–36px */
+#asset-modal .asset-modal-close {
+  top: 8px;
+  right: 8px;
+}
 #add-modal [data-action="closeModal"],
 #asset-modal .asset-modal-close,
 #donate-modal [data-action="closeDonateModal"],
@@ -1201,6 +1206,10 @@ body.theme-vietinbank .app-toast-info { background: #eff6ff; }
 #btn-detail-zalo,
 #detail-status-badge {
   min-height: 44px;
+}
+/* Đơn vị hạn mức đứng sát giá trị (bù gap-2 của badge flex) */
+#detail-status-badge .badge-unit {
+  margin-left: -0.25rem;
 }
 /* Nút gọi / Zalo trên thẻ danh sách KH (đè 36px của lớp redesign phía trên) */
 .customer-action-btn {

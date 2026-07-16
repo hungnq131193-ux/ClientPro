@@ -1405,7 +1405,7 @@ function renderFolderHeader(data) {
         // đơn vị "trđ" (khi giá trị thuần số) nằm ở .badge-unit kế bên.
         const setLimit = (v) => {
             bv.textContent = v;
-            if (bu) bu.textContent = (_fmtLimitDisplay(v) !== String(v)) ? ' trđ' : '';
+            if (bu) bu.textContent = (_fmtLimitDisplay(v) !== String(v)) ? 'trđ' : '';
         };
         if (bv) {
             const rawLimit = data.creditLimit;
