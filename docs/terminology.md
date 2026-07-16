@@ -124,4 +124,4 @@ Pattern: `Đã {động từ} {đối tượng}` — ví dụ `Đã lưu khách 
 4. Cấu hình Drive: `Link kết nối Drive cá nhân` (không `Script`/`token` trong placeholder).
 5. Nút upload ngắn giữ `Lên Drive`; toast/confirm dùng `tải lên Drive` — cấm `lên mây`.
 
-Plan thực thi chi tiết (before/after + acceptance): **`docs/terminology-plan-opus.md`**.
+Plan thực thi cho Opus (bảng OLD→NEW theo từng file + số dòng, không cần đọc code): **`docs/terminology-plan-opus.md`**.
