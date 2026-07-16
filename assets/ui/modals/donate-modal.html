@@ -1,6 +1,8 @@
 <div id="donate-modal" class="fixed inset-0 z-[120] bg-black/80 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+    <!-- Backdrop riêng (sibling dưới panel): chạm nền để đóng, chạm panel không sao -->
+    <div class="absolute inset-0" data-action="closeDonateModal"></div>
     <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl relative border border-pink-500/30 modal-animate">
-        <button data-action="closeDonateModal" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <button data-action="closeDonateModal" class="modal-close-x absolute" style="color: var(--text-sub)" aria-label="Đóng">
             <i data-lucide="x" class="w-5 h-5"></i>
         </button>
         

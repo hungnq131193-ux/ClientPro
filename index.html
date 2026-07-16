@@ -9,7 +9,7 @@
     <title>ClientPro</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <meta name="theme-color" content="#005b9f">
+    <meta name="theme-color" content="#005b9f" id="meta-theme-color">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <!-- Preconnect zalo.me: nút Zalo điều hướng qua Universal Link/App Link
@@ -25,22 +25,22 @@
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-vietnamese.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-latin.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-vietnamese.woff2">
-    <link rel="stylesheet" href="./assets/css/fonts.css?v=UIPOLISH2_20260716">
+    <link rel="stylesheet" href="./assets/css/fonts.css?v=UXREFINE_20260716">
     <!-- Tailwind (self-host) -->
     <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
-    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=UIPOLISH2_20260716">
-    <link rel="stylesheet" href="./assets/css/app.patch.css?v=UIPOLISH2_20260716">
+    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=UXREFINE_20260716">
+    <link rel="stylesheet" href="./assets/css/app.patch.css?v=UXREFINE_20260716">
     <!-- Lucide icons (self-host, xem assets/vendor/README.md) -->
-    <script defer src="./assets/vendor/lucide.min.js?v=UIPOLISH2_20260716"></script>
+    <script defer src="./assets/vendor/lucide.min.js?v=UXREFINE_20260716"></script>
     <!-- Transfer Backup uses TEXT chunks (no QR image) -->
     <!-- MapLibre GL JS is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
     <!-- CryptoJS library for hashing and encryption (self-host) -->
-    <script defer src="./assets/vendor/crypto-js.min.js?v=UIPOLISH2_20260716"></script>
+    <script defer src="./assets/vendor/crypto-js.min.js?v=UXREFINE_20260716"></script>
 
-    <script defer src="./assets/head.js?v=UIPOLISH2_20260716"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=UIPOLISH2_20260716">
+    <script defer src="./assets/head.js?v=UXREFINE_20260716"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=UXREFINE_20260716">
     <!-- REDESIGN LAYER (banking / Vietinbank) — nạp cuối để đè lớp giao diện, không đụng JS -->
-    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=UIPOLISH2_20260716">
+    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=UXREFINE_20260716">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <!-- style-src vẫn giữ 'unsafe-inline' trong vercel.json: hàng trăm thuộc tính style="..."
          và nhiều chỗ .style.cssText/.style.x trong assets/*.js dùng cho theme động, vị trí
@@ -84,16 +84,10 @@
 
 
 
-    <div id="toast"
-        class="fixed top-12 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 transform -translate-y-40 opacity-0 pointer-events-none border border-white/20 z-[400]">
-        <i data-lucide="check-circle" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i><span id="toast-msg"
-            class="font-medium text-sm whitespace-nowrap">Thông báo</span>
-    </div>
-
     <div id="cust-selection-bar"
         class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
         <div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button
-                data-action="toggleCustSelectionMode" class="p-2 rounded-full hover:bg-white/10 transition"><i
+                data-action="toggleCustSelectionMode" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
                     data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count"
                     class="text-lg font-bold" style="color: var(--accent)">0</span></span></div>
         <div class="flex gap-3"><button data-action="sendSelectedCustomersToUser"
@@ -105,7 +99,7 @@
     <div id="selection-bar"
         class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
         <div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button
-                data-action="toggleSelectionMode" class="p-2 rounded-full hover:bg-white/10 transition"><i
+                data-action="toggleSelectionMode" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
                     data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="selection-count"
                 class="text-blue-400 font-bold text-lg">0</span> ảnh</span></div>
         <div class="flex gap-3"><button data-action="shareSelectedImages"
@@ -129,29 +123,45 @@
     <div id="settings-menu"
         class="fixed top-16 right-4 w-80 glass-panel rounded-xl shadow-2xl border border-white/10 z-[70] hidden origin-top-right transform scale-95 opacity-0 transition-all duration-300">
         <div class="px-3 py-2.5 border-b border-white/5">
-            <h3 class="font-bold text-sm" style="color: var(--text-main)">Cài Đặt</h3>
+            <h3 class="font-bold text-sm" style="color: var(--text-main)">Cài đặt</h3>
         </div>
         <!-- Theme Grid - Compact -->
         <div class="px-3 py-3 border-b border-white/5">
             <p class="text-[10px] font-bold uppercase mb-2 opacity-60 tracking-wider" style="color: var(--text-sub)">
                 Giao diện</p>
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
-                <button data-action="setTheme" data-arg="theme-vietinbank" class="theme-btn-sm" title="Sáng (VietinBank)">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #ffffff 0%, #cfe4f7 45%, #005b9f 100%);"></div>
-                </button>
-                <button data-action="setTheme" data-arg="theme-midnight" class="theme-btn-sm" title="Xanh Đêm">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #00346e 0%, #005b9f 50%, #00aaff 100%);"></div>
-                </button>
-                <button data-action="setTheme" data-arg="theme-ocean" class="theme-btn-sm" title="Đại Dương">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #003a63 0%, #005b9f 50%, #00a0e3 100%);"></div>
-                </button>
-                <button data-action="setTheme" data-arg="theme-aurora" class="theme-btn-sm" title="Thiên Thanh">
-                    <div class="absolute inset-0"
-                        style="background: linear-gradient(135deg, #005b9f 0%, #0ea5e9 50%, #38bdf8 100%);"></div>
-                </button>
+                <div class="theme-swatch-cell">
+                    <button data-action="setTheme" data-arg="theme-vietinbank" class="theme-btn-sm" title="Sáng"
+                        aria-label="Giao diện Sáng">
+                        <div class="absolute inset-0"
+                            style="background: linear-gradient(135deg, #ffffff 0%, #cfe4f7 45%, #005b9f 100%);"></div>
+                    </button>
+                    <span class="theme-swatch-name">Sáng</span>
+                </div>
+                <div class="theme-swatch-cell">
+                    <button data-action="setTheme" data-arg="theme-midnight" class="theme-btn-sm" title="Xanh đêm"
+                        aria-label="Giao diện Xanh đêm">
+                        <div class="absolute inset-0"
+                            style="background: linear-gradient(135deg, #00346e 0%, #005b9f 50%, #00aaff 100%);"></div>
+                    </button>
+                    <span class="theme-swatch-name">Xanh đêm</span>
+                </div>
+                <div class="theme-swatch-cell">
+                    <button data-action="setTheme" data-arg="theme-ocean" class="theme-btn-sm" title="Đại dương"
+                        aria-label="Giao diện Đại dương">
+                        <div class="absolute inset-0"
+                            style="background: linear-gradient(135deg, #003a63 0%, #005b9f 50%, #00a0e3 100%);"></div>
+                    </button>
+                    <span class="theme-swatch-name">Đại dương</span>
+                </div>
+                <div class="theme-swatch-cell">
+                    <button data-action="setTheme" data-arg="theme-aurora" class="theme-btn-sm" title="Thiên thanh"
+                        aria-label="Giao diện Thiên thanh">
+                        <div class="absolute inset-0"
+                            style="background: linear-gradient(135deg, #005b9f 0%, #0ea5e9 50%, #38bdf8 100%);"></div>
+                    </button>
+                    <span class="theme-swatch-name">Thiên thanh</span>
+                </div>
             </div>
         </div>
         <!-- Action Buttons - dashboard now hosts backup/drive/restore/reset-related entry points -->
@@ -187,7 +197,7 @@
                     </svg>
                     <div class="vietin-text-group">
                         <span class="vietin-brand">ClientPro</span>
-                        <span class="vietin-sub">Quản Lý Khách Hàng</span>
+                        <span class="vietin-sub">Quản lý khách hàng</span>
                     </div>
                 </div>
 
@@ -205,7 +215,7 @@
                 <button data-action="refreshWeather"
                     class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-slate-200 hover:bg-white/10 active:scale-95 transition">
                     <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i>
-                    <span id="current-weather" class="max-w-[160px] truncate">Đang tải thời tiết...</span>
+                    <span id="current-weather" class="truncate">Đang tải thời tiết...</span>
                 </button>
             </div>
 
@@ -285,14 +295,14 @@
 
         <header class="glass-header px-4 py-4 flex-none w-full">
             <div class="flex items-center justify-between mb-4">
-                <button data-action="closeCustomerList" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
+                <button data-action="closeCustomerList" class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
                     style="color: var(--text-main)">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
                 <h2 id="customer-list-title" class="font-bold text-lg" style="color: var(--text-main)">
                     Danh sách KH
                 </h2>
-                <button data-action="openModal" class="p-2 -mr-2 rounded-full hover:bg-white/10 transition"
+                <button data-action="openModal" class="p-2 -mr-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
                     style="color: var(--accent)">
                     <i data-lucide="plus" class="w-6 h-6"></i>
                 </button>
@@ -302,9 +312,13 @@
                 <div class="relative flex-1 customer-search-wrap">
                     <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 opacity-50"
                         style="color: var(--text-main)"></i>
-                    <input type="text" id="search-input" placeholder="Tìm tên, SĐT, CCCD..."
-                        class="w-full border rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-colors"
+                    <input type="text" id="search-input" placeholder="Tìm tên, SĐT..."
+                        class="w-full border rounded-xl pl-9 pr-10 py-3 text-sm outline-none transition-colors"
                         style="border-color: var(--border-panel); color: var(--text-main); background: transparent;">
+                    <button type="button" id="search-clear-btn" class="search-clear-btn hidden"
+                        aria-label="Xóa tìm kiếm">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
                 </div>
                 <button type="button" id="btn-cust-select" data-action="toggleCustSelectionMode"
                     aria-pressed="false"
@@ -340,7 +354,7 @@
         style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
         <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
             <div class="flex items-center justify-between mb-4">
-                <button data-action="closeFolder" class="p-2 -ml-2 rounded-full hover:bg-white/10 transition"
+                <button data-action="closeFolder" class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
                     style="color: var(--text-main)">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
@@ -354,7 +368,7 @@
 
             <div class="profile-glass-box">
                 <button data-action="openEditCustomerModal"
-                    class="absolute top-3 right-3 p-2 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition">
+                    class="absolute top-3 right-3 p-2 rounded-xl hover:bg-white/10 active:bg-white/10 active:scale-95 text-slate-300 hover:text-white transition">
                     <i data-lucide="pencil" class="w-4 h-4"></i>
                 </button>
 
@@ -490,7 +504,7 @@
         style="background: var(--bg-panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);">
         <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full">
             <div class="flex items-center justify-between"><button data-action="closeAssetGallery"
-                    class="p-2 -ml-2 rounded-full hover:bg-white/10" style="color: var(--text-main)"><i
+                    class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition" style="color: var(--text-main)"><i
                         data-lucide="arrow-left" class="w-6 h-6"></i></button>
                 <div class="flex items-center gap-3">
                     <h2 id="gallery-asset-name" class="font-bold text-sm uppercase truncate max-w-[160px]"
@@ -561,35 +575,35 @@
     <div id="ui-modals-root"></div>
     <script src="./assets/ui/load_modals.js" defer></script>
 
-    <script src="./assets/00_globals.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/01_config.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/02_security.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/12_backup_core.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/13_ui_select_customers.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/15_auth_gate.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/03_map.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/04_ui_common.js?v=UIPOLISH2_20260716" defer></script>
+    <script src="./assets/00_globals.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/01_config.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/02_security.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/12_backup_core.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/13_ui_select_customers.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/15_auth_gate.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/03_map.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/04_ui_common.js?v=UXREFINE_20260716" defer></script>
     <!-- Chuẩn hóa error messages & loading states (ErrorHandler / LoadingManager / AppToast) -->
-    <script src="./assets/19_error_loading.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/05_customers.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/06_assets.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/08_images_camera.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/09_menu.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/09_backup_manager.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/09_donate.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/09_weather.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/07_drive.js?v=UIPOLISH2_20260716" defer></script>
+    <script src="./assets/19_error_loading.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/05_customers.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/06_assets.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/08_images_camera.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/09_menu.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/09_backup_manager.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/09_donate.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/09_weather.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/07_drive.js?v=UXREFINE_20260716" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=UIPOLISH2_20260716" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=UXREFINE_20260716" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=UIPOLISH2_20260716" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=UXREFINE_20260716" defer></script>
     <!-- Onboarding tour for new users -->
-    <script src="./assets/17_onboarding_tour.js?v=UIPOLISH2_20260716" defer></script>
+    <script src="./assets/17_onboarding_tour.js?v=UXREFINE_20260716" defer></script>
     <!-- Mở khóa sinh trắc học (Face ID / vân tay) - tính năng bổ sung, không thay đổi luồng PIN -->
-    <script src="./assets/18_biometric_unlock.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/10_bootstrap.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/11_edge_back_swipe.js?v=UIPOLISH2_20260716" defer></script>
-    <script src="./assets/pwa.js?v=UIPOLISH2_20260716" defer></script>
+    <script src="./assets/18_biometric_unlock.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/10_bootstrap.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=UXREFINE_20260716" defer></script>
+    <script src="./assets/pwa.js?v=UXREFINE_20260716" defer></script>
 </body>
 
 </html>

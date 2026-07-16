@@ -36,11 +36,17 @@ test('sw.js: đủ vòng đời install/activate/fetch; KHÔNG skipWaiting ở i
   assert.ok(/caches\.open/.test(sw), 'Phải dùng Cache Storage API');
 });
 
-test('pwa.js: không force-reload khi controllerchange, không skipWaiting chủ động (B7)', () => {
+test('pwa.js: cập nhật CHỈ khi người dùng đồng ý — banner mời + reload 1 lần, không auto (B7)', () => {
   const pwa = stripComments(read('assets/pwa.js'));
-  assert.ok(!/location\.reload/.test(pwa), 'Không được location.reload() khi SW update giữa phiên');
-  assert.ok(!/postMessage\(\s*\{\s*type:\s*["']SKIP_WAITING/.test(pwa), 'Không được gửi SKIP_WAITING chủ động');
   assert.ok(/__swUpdatePending/.test(pwa), 'Phải đánh dấu bản cập nhật đang chờ');
+  // Hook có-đồng-thuận: nút "Cập nhật" gửi SKIP_WAITING (sw.js giữ handler này).
+  assert.ok(/postMessage\(\s*\{\s*type:\s*["']SKIP_WAITING/.test(pwa), 'Nút Cập nhật phải gửi message SKIP_WAITING');
+  // Reload bắt buộc nằm sau cờ đồng ý của người dùng + guard chống lặp:
+  // controllerchange tự nhiên (không bấm nút) tuyệt đối không reload.
+  assert.ok(/userRequestedUpdate\s*&&\s*!didReload/.test(pwa), 'Chỉ reload khi user đã bấm Cập nhật, và đúng 1 lần');
+  assert.ok(/userRequestedUpdate\s*=\s*false/.test(pwa), 'Cờ đồng ý phải khởi tạo false');
+  // Trang không được gọi skipWaiting() trực tiếp (chỉ qua message có-đồng-thuận).
+  assert.ok(!/\.skipWaiting\s*\(/.test(pwa), 'Trang không được gọi skipWaiting() trực tiếp');
 });
 
 test('sw.js: precache đủ shell + TẤT CẢ module JS nghiệp vụ (offline không thiếu file)', () => {

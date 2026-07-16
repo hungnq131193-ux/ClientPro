@@ -90,6 +90,22 @@
     return _toastHost;
   }
 
+  // ----------------------------------------------------------
+  // Haptics — rung phản hồi nhẹ (feature-detect, im lặng nếu không hỗ trợ).
+  // Dùng chung cho toast lỗi, sai PIN, confirm nguy hiểm... Pattern ngắn,
+  // không lạm dụng: chỉ những khoảnh khắc cần kéo sự chú ý của người dùng.
+  // ----------------------------------------------------------
+  const Haptics = {
+    _buzz(pattern) {
+      try {
+        if (navigator.vibrate) navigator.vibrate(pattern);
+      } catch (e) { }
+    },
+    light() { this._buzz(10); },        // xác nhận chạm (long-press, chọn)
+    warning() { this._buzz(30); },      // cảnh báo / confirm nguy hiểm mở ra
+    error() { this._buzz([45, 60, 45]); }, // lỗi / sai PIN — nhịp đôi dễ nhận biết
+  };
+
   const AppToast = {
     // show(message, type, opts)
     //   type: 'success' | 'error' | 'warning' | 'info' (mặc định 'info')
@@ -100,6 +116,8 @@
       const cfg = TOAST_TYPES[type] || TOAST_TYPES.info;
       // Lỗi mặc định hiển thị lâu hơn để đọc kịp; success/info ngắn hơn.
       const isErr = type === 'error';
+      // Toast lỗi kèm rung nhẹ — mobile-first, mắt có thể đang không nhìn màn hình.
+      if (isErr) Haptics.error();
       const duration = (opts.duration != null) ? opts.duration : (isErr ? 6000 : (type === 'warning' ? 5000 : 3500));
 
       const host = toastHost();
@@ -593,6 +611,8 @@
 
       const dialog = document.createElement('div');
       dialog.className = 'cp-confirm-dialog' + (opts.danger ? ' cp-confirm-danger' : '');
+      // Confirm nguy hiểm (xóa dữ liệu...) rung nhẹ khi mở — chặn thao tác vô thức.
+      if (opts.danger) Haptics.warning();
 
       const iconName = opts.icon || (opts.danger ? 'trash' : 'help');
       if (ICON_PATHS[iconName]) {
@@ -671,6 +691,7 @@
   window.AppToast = AppToast;
   window.ErrorHandler = ErrorHandler;
   window.LoadingManager = LoadingManager;
+  window.Haptics = Haptics;
 
   // Alias tiện dụng dùng khắp codebase
   window.showError = function (code, msg, tech) { return ErrorHandler.showError(code, msg, tech); };
