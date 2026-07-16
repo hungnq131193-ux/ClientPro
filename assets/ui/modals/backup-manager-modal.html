@@ -4,8 +4,8 @@
     <div class="glass-panel backup-manager-shell w-full max-w-lg rounded-2xl border border-slate-700 overflow-hidden">
       <div class="px-5 py-4 flex items-center justify-between border-b border-white/10">
         <div>
-          <h3 class="text-lg font-bold" style="color: var(--text-main)">Trung tâm Backup</h3>
-          <p class="text-xs opacity-70 backup-manager-subtitle" style="color: var(--text-sub)">Sao lưu mã hóa, restore và xuất/nhập file .cpb.</p>
+          <h3 class="text-lg font-bold" style="color: var(--text-main)">Trung tâm sao lưu</h3>
+          <p class="text-xs opacity-70 backup-manager-subtitle" style="color: var(--text-sub)">Sao lưu mã hóa, khôi phục và xuất/nhập file .cpb.</p>
         </div>
         <button data-action="closeBackupManager" class="p-2 rounded-xl hover:bg-white/10" style="color: var(--text-main)">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -16,7 +16,7 @@
         <section class="backup-section backup-section--primary">
           <div class="backup-section-head">
             <div>
-              <p class="backup-kicker">Backup lên Drive</p>
+              <p class="backup-kicker">Sao lưu lên Drive</p>
               <h4>Google Drive cá nhân</h4>
             </div>
             <span class="backup-pill">Giữ 3 bản mới nhất</span>
@@ -56,7 +56,7 @@
             </button>
             <button id="bkTabInbox" data-action="CloudTransferUI.showTab" data-arg="inbox" class="backup-action-card" type="button">
               <i data-lucide="inbox" class="w-4 h-4"></i>
-              <span>Nhận từ user</span>
+              <span>Nhận từ đồng nghiệp</span>
               <span id="inbox-badge" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black hidden"
                 style="background: rgba(59,130,246,0.18); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35);">0</span>
             </button>
@@ -70,7 +70,7 @@
             <div id="inbox-backup-pane" class="hidden">
               <div class="text-[11px] opacity-70 mb-2" style="color: var(--text-sub)">Bản ghi trung chuyển sẽ tự động xóa sau 24 giờ.</div>
               <div id="inbox-list" class="space-y-3"></div>
-              <div id="inbox-empty" class="hidden text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Chưa có bản ghi nào trong inbox.</div>
+              <div id="inbox-empty" class="hidden text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Chưa có bản ghi nào trong hộp thư đến.</div>
             </div>
           </div>
         </section>
@@ -79,11 +79,11 @@
           <div class="backup-section-head">
             <div>
               <p class="backup-kicker">Cảnh báo bảo mật</p>
-              <h4>Không chia sẻ file backup</h4>
+              <h4>Không chia sẻ file sao lưu</h4>
             </div>
             <i data-lucide="shield-alert" class="w-5 h-5 text-amber-300"></i>
           </div>
-          <p class="backup-desc">Backup/restore bị chặn khi app chưa unlock hoặc thiếu masterKey. Không hiển thị dữ liệu nhạy cảm trong trạng thái backup.</p>
+          <p class="backup-desc">Sao lưu và khôi phục chỉ hoạt động khi đã mở khóa ứng dụng. Không chia sẻ file sao lưu với người khác.</p>
         </section>
 
       </div>

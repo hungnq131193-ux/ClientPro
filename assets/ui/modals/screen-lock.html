@@ -1,5 +1,5 @@
 <div id="screen-lock" class="fixed inset-0 z-[300] flex flex-col items-center justify-center p-6 hidden" style="background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(20px);">
-        <div class="mb-10 text-center relative z-10 animate-fade-in"><div class="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-2xl ring-4 ring-white/5" style="background: var(--accent-gradient);"><i data-lucide="lock" class="w-8 h-8 text-white"></i></div><h2 class="text-2xl font-bold mb-2 tracking-tight" style="color: var(--text-main);">ClientPro</h2><p id="pin-subtitle" class="text-sm font-medium opacity-70" style="color: var(--text-main);">Nhập mã PIN để truy cập</p></div>
+        <div class="mb-10 text-center relative z-10 animate-fade-in"><div class="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-2xl ring-4 ring-white/5" style="background: var(--accent-gradient);"><i data-lucide="lock" class="w-8 h-8 text-white"></i></div><h2 class="text-2xl font-bold mb-2 tracking-tight" style="color: #e8f1fb;">ClientPro</h2><p id="pin-subtitle" class="text-sm font-medium opacity-70" style="color: #8fa8c4;">Nhập mã PIN để truy cập</p></div>
         <div class="flex gap-4 mb-4 relative z-10" id="pin-display"></div>
         <p id="pin-lockout-msg" class="hidden text-xs font-bold text-red-400 mb-4 relative z-10 text-center"></p>
         <div class="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[300px] mb-8 relative z-10" id="pin-keypad">
@@ -8,9 +8,9 @@
             <button class="keypad-btn" data-action="enterPin" data-arg="7">7</button><button class="keypad-btn" data-action="enterPin" data-arg="8">8</button><button class="keypad-btn" data-action="enterPin" data-arg="9">9</button>
             <button class="keypad-btn opacity-0 cursor-default"></button><button class="keypad-btn" data-action="enterPin" data-arg="0">0</button><button class="keypad-btn text-red-400 bg-red-500/10 border-red-500/20" data-action="clearPin"><i data-lucide="delete" class="w-6 h-6"></i></button>
         </div>
-        <button data-action="forgotPin" class="text-xs font-bold py-3 px-6 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition relative z-10" style="color: var(--text-sub);">Quên mã PIN?</button>
+        <button data-action="forgotPin" class="text-xs font-bold py-3 px-6 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition relative z-10" style="color: #8fa8c4;">Quên mã PIN?</button>
         <div id="pin-unlock-loading" class="hidden absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-20" style="background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(20px);">
             <div class="w-12 h-12 border-4 border-white/20 border-t-indigo-400 rounded-full animate-spin mb-4"></div>
-            <p data-unlock-msg class="text-sm font-medium opacity-80" style="color: var(--text-main);">Đang tải dữ liệu...</p>
+            <p data-unlock-msg class="text-sm font-medium opacity-80" style="color: #e8f1fb;">Đang tải dữ liệu...</p>
         </div>
     </div>

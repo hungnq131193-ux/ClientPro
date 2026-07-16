@@ -146,13 +146,13 @@ async function renderBackupList() {
 }
 
 async function deleteBackupFromApp(id) {
-  if (!(await ErrorHandler.confirm("Xóa bản backup này?", { title: "Xóa backup", danger: true, confirmText: "Xóa" }))) return;
+  if (!(await ErrorHandler.confirm("Xóa bản sao lưu này?", { title: "Xóa bản sao lưu", danger: true, confirmText: "Xóa" }))) return;
   try {
     await _idbDeleteBackup(id);
-    ErrorHandler.showSuccess("Đã xóa backup");
+    ErrorHandler.showSuccess("Đã xóa bản sao lưu");
     await renderBackupList();
   } catch (e) {
-    ErrorHandler.showError('STORAGE', "Không thể xóa backup này.", e);
+    ErrorHandler.showError('STORAGE', "Không thể xóa bản sao lưu này.", e);
   }
 }
 
@@ -177,13 +177,13 @@ async function createBackupFileNow() {
     all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     const latest = all[0];
     if (!latest) {
-      ErrorHandler.showWarning("Chưa có dữ liệu backup để xuất file.");
+      ErrorHandler.showWarning("Chưa có dữ liệu sao lưu để xuất file.");
       return;
     }
     await exportBackupFromApp(latest.id);
     await renderBackupList();
   } catch (e) {
-    ErrorHandler.showError('BACKUP', "Không thể tạo file backup lúc này.", e);
+    ErrorHandler.showError('BACKUP', "Không thể tạo file sao lưu lúc này.", e);
   }
 }
 
@@ -211,7 +211,7 @@ async function _doRestoreBackupFromApp(id) {
   const rec = all.find((x) => x.id === id);
   if (!rec || !rec.encrypted) return;
 
-  if (!(await ErrorHandler.confirm(`Khôi phục dữ liệu từ backup:\n\n${rec.filename}\n\nTiếp tục?`, { title: "Khôi phục dữ liệu", confirmText: "Khôi phục" }))) return;
+  if (!(await ErrorHandler.confirm(`Khôi phục dữ liệu từ bản sao lưu:\n\n${rec.filename}\n\nTiếp tục?`, { title: "Khôi phục dữ liệu", confirmText: "Khôi phục" }))) return;
 
   closeBackupManager();
   LoadingManager.showGlobal("Đồng bộ...");
@@ -222,7 +222,7 @@ async function _doRestoreBackupFromApp(id) {
     closeBackupManager();
     loadCustomers();
   } catch (e) {
-    ErrorHandler.showError('BACKUP', "Không thể khôi phục backup này.", e);
+    ErrorHandler.showError('BACKUP', "Không thể khôi phục bản sao lưu này.", e);
   } finally {
     LoadingManager.hideGlobal(true);
   }
@@ -316,7 +316,7 @@ async function _doBackupData() {
     const hashNew = typeof hashString === "function" ? await hashString(rawStr) : "";
     const hashOld = localStorage.getItem(LAST_BACKUP_HASH_KEY) || "";
     if (hashNew && hashOld && hashNew === hashOld) {
-      ErrorHandler.showInfo("Dữ liệu chưa thay đổi. Bỏ qua backup.");
+      ErrorHandler.showInfo("Dữ liệu chưa thay đổi. Bỏ qua sao lưu.");
       return;
     }
 
@@ -349,7 +349,7 @@ async function _doBackupData() {
     // Lưu hash để so sánh lần sau
     if (hashNew) localStorage.setItem(LAST_BACKUP_HASH_KEY, hashNew);
 
-    ErrorHandler.showSuccess("Đã tạo backup trong app");
+    ErrorHandler.showSuccess("Đã tạo bản sao lưu trong máy");
 
     // Nếu đang mở màn quản lý backup -> refresh list
     try {
@@ -407,14 +407,14 @@ async function restoreData(input) {
         loadCustomers();
       } catch (err) {
         LoadingManager.hideGlobal(true);
-        ErrorHandler.showError('BACKUP', "File backup không hợp lệ hoặc sai định dạng bảo mật.", err);
+        ErrorHandler.showError('BACKUP', "File sao lưu không hợp lệ hoặc sai định dạng bảo mật.", err);
       } finally {
         __restoreInFlight = false;
       }
     };
     r.onerror = (e) => {
       LoadingManager.hideGlobal(true);
-      ErrorHandler.showError('STORAGE', "Không đọc được file backup.", e);
+      ErrorHandler.showError('STORAGE', "Không đọc được file sao lưu.", e);
       __restoreInFlight = false;
     };
     r.readAsText(f);

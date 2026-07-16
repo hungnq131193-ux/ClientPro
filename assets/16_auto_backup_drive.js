@@ -85,7 +85,7 @@
         btn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
         btn.innerHTML = isLoading
             ? '<span class="inline-block w-3 h-3 mr-1 rounded-full border-2 border-current border-t-transparent animate-spin align-[-2px]"></span>Đang sao lưu…'
-            : '<i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Sao lưu ngay';
+            : '<i data-lucide="upload-cloud" class="w-3 h-3 inline-block mr-1"></i>Sao lưu lên Drive';
         try { if (!isLoading && window.lucide) lucide.createIcons(); } catch (e) { }
     }
 
@@ -95,16 +95,16 @@
         if (autoBackupCheckInProgress) return false;
         manualBackupInProgress = true;
         setManualBackupButtonLoading(true);
-        setDriveBackupStatus('Đã nhận lệnh. Đang xác thực và đóng gói backup…', 'working');
-        try { if (window.ErrorHandler) ErrorHandler.showInfo('Đang backup lên Drive…'); } catch (e) { }
+        setDriveBackupStatus('Đã nhận lệnh. Đang xác thực và đóng gói bản sao lưu…', 'working');
+        try { if (window.ErrorHandler) ErrorHandler.showInfo('Đang sao lưu lên Drive…'); } catch (e) { }
         try {
             await performAutoBackup();
-            setDriveBackupStatus('Backup thành công. Danh sách đang được cập nhật.', 'success');
-            try { if (window.ErrorHandler) ErrorHandler.showSuccess('Backup Drive thành công'); } catch (e) { }
+            setDriveBackupStatus('Sao lưu thành công. Danh sách đang được cập nhật.', 'success');
+            try { if (window.ErrorHandler) ErrorHandler.showSuccess('Đã sao lưu lên Drive'); } catch (e) { }
             await renderDriveBackupsList('drive-backup-list');
             return true;
         } catch (err) {
-            const msg = err && err.message ? err.message : 'Backup Drive thất bại';
+            const msg = err && err.message ? err.message : 'Sao lưu lên Drive thất bại';
             setDriveBackupStatus(msg, 'error');
             try { if (window.ErrorHandler) ErrorHandler.showError('BACKUP', msg, err); } catch (e) { }
             return false;
@@ -184,12 +184,12 @@
             }
             if (typeof ensureBackupSecret !== 'function') {
                 console.warn('[AutoBackup] Stopped: missing ensureBackupSecret.');
-                throw new Error('Thiếu cơ chế xác thực backup.');
+                throw new Error('Thiếu cơ chế xác thực sao lưu.');
             }
             const sec = await ensureBackupSecret();
             if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
                 console.warn('[AutoBackup] Stopped: backup secret unavailable.', sec && sec.message ? sec.message : '');
-                throw new Error(sec && sec.message ? sec.message : 'Không thể lấy khóa bảo mật backup.');
+                throw new Error(sec && sec.message ? sec.message : 'Không thể lấy khóa bảo mật sao lưu.');
             }
             if (typeof decryptText !== 'function') {
                 console.warn('[AutoBackup] Stopped: decryptText unavailable.');
@@ -363,7 +363,7 @@
         }
 
         if (!serverUrl) {
-            throw new Error('Chưa cấu hình Google Drive cá nhân. Mở Dashboard → "Cài đặt Google Drive" để nhập Link GAS và Mã bảo mật.');
+            throw new Error('Chưa cấu hình Google Drive cá nhân. Mở Dashboard → "Cài đặt Google Drive" để nhập Link Script và Mã bảo mật.');
         }
 
         // POST với token trong body (không đưa token vào query URL để tránh lộ qua
@@ -398,7 +398,7 @@
         const result = await response.json();
 
         if (result.status !== 'success') {
-            throw new Error(result.message || 'Không tải được backup từ Drive.');
+            throw new Error(result.message || 'Không tải được bản sao lưu từ Drive.');
         }
 
         return result;
@@ -421,7 +421,7 @@
         }
 
         closeBackupManager();
-        LoadingManager.showGlobal('Đang tải backup từ Drive...');
+        LoadingManager.showGlobal('Đang tải bản sao lưu từ Drive...');
 
         try {
             const result = await downloadDriveBackup(fileId);
@@ -455,11 +455,11 @@
 
     async function sendDriveBackupToUser(fileId, fallbackName) {
         if (!window.CloudTransferUI || typeof window.CloudTransferUI.sendEncryptedRecord !== 'function') {
-            throw new Error('Chưa sẵn sàng chức năng gửi user');
+            throw new Error('Chưa sẵn sàng chức năng gửi cho đồng nghiệp');
         }
         const result = await downloadDriveBackup(fileId);
         const encryptedContent = result.encrypted || result.content;
-        if (!encryptedContent) throw new Error('Backup Drive rỗng');
+        if (!encryptedContent) throw new Error('Bản sao lưu Drive rỗng');
 
         const ts = Date.now();
         const record = {
@@ -495,7 +495,7 @@
         const result = await response.json();
 
         if (result.status !== 'success') {
-            throw new Error(result.message || 'Xóa backup trên Drive thất bại.');
+            throw new Error(result.message || 'Xóa bản sao lưu trên Drive thất bại.');
         }
 
         return true;
@@ -506,7 +506,7 @@
     // ============================================================
     function renderBackupsHTML_(backups, container) {
         if (!backups || !backups.length) {
-            container.innerHTML = '<p class="text-center text-sm opacity-60 py-4">Chưa có backup trên Drive</p>';
+            container.innerHTML = '<p class="text-center text-sm opacity-60 py-4">Chưa có bản sao lưu trên Drive</p>';
             return;
         }
 
@@ -537,7 +537,7 @@
             const icon = document.createElement('i');
             icon.setAttribute('data-lucide', 'cloud');
             icon.className = 'w-4 h-4 inline-block mr-1 text-blue-400';
-            title.append(icon, document.createTextNode(b.filename || 'Backup'));
+            title.append(icon, document.createTextNode(b.filename || 'Bản sao lưu'));
             const meta = document.createElement('div');
             meta.className = 'text-[11px] mt-1 opacity-70';
             meta.style.color = 'var(--text-sub)';
@@ -555,7 +555,7 @@
                 actions.appendChild(btn);
             };
             addButton('Khôi phục', 'background: rgba(16,185,129,0.15); color: #34d399;', () => DriveBackup.restore(b.id));
-            addButton('Gửi', 'background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);', () => DriveBackup.send(b.id, b.filename || 'Backup'));
+            addButton('Gửi', 'background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);', () => DriveBackup.send(b.id, b.filename || 'Bản sao lưu'));
             addButton('Xóa', 'background: rgba(239,68,68,0.15); color: #f87171;', () => DriveBackup.delete(b.id));
 
             row.append(info, actions);
@@ -590,7 +590,7 @@
                 // append, không dọn nội dung cũ, nếu không sẽ hiện cả hai cùng lúc.
                 container.textContent = '';
                 LoadingManager.showErrorState(container, {
-                    title: 'Không tải được backup Drive',
+                    title: 'Không tải được danh sách sao lưu Drive',
                     message: ErrorHandler.isOffline() ? 'Bạn đang ngoại tuyến. Kết nối mạng rồi thử lại.' : (err.message || 'Vui lòng kiểm tra kết nối và thử lại.'),
                     actionText: 'Thử lại',
                     onAction: () => renderDriveBackupsList('drive-backup-list'),
@@ -636,19 +636,19 @@
         // List & Restore
         list: listMyDriveBackups,
         restore: async (fileId) => {
-            if (!(await ErrorHandler.confirm('Khôi phục dữ liệu từ backup này trên Drive?', { title: 'Khôi phục từ Drive', confirmText: 'Khôi phục' }))) return;
+            if (!(await ErrorHandler.confirm('Khôi phục dữ liệu từ bản sao lưu này trên Drive?', { title: 'Khôi phục từ Drive', confirmText: 'Khôi phục' }))) return;
             await restoreFromDriveBackup(fileId);
         },
         send: async (fileId, name) => {
             try {
                 await sendDriveBackupToUser(fileId, name);
-                ErrorHandler.showSuccess('Đã gửi backup Drive');
+                ErrorHandler.showSuccess('Đã gửi bản sao lưu Drive');
             } catch (err) {
-                ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể gửi backup Drive', err);
+                ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể gửi bản sao lưu Drive', err);
             }
         },
         delete: async (fileId) => {
-            if (!(await ErrorHandler.confirm('Xóa backup này trên Drive?', { title: 'Xóa backup Drive', danger: true, confirmText: 'Xóa' }))) return;
+            if (!(await ErrorHandler.confirm('Xóa bản sao lưu này trên Drive?', { title: 'Xóa bản sao lưu Drive', danger: true, confirmText: 'Xóa' }))) return;
             try {
                 // Optimistic UI: remove from cache immediately
                 const cached = readBackupsCache_();
@@ -662,9 +662,9 @@
 
                 // Delete on server (in background)
                 await deleteDriveBackup(fileId);
-                ErrorHandler.showSuccess('Đã xóa backup');
+                ErrorHandler.showSuccess('Đã xóa bản sao lưu');
             } catch (err) {
-                ErrorHandler.showError('BACKUP', 'Xóa backup Drive thất bại: ' + (err.message || ''), err);
+                ErrorHandler.showError('BACKUP', 'Xóa bản sao lưu Drive thất bại: ' + (err.message || ''), err);
                 // Refresh from server on error
                 const container = document.getElementById('drive-backup-list');
                 if (container) renderDriveBackupsList('drive-backup-list');

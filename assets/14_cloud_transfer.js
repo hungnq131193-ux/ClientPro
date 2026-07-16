@@ -678,7 +678,7 @@
         overlay.remove();
         await CloudTransferUI.acceptAndRestore(transferId);
       } catch (err) {
-        ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể restore bản ghi.', err);
+        ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể khôi phục bản ghi.', err);
       }
     });
 
@@ -834,7 +834,7 @@
       const all = (typeof _idbGetAllBackups === 'function') ? await _idbGetAllBackups() : [];
       const rec = all.find(x => String(x.id) === String(backupId));
       if (!rec) {
-        ErrorHandler.showWarning('Không tìm thấy backup');
+        ErrorHandler.showWarning('Không tìm thấy bản sao lưu');
         return;
       }
 
@@ -913,7 +913,7 @@
         // Đồng bộ với nút "Nhận & Khôi phục" của buildReceiveNotice: lỗi (mạng,
         // thiếu transfer key, decrypt hỏng...) phải hiện cho người dùng, không
         // được nuốt im lặng thành unhandled rejection.
-        ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể restore bản ghi.', err);
+        ErrorHandler.showError('BACKUP', err && err.message ? err.message : 'Không thể khôi phục bản ghi.', err);
       } finally {
         try {
           const loader = document.getElementById('loader');
