@@ -240,8 +240,18 @@ function renderAssets() {
   }
 
   if (assets.length === 0) {
-    list.innerHTML = `<div class="text-center py-20 text-slate-500"><i data-lucide="building" class="w-10 h-10 mx-auto mb-2 opacity-20"></i><p class="text-sm">Chưa có tài sản</p></div>`;
-    lucide.createIcons();
+    // Empty state chuẩn .cp-state (đồng bộ với danh sách KH / kho ảnh)
+    if (window.LoadingManager && LoadingManager.showEmptyState) {
+      list.innerHTML = "";
+      LoadingManager.showEmptyState(list, {
+        icon: 'building',
+        title: 'Chưa có tài sản bảo đảm',
+        message: 'Bấm "Thêm TSBĐ Mới" bên dưới để tạo tài sản đầu tiên cho khách hàng này.',
+      });
+    } else {
+      list.innerHTML = `<div class="text-center py-20 text-slate-500"><i data-lucide="building" class="w-10 h-10 mx-auto mb-2 opacity-40"></i><p class="text-sm">Chưa có tài sản</p></div>`;
+      lucide.createIcons();
+    }
     return;
   }
 

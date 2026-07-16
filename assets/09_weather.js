@@ -33,7 +33,8 @@ function refreshWeather() {
     },
     (err) => {
       console.warn("GPS weather error", err);
-      setWeatherText("Không lấy được GPS");
+      // Tone nhẹ, không như app hỏng — pill này bấm được để thử lại (refreshWeather)
+      setWeatherText("Chưa có định vị — chạm để thử lại");
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 5 * 60 * 1000 }
   );
@@ -73,7 +74,7 @@ function fetchWeather(lat, lon) {
     })
     .catch((err) => {
       if (window.ErrorHandler) ErrorHandler.logError("Weather fetch error", err);
-      setWeatherText("Lỗi tải thời tiết");
+      setWeatherText("Chưa tải được thời tiết — chạm để thử lại");
     });
 }
 

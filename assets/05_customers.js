@@ -707,7 +707,10 @@ function renderList(list, opts = {}) {
             }, { ignoreSelector: '.action-btn,button,a,input,textarea,select,label,[data-long-press-ignore]' });
         }
 
-            const statusTone = isApproved ? 'Đã vay' : 'Đang thẩm định';
+            // Chỉ giữ MỘT tín hiệu trạng thái trên card: KH đang thẩm định đã có badge
+            // "Đang thẩm định" (limitHtml) — không lặp thêm dòng status nhỏ phía trên tên.
+            // KH đã vay giữ dòng "Đã vay" vì badge của họ hiển thị hạn mức.
+            const statusLineHtml = isApproved ? '<div class="customer-status-line">Đã vay</div>' : '';
             const limitHtml = isApproved
                 ? `<div class="flex items-center gap-1.5 mt-2">
                     <span class="customer-chip approved">
@@ -737,7 +740,7 @@ function renderList(list, opts = {}) {
                         ${checkIcon}
                         <div class="${avatarClass} avatar-initial"></div>
                         <div class="customer-card-main">
-                            <div class="customer-status-line">${statusTone}</div>
+                            ${statusLineHtml}
                             <h3 class="customer-name-line"></h3>
                             <p class="customer-phone-line">${SVG_ICONS.smartphone} <span class="phone-value"></span></p>
                             ${limitHtml}
@@ -1634,9 +1637,12 @@ function loadCustomerInfo() {
     const phone = (typeof _displayPlain === 'function')
         ? _displayPlain(c.phone, '--')
         : ((c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--');
-    const cccd = (typeof _displayPlain === 'function')
+    // CCCD chưa nhập: copy nhẹ "Chưa có CCCD" thay cho "--" (nhìn như lỗi dữ liệu).
+    // Ciphertext chưa giải mã được vẫn giữ placeholder "--" — không nói dối là "chưa có".
+    const cccdRaw = (typeof _displayPlain === 'function')
         ? _displayPlain(c.cccd, '--')
         : ((c.cccd && !_looksEncrypted(c.cccd)) ? c.cccd : '--');
+    const cccd = (!c.cccd || !String(cccdRaw).trim()) ? 'Chưa có CCCD' : cccdRaw;
     const notes = (typeof _displayPlain === 'function')
         ? _displayPlain(c.notes, '')
         : (() => { const raw = decryptText(c.notes); return (raw && !_looksEncrypted(raw)) ? raw : ''; })();
