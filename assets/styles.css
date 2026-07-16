@@ -1002,8 +1002,8 @@ input::placeholder {
 
 /* --- iOS Safe-Area fixes for fixed overlays (avoid status bar / notch overlap) --- */
 #toast {
-  top: calc(3rem + var(--sat));
-  /* Tailwind top-12 */
+  /* Dưới hàng tiêu đề header — không che nút back / title (đồng bộ #app-toast-container) */
+  top: calc(4.25rem + var(--sat));
 }
 
 #settings-menu {
@@ -1017,7 +1017,7 @@ input::placeholder {
   /* Tailwind pb-8 + safe-area */
 }
 
-#lightbox button[onclick="closeLightbox()"] {
+#lightbox button[data-action="closeLightbox"] {
   top: calc(1.5rem + var(--sat));
   /* Tailwind top-6 */
 }
@@ -2086,7 +2086,7 @@ body:has(.app-container:not(#screen-dashboard):not(.translate-x-full):not(.hidde
 }
 
 #screen-dashboard .glass-header button i,
-#screen-dashboard button[onclick="refreshWeather()"] i {
+#screen-dashboard button[data-action="refreshWeather"] i {
   color: var(--accent) !important;
 }
 
@@ -2318,7 +2318,7 @@ body.theme-vietinbank .glass-header button {
 body.theme-vietinbank .glass-header button i,
 body.theme-vietinbank .glass-header button svg,
 body.theme-vietinbank #screen-dashboard .glass-header button i,
-body.theme-vietinbank #screen-dashboard button[onclick="refreshWeather()"] i {
+body.theme-vietinbank #screen-dashboard button[data-action="refreshWeather"] i {
   color: #ffffff !important;
 }
 body.theme-vietinbank .glass-header h2 {
@@ -2332,7 +2332,7 @@ body.theme-vietinbank #screen-dashboard .glass-header > .flex > .flex > button {
 }
 
 /* Weather pill stays readable on the blue hero */
-body.theme-vietinbank #screen-dashboard button[onclick="refreshWeather()"] {
+body.theme-vietinbank #screen-dashboard button[data-action="refreshWeather"] {
   background: rgba(255, 255, 255, 0.14) !important;
   border-color: rgba(255, 255, 255, 0.24) !important;
   color: #eaf3ff !important;
@@ -2658,13 +2658,13 @@ body.theme-vietinbank #ref-price-modal .bg-indigo-500\/20 { background: rgba(29,
 body.theme-vietinbank #ref-price-modal .bg-cyan-500\/20 { background: rgba(14, 116, 144, 0.10) !important; }
 
 /* --- 4. Bản đồ (mockup #7): white circular controls, light popup --- */
-body.theme-vietinbank #screen-map button[onclick="toggleMap()"] {
+body.theme-vietinbank #screen-map button[data-action="toggleMap"] {
   background: #ffffff !important;
   color: #005b9f !important;
   border: 1px solid rgba(0, 74, 143, 0.14) !important;
   box-shadow: 0 10px 24px rgba(0, 51, 102, 0.22) !important;
 }
-body.theme-vietinbank #screen-map button[onclick="locateMe()"] {
+body.theme-vietinbank #screen-map button[data-action="locateMe"] {
   background: linear-gradient(135deg, #0072bc, #004a8f) !important;
   border: 1px solid rgba(255, 255, 255, 0.35) !important;
 }
@@ -2734,7 +2734,7 @@ body.theme-vietinbank #screen-lock h2,
 body.theme-vietinbank #screen-lock #pin-subtitle {
   color: #f8fafc !important;
 }
-body.theme-vietinbank #screen-lock button[onclick="forgotPin()"] {
+body.theme-vietinbank #screen-lock button[data-action="forgotPin"] {
   color: rgba(248, 250, 252, 0.78) !important;
 }
 body.theme-vietinbank #screen-lock .pin-dot {
@@ -2778,8 +2778,8 @@ body.theme-vietinbank #asset-modal .bg-black\/20 {
   background: #f4f8fd !important;
 }
 body.theme-vietinbank #asset-modal .text-white\/80 { color: #0072bc !important; }
-body.theme-vietinbank #asset-modal button[onclick="closeAssetModal()"],
-body.theme-vietinbank #forgot-pin-modal button[onclick="closeForgotModal()"] {
+body.theme-vietinbank #asset-modal button[data-action="closeAssetModal"],
+body.theme-vietinbank #forgot-pin-modal button[data-action="closeForgotModal"] {
   background: #eef2f7 !important;
   color: #3d5474 !important;
 }

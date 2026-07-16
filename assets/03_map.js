@@ -8,8 +8,17 @@ const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'UXLIST_20260715';
+const MAPLIBRE_V = 'UIPOLISH_20260716';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+// Theme sáng dùng nền bản đồ sáng (Carto Positron — cùng host với dark-matter,
+// đã nằm trong CSP connect-src/img-src, không thêm origin mới).
+const MAP_STYLE_LIGHT = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+// Chọn nền bản đồ theo theme đang bật: sáng cho theme-vietinbank, tối cho 3 theme tối.
+function __mapBaseStyle() {
+    try {
+        return document.body.classList.contains('theme-vietinbank') ? MAP_STYLE_LIGHT : MAP_STYLE_DARK;
+    } catch (e) { return MAP_STYLE_DARK; }
+}
 const MAP_STYLE_SAT = {
     version: 8,
     sources: {
@@ -452,7 +461,7 @@ async function toggleMap() {
 function initMap() {
     map = new maplibregl.Map({
         container: 'map-container',
-        style: MAP_STYLE_DARK,
+        style: __mapBaseStyle(),
         center: [105.8542, 21.0285], // Default Hanoi
         zoom: 12,
         attributionControl: false
@@ -653,14 +662,14 @@ function createMapStyleControl() {
             const container = document.createElement('div');
             container.className = 'maplibregl-ctrl map-style-control';
             container.innerHTML = `
-                <button type="button" data-style="dark" class="active">Bản đồ tối</button>
+                <button type="button" data-style="base" class="active">Bản đồ</button>
                 <button type="button" data-style="sat">Vệ tinh</button>
             `;
             container.addEventListener('click', (event) => {
                 const btn = event.target.closest('button[data-style]');
                 if (!btn) return;
                 container.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
-                mapInstance.setStyle(btn.dataset.style === 'sat' ? MAP_STYLE_SAT : MAP_STYLE_DARK);
+                mapInstance.setStyle(btn.dataset.style === 'sat' ? MAP_STYLE_SAT : __mapBaseStyle());
                 mapInstance.once('styledata', () => setTimeout(() => mapInstance.resize(), 50));
             });
             return container;
@@ -674,7 +683,7 @@ async function renderMapMarkers() {
     if (!db || !map) return;
     const scOk = await ensureSuperclusterLoaded();
     if (!scOk || !window.Supercluster) {
-        ErrorHandler.showWarning('Không tải được clustering — hiển thị điểm đơn lẻ.');
+        ErrorHandler.showWarning('Không gom được cụm điểm — đang hiện từng điểm.');
     }
 
     _clearMapMarkers();

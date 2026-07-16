@@ -57,12 +57,15 @@ body.theme-aurora .glass-header {
   -webkit-backdrop-filter: none !important;
 }
 
-/* Chữ và icon trong header luôn trắng để nổi trên nền gradient */
+/* Chữ và icon trong header luôn trắng để nổi trên nền gradient.
+   LƯU Ý: loại trừ form control (select/input/textarea) khỏi selector
+   [style*="--text-main"] — ép trắng cả control có nền sáng (vd dropdown
+   sắp xếp) sẽ thành chữ trắng trên nền trắng, không đọc được. */
 body.theme-vietinbank .glass-header,
 body.theme-vietinbank .glass-header .dash-hi,
 body.theme-vietinbank .glass-header .dash-date,
 body.theme-vietinbank .glass-header h2,
-body.theme-vietinbank .glass-header [style*="--text-main"],
+body.theme-vietinbank .glass-header [style*="--text-main"]:not(select):not(input):not(textarea),
 body.theme-midnight .glass-header,
 body.theme-midnight .glass-header .dash-hi,
 body.theme-midnight .glass-header .dash-date,
@@ -123,11 +126,41 @@ body.theme-aurora .glass-header h2 {
   opacity: 1 !important;
 }
 
+/* Toolbar danh sách KH: nút "Chọn" + dropdown sắp xếp phải nổi rõ trên header
+   gradient xanh ở CẢ 4 theme — cùng ngôn ngữ pill trắng mờ với ô tìm kiếm. */
+#screen-customer-list .customer-select-toggle {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  border-radius: 14px !important;
+}
+#screen-customer-list .customer-select-toggle[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #005b9f !important;
+}
+#screen-customer-list #customer-sort-select {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  border-radius: 14px !important;
+  max-width: 108px;
+}
+/* Danh sách option mở ra dùng nền trắng chữ đậm để đọc được trên mọi theme */
+#screen-customer-list #customer-sort-select option {
+  background: #ffffff;
+  color: #12284c;
+}
+
 /* Pill thời tiết */
 .glass-header [data-action="refreshWeather"] {
   background: rgba(0, 0, 0, 0.18) !important;
   border-color: rgba(255, 255, 255, 0.14) !important;
   color: #eaf4ff !important;
+}
+
+/* Đủ chỗ cho copy trạng thái thời tiết dài hơn ("Chưa có định vị — chạm để thử lại") */
+#current-weather {
+  max-width: 216px !important;
 }
 
 /* -----------------------------------------------------------------------------
@@ -389,10 +422,8 @@ body.theme-aurora #screen-folder .glass-header {
   border-radius: 12px !important;
 }
 
-/* Thanh tab */
+/* Thanh tab: khay kính mờ trên header gradient (mọi theme) */
 #screen-folder .glass-header .p-1.rounded-xl {
-  background: #ffffff !important;
-  border: 1px solid #e3ecf7 !important;
   border-radius: 14px !important;
 }
 body.theme-midnight #screen-folder .glass-header .p-1.rounded-xl,
@@ -409,8 +440,10 @@ body.theme-aurora #screen-folder .glass-header .p-1.rounded-xl {
   box-shadow: 0 4px 12px rgba(0, 91, 159, 0.25) !important;
 }
 
+/* Tab chưa chọn nằm trên header xanh: chữ trắng/cream rõ (~85% opacity),
+   KHÔNG dùng xám #5b7089 — xám trên xanh gần như tàng hình ngoài trời. */
 body.theme-vietinbank #screen-folder [data-action="switchTab"]:not(.glass-tab-active) {
-  color: #5b7089 !important;
+  color: rgba(255, 255, 255, 0.86) !important;
   opacity: 1 !important;
 }
 
@@ -506,10 +539,12 @@ select {
    Tối ưu mobile: chạm để đóng, an toàn safe-area, giảm animation.
    ============================================================ */
 
-/* --- Toast container (xếp chồng, giữa trên cùng) --- */
+/* --- Toast container (xếp chồng, giữa trên cùng) ---
+   Hạ xuống dưới hàng tiêu đề header (~4.25rem) để toast "Đã tạo hồ sơ"...
+   không che nút back / tiêu đề màn hình đang mở. */
 #app-toast-container {
   position: fixed;
-  top: calc(0.75rem + var(--sat, 0px));
+  top: calc(4.25rem + var(--sat, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
@@ -825,3 +860,249 @@ body.theme-vietinbank .cp-state { color: #475569; }
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   UI POLISH 2026-07 — empty state trong grid ảnh, map control,
+   Drive config, và bộ remap light theme (theme-vietinbank) cho các
+   overlay/section còn hardcode dark-glass. Chỉ trình bày, không đổi hành vi.
+   ============================================================ */
+
+/* Empty state (.cp-state) đặt trong grid ảnh 3 cột phải chiếm trọn hàng */
+.img-grid-container .cp-state {
+  grid-column: 1 / -1;
+}
+
+/* Map: xếp 2 nút chọn nền (Bản đồ / Vệ tinh) theo HÀNG NGANG — cụm control
+   thấp hơn hẳn vùng toast/banner nên cảnh báo không còn đè lên nút "Vệ tinh". */
+.map-style-control {
+  flex-direction: row !important;
+}
+.map-style-control button {
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Map control + popup trên theme sáng: nền trắng, chữ đậm */
+body.theme-vietinbank .map-style-control {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 74, 143, 0.16) !important;
+  color: #12284c !important;
+  box-shadow: 0 6px 18px rgba(0, 51, 102, 0.18) !important;
+}
+body.theme-vietinbank .map-style-control button {
+  color: #3d5474;
+}
+body.theme-vietinbank .map-style-control button.active {
+  background: rgba(0, 114, 188, 0.14);
+  color: #005b9f;
+}
+
+/* Drive config panel (dashboard): typography/spacing khớp các card còn lại */
+.dashboard-drive-config label {
+  letter-spacing: 0.08em !important;
+  margin-bottom: 6px !important;
+}
+.dashboard-drive-row {
+  margin-bottom: 10px;
+}
+.dashboard-drive-row:last-child {
+  margin-bottom: 0;
+}
+.dashboard-drive-row input {
+  font-size: 13px !important;
+  min-height: 44px;
+}
+
+/* --- Trung tâm Backup trên theme sáng: bỏ dark-glass cứng, dùng token sáng --- */
+body.theme-vietinbank .backup-manager-shell {
+  border-color: rgba(0, 74, 143, 0.16) !important;
+}
+body.theme-vietinbank .backup-manager-shell .border-b,
+body.theme-vietinbank .backup-manager-shell .border-white\/10 {
+  border-color: rgba(0, 74, 143, 0.10) !important;
+}
+body.theme-vietinbank .backup-section {
+  background: #f8fbff;
+  border-color: rgba(0, 74, 143, 0.12);
+}
+body.theme-vietinbank .backup-section--primary {
+  background: linear-gradient(135deg, rgba(0, 114, 188, 0.10), rgba(0, 160, 227, 0.05));
+  border-color: rgba(0, 114, 188, 0.22);
+}
+body.theme-vietinbank .backup-section--warning {
+  background: rgba(217, 119, 6, 0.07);
+  border-color: rgba(217, 119, 6, 0.24);
+}
+body.theme-vietinbank .backup-pill {
+  color: #005b9f;
+  background: rgba(0, 91, 159, 0.10);
+  border-color: rgba(0, 91, 159, 0.22);
+}
+body.theme-vietinbank .drive-backup-status {
+  background: #eef4fb;
+  border-color: rgba(0, 74, 143, 0.14);
+  color: #3d5474;
+}
+body.theme-vietinbank .drive-backup-status.working {
+  color: #005b9f;
+  background: rgba(0, 114, 188, 0.08);
+  border-color: rgba(0, 114, 188, 0.24);
+}
+body.theme-vietinbank .drive-backup-status.success {
+  color: #0f7a3d;
+  background: rgba(22, 163, 74, 0.08);
+  border-color: rgba(22, 163, 74, 0.24);
+}
+body.theme-vietinbank .drive-backup-status.error {
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.07);
+  border-color: rgba(220, 38, 38, 0.24);
+}
+body.theme-vietinbank .backup-action-card,
+body.theme-vietinbank .backup-mini-tab {
+  background: #ffffff;
+  border-color: rgba(0, 74, 143, 0.14);
+  color: #12284c;
+}
+body.theme-vietinbank .backup-mini-tab {
+  color: #005b9f;
+}
+body.theme-vietinbank .backup-list-card {
+  background: #ffffff;
+  border-color: rgba(0, 74, 143, 0.12);
+}
+body.theme-vietinbank .backup-inline-pane {
+  border-top-color: rgba(0, 74, 143, 0.10);
+}
+/* Nút hành động trong danh sách backup (Khôi phục / Gửi / Xóa) dựng bằng JS với
+   màu pastel-tối — trên nền trắng phải đậm lại mới đọc được. Thứ tự nút cố định. */
+body.theme-vietinbank .backup-list-actions .backup-list-action:nth-child(1) {
+  background: rgba(22, 163, 74, 0.10) !important;
+  color: #0f7a3d !important;
+}
+body.theme-vietinbank .backup-list-actions .backup-list-action:nth-child(2) {
+  background: rgba(29, 78, 216, 0.08) !important;
+  color: #1d4ed8 !important;
+  border-color: rgba(29, 78, 216, 0.22) !important;
+}
+body.theme-vietinbank .backup-list-actions .backup-list-action:nth-child(3) {
+  background: rgba(220, 38, 38, 0.08) !important;
+  color: #b91c1c !important;
+}
+
+/* --- Drive status area (tab ảnh hồ sơ / kho ảnh TSBĐ) trên theme sáng --- */
+body.theme-vietinbank #drive-status-area .bg-slate-700\/50,
+body.theme-vietinbank #asset-drive-status-area .bg-slate-700\/50 {
+  background: #eef2f7 !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+  color: #3d5474 !important;
+}
+body.theme-vietinbank #drive-status-area .text-emerald-400\/70,
+body.theme-vietinbank #asset-drive-status-area .text-emerald-400\/70 {
+  color: #0f7a3d !important;
+}
+
+/* --- Donate modal trên theme sáng --- */
+body.theme-vietinbank #donate-modal .bg-black\/30 {
+  background: #f4f8fd !important;
+  border-color: rgba(0, 74, 143, 0.14) !important;
+}
+body.theme-vietinbank #donate-modal .text-white {
+  color: #12284c !important;
+}
+body.theme-vietinbank #donate-modal [data-action="copyDonateAccount"] {
+  background: #e8f1fa !important;
+  border-color: rgba(0, 74, 143, 0.18) !important;
+  color: #005b9f !important;
+}
+body.theme-vietinbank #donate-modal [data-action="closeDonateModal"] {
+  color: #5b7089 !important;
+}
+
+/* --- Guide modal (hướng dẫn lấy tọa độ) trên theme sáng --- */
+body.theme-vietinbank #guide-modal .text-emerald-400 {
+  color: #0f7a3d !important;
+}
+body.theme-vietinbank #guide-modal .bg-white\/10 {
+  background: rgba(0, 91, 159, 0.10) !important;
+  color: #005b9f;
+}
+body.theme-vietinbank #guide-modal a[target="_blank"] {
+  background: #f4f8fd !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+  color: #005b9f !important;
+}
+
+/* --- Biometric setup: input PIN sáng như các form modal khác --- */
+body.theme-vietinbank #biometric-setup-modal input {
+  background: #f4f8fd !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+  color: #12284c !important;
+}
+
+/* --- Cảnh báo trùng lặp (overlay dựng bằng JS) trên theme sáng --- */
+body.theme-vietinbank #dup-warning-overlay .text-white {
+  color: #12284c !important;
+}
+body.theme-vietinbank #dup-warning-overlay .text-amber-200 {
+  color: #92400e !important;
+}
+body.theme-vietinbank #dup-warning-overlay .bg-black\/20 {
+  background: #f4f8fd !important;
+}
+body.theme-vietinbank #dup-warning-overlay #dup-btn-view {
+  background: #eef2f7 !important;
+  border-color: rgba(0, 74, 143, 0.16) !important;
+  color: #12284c !important;
+}
+body.theme-vietinbank #dup-warning-overlay #dup-btn-ignore {
+  color: #ffffff !important;
+}
+
+/* --- Picker chọn KH (backup/gửi một phần) trên theme sáng --- */
+body.theme-vietinbank #qrPickList > button {
+  background: #f8fbff !important;
+  border-color: rgba(0, 74, 143, 0.14) !important;
+}
+body.theme-vietinbank .glass-panel [data-act="all"],
+body.theme-vietinbank .glass-panel [data-act="none"],
+body.theme-vietinbank .glass-panel [data-act="cancel"] {
+  background: #eef2f7 !important;
+  border-color: rgba(0, 74, 143, 0.14) !important;
+}
+
+/* --- Skeleton / confirm / toast trên theme sáng: card trắng, không "tảng tối" --- */
+body.theme-vietinbank .skeleton-card {
+  background: #ffffff;
+  border-color: rgba(0, 74, 143, 0.10);
+}
+body.theme-vietinbank .skeleton {
+  background: rgba(0, 74, 143, 0.08);
+}
+body.theme-vietinbank .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+}
+body.theme-vietinbank .cp-confirm-dialog {
+  background: #ffffff;
+  color: #12284c;
+  border-color: rgba(0, 74, 143, 0.14);
+  box-shadow: 0 24px 60px rgba(0, 51, 102, 0.28);
+}
+body.theme-vietinbank .cp-confirm-msg {
+  color: #3d5474;
+}
+body.theme-vietinbank .cp-confirm-cancel {
+  background: #eef2f7;
+  color: #3d5474;
+  border-color: rgba(0, 74, 143, 0.12);
+}
+body.theme-vietinbank .app-toast {
+  background: #ffffff;
+  color: #12284c;
+  border-color: rgba(0, 74, 143, 0.14);
+  box-shadow: 0 14px 34px rgba(0, 51, 102, 0.22);
+}
+body.theme-vietinbank .app-toast-error { background: #fef2f2; }
+body.theme-vietinbank .app-toast-warning { background: #fffbeb; }
+body.theme-vietinbank .app-toast-success { background: #ecfdf5; }
+body.theme-vietinbank .app-toast-info { background: #eff6ff; }

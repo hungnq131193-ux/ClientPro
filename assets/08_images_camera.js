@@ -368,7 +368,16 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
       grid.dataset.renderToken = renderToken;
       grid.innerHTML = "";
       if (imgs.length === 0) {
-        grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
+        // Empty state chuẩn .cp-state (icon + tiêu đề + gợi ý) thay cho dòng text mờ
+        if (window.LoadingManager && LoadingManager.showEmptyState) {
+          LoadingManager.showEmptyState(grid, {
+            icon: 'camera',
+            title: 'Chưa có ảnh',
+            message: 'Bấm nút "Chụp" hoặc biểu tượng tải lên bên dưới để thêm ảnh.',
+          });
+        } else {
+          grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-60 text-sm">Chưa có ảnh</div>`;
+        }
         return;
       }
 
@@ -451,7 +460,16 @@ function loadAssetImages(id) {
       grid.dataset.renderToken = renderToken;
       grid.innerHTML = "";
       if (imgs.length === 0) {
-        grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-40 text-sm">Chưa có ảnh</div>`;
+        // Empty state chuẩn .cp-state (icon + tiêu đề + gợi ý) thay cho dòng text mờ
+        if (window.LoadingManager && LoadingManager.showEmptyState) {
+          LoadingManager.showEmptyState(grid, {
+            icon: 'camera',
+            title: 'Chưa có ảnh',
+            message: 'Bấm nút "Chụp" hoặc biểu tượng tải lên bên dưới để thêm ảnh.',
+          });
+        } else {
+          grid.innerHTML = `<div class="col-span-3 text-center py-10 opacity-60 text-sm">Chưa có ảnh</div>`;
+        }
         return;
       }
 

@@ -280,7 +280,7 @@
         const result = await response.json();
 
         if (result.status !== 'success') {
-            throw new Error(result.message || 'Upload failed');
+            throw new Error(result.message || 'Tải backup lên Drive thất bại. Vui lòng thử lại.');
         }
 
         // Optimistic UI: add to cache immediately
@@ -363,7 +363,7 @@
         }
 
         if (!serverUrl) {
-            throw new Error('User script URL not configured');
+            throw new Error('Chưa cấu hình Google Drive cá nhân. Mở Dashboard → "Cài đặt Google Drive" để nhập Link GAS và Mã bảo mật.');
         }
 
         // POST với token trong body (không đưa token vào query URL để tránh lộ qua
@@ -375,7 +375,7 @@
         const result = await response.json();
 
         if (result.status !== 'success') {
-            throw new Error(result.message || 'List failed');
+            throw new Error(result.message || 'Không lấy được danh sách backup trên Drive.');
         }
 
         const backups = result.backups || [];
@@ -398,7 +398,7 @@
         const result = await response.json();
 
         if (result.status !== 'success') {
-            throw new Error(result.message || 'Download failed');
+            throw new Error(result.message || 'Không tải được backup từ Drive.');
         }
 
         return result;
@@ -495,7 +495,7 @@
         const result = await response.json();
 
         if (result.status !== 'success') {
-            throw new Error(result.message || 'Delete failed');
+            throw new Error(result.message || 'Xóa backup trên Drive thất bại.');
         }
 
         return true;
@@ -554,7 +554,7 @@
                 btn.addEventListener('click', handler);
                 actions.appendChild(btn);
             };
-            addButton('Restore', 'background: rgba(16,185,129,0.15); color: #34d399;', () => DriveBackup.restore(b.id));
+            addButton('Khôi phục', 'background: rgba(16,185,129,0.15); color: #34d399;', () => DriveBackup.restore(b.id));
             addButton('Gửi', 'background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);', () => DriveBackup.send(b.id, b.filename || 'Backup'));
             addButton('Xóa', 'background: rgba(239,68,68,0.15); color: #f87171;', () => DriveBackup.delete(b.id));
 
@@ -586,6 +586,9 @@
             ErrorHandler.logError('[DriveBackups] Error', err);
             // Only show error state if no cached data was shown
             if (!cached || !cached.backups || !cached.backups.length) {
+                // Xóa dòng "Đang tải..." trước khi vẽ error state — showErrorState chỉ
+                // append, không dọn nội dung cũ, nếu không sẽ hiện cả hai cùng lúc.
+                container.textContent = '';
                 LoadingManager.showErrorState(container, {
                     title: 'Không tải được backup Drive',
                     message: ErrorHandler.isOffline() ? 'Bạn đang ngoại tuyến. Kết nối mạng rồi thử lại.' : (err.message || 'Vui lòng kiểm tra kết nối và thử lại.'),
