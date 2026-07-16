@@ -4,8 +4,14 @@
 > (nhãn, nút, toast, confirm, empty state, placeholder, aria-label). Không đổi tên biến /
 > hàm / store IndexedDB / localStorage key.
 
-**Trạng thái:** audit (chưa áp dụng sửa copy).  
-**Giọng điệu mục tiêu:** lịch sự, ngắn, ít cảm thán; xưng `bạn`; tránh tiếng Anh kỹ thuật trong UI.
+**Trạng thái:** audit + plan sẵn sàng thực thi (`docs/terminology-plan-opus.md`).  
+**Giọng điệu mục tiêu:** lịch sự, ngắn, ít cảm thán; xưng `bạn`; tránh tiếng Anh kỹ thuật / slang trong UI.
+
+### Phát hiện bổ sung: “ảnh đã lên mây”
+
+Không phải tính năng riêng — là **slang** trong confirm dọn ảnh sau upload Google Drive
+(`assets/07_drive.js`: `TSBĐ đã lên mây thành công`, `ảnh ĐÃ lên mây khỏi máy/App`).
+Chuẩn: **đã tải lên Drive**. Cấm `lên mây`.
 
 ---
 
@@ -110,9 +116,12 @@ Pattern: `Đã {động từ} {đối tượng}` — ví dụ `Đã lưu khách 
 
 ---
 
-## 5. Quyết định còn mở (cần chốt trước khi sửa)
+## 5. Quyết định đã chốt (xem plan Opus)
 
-1. **TSBĐ trên không gian hẹp:** bỏ hẳn hay giữ ở nút ngắn (`Thêm tài sản` thay vì đủ `Thêm tài sản bảo đảm`)?
-2. **hồ sơ vs khách hàng** trên dashboard `Tổng hồ sơ` — đổi thành `Tổng khách hàng`?
-3. **đồng nghiệp** vs **người dùng** cho cloud transfer?
-4. **Link Apps Script** — có quá kỹ thuật với end-user không quen GAS không? Phương án thay: `Link kết nối Drive cá nhân`.
+1. Nút hẹp: `Thêm tài sản` / `Kho ảnh tài sản` — không còn `TSBĐ` trong UI.
+2. `Tổng hồ sơ` → `Tổng khách hàng`.
+3. Cloud transfer: `đồng nghiệp`.
+4. Cấu hình Drive: `Link kết nối Drive cá nhân` (không `Script`/`token` trong placeholder).
+5. Nút upload ngắn giữ `Lên Drive`; toast/confirm dùng `tải lên Drive` — cấm `lên mây`.
+
+Plan thực thi chi tiết (before/after + acceptance): **`docs/terminology-plan-opus.md`**.
