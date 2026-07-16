@@ -61,8 +61,11 @@
     card.style.borderRadius = "18px";
     card.style.padding = "18px";
     card.style.boxShadow = "0 20px 60px rgba(0,0,0,0.35)";
-    card.style.background = "#111827";
-    card.style.color = "#fff";
+    // Theo token theme (fallback tối cũ khi token chưa nạp) — hết lạc tông trên theme sáng.
+    card.style.background = "var(--bg-panel, #111827)";
+    card.style.color = "var(--text-main, #fff)";
+    card.style.border = "1px solid var(--border-panel, rgba(255,255,255,0.12))";
+    card.style.backdropFilter = "blur(14px)";
 
     const title = document.createElement("div");
     title.id = "auth-gate-title";
@@ -98,7 +101,7 @@
     btnReset.style.borderRadius = "12px";
     btnReset.style.border = "0";
     btnReset.style.cursor = "pointer";
-    btnReset.style.background = "#2563eb";
+    btnReset.style.background = "var(--accent-gradient, var(--accent, #2563eb))";
     btnReset.style.color = "#fff";
     btnReset.style.fontWeight = "700";
 
@@ -108,10 +111,10 @@
     btnCopy.style.flex = "1";
     btnCopy.style.padding = "12px 12px";
     btnCopy.style.borderRadius = "12px";
-    btnCopy.style.border = "1px solid rgba(255,255,255,0.2)";
+    btnCopy.style.border = "1px solid var(--border-panel, rgba(255,255,255,0.2))";
     btnCopy.style.cursor = "pointer";
     btnCopy.style.background = "transparent";
-    btnCopy.style.color = "#fff";
+    btnCopy.style.color = "var(--text-main, #fff)";
     btnCopy.style.fontWeight = "600";
 
     actions.appendChild(btnReset);

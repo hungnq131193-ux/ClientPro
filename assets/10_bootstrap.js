@@ -183,5 +183,24 @@ document.addEventListener("DOMContentLoaded", async () => {
   const onSearchInput = (e) => loadCustomers(e.target.value);
   window.__searchDebounced = (typeof debounce === 'function') ? debounce(onSearchInput, 180) : onSearchInput;
   getEl("search-input").addEventListener("input", window.__searchDebounced);
+  // Nút × xóa nhanh ô tìm kiếm: hiện/ẩn tức thời khi gõ (loadCustomers đồng bộ lại
+  // cho các đường reset còn lại); bấm × = xóa query + load lại + giữ focus để gõ tiếp.
+  const searchClearBtn = getEl("search-clear-btn");
+  if (searchClearBtn) {
+    getEl("search-input").addEventListener("input", (e) => {
+      searchClearBtn.classList.toggle("hidden", !e.target.value.trim());
+    });
+    searchClearBtn.addEventListener("click", () => {
+      const s = getEl("search-input");
+      if (!s) return;
+      s.value = "";
+      searchClearBtn.classList.add("hidden");
+      if (window.__searchDebounced && typeof window.__searchDebounced.cancel === "function") {
+        window.__searchDebounced.cancel();
+      }
+      loadCustomers("");
+      s.focus();
+    });
+  }
   setupSwipe();
 });

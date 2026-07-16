@@ -984,6 +984,9 @@ function _shakePinDots() {
   display.classList.remove("pin-shake");
   void display.offsetWidth;
   display.classList.add("pin-shake");
+  // Rung máy kèm rung hình — chuẩn lock screen mobile (19_error_loading.js nạp sau,
+  // nhưng validatePin chỉ chạy lúc runtime nên Haptics đã sẵn sàng; vẫn guard typeof).
+  if (typeof Haptics !== "undefined" && Haptics.error) Haptics.error();
 }
 
 /** * Giải mã toàn bộ thông tin khách hàng (bao gồm tài sản) bằng masterKey. * @param {Object} cust * @returns {Object} */
@@ -1095,12 +1098,22 @@ function isSafeDriveUrl(url) {
   } catch (e) { return false; }
 }
 
+// Màu status bar / PWA chrome khớp nền từng theme (mặc định giữ #005b9f của brand).
+const THEME_META_COLORS = {
+  "theme-vietinbank": "#005b9f",
+  "theme-midnight": "#0a1628",
+  "theme-ocean": "#041826",
+  "theme-aurora": "#071627",
+};
+
 function setTheme(themeName) {
   document.body.className = themeName;
   localStorage.setItem(THEME_KEY, themeName);
   document.querySelectorAll(".theme-btn-sm").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.arg === themeName);
   });
+  const meta = document.getElementById("meta-theme-color");
+  if (meta) meta.setAttribute("content", THEME_META_COLORS[themeName] || "#005b9f");
 }
 /** * Kiểm tra trạng thái kích hoạt và bảo mật của ứng dụng. * Trình tự: * 1. Nếu chưa kích hoạt (không có app_activated), hiển thị modal kích hoạt. * 2. Nếu đã kích hoạt nhưng chưa tạo PIN, hiển thị màn hình thiết lập PIN. * Mã nhân viên sẽ được điền sẵn từ localStorage để người dùng không cần nhập lại. * 3. Nếu đã có PIN, hiển thị màn hình khóa để nhập PIN. */
 // --- HÀM CHECK BẢO MẬT MỚI (MỞ KHÓA SIÊU TỐC) ---

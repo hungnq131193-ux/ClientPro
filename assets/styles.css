@@ -598,7 +598,7 @@ textarea::placeholder {
    250     #loader — global loader: TRÊN mọi business modal, DƯỚI security/confirm
    300     guide modal, #screen-lock (màn khóa không bao giờ bị loader che)
    305/310 activation modal / setup-lock modal
-   400/500 #toast / #app-toast-container
+   500     #app-toast-container
    600     .cp-confirm-overlay (confirm luôn trên loader — người dùng phải bấm được)
    1000+   onboarding tour
    ========================================================================== */
@@ -613,18 +613,6 @@ textarea::placeholder {
 .cp-swipe-noselect * {
   -webkit-user-select: none !important;
   user-select: none !important;
-}
-
-#toast {
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
-    opacity 0.3s;
-  z-index: 400;
-  will-change: transform, opacity;
-}
-
-.toast-show {
-  transform: translateX(-50%) translateY(0) !important;
-  opacity: 1 !important;
 }
 
 .keypad-btn {
@@ -1010,12 +998,6 @@ textarea::placeholder {
 
 
 /* --- iOS Safe-Area fixes for fixed overlays (avoid status bar / notch overlap) --- */
-#toast {
-  /* Dưới CẢ cụm header 2 hàng (title + search/toolbar) — không che back / search
-     (đồng bộ #app-toast-container trong redesign.clientpro.css) */
-  top: calc(6.75rem + var(--sat));
-}
-
 #settings-menu {
   top: calc(5rem + var(--sat));
   /* Tailwind top-20 */
@@ -2658,15 +2640,6 @@ body.theme-vietinbank .theme-btn-sm.active {
 }
 
 /* --- 6. App-wide polish --- */
-/* Toast: white card, dark text */
-body.theme-vietinbank #toast {
-  background: #ffffff !important;
-  color: #12284c !important;
-  border: 1px solid rgba(0, 74, 143, 0.14) !important;
-  box-shadow: 0 18px 40px rgba(0, 51, 102, 0.22) !important;
-}
-body.theme-vietinbank #toast .text-emerald-400 { color: #16a34a !important; }
-
 /* Lock screen keeps its dark backdrop by design -> force light text
    (inline style="color: var(--text-main)" needs !important to beat). */
 body.theme-vietinbank #screen-lock h2,

@@ -382,7 +382,9 @@ function openZaloChat(phone) {
     const win = window.open(fallback, '_blank', 'noopener');
     if (!win) window.location.href = fallback;
 }
-function showToast(msg) { const t = getEl('toast'); getEl('toast-msg').textContent = msg; t.classList.add('toast-show'); setTimeout(() => t.classList.remove('toast-show'), 2000); }
+// Fallback tối giản — 19_error_loading.js override bằng AppToast ngay sau khi nạp.
+// (Markup #toast legacy đã gỡ khỏi index.html; hàm này chỉ còn là lưới an toàn.)
+function showToast(msg) { try { console.log('[toast]', msg); } catch (e) { } }
 function formatLink(link) {
   if (!link) return '';
   const raw = String(link).trim();

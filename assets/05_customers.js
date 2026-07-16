@@ -513,9 +513,21 @@ async function loadCustomers(query = '') {
     // để không hiển thị card cũ không khớp với bộ lọc mới.
     const loadSig = `${activeListTab}|${q}`;
     if (!listEl.children.length || listEl.dataset.sig !== loadSig) {
-        listEl.innerHTML = `<div class="text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Đang tải danh sách khách hàng...</div>`;
+        // Skeleton cards thay cho chuỗi "Đang tải..." trơ trọi — cùng hệ thống
+        // loading đã dùng ở nơi khác (19_error_loading.js).
+        if (typeof LoadingManager !== 'undefined' && LoadingManager.showSkeleton) {
+            listEl.innerHTML = '';
+            LoadingManager.showSkeleton(listEl, 4);
+        } else {
+            listEl.innerHTML = `<div class="text-center py-10 opacity-70 text-sm" style="color: var(--text-sub)">Đang tải danh sách khách hàng...</div>`;
+        }
     }
     listEl.dataset.sig = loadSig;
+
+    // Nút xóa nhanh ô tìm kiếm: mọi đường dẫn đổi query (gõ phím, nút ×, reset khi
+    // mở lại màn hình) đều đi qua loadCustomers -> đây là chỗ đồng bộ duy nhất.
+    const clearBtn = getEl('search-clear-btn');
+    if (clearBtn) clearBtn.classList.toggle('hidden', !q);
 
     const all = await new Promise((resolve) => {
         const tx = db.transaction(['customers'], 'readonly');
@@ -607,7 +619,13 @@ function renderList(list, opts = {}) {
     const summaryCounts = opts.summaryCounts || null;
     const listEl = getEl('customer-list');
     if (!listEl) return;
-    if (!append) listEl.innerHTML = '';
+    if (!append) {
+        // Gỡ skeleton (nodes + class is-loading) trước khi render nội dung thật.
+        if (typeof LoadingManager !== 'undefined' && LoadingManager.hideSkeleton) {
+            LoadingManager.hideSkeleton(listEl);
+        }
+        listEl.innerHTML = '';
+    }
 
     const approved = summaryCounts ? summaryCounts.approved : list.filter((c) => (c.status || 'pending') === 'approved').length;
     const pending = summaryCounts ? summaryCounts.pending : (list.length - approved);
@@ -1664,7 +1682,11 @@ function loadCustomerInfo() {
     const notes = (typeof _displayPlain === 'function')
         ? _displayPlain(c.notes, '')
         : (() => { const raw = decryptText(c.notes); return (raw && !_looksEncrypted(raw)) ? raw : ''; })();
-    const createdAt = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '--';
+    // dd/mm/yyyy pad-0 — đồng bộ với date ticker dashboard (toLocaleDateString ra "16/7/2026").
+    const createdAt = c.createdAt ? (() => {
+        const d = new Date(c.createdAt);
+        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    })() : '—';
 
     const phoneEl = getEl('info-phone');
     const cccdEl = getEl('info-cccd');
