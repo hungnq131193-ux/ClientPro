@@ -649,7 +649,7 @@ function renderList(list, opts = {}) {
         summary.innerHTML = `
             <div class="customer-list-overview__grid">
                 <div class="customer-kpi">
-                    <p>Tổng hồ sơ</p>
+                    <p>Tổng khách hàng</p>
                     <strong>${total}</strong>
                 </div>
                 <div class="customer-kpi approved">
@@ -851,7 +851,7 @@ async function openEditCustomerModal() {
     if (getEl('new-cccd')) getEl('new-cccd').value = '';
     getEl('edit-cust-id').value = asked.id || '';
     getEl('modal-title-cust').textContent = "Chỉnh sửa hồ sơ";
-    getEl('btn-save-cust').textContent = "Cập nhật";
+    getEl('btn-save-cust').textContent = "Lưu thay đổi";
 
     // Khóa nút Lưu trong lúc chờ decrypt: không cho lưu khi form chưa sẵn sàng.
     const saveBtn = getEl('btn-save-cust');
@@ -876,7 +876,7 @@ async function openEditCustomerModal() {
     // Chỉ lượt mở MỚI NHẤT được điền form + mở khóa nút (lượt cũ không đụng nút —
     // lượt mới hơn / openModal đã tự lo trạng thái nút).
     if (editSeq !== window.__editCustModalSeq) return;
-    try { LoadingManager.hideButtonLoading(saveBtn, 'Cập nhật'); } catch (e) { }
+    try { LoadingManager.hideButtonLoading(saveBtn, 'Lưu thay đổi'); } catch (e) { }
     // Modal đã bị đóng trong lúc chờ -> không đổ dữ liệu cũ vào lần mở sau.
     if (getEl('add-modal').classList.contains('hidden')) return;
 

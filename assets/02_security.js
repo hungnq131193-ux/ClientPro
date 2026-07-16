@@ -1204,7 +1204,7 @@ async function requireBackupSecretOrAlert() {
     return true;
   }
   if (!APP_BACKUP_KDATA_B64U) {
-    ErrorHandler.showError('AUTH', "Bảo mật: Không thể sao lưu khi đang ngoại tuyến hoặc chưa xác thực với máy chủ. Vui lòng kết nối mạng và mở lại App.");
+    ErrorHandler.showError('AUTH', "Bảo mật: Không thể sao lưu khi đang ngoại tuyến hoặc chưa xác thực với máy chủ. Vui lòng kết nối mạng và mở lại ứng dụng.");
     return false;
   }
   return true;

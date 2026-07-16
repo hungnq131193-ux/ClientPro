@@ -228,10 +228,10 @@
         <div class="scroll-area flex-1 p-4 dashboard-scroll" id="folder-view">
             <section class="dashboard-card dashboard-overview-card">
                 <div class="dashboard-overview-grid">
-                    <div class="overview-stat overview-stat-summary" role="group" aria-label="Tổng số hồ sơ">
+                    <div class="overview-stat overview-stat-summary" role="group" aria-label="Tổng số khách hàng">
                         <span class="overview-icon"><i data-lucide="users" class="w-5 h-5"></i></span>
                         <strong id="count-total">0</strong>
-                        <span>Tổng hồ sơ</span>
+                        <span>Tổng khách hàng</span>
                     </div>
                     <div class="overview-stat overview-stat-summary" role="group" aria-label="Tổng số tài sản bảo đảm">
                         <span class="overview-icon"><i data-lucide="landmark" class="w-5 h-5"></i></span>
@@ -274,13 +274,13 @@
                     </button>
                 </div>
                 <div id="dashboard-drive-config" class="dashboard-drive-config hidden" aria-hidden="true">
-                    <label for="dashboard-drive-url">Link Script cá nhân</label>
+                    <label for="dashboard-drive-url">Link kết nối Drive cá nhân</label>
                     <div class="dashboard-drive-row">
                         <input id="dashboard-drive-url" type="text" placeholder="https://script.google.com/...">
                     </div>
                     <label for="dashboard-drive-token">Mã bảo mật</label>
                     <div class="dashboard-drive-row">
-                        <input id="dashboard-drive-token" type="password" autocomplete="off" placeholder="Dán token từ Script cá nhân">
+                        <input id="dashboard-drive-token" type="password" autocomplete="off" placeholder="Dán mã bảo mật từ link kết nối">
                         <button data-action="saveScriptUrl"><i data-lucide="save" class="w-4 h-4"></i> Lưu</button>
                     </div>
                 </div>
@@ -300,7 +300,7 @@
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
                 <h2 id="customer-list-title" class="font-bold text-lg" style="color: var(--text-main)">
-                    Danh sách KH
+                    Danh sách khách hàng
                 </h2>
                 <button data-action="openModal" class="p-2 -mr-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
                     style="color: var(--accent)">
@@ -494,7 +494,7 @@
                 <button data-action="openAssetModal"
                     class="w-full text-white py-3.5 rounded-xl font-bold flex justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform border border-white/20"
                     style="background: var(--accent-gradient);">
-                    <i data-lucide="plus-square" class="w-5 h-5"></i> Thêm TSBĐ Mới
+                    <i data-lucide="plus-square" class="w-5 h-5"></i> Thêm tài sản
                 </button>
             </div>
         </div>
@@ -508,7 +508,7 @@
                         data-lucide="arrow-left" class="w-6 h-6"></i></button>
                 <div class="flex items-center gap-3">
                     <h2 id="gallery-asset-name" class="font-bold text-sm uppercase truncate max-w-[160px]"
-                        style="color: var(--text-main)">Chi tiết TSBĐ</h2>
+                        style="color: var(--text-main)">Chi tiết tài sản</h2>
                 </div>
             </div>
             <div class="flex gap-2 mt-3 text-xs justify-center w-full font-mono" style="color: var(--text-sub)"><span

@@ -794,7 +794,7 @@ async function deleteOpenedImage() {
   // Snapshot ID trước confirm — không đọc lại global sau await.
   const imageId = currentImageId;
   if (!imageId) return;
-  if (!(await ErrorHandler.confirm("Hủy chứng từ này?", { title: "Xóa chứng từ", danger: true, confirmText: "Xóa" }))) return;
+  if (!(await ErrorHandler.confirm("Xóa ảnh này?", { title: "Xóa ảnh", danger: true, confirmText: "Xóa" }))) return;
   if (__deleteOpenedImageInFlight) return;
   __deleteOpenedImageInFlight = true;
   try {
@@ -811,7 +811,7 @@ async function deleteOpenedImage() {
       loadAssetImages(currentAssetId);
     else loadProfileImages();
   } catch (err) {
-    ErrorHandler.showError('STORAGE', 'Xóa chứng từ thất bại — dữ liệu CHƯA thay đổi. Vui lòng thử lại.', err);
+    ErrorHandler.showError('STORAGE', 'Xóa ảnh thất bại — dữ liệu CHƯA thay đổi. Vui lòng thử lại.', err);
   } finally {
     __deleteOpenedImageInFlight = false;
   }

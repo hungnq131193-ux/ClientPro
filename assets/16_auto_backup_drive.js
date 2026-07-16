@@ -280,7 +280,7 @@
         const result = await response.json();
 
         if (result.status !== 'success') {
-            throw new Error(result.message || 'Tải backup lên Drive thất bại. Vui lòng thử lại.');
+            throw new Error(result.message || 'Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
         }
 
         // Optimistic UI: add to cache immediately
@@ -363,7 +363,7 @@
         }
 
         if (!serverUrl) {
-            throw new Error('Chưa cấu hình Google Drive cá nhân. Mở Dashboard → "Cài đặt Google Drive" để nhập Link Script và Mã bảo mật.');
+            throw new Error('Chưa cấu hình Google Drive cá nhân. Mở màn hình chính → "Cài đặt Google Drive" để nhập link kết nối Drive và Mã bảo mật.');
         }
 
         // POST với token trong body (không đưa token vào query URL để tránh lộ qua
@@ -375,7 +375,7 @@
         const result = await response.json();
 
         if (result.status !== 'success') {
-            throw new Error(result.message || 'Không lấy được danh sách backup trên Drive.');
+            throw new Error(result.message || 'Không lấy được danh sách bản sao lưu trên Drive.');
         }
 
         const backups = result.backups || [];

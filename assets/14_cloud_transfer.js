@@ -180,7 +180,7 @@
       _writeUsersCache(users);
       return users;
     }
-    throw new Error(res && res.message ? res.message : 'Không lấy được danh sách user');
+    throw new Error(res && res.message ? res.message : 'Không lấy được danh sách đồng nghiệp');
   }
 
   async function prefetchUsers() {
@@ -230,7 +230,7 @@
     }
 
     if (!filtered.length) {
-      ErrorHandler.showWarning('Không có user nào khác trong hệ thống.');
+      ErrorHandler.showWarning('Không có đồng nghiệp nào khác trong hệ thống.');
       return null;
     }
 
@@ -241,8 +241,8 @@
       overlay.appendChild(el('div', { className: 'glass-panel w-full max-w-md rounded-2xl border border-white/10 overflow-hidden' }, [
         el('div', { className: 'px-4 py-3 flex items-center justify-between border-b border-white/10' }, [
           el('div', {}, [
-            el('div', { className: 'text-base font-extrabold', style: 'color: var(--text-main)', text: 'Chọn user để gửi' }),
-            el('div', { className: 'text-[11px] opacity-70', style: 'color: var(--text-sub)', text: 'Chỉ user được cấp quyền mới nhận và restore được.' }),
+            el('div', { className: 'text-base font-extrabold', style: 'color: var(--text-main)', text: 'Chọn đồng nghiệp để gửi' }),
+            el('div', { className: 'text-[11px] opacity-70', style: 'color: var(--text-sub)', text: 'Chỉ đồng nghiệp được cấp quyền mới nhận và khôi phục được.' }),
           ]),
           el('button', { className: 'p-2 rounded-xl hover:bg-white/10', dataset: { act: 'close' }, style: 'color: var(--text-main)' }, [
             el('i', { dataset: { lucide: 'x' }, className: 'w-5 h-5' }),
@@ -366,7 +366,7 @@
   // =========================
   async function uploadBackupToUser(targetUser, backupRec) {
     await ensureAuthOrThrow();
-    if (!targetUser || !targetUser.employeeId) throw new Error('Thiếu user đích');
+    if (!targetUser || !targetUser.employeeId) throw new Error('Thiếu đồng nghiệp nhận');
     if (!backupRec || !backupRec.encrypted) throw new Error('Thiếu dữ liệu backup');
 
     // Normalize cipher payload:
@@ -529,7 +529,7 @@
 
     listEl.textContent = '';
     list.forEach((it) => {
-      const fromName = it.fromName || it.fromEmployeeId || it.fromDeviceId || 'User';
+      const fromName = it.fromName || it.fromEmployeeId || it.fromDeviceId || 'Đồng nghiệp';
       const fname = it.filename || 'backup';
       const created = formatDateTime(Number(it.createdAt || now()));
       const size = formatBytes(Number(it.size || 0));
@@ -611,12 +611,12 @@
         if (newest) {
           localStorage.setItem(LS_PENDING_NOTICE, JSON.stringify({
             transferId: newest.transferId || newest.backupId || newest.id || '',
-            fromName: newest.fromName || newest.fromEmployeeId || newest.fromDeviceId || 'User',
+            fromName: newest.fromName || newest.fromEmployeeId || newest.fromDeviceId || 'Đồng nghiệp',
             filename: newest.filename || '',
           }));
 
           if (typeof showToast === 'function') {
-            showToast(`Bạn đã nhận được bản ghi từ ${newest.fromName || newest.fromEmployeeId || newest.fromDeviceId || 'user'}`);
+            showToast(`Bạn đã nhận được bản ghi từ ${newest.fromName || newest.fromEmployeeId || newest.fromDeviceId || 'đồng nghiệp'}`);
           }
 
           // If backup manager modal is open, refresh inbox list in place
@@ -642,7 +642,7 @@
   }
 
   function buildReceiveNotice(payload) {
-    const fromName = payload.fromName || 'user';
+    const fromName = payload.fromName || 'đồng nghiệp';
     const filename = payload.filename || 'backup';
     const transferId = payload.transferId || payload.backupId || '';
 
@@ -657,7 +657,7 @@
         ]),
         el('div', { className: 'flex-1 min-w-0' }, [
           el('div', { className: 'font-extrabold', style: 'color: var(--text-main)' }, ['Bạn đã nhận được bản ghi từ ', fromEl]),
-          el('div', { className: 'text-[11px] opacity-70 mt-1', style: 'color: var(--text-sub)' }, ['Tệp: ', fileEl, '. Bấm “Nhận & Khôi phục” để nhập dữ liệu.']),
+          el('div', { className: 'text-[11px] opacity-70 mt-1', style: 'color: var(--text-sub)' }, ['File: ', fileEl, '. Bấm “Nhận & Khôi phục” để nhập dữ liệu.']),
         ]),
       ]),
       el('div', { className: 'flex gap-3 mt-4' }, [
@@ -740,7 +740,7 @@
         if (typeof _restoreFromEncryptedContent === 'function') {
           await _restoreFromEncryptedContent(dl.encrypted, inboxKey);
         } else {
-          throw new Error('Thiếu hàm restore (_restoreFromEncryptedContent)');
+          throw new Error('Thiếu cơ chế khôi phục (_restoreFromEncryptedContent)');
         }
         // Đánh dấu consumed (RAM + BỀN VỮNG) NGAY sau khi restore OK, TRƯỚC khi thử
         // xóa remote — nếu xóa remote fail rồi reload, lần bấm sau sẽ không restore lại.
@@ -842,7 +842,7 @@
         const u = await pickUserOverlay();
         if (!u) return;
 
-        const ok = await ErrorHandler.confirm(`Gửi backup này cho user:\n\n${u.name || u.displayName || u.employeeId || u.deviceId}\n\nTiếp tục?`, { title: 'Gửi bản ghi', confirmText: 'Gửi' });
+        const ok = await ErrorHandler.confirm(`Gửi bản sao lưu này cho đồng nghiệp:\n\n${u.name || u.displayName || u.employeeId || u.deviceId}\n\nTiếp tục?`, { title: 'Gửi bản ghi', confirmText: 'Gửi' });
         if (!ok) return;
 
         LoadingManager.showGlobal('Đang gửi bản ghi...');
@@ -890,7 +890,7 @@
           ? `(${record.meta.count || ''} KH)`
           : '';
 
-        const ok = await ErrorHandler.confirm(`Gửi gói dữ liệu này cho user:\n\n${u.name || u.displayName || u.employeeId || u.deviceId} ${label}\n\nTệp: ${record.filename || 'backup.cpb'}\n\nTiếp tục?`, { title: 'Gửi gói dữ liệu', confirmText: 'Gửi' });
+        const ok = await ErrorHandler.confirm(`Gửi gói dữ liệu này cho đồng nghiệp:\n\n${u.name || u.displayName || u.employeeId || u.deviceId} ${label}\n\nFile: ${record.filename || 'backup.cpb'}\n\nTiếp tục?`, { title: 'Gửi gói dữ liệu', confirmText: 'Gửi' });
         if (!ok) return;
 
         LoadingManager.showGlobal('Đang gửi bản ghi...');
