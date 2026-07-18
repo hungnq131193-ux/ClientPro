@@ -3,8 +3,9 @@
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-1.0.7-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
+[![Vercel](https://img.shields.io/badge/Vercel-live-000000.svg?logo=vercel)](https://client-pro-beryl.vercel.app)
 
-**Demo:** https://client-pro-beryl.vercel.app
+**Demo (Vercel):** https://client-pro-beryl.vercel.app
 
 **ClientPro Genesis** là PWA mobile-first quản lý **khách hàng** và **tài sản bảo đảm** trên điện thoại. Ứng dụng hoạt động offline, lưu toàn bộ dữ liệu nghiệp vụ **cục bộ trên thiết bị**, và chỉ kết nối Google Drive / Google Apps Script cho các tác vụ do người dùng chủ động thực hiện (backup, chuyển dữ liệu).
 
