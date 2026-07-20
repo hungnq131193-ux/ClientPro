@@ -1665,10 +1665,10 @@ async function activateApp() {
 // Tự khóa khi ẩn app (vuốt về màn hình chính / chuyển app).
 // Ẩn quá AUTO_LOCK_HIDDEN_MS thì lockApp(): timer best-effort chạy lúc nền,
 // kèm kiểm tra bù khi hiện lại (timer nền có thể bị trình duyệt throttle).
-// Trễ 15s để không khóa oan các thao tác làm trang tạm "hidden" trên mobile
+// Trễ 60s để không khóa oan các thao tác làm trang tạm "hidden" trên mobile
 // (file picker nhập .cpb, share sheet, cấp quyền GPS, chuyển app nhanh).
 // ============================================================
-const AUTO_LOCK_HIDDEN_MS = 15000;
+const AUTO_LOCK_HIDDEN_MS = 60000;
 let _autoLockHiddenAt = 0;
 let _autoLockTimer = null;
 let _autoLockedWhileHidden = false;
