@@ -1450,7 +1450,19 @@ function enterPin(num) {
   if (currentPin.length < pinLen) {
     currentPin += num;
     updatePinDots();
+    window.Haptics?.light();
     if (currentPin.length === pinLen) validatePin();
+  }
+}
+function backspacePin() {
+  if (_pinChecking || getLockoutRemainingMs() > 0) {
+    updateLockoutUI();
+    return;
+  }
+  if (currentPin.length > 0) {
+    currentPin = currentPin.slice(0, -1);
+    updatePinDots();
+    window.Haptics?.light();
   }
 }
 function clearPin() {

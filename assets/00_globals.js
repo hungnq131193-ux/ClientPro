@@ -225,6 +225,7 @@
             closeAssetGallery: () => closeAssetGallery(),
             closeApproveModal: () => closeApproveModal(),
             clearPin: () => clearPin(),
+            backspacePin: () => backspacePin(),
             checkRecovery: () => checkRecovery(),
             capturePhoto: () => capturePhoto(),
             activateApp: () => activateApp(),
