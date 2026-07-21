@@ -136,20 +136,16 @@
   // VALIDATE PDF: signature + rỗng + mật khẩu + hỏng. Không tin đuôi file.
   //   Trả { ok, bytes, error }. error là chuỗi tiếng Việt (không kèm tên file).
   // ----------------------------------------------------------------------
-  const MSG = {
-    invalidPdf: 'File PDF không hợp lệ hoặc đã bị hỏng.',
-    empty: 'File rỗng, không có dữ liệu.',
-    password: 'File PDF được bảo vệ bằng mật khẩu và chưa được hỗ trợ.',
-    tooBig: 'File quá lớn để xử lý an toàn trên thiết bị này.',
-    memory: 'Thiết bị không đủ bộ nhớ để xử lý tài liệu này. Hãy thử chia nhỏ file hoặc giảm số trang.',
-    outputFail: 'Không thể tạo file kết quả. Dữ liệu gốc không bị thay đổi.',
-    badImage: 'Ảnh không hợp lệ hoặc đã bị hỏng.',
-    imageTooLarge: 'Ảnh có độ phân giải quá lớn để xử lý.',
-  };
+  // MSG là NGUỒN DUY NHẤT trong utils; re-export ở đây để giữ TK.MSG tương thích
+  // (các tool có thể dùng U.MSG hoặc TK.MSG — đều trỏ về cùng một object).
+  const MSG = U.MSG;
 
   async function validatePdfFile(file) {
     try {
       if (!file || file.size === 0) return { ok: false, error: MSG.empty };
+      // Chặn file vượt hard limit TRƯỚC khi đọc vào bộ nhớ (tránh treo/kill tab).
+      const sizeCheck = U.checkFileSize(file.size);
+      if (!sizeCheck.ok) return { ok: false, error: sizeCheck.error };
       const bytes = await readFileBytes(file);
       if (!bytes || bytes.length === 0) return { ok: false, error: MSG.empty };
       if (!U.isPdfBytes(bytes)) return { ok: false, error: MSG.invalidPdf };

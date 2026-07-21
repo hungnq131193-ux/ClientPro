@@ -81,6 +81,9 @@
           items.push(rec);
           renderGrid();
           try {
+            // Chặn ảnh vượt hard limit TRƯỚC khi đọc vào bộ nhớ.
+            const sizeCheck = U.checkFileSize(file.size);
+            if (!sizeCheck.ok) { rec.error = sizeCheck.error; renderGrid(); updateBtn(); continue; }
             const bytes = await TK.readFileBytes(file);
             let kind = U.detectFileKind(bytes);
             if (!U.isImageKind(kind)) kind = U.imageMimeToKind(file.type);
@@ -154,7 +157,8 @@
         c.restore();
         const usePng = rec.kind === 'png';
         const mime = usePng ? 'image/png' : 'image/jpeg';
-        const blob = await new Promise((res) => canvas.toBlob(res, mime, usePng ? undefined : 0.92));
+        // toBlob có thể trả null (thiếu RAM / canvas quá lớn) -> lỗi thân thiện.
+        const blob = U.blobOrThrow(await new Promise((res) => canvas.toBlob(res, mime, usePng ? undefined : 0.92)));
         const bytes = new Uint8Array(await blob.arrayBuffer());
         const dims = { w: cw, h: ch };
         TK.releaseCanvas(canvas);

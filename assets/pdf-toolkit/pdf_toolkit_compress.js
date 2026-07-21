@@ -56,15 +56,19 @@
 
       ctx.registerCleanup(() => { bytes = null; });
 
+      let loadSeq = 0; // chống race: chọn file mới trước khi file cũ tải xong
       async function load(file) {
+        const mySeq = ++loadSeq;
         resultHost.replaceChildren();
         runBtn.disabled = true;
+        bytes = null;
         const v = await TK.validatePdfFile(file);
+        if (mySeq !== loadSeq) return;
         if (!v.ok) { infoEl.textContent = v.error; return; }
         // Kiểm tra mật khẩu / hỏng qua đọc metadata.
         const meta = await TK.readPdfMeta(v.bytes);
+        if (mySeq !== loadSeq || !ctx.isActive()) return;
         if (meta.error) { infoEl.textContent = meta.error; return; }
-        if (!ctx.isActive()) return;
         bytes = v.bytes; originalSize = file.size;
         baseName = (file.name || 'tai-lieu').replace(/\.pdf$/i, '');
         infoEl.textContent = file.name + ' · ' + meta.pages + ' trang · ' + U.formatBytes(originalSize);
@@ -123,7 +127,9 @@
             const c = canvas.getContext('2d', { alpha: false });
             c.fillStyle = '#ffffff'; c.fillRect(0, 0, canvas.width, canvas.height);
             await page.render({ canvasContext: c, viewport }).promise;
-            const jpgBlob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', preset.quality));
+            // canvas.toBlob có thể trả null khi thiếu RAM / canvas quá lớn -> báo lỗi
+            // thân thiện thay vì để TypeError làm hỏng cả tác vụ.
+            const jpgBlob = U.blobOrThrow(await new Promise((res) => canvas.toBlob(res, 'image/jpeg', preset.quality)));
             const jpgBytes = new Uint8Array(await jpgBlob.arrayBuffer());
             TK.releaseCanvas(canvas);
             try { page.cleanup(); } catch (e) {}

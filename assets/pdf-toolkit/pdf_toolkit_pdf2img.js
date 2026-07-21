@@ -61,20 +61,30 @@
         if (doc) { try { doc.destroy(); } catch (e) {} doc = null; }
       });
 
+      // Sequence token: mỗi lần chọn file tăng loadSeq. Kết quả về muộn của file
+      // CŨ (người dùng đổi file trước khi file cũ tải xong) không được ghi đè
+      // doc/total/tên file của file MỚI — bỏ qua và hủy document thừa.
+      let loadSeq = 0;
+
       async function loadPdf(file) {
+        const mySeq = ++loadSeq;
         resultHost.replaceChildren();
+        exportBtn.disabled = true;
         if (doc) { try { doc.destroy(); } catch (e) {} doc = null; }
         const v = await TK.validatePdfFile(file);
-        if (!v.ok) { infoEl.textContent = v.error; exportBtn.disabled = true; return; }
+        if (mySeq !== loadSeq) return;                 // đã có lượt chọn mới hơn
+        if (!v.ok) { infoEl.textContent = v.error; return; }
         infoEl.textContent = 'Đang đọc tài liệu…';
         try {
-          doc = await TK.loadPdfJsDoc(v.bytes);
+          const loaded = await TK.loadPdfJsDoc(v.bytes);
+          if (mySeq !== loadSeq || !ctx.isActive()) { try { loaded.destroy(); } catch (e) {} return; }
+          doc = loaded;
           total = doc.numPages;
           baseName = (file.name || 'tai-lieu').replace(/\.pdf$/i, '');
-          if (!ctx.isActive()) { try { doc.destroy(); } catch (e) {} doc = null; return; }
           infoEl.textContent = file.name + ' · ' + total + ' trang';
           exportBtn.disabled = false;
         } catch (e) {
+          if (mySeq !== loadSeq) return;
           doc = null; exportBtn.disabled = true;
           infoEl.textContent = (e && e.friendly) ? e.friendly : U.MSG.invalidPdf;
         }
@@ -89,7 +99,8 @@
         const c = canvas.getContext('2d', { alpha: mime === 'image/png' });
         try {
           await page.render({ canvasContext: c, viewport }).promise;
-          const blob = await new Promise((res) => canvas.toBlob(res, mime, mime === 'image/jpeg' ? quality : undefined));
+          // toBlob có thể trả null -> lỗi thân thiện thay vì TypeError.
+          const blob = U.blobOrThrow(await new Promise((res) => canvas.toBlob(res, mime, mime === 'image/jpeg' ? quality : undefined)));
           return blob;
         } finally {
           TK.releaseCanvas(canvas);

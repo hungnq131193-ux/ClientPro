@@ -211,17 +211,22 @@
   }
 
   // Helper: chọn 1 PDF -> validate -> load pdf.js doc.
-  async function pickAndLoad(ctx, file, onLoaded, infoEl) {
+  //   isCurrent(): trả false nếu người dùng đã chọn file mới hơn trong lúc chờ
+  //   -> bỏ kết quả cũ và hủy document thừa (chống race reselect nhanh).
+  async function pickAndLoad(ctx, file, onLoaded, infoEl, isCurrent) {
+    const current = () => (typeof isCurrent === 'function' ? isCurrent() : true);
     const v = await TK.validatePdfFile(file);
+    if (!current()) return null;
     if (!v.ok) { infoEl.textContent = v.error; return null; }
     infoEl.textContent = 'Đang đọc tài liệu…';
     try {
       const doc = await TK.loadPdfJsDoc(v.bytes);
-      if (!ctx.isActive()) { try { doc.destroy(); } catch (e) {} return null; }
+      if (!current() || !ctx.isActive()) { try { doc.destroy(); } catch (e) {} return null; }
       infoEl.textContent = file.name + ' · ' + doc.numPages + ' trang';
       onLoaded(v.bytes, doc, file);
       return doc;
     } catch (e) {
+      if (!current()) return null;
       infoEl.textContent = (e && e.friendly) ? e.friendly : U.MSG.invalidPdf;
       return null;
     }
@@ -266,17 +271,21 @@
 
       ctx.registerCleanup(() => { if (board) board.destroy(); if (curDoc) { try { curDoc.destroy(); } catch (e) {} } });
 
+      let loadSeq = 0; // chống race: chọn file mới trước khi file cũ tải xong
       async function load(file) {
+        const mySeq = ++loadSeq;
         if (board) { board.destroy(); board = null; }
         if (curDoc) { try { curDoc.destroy(); } catch (e) {} curDoc = null; }
         boardHost.replaceChildren(); resultHost.replaceChildren();
         optsHost.style.display = 'none';
-        curDoc = await pickAndLoad(ctx, file, (bytes, doc) => {
+        const loaded = await pickAndLoad(ctx, file, (bytes, doc) => {
           board = createPageBoard(ctx, bytes, doc, 'extract');
           board.setBaseName(file.name);
           boardHost.appendChild(board.gridEl);
           optsHost.style.display = '';
-        }, infoEl);
+        }, infoEl, () => mySeq === loadSeq);
+        if (mySeq === loadSeq) curDoc = loaded;
+        else if (loaded) { try { loaded.destroy(); } catch (e) {} }
       }
 
       function applyRange() {
@@ -293,8 +302,9 @@
           const parsed = rangeField.value.trim() ? U.parsePageRange(rangeField.value, board.pages.length) : { pages: [], error: null };
           if (parsed.error) { if (window.ErrorHandler) ErrorHandler.showWarning(parsed.error); return; }
           if (parsed.pages.length) {
-            const wanted = new Set(parsed.pages);
-            sel = board.pages.filter((p, idx) => wanted.has(idx + 1));
+            // Giữ ĐÚNG thứ tự người dùng nhập (vd "5,2,8" -> 5,2,8), không phải
+            // thứ tự hiển thị. Lọc theo index sẽ trả sai thứ tự.
+            sel = U.orderPagesBySelection(board.pages, parsed.pages);
           }
         }
         if (!sel.length) { if (window.ErrorHandler) ErrorHandler.showWarning('Vui lòng chọn ít nhất một trang.'); return; }
@@ -383,12 +393,14 @@
 
       ctx.registerCleanup(() => { if (board) board.destroy(); if (curDoc) { try { curDoc.destroy(); } catch (e) {} } });
 
+      let loadSeq = 0; // chống race: chọn file mới trước khi file cũ tải xong
       async function load(file) {
+        const mySeq = ++loadSeq;
         if (board) { board.destroy(); board = null; }
         if (curDoc) { try { curDoc.destroy(); } catch (e) {} curDoc = null; }
         boardHost.replaceChildren(); resultHost.replaceChildren();
         toolbar.style.display = 'none'; optsHost.style.display = 'none';
-        curDoc = await pickAndLoad(ctx, file, (bytes, doc) => {
+        const loaded = await pickAndLoad(ctx, file, (bytes, doc) => {
           board = createPageBoard(ctx, bytes, doc, 'manage');
           board.setBaseName(file.name);
           board.setOnChange(() => { btnUndo.disabled = !board.canUndo(); });
@@ -396,7 +408,9 @@
           boardHost.appendChild(board.gridEl);
           toolbar.style.display = ''; optsHost.style.display = '';
           ctx.refreshIcons(toolbar);
-        }, infoEl);
+        }, infoEl, () => mySeq === loadSeq);
+        if (mySeq === loadSeq) curDoc = loaded;
+        else if (loaded) { try { loaded.destroy(); } catch (e) {} }
       }
 
       async function confirmReset() {

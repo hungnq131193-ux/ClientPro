@@ -314,8 +314,67 @@
     }
   }
 
+  // ----------------------------------------------------------------------
+  // THÔNG BÁO LỖI (tiếng Việt) — NGUỒN DUY NHẤT, đặt trong utils để mọi module
+  // (kể cả các tool dùng `U.MSG`) đều truy cập được. Core re-export thành TK.MSG.
+  // ----------------------------------------------------------------------
+  const MSG = {
+    invalidPdf: 'File PDF không hợp lệ hoặc đã bị hỏng.',
+    empty: 'File rỗng, không có dữ liệu.',
+    password: 'File PDF được bảo vệ bằng mật khẩu và chưa được hỗ trợ.',
+    tooBig: 'File quá lớn để xử lý an toàn trên thiết bị này. Hãy chọn file nhỏ hơn hoặc chia nhỏ tài liệu.',
+    memory: 'Thiết bị không đủ bộ nhớ để xử lý tài liệu này. Hãy thử chia nhỏ file hoặc giảm số trang.',
+    outputFail: 'Không thể tạo file kết quả. Dữ liệu gốc không bị thay đổi.',
+    badImage: 'Ảnh không hợp lệ hoặc đã bị hỏng.',
+    imageTooLarge: 'Ảnh có độ phân giải quá lớn để xử lý.',
+  };
+
+  // ----------------------------------------------------------------------
+  // KIỂM TRA DUNG LƯỢNG theo giới hạn tập trung (áp dụng TRƯỚC khi đọc bytes).
+  //   Trả { ok, level:'ok'|'warn'|'hard', error }.
+  //   - hard: vượt hardTotalBytes -> chặn, error = MSG.tooBig.
+  //   - warn: vượt warnTotalBytes -> vẫn cho phép, level='warn'.
+  // ----------------------------------------------------------------------
+  function checkFileSize(size, limits) {
+    const L = limits || PDF_TOOLKIT_LIMITS;
+    const n = Number(size) || 0;
+    if (n > L.hardTotalBytes) return { ok: false, level: 'hard', error: MSG.tooBig };
+    if (n > L.warnTotalBytes) return { ok: true, level: 'warn', error: null };
+    return { ok: true, level: 'ok', error: null };
+  }
+
+  // ----------------------------------------------------------------------
+  // BLOB GUARD — canvas.toBlob có thể trả null (hết RAM / canvas quá lớn).
+  //   Trả blob nếu hợp lệ, ngược lại ném Error thân thiện (có .friendly).
+  // ----------------------------------------------------------------------
+  function blobOrThrow(blob, friendly) {
+    if (blob) return blob;
+    const msg = friendly || MSG.memory;
+    const e = new Error(msg);
+    e.friendly = msg;
+    throw e;
+  }
+
+  // ----------------------------------------------------------------------
+  // ÁNH XẠ số trang (1-based) sang đối tượng trang THEO ĐÚNG THỨ TỰ nhập.
+  //   pages: mảng đối tượng trang theo thứ tự hiển thị (index 0 = trang 1).
+  //   pageNumbers: thứ tự người dùng muốn (vd [5,2,8]).
+  //   Trả mảng đối tượng trang theo thứ tự pageNumbers (bỏ số ngoài phạm vi).
+  // ----------------------------------------------------------------------
+  function orderPagesBySelection(pages, pageNumbers) {
+    const list = Array.isArray(pages) ? pages : [];
+    const nums = Array.isArray(pageNumbers) ? pageNumbers : [];
+    const out = [];
+    for (const n of nums) {
+      const idx = Number(n) - 1;
+      if (Number.isInteger(idx) && idx >= 0 && idx < list.length) out.push(list[idx]);
+    }
+    return out;
+  }
+
   return {
     PDF_TOOLKIT_LIMITS,
+    MSG,
     formatBytes,
     parsePageRange,
     dedupePages,
@@ -336,5 +395,8 @@
     computeReduction,
     marginPreset,
     A4,
+    checkFileSize,
+    blobOrThrow,
+    orderPagesBySelection,
   };
 });

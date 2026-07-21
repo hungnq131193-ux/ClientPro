@@ -262,3 +262,96 @@ test('Offline: mở lại app rồi ghép PDF vẫn hoạt động', async ({ pa
   await context.setOffline(false);
   expect(errors, errors.join(' | ')).toEqual([]);
 });
+
+// ==========================================================================
+// REGRESSION E2E — lỗi từ review PR #122
+// ==========================================================================
+
+// [Bug: Utils lacks MSG references] Chọn sai định dạng phải hiện lỗi tiếng Việt
+// (U.MSG.badImage) chứ không crash / để trống.
+test('regression MSG: chọn file không phải ảnh hiện lỗi, không crash', async ({ page }) => {
+  const errors = []; attachErrorGuard(page, errors);
+  await seedAndUnlock(page);
+  await openToolkit(page);
+  await openTool(page, 'Ảnh thành PDF');
+  await page.locator('#screen-pdf-toolkit input[type=file]').setInputFiles(FIX('sample-3p.pdf'));
+  await page.waitForSelector('#screen-pdf-toolkit .pdftk-thumb-cell.has-error', { timeout: 20000 });
+  const errText = await page.locator('#screen-pdf-toolkit .pdftk-file-error').first().textContent();
+  expect((errText || '').length).toBeGreaterThan(0);
+  expect(errText).toMatch(/Ảnh không hợp lệ|hỏng/);
+  expect(errors, errors.join(' | ')).toEqual([]);
+});
+
+// [Bug: race] Chọn PDF mới trước khi file cũ tải xong -> trạng thái cuối là file MỚI.
+test('regression race: chọn PDF thứ hai trước khi file đầu tải xong', async ({ page }) => {
+  const errors = []; attachErrorGuard(page, errors);
+  await seedAndUnlock(page);
+  await openToolkit(page);
+  await openTool(page, 'PDF thành ảnh');
+  const input = page.locator('#screen-pdf-toolkit input[type=file]');
+  // Nạp 3 trang rồi NGAY lập tức nạp 1 trang (không chờ load cũ hoàn tất).
+  await input.setInputFiles(FIX('sample-3p.pdf'));
+  await input.setInputFiles(FIX('sample-1p.pdf'));
+  // Trạng thái cuối phải phản ánh file MỚI (1 trang), ổn định.
+  await page.waitForFunction(() => {
+    const t = (document.querySelector('#screen-pdf-toolkit .pdftk-doc-info') || {}).textContent || '';
+    return /sample-1p/.test(t) && /·\s*1\s*trang/.test(t);
+  }, null, { timeout: 20000 });
+  // Chờ thêm để chắc chắn kết quả file cũ không "về muộn" ghi đè.
+  await page.waitForTimeout(800);
+  const t = await page.locator('#screen-pdf-toolkit .pdftk-doc-info').textContent();
+  expect(t).toContain('sample-1p');
+  expect(t).toMatch(/·\s*1\s*trang/);
+  expect(errors, errors.join(' | ')).toEqual([]);
+});
+
+// [Bug: Background hides break tool session] Chuyển nền GIỮA lúc tác vụ đang chạy
+// (busy) không được "giết" phiên: task bị hủy nhưng tool vẫn xuất lại được.
+test('regression session: chuyển nền giữa tác vụ, tool vẫn dùng được sau đó', async ({ page }) => {
+  const errors = []; attachErrorGuard(page, errors);
+  await seedAndUnlock(page);
+  await openToolkit(page);
+  await openTool(page, 'PDF thành ảnh');
+  await page.locator('#screen-pdf-toolkit input[type=file]').setInputFiles(FIX('sample-3p.pdf'));
+  await page.waitForFunction(() => /trang/.test((document.querySelector('#screen-pdf-toolkit .pdftk-doc-info') || {}).textContent || ''), null, { timeout: 20000 });
+  // Độ phân giải cao + toàn bộ trang -> tác vụ đủ dài để CHẮC CHẮN đang busy.
+  await page.click('#screen-pdf-toolkit .pdftk-tool-view .pdftk-seg:has-text("Rõ nét")');
+  await page.click('#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất ảnh")');
+  // Xác nhận tác vụ đã chạy (progress sheet hiện) TRƯỚC khi chuyển nền.
+  await page.waitForSelector('#screen-pdf-toolkit .pdftk-progress-host.is-visible', { timeout: 10000 });
+  // Chuyển nền giữa chừng (giả lập visibilityState=hidden) -> hủy tác vụ.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  // Tác vụ phải dừng (progress ẩn) và phiên vẫn sống (không bị null hóa).
+  await page.waitForFunction(() => {
+    const h = document.querySelector('#screen-pdf-toolkit .pdftk-progress-host');
+    return !h || !h.classList.contains('is-visible');
+  }, null, { timeout: 15000 });
+  // Xuất lại thành công — nếu phiên "chết" (bug cũ), export sẽ không tạo kết quả.
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất ảnh")');
+  const hex4 = buf.slice(0, 4).toString('hex');
+  const isZip = hex4.startsWith('504b'); // nhiều trang -> ZIP
+  const isJpg = buf.slice(0, 3).toString('hex') === 'ffd8ff';
+  const isPng = hex4 === '89504e47';
+  expect(isZip || isJpg || isPng).toBeTruthy();
+  expect(errors, errors.join(' | ')).toEqual([]);
+});
+
+// [Bug: Split export ignores range order] Xuất theo khoảng (không tap) tạo PDF hợp lệ.
+test('regression split range: xuất theo khoảng tạo %PDF hợp lệ', async ({ page }) => {
+  const errors = []; attachErrorGuard(page, errors);
+  await seedAndUnlock(page);
+  await openToolkit(page);
+  await openTool(page, 'Tách PDF');
+  await page.locator('#screen-pdf-toolkit input[type=file]').setInputFiles(FIX('sample-3p.pdf'));
+  await page.waitForFunction(() => document.querySelectorAll('#screen-pdf-toolkit .pdftk-page-cell').length === 3, null, { timeout: 20000 });
+  // Nhập khoảng đảo thứ tự (3,1) — không tap chọn.
+  await page.locator('#screen-pdf-toolkit .pdftk-input').first().fill('3,1');
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất 1 file PDF")');
+  expect(buf.slice(0, 5).toString('latin1')).toBe('%PDF-');
+  expect(errors, errors.join(' | ')).toEqual([]);
+});

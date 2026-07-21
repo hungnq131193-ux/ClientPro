@@ -126,6 +126,10 @@
       isActive() { return state.open && state.session && state.session.seq === seq; },
       registerCleanup(fn) { if (typeof fn === 'function') cleanups.push(fn); },
       trackCancel(token) { if (token) cancels.push(token); },
+      // Hủy MỌI tác vụ đang chạy nhưng GIỮ phiên sống (tool vẫn dùng được).
+      // Dùng khi app chuyển nền giữa chừng: task abort, busy nhả trong finally,
+      // người dùng quay lại vẫn thao tác tiếp được — không để phiên "chết".
+      cancelActive() { for (const t of cancels) { try { t.cancel(); } catch (e) {} } },
       get busy() { return inFlight; },
       set busy(v) { inFlight = !!v; },
       dispose() {
@@ -435,11 +439,14 @@
       const mo = new MutationObserver(check);
       mo.observe(lock, { attributes: true, attributeFilter: ['class'] });
     } catch (e) {}
-    // App ẩn (chuyển nền) trong lúc xử lý: hủy tác vụ để không giữ file/rò rỉ.
+    // App ẩn (chuyển nền) trong lúc xử lý: HỦY tác vụ đang chạy (không giữ file/
+    // không rò rỉ) NHƯNG giữ phiên sống để tool vẫn dùng được khi quay lại — nếu
+    // dispose + null session ở đây, isActive() sẽ false vĩnh viễn và mọi export
+    // sau đó âm thầm thất bại dù người dùng vẫn thấy tool. Khóa app THẬT (screen-lock)
+    // vẫn đi qua reset() ở trên để đóng và dọn toàn bộ.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden' && state.session && state.session.busy) {
-        try { state.session.dispose(); } catch (e) {}
-        state.session = null;
+        try { state.session.cancelActive(); } catch (e) {}
         hideProgress();
       }
     });

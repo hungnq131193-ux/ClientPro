@@ -236,3 +236,52 @@ test('marginPreset: none/small/medium', () => {
   assert.ok(U.marginPreset('small') > 0);
   assert.ok(U.marginPreset('medium') > U.marginPreset('small'));
 });
+
+// ==========================================================================
+// REGRESSION — lỗi từ review PR #122
+// ==========================================================================
+
+// [Bug: Utils lacks MSG references] MSG phải nằm trong utils (U.MSG) với đủ khóa
+// mà các tool tham chiếu — nếu thiếu, tool hiển thị lỗi trống / crash.
+test('regression MSG: U.MSG tồn tại với đủ khóa tool dùng', () => {
+  assert.ok(U.MSG && typeof U.MSG === 'object', 'U.MSG phải là object');
+  for (const k of ['invalidPdf', 'empty', 'password', 'tooBig', 'memory', 'outputFail', 'badImage', 'imageTooLarge']) {
+    assert.equal(typeof U.MSG[k], 'string', 'thiếu MSG.' + k);
+    assert.ok(U.MSG[k].length > 0, 'MSG.' + k + ' rỗng');
+  }
+});
+
+// [Bug: PDF size limits not enforced] checkFileSize áp hard/warn theo giới hạn.
+test('regression checkFileSize: ok/warn/hard theo ngưỡng', () => {
+  const L = U.PDF_TOOLKIT_LIMITS;
+  assert.deepEqual(U.checkFileSize(1024).level, 'ok');
+  assert.equal(U.checkFileSize(L.warnTotalBytes + 1).level, 'warn');
+  assert.equal(U.checkFileSize(L.warnTotalBytes + 1).ok, true);
+  const hard = U.checkFileSize(L.hardTotalBytes + 1);
+  assert.equal(hard.ok, false);
+  assert.equal(hard.level, 'hard');
+  assert.equal(hard.error, U.MSG.tooBig);
+  // Biên chính xác: đúng bằng ngưỡng hard vẫn ok.
+  assert.equal(U.checkFileSize(L.hardTotalBytes).ok, true);
+});
+
+// [Bug: Null canvas blob not handled] blobOrThrow ném lỗi thân thiện khi null.
+test('regression blobOrThrow: trả blob hợp lệ, ném friendly khi null', () => {
+  const b = { size: 1 };
+  assert.equal(U.blobOrThrow(b), b);
+  assert.throws(() => U.blobOrThrow(null), (e) => e && e.friendly === U.MSG.memory);
+  assert.throws(() => U.blobOrThrow(undefined), (e) => e && typeof e.friendly === 'string');
+});
+
+// [Bug: Split export ignores range order] orderPagesBySelection giữ đúng thứ tự nhập.
+test('regression orderPagesBySelection: giữ thứ tự người dùng, bỏ ngoài phạm vi', () => {
+  const pages = [{ srcIndex: 0 }, { srcIndex: 1 }, { srcIndex: 2 }, { srcIndex: 3 }];
+  // "5,2,8" trên tài liệu 4 trang -> chỉ trang 2 hợp lệ.
+  assert.deepEqual(U.orderPagesBySelection(pages, [5, 2, 8]), [{ srcIndex: 1 }]);
+  // "3,1" -> ĐÚNG thứ tự 3 rồi 1 (không phải 1,3).
+  const out = U.orderPagesBySelection(pages, [3, 1]);
+  assert.deepEqual(out.map((p) => p.srcIndex), [2, 0]);
+  // input bất thường không crash.
+  assert.deepEqual(U.orderPagesBySelection(null, [1]), []);
+  assert.deepEqual(U.orderPagesBySelection(pages, null), []);
+});

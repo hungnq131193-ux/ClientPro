@@ -57,6 +57,13 @@
           files = files.slice(0, Math.max(0, U.PDF_TOOLKIT_LIMITS.maxFiles - items.length));
         }
         for (const file of files) {
+          // Chặn khi TỔNG dung lượng đã chọn vượt hard limit (nhiều file lớn trong
+          // Ghép có thể làm tràn RAM dù mỗi file chưa vượt ngưỡng đơn lẻ).
+          const currentTotal = items.reduce((s, x) => s + (x.file ? x.file.size : 0), 0);
+          if (currentTotal + file.size > U.PDF_TOOLKIT_LIMITS.hardTotalBytes) {
+            if (window.ErrorHandler) ErrorHandler.showWarning('Tổng dung lượng vượt giới hạn an toàn. Vui lòng bỏ bớt file.');
+            break;
+          }
           const id = ++uid;
           const rec = { id, file, bytes: null, pages: 0, error: null };
           items.push(rec);
