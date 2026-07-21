@@ -939,6 +939,19 @@ body.theme-vietinbank .map-style-control button.active {
 }
 
 /* Drive config panel (dashboard): typography/spacing khớp các card còn lại */
+.dashboard-drive-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+.dashboard-drive-help {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-sub);
+  opacity: 0.8;
+  margin-bottom: 12px;
+}
 .dashboard-drive-config label {
   letter-spacing: 0.08em !important;
   margin-bottom: 6px !important;
@@ -1015,18 +1028,39 @@ body.theme-vietinbank .backup-list-card {
 body.theme-vietinbank .backup-inline-pane {
   border-top-color: rgba(0, 74, 143, 0.10);
 }
-/* Nút hành động trong danh sách backup (Khôi phục / Gửi / Xóa) dựng bằng JS với
-   màu pastel-tối — trên nền trắng phải đậm lại mới đọc được. Thứ tự nút cố định. */
-body.theme-vietinbank .backup-list-actions .backup-list-action:nth-child(1) {
+/* Nút hành động trong danh sách backup dựng bằng JS với màu pastel-tối —
+   trên nền trắng (theme sáng) phải đậm lại mới đọc được.
+   Màu theo HÀNH ĐỘNG (class .backup-action--*) thay vì theo thứ tự nút. */
+body.theme-vietinbank .backup-list-action.backup-action--restore {
   background: rgba(22, 163, 74, 0.10) !important;
   color: #0f7a3d !important;
 }
-body.theme-vietinbank .backup-list-actions .backup-list-action:nth-child(2) {
+body.theme-vietinbank .backup-list-action.backup-action--export {
   background: rgba(29, 78, 216, 0.08) !important;
   color: #1d4ed8 !important;
   border-color: rgba(29, 78, 216, 0.22) !important;
 }
-body.theme-vietinbank .backup-list-actions .backup-list-action:nth-child(3) {
+body.theme-vietinbank .backup-list-action.backup-action--send {
+  background: rgba(79, 70, 229, 0.10) !important;
+  color: #4338ca !important;
+  border-color: rgba(79, 70, 229, 0.22) !important;
+}
+body.theme-vietinbank .backup-list-action.backup-action--delete {
+  background: rgba(220, 38, 38, 0.08) !important;
+  color: #b91c1c !important;
+}
+/* Danh sách sao lưu Drive (16_auto_backup_drive.js) vẫn dựng nút theo thứ tự cố
+   định Khôi phục / Gửi / Xóa — giữ ánh xạ nth-child riêng cho danh sách này. */
+body.theme-vietinbank #drive-backup-list .backup-list-action:nth-child(1) {
+  background: rgba(22, 163, 74, 0.10) !important;
+  color: #0f7a3d !important;
+}
+body.theme-vietinbank #drive-backup-list .backup-list-action:nth-child(2) {
+  background: rgba(79, 70, 229, 0.10) !important;
+  color: #4338ca !important;
+  border-color: rgba(79, 70, 229, 0.22) !important;
+}
+body.theme-vietinbank #drive-backup-list .backup-list-action:nth-child(3) {
   background: rgba(220, 38, 38, 0.08) !important;
   color: #b91c1c !important;
 }
