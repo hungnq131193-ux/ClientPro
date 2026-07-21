@@ -283,8 +283,9 @@
                     <label for="dashboard-drive-token">Mã bảo mật</label>
                     <div class="dashboard-drive-row">
                         <input id="dashboard-drive-token" type="password" autocomplete="off" placeholder="Dán mã bảo mật từ link kết nối">
-                        <button data-action="saveScriptUrl"><i data-lucide="save" class="w-4 h-4"></i> Lưu</button>
+                        <button id="btn-save-drive-config" data-action="saveScriptUrl"><i data-lucide="save" class="w-4 h-4"></i> Lưu</button>
                     </div>
+                    <div id="dashboard-drive-config-status" class="dashboard-drive-config-status hidden" role="status" aria-live="polite"></div>
                 </div>
             </section>
         </div>

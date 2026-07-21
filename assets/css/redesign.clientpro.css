@@ -966,6 +966,26 @@ body.theme-vietinbank .map-style-control button.active {
   font-size: 13px !important;
   min-height: 44px;
 }
+/* Trạng thái lưu inline trong panel cấu hình Drive (F2) */
+.dashboard-drive-config-status {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  border: 1px solid transparent;
+}
+.dashboard-drive-config-status.is-success {
+  color: var(--status-success, #16a34a);
+  background: color-mix(in srgb, var(--status-success, #16a34a) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-success, #16a34a) 30%, transparent);
+}
+.dashboard-drive-config-status.is-error {
+  color: var(--status-danger, #dc2626);
+  background: color-mix(in srgb, var(--status-danger, #dc2626) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-danger, #dc2626) 30%, transparent);
+}
 
 /* --- Trung tâm Backup trên theme sáng: bỏ dark-glass cứng, dùng token sáng --- */
 body.theme-vietinbank .backup-manager-shell {
@@ -1440,13 +1460,16 @@ body:has(#screen-folder:not(.translate-x-full)) .app-toast.app-toast-out {
   max-width: min(72vw, 288px) !important;
 }
 
-/* --- B4. Confirm / empty-state CTA dùng accent thương hiệu --- */
+/* --- B4. Confirm / empty-state CTA dùng accent thương hiệu ---
+   Dùng accent-GRADIENT (khởi đầu #005b9f đậm) thay vì var(--accent) đơn:
+   trên theme tối, --accent là cyan sáng khiến chữ trắng không đủ tương phản.
+   Gradient bắt đầu bằng xanh đậm nên chữ trắng đạt ≥4.5:1 ở cả 4 theme. */
 .cp-confirm-ok {
-  background: var(--accent, #005b9f);
+  background: var(--accent-gradient, var(--accent, #005b9f));
 }
 .cp-confirm-ok-danger { background: #dc2626; }
 .cp-state-action {
-  background: var(--accent, #005b9f);
+  background: var(--accent-gradient, var(--accent, #005b9f));
 }
 
 /* --- B5. Map style control active theo accent (theme tối) --- */
@@ -1553,4 +1576,38 @@ body.theme-vietinbank #guide-modal p b.text-emerald-400 { color: var(--accent) !
 .skeleton-card {
   background: var(--bg-panel, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--border-panel, rgba(255, 255, 255, 0.06));
+}
+
+/* ============================================================
+   A11y contrast (UX hardening 1.1.0) — đảm bảo tỉ lệ tương phản ≥ 4.5:1
+   trên THEME SÁNG cho nhãn/nút phụ nhỏ. Chỉ đổi màu/opacity trình bày,
+   không đụng cấu trúc hay logic. (Theme tối đã đạt contrast.)
+   ============================================================ */
+/* Nhãn trường trong form (nhạt do var(--text-sub) + opacity) -> đậm & full opacity */
+body.theme-vietinbank #add-modal label,
+body.theme-vietinbank #asset-modal label,
+body.theme-vietinbank #approve-modal label {
+  color: #35506f !important;
+  opacity: 1 !important;
+}
+body.theme-vietinbank #add-modal label .normal-case,
+body.theme-vietinbank #asset-modal label .normal-case {
+  opacity: 1 !important;
+}
+/* Nút Hủy + nút X đóng trong modal trên nền sáng */
+body.theme-vietinbank #add-modal [data-action="closeModal"],
+body.theme-vietinbank #asset-modal [data-action="closeAssetModal"],
+body.theme-vietinbank #approve-modal [data-action="closeApproveModal"],
+body.theme-vietinbank #ref-price-modal [data-action="closeRefModal"] {
+  color: #35506f !important;
+}
+/* Section header nhỏ trong menu cài đặt (Giao diện, …) */
+body.theme-vietinbank #settings-menu p.uppercase {
+  color: #3d5474 !important;
+  opacity: 1 !important;
+}
+/* Helper "Đơn vị: triệu đồng" dưới ô hạn mức (thẻ <p>, không phải label) */
+body.theme-vietinbank #approve-modal p.opacity-70 {
+  color: #35506f !important;
+  opacity: 1 !important;
 }

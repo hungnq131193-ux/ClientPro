@@ -121,24 +121,46 @@ function getUserToken() {
     return raw;
 }
 
+// Trạng thái inline trong panel cấu hình Drive (chỉ trình bày — không đổi
+// cách lưu, token hay bất kỳ payload Drive/GAS nào).
+function _setDriveConfigStatus(msg, kind) {
+    const el = getEl('dashboard-drive-config-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove('hidden', 'is-success', 'is-error');
+    el.classList.add(kind === 'error' ? 'is-error' : 'is-success');
+}
+
 async function saveScriptUrl() {
     const input = getEl('dashboard-drive-url') || getEl('user-script-url');
     const url = input ? input.value.trim() : '';
     if (!url.startsWith('https://script.google.com/')) {
+        _setDriveConfigStatus('Link kết nối chưa đúng. Link phải bắt đầu bằng https://script.google.com/', 'error');
         ErrorHandler.showError('VALIDATION', "Link kết nối Drive không đúng định dạng. Link phải bắt đầu bằng https://script.google.com/");
         return;
     }
     const tokenInput = getEl('dashboard-drive-token');
     const token = tokenInput ? tokenInput.value.trim() : getUserToken();
     if (!token) {
+        _setDriveConfigStatus('Vui lòng nhập mã bảo mật của link kết nối Drive.', 'error');
         ErrorHandler.showWarning("Vui lòng nhập Mã bảo mật của link kết nối Drive!");
         if (tokenInput) tokenInput.focus();
         return;
     }
     // Lưu link Script cá nhân và token (niêm phong AES-GCM bằng masterKey nếu app đã mở khóa)
-    localStorage.setItem(USER_SCRIPT_KEY, url);
-    localStorage.setItem(_userTokenStorageKey(), await sealUserToken(token));
-    ErrorHandler.showSuccess("Đã lưu kết nối Drive cá nhân");
+    const saveBtn = getEl('btn-save-drive-config');
+    try { LoadingManager.showButtonLoading(saveBtn, 'Đang lưu…'); } catch (e) {}
+    try {
+        localStorage.setItem(USER_SCRIPT_KEY, url);
+        localStorage.setItem(_userTokenStorageKey(), await sealUserToken(token));
+        _setDriveConfigStatus('Đã lưu kết nối Google Drive cá nhân.', 'success');
+        ErrorHandler.showSuccess("Đã lưu kết nối Drive cá nhân");
+    } catch (e) {
+        _setDriveConfigStatus('Không lưu được kết nối. Vui lòng thử lại.', 'error');
+        ErrorHandler.showError('STORAGE', 'Không lưu được kết nối Drive.', e);
+    } finally {
+        try { LoadingManager.hideButtonLoading(saveBtn); } catch (e) {}
+    }
 }
 document.addEventListener('DOMContentLoaded', () => {
     const savedUrl = localStorage.getItem(USER_SCRIPT_KEY);
