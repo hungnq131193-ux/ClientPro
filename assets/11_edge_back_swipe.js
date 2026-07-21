@@ -256,6 +256,14 @@
       return callIfFn('toggleMenu') || (get('settings-menu').classList.add('hidden'), true);
     }
 
+    // PDF Toolkit (slide-in độc lập từ Dashboard). Tự xử back nội bộ:
+    // đang ở trong một tool -> quay về lưới tool; đang ở lưới -> đóng màn hình.
+    if (isVisibleSlide('screen-pdf-toolkit')) {
+      if (typeof window.pdfToolkitHandleBack === 'function' && window.pdfToolkitHandleBack() === true) return true;
+      get('screen-pdf-toolkit').classList.add('translate-x-full');
+      return true;
+    }
+
     // Slide panels (order matters: most nested first)
     if (isVisibleSlide('screen-asset-gallery')) {
       return callIfFn('closeAssetGallery') || (get('screen-asset-gallery').classList.add('translate-x-full'), true);
@@ -459,7 +467,8 @@
       'forgot-pin-modal', 'backup-manager-modal', 'settings-menu'
     ];
     const TRACKED_SLIDE_IDS = [
-      'screen-asset-gallery', 'screen-map', 'screen-folder', 'screen-customer-list'
+      'screen-asset-gallery', 'screen-map', 'screen-folder', 'screen-customer-list',
+      'screen-pdf-toolkit'
     ];
     const lastVisible = new Map();
     TRACKED_MODAL_IDS.forEach((id) => lastVisible.set(id, isVisibleModal(id)));

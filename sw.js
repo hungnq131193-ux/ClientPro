@@ -1,6 +1,6 @@
 // ClientPro Service Worker — offline-first cache and update lifecycle.
 // Bump version when changing static assets or cache behavior.
-const VERSION = 'v1.1.0';
+const VERSION = 'v1.2.0';
 // Cache generation identifier. Bump for every major public release.
 const CACHE_EPOCH = 'genesis';
 const STATIC_CACHE = `clientpro-${CACHE_EPOCH}-static-${VERSION}`;
@@ -20,7 +20,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'UXHARDEN_20260721';
+const ASSET_V = 'PDFTOOLKIT_20260721';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -34,6 +34,12 @@ const STATIC_ASSETS = [
   `./assets/vendor/maplibre-gl.js?v=${ASSET_V}`,
   `./assets/vendor/maplibre-gl.css?v=${ASSET_V}`,
   `./assets/vendor/supercluster.min.js?v=${ASSET_V}`,
+
+  // Vendor PDF Toolkit (self-host, lazy-load lúc runtime nhưng precache để dùng offline)
+  `./assets/vendor/pdf-lib.min.js?v=${ASSET_V}`,
+  `./assets/vendor/jszip.min.js?v=${ASSET_V}`,
+  `./assets/vendor/pdf.min.mjs?v=${ASSET_V}`,
+  `./assets/vendor/pdf.worker.min.mjs?v=${ASSET_V}`,
 
   // Fonts (self-host; woff2 được request từ fonts.css nên KHÔNG có query)
   `./assets/css/fonts.css?v=${ASSET_V}`,
@@ -69,6 +75,17 @@ const STATIC_ASSETS = [
   `./assets/17_onboarding_tour.js?v=${ASSET_V}`,
   `./assets/18_biometric_unlock.js?v=${ASSET_V}`,
   `./assets/19_error_loading.js?v=${ASSET_V}`,
+
+  // PDF Toolkit — module độc lập (xử lý file trên thiết bị, hoạt động offline)
+  `./assets/css/pdf-toolkit.css?v=${ASSET_V}`,
+  `./assets/pdf-toolkit/pdf_toolkit_utils.js?v=${ASSET_V}`,
+  `./assets/pdf-toolkit/pdf_toolkit_core.js?v=${ASSET_V}`,
+  `./assets/pdf-toolkit/pdf_toolkit_merge.js?v=${ASSET_V}`,
+  `./assets/pdf-toolkit/pdf_toolkit_pages.js?v=${ASSET_V}`,
+  `./assets/pdf-toolkit/pdf_toolkit_images.js?v=${ASSET_V}`,
+  `./assets/pdf-toolkit/pdf_toolkit_pdf2img.js?v=${ASSET_V}`,
+  `./assets/pdf-toolkit/pdf_toolkit_compress.js?v=${ASSET_V}`,
+  `./assets/pdf-toolkit/pdf_toolkit_ui.js?v=${ASSET_V}`,
 
   './assets/ui/load_modals.js',
 
