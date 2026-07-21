@@ -17,6 +17,7 @@
       const w = TK.widgets;
       let items = []; // { id, file, url, iw, ih, kind, rotation, error }
       let uid = 0;
+      let largeSelectionConfirmed = false;
 
       const gridEl = document.createElement('div');
       gridEl.className = 'pdftk-thumb-grid';
@@ -76,6 +77,23 @@
           files = files.slice(0, Math.max(0, U.PDF_TOOLKIT_LIMITS.maxFiles - items.length));
         }
         for (const file of files) {
+          // Chặn theo TỔNG dung lượng đang chọn trước khi đọc ảnh mới vào RAM.
+          // Nhiều ảnh riêng lẻ dưới hard limit vẫn có thể cộng dồn vượt mức an toàn.
+          const currentTotal = items.reduce((sum, item) => sum + (item.file ? item.file.size : 0), 0);
+          const nextTotal = currentTotal + file.size;
+          const totalCheck = U.checkFileSize(nextTotal);
+          if (!totalCheck.ok) {
+            if (window.ErrorHandler) ErrorHandler.showWarning('Tổng dung lượng ảnh vượt giới hạn an toàn. Vui lòng bỏ bớt ảnh.');
+            break;
+          }
+          if (totalCheck.level === 'warn' && !largeSelectionConfirmed) {
+            const ok = window.showConfirm
+              ? await window.showConfirm('Tổng dung lượng ảnh đã chọn là ' + U.formatBytes(nextTotal) + '. Thao tác có thể tốn nhiều bộ nhớ và mất thời gian. Tiếp tục?', { title: 'Dung lượng ảnh lớn', confirmText: 'Tiếp tục' })
+              : true;
+            if (!ok) break;
+            largeSelectionConfirmed = true;
+          }
+
           const id = ++uid;
           const rec = { id, file, url: null, iw: 0, ih: 0, kind: null, rotation: 0, error: null };
           items.push(rec);
