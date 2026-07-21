@@ -1,22 +1,23 @@
-<div id="backup-manager-modal" class="fixed inset-0 z-[200] hidden">
+<div id="backup-manager-modal" class="fixed inset-0 z-[200] hidden" role="dialog" aria-modal="true" aria-labelledby="backup-manager-title">
   <div class="absolute inset-0 bg-black/60" data-action="closeBackupManager"></div>
   <div class="relative w-full h-full flex items-end sm:items-center justify-center p-3">
     <div class="glass-panel backup-manager-shell w-full max-w-lg rounded-2xl border border-slate-700 overflow-hidden">
       <div class="px-5 py-4 flex items-center justify-between border-b border-white/10">
         <div>
-          <h3 class="text-lg font-bold" style="color: var(--text-main)">Trung tâm sao lưu</h3>
-          <p class="text-xs opacity-70 backup-manager-subtitle" style="color: var(--text-sub)">Sao lưu mã hóa, khôi phục và xuất/nhập file .cpb.</p>
+          <h3 id="backup-manager-title" class="text-lg font-bold" style="color: var(--text-main)">Trung tâm sao lưu</h3>
+          <p class="text-xs opacity-70 backup-manager-subtitle" style="color: var(--text-sub)">Sao lưu mã hóa, khôi phục và nhập/xuất file sao lưu.</p>
         </div>
-        <button data-action="closeBackupManager" class="p-2 rounded-xl hover:bg-white/10" style="color: var(--text-main)">
+        <button data-action="closeBackupManager" aria-label="Đóng" class="p-2 rounded-xl hover:bg-white/10" style="color: var(--text-main)">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
 
       <div class="backup-manager-content px-5 py-4">
+        <!-- KHU VỰC 1 — Sao lưu Google Drive -->
         <section class="backup-section backup-section--primary">
           <div class="backup-section-head">
             <div>
-              <p class="backup-kicker">Sao lưu lên Drive</p>
+              <p class="backup-kicker">Sao lưu Google Drive</p>
               <h4>Google Drive cá nhân</h4>
             </div>
             <span class="backup-pill">Giữ 3 bản mới nhất</span>
@@ -31,37 +32,27 @@
               <i data-lucide="clock" class="w-3 h-3 inline-block mr-1"></i>Danh sách bản sao lưu gần nhất trên Drive
             </div>
             <div id="drive-backup-list" class="space-y-3">
-              <p class="text-center text-sm opacity-60" style="color: var(--text-sub)">Đang tải...</p>
+              <p class="text-center text-sm opacity-60" style="color: var(--text-sub)">Đang tải…</p>
             </div>
           </div>
         </section>
 
+        <!-- KHU VỰC 2 — Bản sao lưu trên thiết bị (segmented control chuyển giữa 2 pane) -->
         <section class="backup-section">
           <div class="backup-section-head">
             <div>
               <p class="backup-kicker">Lưu trữ trên thiết bị</p>
-              <h4>Bản sao lưu trong máy</h4>
+              <h4>Bản sao lưu trên thiết bị</h4>
             </div>
-            <button id="bkTabLocal" data-action="CloudTransferUI.showTab" data-arg="local" class="backup-mini-tab" type="button">Xem danh sách</button>
           </div>
-          <div class="backup-action-grid backup-action-grid--local">
-            <label class="backup-action-card cursor-pointer">
-              <i data-lucide="file-input" class="w-4 h-4"></i>
-              <span>Nhập file .cpb</span>
-              <input type="file" id="restore-input-2" accept=".cpb,.cpro" class="hidden" data-action="restoreData" />
-            </label>
-            <button data-action="createBackupFileNow" class="backup-action-card" type="button">
-              <i data-lucide="download" class="w-4 h-4"></i>
-              <span>Tạo & xuất file</span>
-            </button>
-            <button id="bkTabInbox" data-action="CloudTransferUI.showTab" data-arg="inbox" class="backup-action-card" type="button">
-              <i data-lucide="inbox" class="w-4 h-4"></i>
-              <span>Nhận từ đồng nghiệp</span>
+          <div class="backup-segment" role="tablist" aria-label="Nguồn bản sao lưu trên thiết bị">
+            <button id="bkTabLocal" data-action="CloudTransferUI.showTab" data-arg="local" class="backup-mini-tab backup-segment-btn" type="button" role="tab">Trong máy</button>
+            <button id="bkTabInbox" data-action="CloudTransferUI.showTab" data-arg="inbox" class="backup-mini-tab backup-segment-btn" type="button" role="tab">
+              <span>Được gửi đến</span>
               <span id="inbox-badge" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black hidden"
                 style="background: rgba(59,130,246,0.18); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35);">0</span>
             </button>
           </div>
-          <p class="backup-desc backup-local-desc mt-2">Chuẩn tên file: CLIENTPRO_BK_{DEVICEID}_{YYYYMMDD}_{HASH}.cpb</p>
           <div class="backup-inline-pane mt-3">
             <div id="local-backup-pane">
               <div id="backup-list" class="space-y-3"></div>
@@ -75,15 +66,37 @@
           </div>
         </section>
 
+        <!-- KHU VỰC 3 — Thao tác với file (hành động, không phải tab) -->
+        <section class="backup-section">
+          <div class="backup-section-head">
+            <div>
+              <p class="backup-kicker">Thao tác với file</p>
+              <h4>Nhập hoặc tạo file sao lưu</h4>
+            </div>
+          </div>
+          <div class="backup-action-grid backup-action-grid--files">
+            <label class="backup-action-card backup-action--restore cursor-pointer">
+              <i data-lucide="file-input" class="w-4 h-4"></i>
+              <span>Nhập file sao lưu</span>
+              <input type="file" id="restore-input-2" accept=".cpb,.cpro" class="hidden" data-action="restoreData" />
+            </label>
+            <button data-action="createBackupFileNow" class="backup-action-card backup-action--export" type="button" title="Tên file chuẩn: CLIENTPRO_BK_{DEVICEID}_{YYYYMMDD}_{HASH}.cpb">
+              <i data-lucide="download" class="w-4 h-4"></i>
+              <span>Tạo và xuất file</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Cảnh báo an toàn -->
         <section class="backup-section backup-section--warning">
           <div class="backup-section-head">
             <div>
-              <p class="backup-kicker">Cảnh báo bảo mật</p>
-              <h4>Không chia sẻ file sao lưu</h4>
+              <p class="backup-kicker">Lưu ý an toàn</p>
+              <h4>Giữ bản sao lưu an toàn</h4>
             </div>
             <i data-lucide="shield-alert" class="w-5 h-5 text-amber-300"></i>
           </div>
-          <p class="backup-desc">Sao lưu và khôi phục chỉ hoạt động khi đã mở khóa ứng dụng. Không chia sẻ file sao lưu với người khác.</p>
+          <p class="backup-desc">Chỉ gửi bản sao lưu bằng chức năng “Gửi cho đồng nghiệp” trong ứng dụng. Không chia sẻ file sao lưu qua các kênh không tin cậy.</p>
         </section>
 
       </div>

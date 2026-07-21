@@ -25,22 +25,22 @@
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-vietnamese.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-latin.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-vietnamese.woff2">
-    <link rel="stylesheet" href="./assets/css/fonts.css?v=PINPAD_20260720">
+    <link rel="stylesheet" href="./assets/css/fonts.css?v=UXHARDEN_20260721">
     <!-- Tailwind (self-host) -->
     <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
-    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=PINPAD_20260720">
-    <link rel="stylesheet" href="./assets/css/app.patch.css?v=PINPAD_20260720">
+    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=UXHARDEN_20260721">
+    <link rel="stylesheet" href="./assets/css/app.patch.css?v=UXHARDEN_20260721">
     <!-- Lucide icons (self-host, xem assets/vendor/README.md) -->
-    <script defer src="./assets/vendor/lucide.min.js?v=PINPAD_20260720"></script>
+    <script defer src="./assets/vendor/lucide.min.js?v=UXHARDEN_20260721"></script>
     <!-- Transfer Backup uses TEXT chunks (no QR image) -->
     <!-- MapLibre GL JS is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
     <!-- CryptoJS library for hashing and encryption (self-host) -->
-    <script defer src="./assets/vendor/crypto-js.min.js?v=PINPAD_20260720"></script>
+    <script defer src="./assets/vendor/crypto-js.min.js?v=UXHARDEN_20260721"></script>
 
-    <script defer src="./assets/head.js?v=PINPAD_20260720"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=PINPAD_20260720">
+    <script defer src="./assets/head.js?v=UXHARDEN_20260721"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=UXHARDEN_20260721">
     <!-- REDESIGN LAYER (banking / Vietinbank) — nạp cuối để đè lớp giao diện, không đụng JS -->
-    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=PINPAD_20260720">
+    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=UXHARDEN_20260721">
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <!-- style-src vẫn giữ 'unsafe-inline' trong vercel.json: hàng trăm thuộc tính style="..."
          và nhiều chỗ .style.cssText/.style.x trong assets/*.js dùng cho theme động, vị trí
@@ -115,7 +115,7 @@
         <div class="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mb-4"
             style="border-color: var(--accent) transparent var(--accent) var(--accent)"></div>
         <p id="loader-text" class="text-xs font-bold tracking-widest uppercase opacity-70"
-            style="color: var(--text-main)">Đang tải...</p>
+            style="color: var(--text-main)">Đang tải…</p>
     </div>
 
     <div id="menu-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" data-action="toggleMenu">
@@ -274,9 +274,11 @@
                     </button>
                 </div>
                 <div id="dashboard-drive-config" class="dashboard-drive-config hidden" aria-hidden="true">
+                    <p class="dashboard-drive-title">Kết nối Google Drive cá nhân</p>
+                    <p class="dashboard-drive-help">Dùng link kết nối và mã bảo mật được cấp cho tài khoản của bạn.</p>
                     <label for="dashboard-drive-url">Link kết nối Drive cá nhân</label>
                     <div class="dashboard-drive-row">
-                        <input id="dashboard-drive-url" type="text" placeholder="https://script.google.com/...">
+                        <input id="dashboard-drive-url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/...">
                     </div>
                     <label for="dashboard-drive-token">Mã bảo mật</label>
                     <div class="dashboard-drive-row">
@@ -295,14 +297,14 @@
 
         <header class="glass-header px-4 py-4 flex-none w-full">
             <div class="flex items-center justify-between mb-4">
-                <button data-action="closeCustomerList" class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
+                <button data-action="closeCustomerList" aria-label="Quay lại" class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
                     style="color: var(--text-main)">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
                 <h2 id="customer-list-title" class="font-bold text-lg" style="color: var(--text-main)">
                     Danh sách khách hàng
                 </h2>
-                <button data-action="openModal" class="p-2 -mr-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
+                <button data-action="openModal" aria-label="Thêm khách hàng" class="p-2 -mr-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
                     style="color: var(--accent)">
                     <i data-lucide="plus" class="w-6 h-6"></i>
                 </button>
@@ -320,12 +322,6 @@
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
-                <button type="button" id="btn-cust-select" data-action="toggleCustSelectionMode"
-                    aria-pressed="false"
-                    class="customer-select-toggle border rounded-xl px-3 py-3 text-sm font-bold transition-colors active:scale-95"
-                    style="border-color: var(--border-panel); color: var(--text-main);">
-                    Chọn
-                </button>
                 <select id="customer-sort-select" data-action="setCustomerSort" aria-label="Sắp xếp danh sách"
                     class="border rounded-xl px-2 py-3 text-sm outline-none transition-colors"
                     style="border-color: var(--border-panel); color: var(--text-main); background: transparent;">
@@ -334,6 +330,10 @@
                     <option value="name-desc">Tên Z–A</option>
                 </select>
             </div>
+            <p id="customer-list-hint" class="customer-list-hint">
+                <i data-lucide="hand" class="w-3.5 h-3.5"></i>
+                <span>Nhấn giữ một khách hàng để chọn nhiều</span>
+            </p>
         </header>
 
         <div class="scroll-area flex-1 p-4" id="customer-list"></div>
@@ -575,35 +575,35 @@
     <div id="ui-modals-root"></div>
     <script src="./assets/ui/load_modals.js" defer></script>
 
-    <script src="./assets/00_globals.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/01_config.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/02_security.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/12_backup_core.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/13_ui_select_customers.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/15_auth_gate.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/03_map.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/04_ui_common.js?v=PINPAD_20260720" defer></script>
+    <script src="./assets/00_globals.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/01_config.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/02_security.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/12_backup_core.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/13_ui_select_customers.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/15_auth_gate.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/03_map.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/04_ui_common.js?v=UXHARDEN_20260721" defer></script>
     <!-- Chuẩn hóa error messages & loading states (ErrorHandler / LoadingManager / AppToast) -->
-    <script src="./assets/19_error_loading.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/05_customers.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/06_assets.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/08_images_camera.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/09_menu.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/09_backup_manager.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/09_donate.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/09_weather.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/07_drive.js?v=PINPAD_20260720" defer></script>
+    <script src="./assets/19_error_loading.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/05_customers.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/06_assets.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/08_images_camera.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/09_menu.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/09_backup_manager.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/09_donate.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/09_weather.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/07_drive.js?v=UXHARDEN_20260721" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=PINPAD_20260720" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=UXHARDEN_20260721" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=PINPAD_20260720" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=UXHARDEN_20260721" defer></script>
     <!-- Onboarding tour for new users -->
-    <script src="./assets/17_onboarding_tour.js?v=PINPAD_20260720" defer></script>
+    <script src="./assets/17_onboarding_tour.js?v=UXHARDEN_20260721" defer></script>
     <!-- Mở khóa sinh trắc học (Face ID / vân tay) - tính năng bổ sung, không thay đổi luồng PIN -->
-    <script src="./assets/18_biometric_unlock.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/10_bootstrap.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/11_edge_back_swipe.js?v=PINPAD_20260720" defer></script>
-    <script src="./assets/pwa.js?v=PINPAD_20260720" defer></script>
+    <script src="./assets/18_biometric_unlock.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/10_bootstrap.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=UXHARDEN_20260721" defer></script>
+    <script src="./assets/pwa.js?v=UXHARDEN_20260721" defer></script>
 </body>
 
 </html>

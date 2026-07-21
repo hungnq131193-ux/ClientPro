@@ -126,18 +126,19 @@ async function renderBackupList() {
 
     const actions = document.createElement("div");
     actions.className = "backup-list-actions";
-    const addButton = (label, style, handler) => {
+    // Màu theo hành động (class ngữ nghĩa), không còn phụ thuộc thứ tự nút (nth-child).
+    const addButton = (label, variant, style, handler) => {
       const btn = document.createElement("button");
-      btn.className = "backup-list-action";
+      btn.className = `backup-list-action backup-action--${variant}`;
       btn.setAttribute("style", style);
       btn.textContent = label;
       btn.addEventListener("click", handler);
       actions.appendChild(btn);
     };
-    addButton("Khôi phục", "background: rgba(16,185,129,0.15); color: #34d399;", () => restoreBackupFromApp(b.id));
-    addButton("Xuất file", "background: rgba(59,130,246,0.15); color: #60a5fa;", () => exportBackupFromApp(b.id));
-    addButton("Gửi", "background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);", () => CloudTransferUI.sendBackupFromApp(b.id));
-    addButton("Xóa", "background: rgba(239,68,68,0.15); color: #f87171;", () => deleteBackupFromApp(b.id));
+    addButton("Khôi phục", "restore", "background: rgba(16,185,129,0.15); color: #34d399;", () => restoreBackupFromApp(b.id));
+    addButton("Xuất file", "export", "background: rgba(59,130,246,0.15); color: #60a5fa;", () => exportBackupFromApp(b.id));
+    addButton("Gửi", "send", "background: rgba(99,102,241,0.16); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25);", () => CloudTransferUI.sendBackupFromApp(b.id));
+    addButton("Xóa", "delete", "background: rgba(239,68,68,0.15); color: #f87171;", () => deleteBackupFromApp(b.id));
 
     row.append(info, actions);
     card.appendChild(row);

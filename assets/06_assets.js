@@ -113,14 +113,20 @@ function referenceAssetPrice(assetIndex) {
     candidates.sort((a, b) => a.distance - b.distance);
 
     const top = candidates.slice(0, 30);
-    showRefModal(top.slice(0, 20));
+    // Hiển thị ngay danh sách (đúng thứ tự chim bay để sort), nhưng KHÔNG lộ số
+    // chim bay như khoảng cách: vùng khoảng cách hiện "Đang tính… đường bộ".
+    showRefModal(top.slice(0, 20), { road: 'pending' });
 
     enhanceRefWithRoadDistances(targetLoc, top, seq);
   };
 }
 
 async function enhanceRefWithRoadDistances(targetLoc, results, seq) {
-  if (typeof fetchRoadDistances !== "function") return;
+  // Không có cơ chế đường bộ -> báo rõ thay vì kẹt ở "Đang tính…".
+  if (typeof fetchRoadDistances !== "function") {
+    if (seq === __refPriceSeq) showRefModal(results.slice(0, 20), { road: 'failed' });
+    return;
+  }
   const reqKey =
     `${targetLoc.lat},${targetLoc.lng}|` +
     results.map((r) => `${r.lat},${r.lng}`).join(";");
@@ -147,29 +153,38 @@ async function enhanceRefWithRoadDistances(targetLoc, results, seq) {
   const modal = getEl("ref-price-modal");
   if (!modal || modal.classList.contains("hidden")) return;
 
-  // Thất bại toàn phần -> giữ nguyên haversine
-  if (!dists) return;
+  // Thất bại toàn phần -> báo "chưa tính được", KHÔNG hiển thị số chim bay.
+  if (!dists) {
+    showRefModal(results.slice(0, 20), { road: 'failed' });
+    return;
+  }
 
   results.forEach((item, i) => {
     const r = dists[i];
     if (r && typeof r.d === "number") {
       item.distance = r.d; // sort/hiển thị theo đường bộ khi có
+      item.roadOk = true;
     } else {
       item.distance = item.straight; // giữ haversine làm khóa sort
+      item.roadOk = false;
     }
   });
   results.sort((a, b) => a.distance - b.distance);
-  showRefModal(results.slice(0, 20));
+  showRefModal(results.slice(0, 20), { road: 'done' });
 }
 
-function showRefModal(results) {
+// roadState: 'pending' (đang tính OSRM) | 'done' (đã có kết quả đường bộ) | 'failed'
+// (không lấy được đường bộ). Vùng khoảng cách KHÔNG bao giờ hiển thị số chim bay.
+function showRefModal(results, opts) {
+  const roadState = (opts && opts.road) || 'done';
   const modal = getEl("ref-price-modal");
   const container = getEl("ref-results");
   container.innerHTML = "";
-  const fmtDist = (m) =>
-    m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(2)} km`;
+  const fmtRoad = (m) =>
+    m < 1000
+      ? `${Math.round(m)} m`
+      : `${(m / 1000).toFixed(2).replace('.', ',')} km`;
   results.forEach((item, idx) => {
-    const distStr = fmtDist(item.distance);
     const valStr = item.valuation.toLocaleString("vi-VN") + " trđ";
     const assetName = item.assetName || "";
     const customerName = item.customerName || "";
@@ -189,18 +204,26 @@ function showRefModal(results) {
     div.className = "bg-white/5 border border-white/10 rounded-lg p-3";
     div.innerHTML = `
       <div class="flex justify-between items-center mb-1">
-        <span class="text-xs font-bold text-emerald-400">#${idx + 1} • Cách ${distStr}</span>
+        <span class="text-xs font-bold text-emerald-400 ref-dist"></span>
         <span class="text-sm font-bold text-white">${valStr}</span>
       </div>
       <h4 class="text-sm font-medium text-slate-300 truncate ref-asset-name"></h4>
       ${badges}
-      <p class="text-[10px] text-slate-500 mt-1 uppercase">KH: <span class="ref-cust-name"></span></p>`;
+      <p class="text-[10px] text-slate-500 mt-1">Khách hàng: <span class="ref-cust-name"></span></p>`;
+    const distEl = div.querySelector('.ref-dist');
+    if (roadState === 'pending') {
+      distEl.textContent = `#${idx + 1} • Đang tính khoảng cách đường bộ…`;
+    } else if (roadState === 'done' && item.roadOk && typeof item.distance === 'number') {
+      distEl.textContent = `#${idx + 1} • Cách ${fmtRoad(item.distance)} theo đường bộ`;
+    } else {
+      distEl.textContent = `#${idx + 1} • Chưa tính được khoảng cách đường bộ`;
+    }
     div.querySelector('.ref-asset-name').textContent = assetName;
     div.querySelector('.ref-cust-name').textContent = customerName;
     const areaEl = div.querySelector('.ref-area');
-    if (areaEl) areaEl.textContent = `${area}m²`;
+    if (areaEl) areaEl.textContent = `Diện tích: ${area} m²`;
     const widthEl = div.querySelector('.ref-width');
-    if (widthEl) widthEl.textContent = `MT:${width}m`;
+    if (widthEl) widthEl.textContent = `Mặt tiền: ${width} m`;
     container.appendChild(div);
   });
   modal.classList.remove("hidden");
@@ -298,7 +321,7 @@ function renderAssets() {
       ? `<div class="text-xs text-slate-400 mt-1 italic"><i data-lucide="home" class="w-3 h-3 inline mr-1"></i><span class="asset-onland"></span></div>`
       : "";
 
-    el.innerHTML = ` <div class="flex justify-between items-start mb-1"> <div class="flex gap-3 items-center"> <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-white/10"><i data-lucide="map-pin" class="w-5 h-5"></i></div> <div><h4 class="font-bold text-white text-sm line-clamp-1 asset-name"></h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div> </div> <div class="flex gap-1"> <button data-asset-action="edit" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button> <button data-asset-action="delete" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button> </div> </div> ${onlandInfo} <div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"> <span>Định giá: <b class="text-emerald-400 text-sm asset-val"></b></span> <span>Vay: <b class="text-blue-400 text-sm asset-loan"></b></span> </div> <div class="flex gap-2"> ${mapBtn} <button data-asset-action="reference" class="glass-btn flex-1 py-2.5 text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo</button> </div> <button data-asset-action="gallery" class="glass-btn w-full py-2.5 text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white mt-1"><i data-lucide="image" class="w-3 h-3"></i> Kho ảnh tài sản</button>`;
+    el.innerHTML = ` <div class="flex justify-between items-start mb-1"> <div class="flex gap-3 items-center"> <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-white/10"><i data-lucide="map-pin" class="w-5 h-5"></i></div> <div><h4 class="font-bold text-white text-sm line-clamp-1 asset-name"></h4><div class="flex gap-1 mt-1 flex-wrap">${areaInfo}${widthInfo}${yearInfo}</div></div> </div> <div class="flex gap-1"> <button data-asset-action="edit" class="text-blue-400 p-2 hover:bg-white/5 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button> <button data-asset-action="delete" class="text-red-400 p-2 hover:bg-white/5 rounded-lg transition-transform active:scale-90"><i data-lucide="trash-2" class="w-4 h-4"></i></button> </div> </div> ${onlandInfo} <div class="flex justify-between text-xs text-slate-400 mb-2 bg-black/20 p-3 rounded-lg border border-white/5 mt-2"> <span>Định giá: <b class="text-emerald-400 text-sm asset-val"></b></span> <span>Cho vay: <b class="text-blue-400 text-sm asset-loan"></b></span> </div> <div class="flex gap-2"> ${mapBtn} <button data-asset-action="reference" class="glass-btn flex-1 py-2.5 text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white"><i data-lucide="radar" class="w-3 h-3"></i> Tham khảo giá</button> </div> <button data-asset-action="gallery" class="glass-btn w-full py-2.5 text-indigo-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:text-white mt-1"><i data-lucide="image" class="w-3 h-3"></i> Ảnh tài sản</button>`;
 
     const nameEl = el.querySelector('.asset-name');
     nameEl.textContent = decName;
@@ -307,14 +330,14 @@ function renderAssets() {
       && typeof _displayPlainAsync === 'function') {
       _displayPlainAsync(asset.name, decName).then((v) => { nameEl.textContent = v; }).catch(() => { });
     }
-    el.querySelector('.asset-val').textContent = decVal || "-";
-    el.querySelector('.asset-loan').textContent = decLoan || "-";
+    el.querySelector('.asset-val').textContent = decVal || "—";
+    el.querySelector('.asset-loan').textContent = decLoan || "—";
     const areaEl = el.querySelector('.asset-area');
-    if (areaEl) areaEl.textContent = `${decArea}m²`;
+    if (areaEl) areaEl.textContent = `${decArea} m²`;
     const widthEl = el.querySelector('.asset-width');
-    if (widthEl) widthEl.textContent = `MT:${decWidth}m`;
+    if (widthEl) widthEl.textContent = `Mặt tiền: ${decWidth} m`;
     const yearEl = el.querySelector('.asset-year');
-    if (yearEl) yearEl.textContent = `Năm:${decYear}`;
+    if (yearEl) yearEl.textContent = `Xây dựng: ${decYear}`;
     const onlandEl = el.querySelector('.asset-onland');
     if (onlandEl) onlandEl.textContent = decOnland;
     const mapAnchor = el.querySelector('[data-map-link]');
