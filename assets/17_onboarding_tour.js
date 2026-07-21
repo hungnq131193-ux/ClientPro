@@ -120,6 +120,7 @@
     let lockObserver = null;
     let replayTimer = null;       // timer chờ trước khi replay từ Menu
     let teardownTimer = null;     // timer xóa node sau fade-out (350ms)
+    let autoStartTimer = null;    // một chuỗi retry duy nhất cho auto-tour của user mới
 
     // --- Trạng thái user mới / đã hoàn tất --------------------------------------
     function shouldShowTour() {
@@ -447,6 +448,8 @@
     //   - Còn node cũ (teardown chưa xong) -> purge đồng bộ trước khi dựng.
     function startTour() {
         if (isTourBlocked()) return false;
+        // Manual start/replay thắng auto-start đang chờ; không để callback tự chạy lại.
+        if (autoStartTimer) { clearTimeout(autoStartTimer); autoStartTimer = null; }
         if (active && overlay && document.body.contains(overlay)) return true;
         purgeTourNodes();          // xóa mọi node/tour cũ + hủy teardownTimer
         active = true;
@@ -471,26 +474,48 @@
         }, 260);
     }
 
+    // Chỉ giữ một chuỗi kiểm tra auto-tour. Nếu app khóa đúng lúc delay 800ms chạy,
+    // lịch kiểm tra được nối lại sau 1 giây thay vì mất vĩnh viễn đến lần reload.
+    function scheduleAutoStartCheck(delay) {
+        if (autoStartTimer) clearTimeout(autoStartTimer);
+        autoStartTimer = setTimeout(() => {
+            autoStartTimer = null;
+            checkAndStartTour();
+        }, delay);
+    }
+
     // Tự mở cho user mới sau khi app đã load & unlock (chờ PIN).
     function checkAndStartTour() {
+        // User đã hoàn tất trong lúc chờ (ví dụ manual replay + Skip) -> dừng hẳn.
+        if (!shouldShowTour()) return;
         if (!document.querySelector('#customer-list')) {
-            setTimeout(checkAndStartTour, 500);
+            scheduleAutoStartCheck(500);
             return;
         }
         // Chưa mở khóa / còn màn chặn -> chờ tiếp.
         if (isTourBlocked()) {
-            setTimeout(checkAndStartTour, 1000);
+            scheduleAutoStartCheck(1000);
             return;
         }
-        setTimeout(() => { if (!isTourBlocked() && shouldShowTour()) startTour(); }, 800);
+        autoStartTimer = setTimeout(() => {
+            autoStartTimer = null;
+            if (!shouldShowTour()) return;
+            if (isTourBlocked()) {
+                // App có thể auto-lock / chuyển nền trong cửa sổ 800ms. Tiếp tục
+                // retry cho user mới, nhưng không tự mở lại một tour đã từng active.
+                scheduleAutoStartCheck(1000);
+                return;
+            }
+            startTour();
+        }, 800);
     }
 
     // Public API (mở lại thủ công qua data-action="OnboardingTour.replay").
     window.OnboardingTour = { start: startTour, replay: replayTour };
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => { setTimeout(checkAndStartTour, 2000); });
+        document.addEventListener('DOMContentLoaded', () => { scheduleAutoStartCheck(2000); });
     } else {
-        setTimeout(checkAndStartTour, 2000);
+        scheduleAutoStartCheck(2000);
     }
 })();
