@@ -234,18 +234,59 @@
     else { screenEl.classList.add('translate-x-full'); setTimeout(finish, 300); }
   }
 
+  function hideAfterReset() {
+    if (!state.built) return;
+    toolViewEl.replaceChildren();
+    toolViewEl.style.display = 'none';
+    gridWrapEl.style.display = '';
+    headerTitleEl.textContent = 'Bộ công cụ PDF';
+    screenEl.classList.add('translate-x-full');
+  }
+
   // Reset hoàn toàn (dùng khi khóa app).
+  // Nếu đang ở tool con, phải tiêu thụ history của tool TRƯỚC khi ẩn screen.
+  // Sau popstate đó, việc ẩn screen sẽ để edge-back observer tiêu thụ đúng entry
+  // của màn hình toolkit. Nhờ vậy khóa app loại đủ hai lớp mà không history.go(-2)
+  // mù quáng và không đốt nhầm lịch sử của màn hình nghiệp vụ khác.
   function reset() {
+    const hadChildTool = !!state.currentTool;
+    const edge = window.__edgeBackSwipe;
+    const canConsumeChild = hadChildTool
+      && edge
+      && typeof edge.consumeTrackedHistoryStep === 'function'
+      && history.state
+      && (history.state.__clientpro_edge_back || history.state.clientProSelectionLayer);
+
     disposeSession();
     state.currentTool = null;
-    if (state.built) {
-      toolViewEl.replaceChildren();
-      toolViewEl.style.display = 'none';
-      gridWrapEl.style.display = '';
-      headerTitleEl.textContent = 'Bộ công cụ PDF';
-      screenEl.classList.add('translate-x-full');
-    }
     state.open = false;
+
+    if (!canConsumeChild) {
+      hideAfterReset();
+      return;
+    }
+
+    let finished = false;
+    let fallbackTimer = 0;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      window.removeEventListener('popstate', onPop);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      hideAfterReset();
+    };
+    const onPop = () => finish();
+
+    // consumeTrackedHistoryStep() đánh dấu popstate kế tiếp là đã được xử lý,
+    // nên cascade back không chạy lại. Chờ chính popstate đó rồi mới ẩn screen,
+    // tránh hai history.back() cạnh tranh trong cùng tick.
+    window.addEventListener('popstate', onPop, { once: true });
+    edge.consumeTrackedHistoryStep();
+
+    // Phòng vệ cho WebView/trình duyệt không phát popstate dù state hợp lệ:
+    // dữ liệu đã được dọn và lock screen đang che phía trên; sau 1 giây vẫn phải
+    // bảo đảm toolkit không hiện lại khi người dùng mở khóa.
+    fallbackTimer = window.setTimeout(finish, 1000);
   }
 
   // ----------------------------------------------------------------------
