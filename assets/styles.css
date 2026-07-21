@@ -3005,3 +3005,10 @@ body.theme-vietinbank #approve-modal .bg-slate-800 {
   .tour-card--in,
   .tour-card--center.tour-card--in { animation: none; }
 }
+
+/* Tôn trọng safe-area (notch / thanh cử chỉ): giới hạn card center trong vùng
+   an toàn để không bị che ở cạnh màn hình điện thoại. Card định vị theo target
+   đã được kẹp trong visualViewport bằng JS (positionStep). */
+.tour-card--center {
+  max-width: min(340px, calc(100vw - 40px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+}

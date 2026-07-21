@@ -254,6 +254,9 @@
 
             // PDF Toolkit — điểm mở duy nhất từ Dashboard (module độc lập).
             'PdfToolkit.open': () => { if (window.PdfToolkit) window.PdfToolkit.open(); },
+
+            // Onboarding — mở lại tour hướng dẫn thủ công từ Menu.
+            'OnboardingTour.replay': () => { if (window.OnboardingTour) window.OnboardingTour.replay(); },
           };
 
           const CHANGE_ACTIONS = {
