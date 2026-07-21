@@ -32,6 +32,30 @@
 - Tone: lịch sự, ngắn, xưng `bạn`. Không cảm thán thừa (`nhé!`). Không `anh/chị`.
 - Viết hoa: chỉ chữ đầu cụm + tên riêng (`Google Drive`, `Face ID`, `VietQR`, `CCCD`).
 
+## Bổ sung UX/UI hardening 1.1.0 (2026-07)
+
+| Ngữ cảnh | Dùng | Không dùng |
+|---|---|---|
+| Card tài sản — cho vay | `Cho vay:` | `Vay:` |
+| Card tài sản — mặt tiền | `Mặt tiền: {n} m` | `MT:{n}m` |
+| Card tài sản — năm xây dựng | `Xây dựng: {năm}` | `Năm:{năm}` |
+| Nút ảnh trên card tài sản | `Ảnh tài sản` | `Kho ảnh tài sản` (trên card) |
+| Nút tham khảo trên card | `Tham khảo giá` | `Tham khảo` |
+| Modal tham khảo | tiêu đề `Tham khảo giá tài sản`; dòng khách hàng `Khách hàng:`; badge `Diện tích: {n} m²`, `Mặt tiền: {n} m` | `KH:`, `{n}m²`, `MT:{n}m` |
+| Khoảng cách (tham khảo giá) | đang tính: `Đang tính khoảng cách đường bộ…`; có kết quả: `Cách {d} theo đường bộ`; thất bại: `Chưa tính được khoảng cách đường bộ` | hiển thị khoảng cách đường chim bay (Haversine) như kết quả |
+| Fallback giá trị trống | `—` (em dash) | `-`, `--`, `•••`, `Đang tải...` (khi không thực sự tải) |
+| Form khách hàng — tiêu đề | thêm: `Thêm khách hàng`; sửa: `Cập nhật khách hàng` | `Thông tin khách hàng`, `Khởi tạo hồ sơ`, `Chỉnh sửa hồ sơ` |
+| Trường bắt buộc / tùy chọn | helper `· Bắt buộc` / `· Không bắt buộc` | (chỉ dựa placeholder) |
+| Form tài sản — nhãn | `Tên / mô tả tài sản`, `Giá trị cho vay (triệu đồng)`, `Năm xây dựng`, `Địa chỉ / công trình trên đất`, `Tọa độ tài sản`, `Diện tích (m²)`, `Mặt tiền (m)` | `Mô tả chính`, `Vay tối đa`, `Xây dựng`, `Vị trí + Ghi chú thêm`, `Vị trí / Tọa độ` |
+| Modal phê duyệt | visible label `Hạn mức được phê duyệt`; helper `Đơn vị: triệu đồng` | (chỉ placeholder) |
+| Trung tâm sao lưu — segmented | `Trong máy` / `Được gửi đến` | `Xem danh sách` / `Nhận từ đồng nghiệp` |
+| Trung tâm sao lưu — hành động file | `Nhập file sao lưu`, `Tạo và xuất file` | `Nhập file .cpb`, `Tạo & xuất file` |
+| Mẫu tên file kỹ thuật | không hiện trên giao diện chính (đưa vào `title`) | dòng `CLIENTPRO_BK_{DEVICEID}_…` thường trực |
+| Bảo mật | `Thiết lập bảo mật`, `Mã nhân viên dùng để khôi phục`, `Lưu và kích hoạt` | `Thiết lập Bảo Mật`, `Mã nhân viên (Để khôi phục)`, `Lưu & kích hoạt` |
+| Khôi phục truy cập | `Nhập mã nhân viên đã dùng khi thiết lập bảo mật.` | `…để xác thực danh tính.` |
+| Hướng dẫn tọa độ | `Cách lấy tọa độ`, `sao chép tọa độ` | `Cách lấy Tọa độ chuẩn`, `copy dãy số tọa độ` |
+| Dấu ba chấm (loading/tiếp diễn) | `…` (ký tự ellipsis) | `...` (ba dấu chấm) |
+
 ## Giữ nguyên (không Việt hóa / không đổi)
 
 - Tên riêng: `Google Drive`, `Face ID`, `VietQR`, `CCCD`.
