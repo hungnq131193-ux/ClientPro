@@ -211,3 +211,222 @@ test('Offline: mở lại tour vẫn hoạt động sau khi asset đã cache', a
   await expect(page.locator(OVERLAY)).toHaveCount(0, { timeout: 4_000 });
   await context.setOffline(false);
 });
+
+// ===========================================================================
+// REGRESSION — off-screen targets, replay lifecycle & singleton (PR #123 review)
+// ===========================================================================
+
+const SPOTLIGHT = '#tour-spotlight';
+
+// A/D — Off-screen dashboard steps must NOT be skipped on short viewports.
+test('Viewport thấp 320×568: đi ĐỦ 11 bước, không bỏ qua bước dưới fold (PDF/Backup/Drive)', async ({ page }) => {
+  const errors = [];
+  await page.setViewportSize({ width: 320, height: 568 });
+  await seedAndUnlock(page, { errors });
+  await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 15_000 });
+
+  const chips = [];
+  const titles = [];
+  for (let i = 0; i < 11; i++) {
+    chips.push((await page.locator('.tour-step-chip').innerText()).trim());
+    titles.push((await page.locator('.tour-title').innerText()).trim());
+    const label = await page.locator('#tour-next').innerText();
+    if (label.includes('Bắt đầu')) break; // bước cuối -> không bấm tiếp
+    await page.click('#tour-next');
+    await page.waitForTimeout(140);
+  }
+
+  // Thứ tự chip liên tục 1/11 → 11/11, không nhảy bước.
+  expect(chips).toEqual(Array.from({ length: 11 }, (_, i) => `Bước ${i + 1}/11`));
+  // Các bước quan trọng nằm dưới fold vẫn được giới thiệu.
+  const joined = titles.join(' | ');
+  expect(joined).toContain('Bộ công cụ PDF');
+  expect(joined).toContain('Sao lưu & khôi phục');
+  expect(joined).toContain('Kết nối Google Drive');
+  expect(errors, 'Không exception khi đi hết tour trên viewport thấp').toEqual([]);
+});
+
+// A — Off-screen target (có layout, ngoài viewport) hiển thị dạng card center.
+test('Target ngoài viewport: bước KHÔNG bị skip, card center trong màn hình, spotlight tắt', async ({ page }) => {
+  const errors = [];
+  await seedAndUnlock(page, { errors });
+  await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 15_000 });
+
+  // Đẩy nút Drive ra NGOÀI viewport nhưng vẫn có layout thật (position:fixed, top lớn).
+  await page.evaluate(() => {
+    const b = document.querySelector('button[data-action="toggleDashboardDriveConfig"]');
+    if (b) { b.style.position = 'fixed'; b.style.top = '5000px'; b.style.left = '0px'; }
+  });
+
+  // Đi tới bước Drive.
+  for (let i = 0; i < 20; i++) {
+    const title = await page.locator('.tour-title').innerText();
+    if (title.includes('Google Drive')) break;
+    await page.click('#tour-next');
+    await page.waitForTimeout(120);
+  }
+
+  await expect(page.locator('.tour-title')).toHaveText(/Google Drive/);
+  // Không spotlight tọa độ ngoài màn hình -> card center.
+  const spotOn = await page.evaluate((s) => document.querySelector(s).classList.contains('is-on'), SPOTLIGHT);
+  expect(spotOn).toBe(false);
+  const centered = await page.evaluate((s) => document.querySelector(s).classList.contains('tour-card--center'), TOOLTIP);
+  expect(centered).toBe(true);
+  // Card nằm gọn trong viewport.
+  const box = await page.locator(TOOLTIP).boundingBox();
+  const vp = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(box.x).toBeGreaterThanOrEqual(-1);
+  expect(box.y).toBeGreaterThanOrEqual(-1);
+  expect(box.x + box.width).toBeLessThanOrEqual(vp.width + 1);
+  expect(box.y + box.height).toBeLessThanOrEqual(vp.height + 1);
+  expect(errors, 'Offscreen target không được gây exception').toEqual([]);
+});
+
+// B — Replay khi màn khóa ĐÃ hiện: tuyệt đối không dựng tour, không chặn nhập PIN.
+test('Replay khi màn khóa đã hiện: không có node tour, PIN vẫn nhập được', async ({ page }) => {
+  await seedAndUnlock(page, { markDone: true });
+  await page.waitForTimeout(1_500);
+
+  // Khóa app trước, rồi mới replay.
+  await page.evaluate(() => lockApp());
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 8_000 });
+  await page.evaluate(() => window.OnboardingTour.replay());
+  await page.waitForTimeout(700); // quá 260ms timer
+
+  await expect(page.locator(OVERLAY)).toHaveCount(0);
+  await expect(page.locator(TOOLTIP)).toHaveCount(0);
+  await expect(page.locator(SPOTLIGHT)).toHaveCount(0);
+
+  // PIN vẫn nhập được -> mở khóa thành công.
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+  // Unlock KHÔNG tự mở tour đã bị hủy.
+  await page.waitForTimeout(1_000);
+  await expect(page.locator(OVERLAY)).toHaveCount(0);
+});
+
+// B — App khóa TRONG khoảng chờ replay (trước 260ms): hủy, không mở trên lock/unlock.
+test('Lock xảy ra trong replay delay: timer bị hủy, không dựng tour, unlock không tự mở', async ({ page }) => {
+  await seedAndUnlock(page, { markDone: true });
+  await page.waitForTimeout(1_500);
+
+  // Gọi replay rồi khóa app ở ~50ms (trước timer 260ms) — trong cùng một context.
+  await page.evaluate(() => {
+    window.OnboardingTour.replay();
+    setTimeout(() => lockApp(), 50);
+  });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 8_000 });
+  await page.waitForTimeout(700); // quá 260ms timer
+
+  await expect(page.locator(OVERLAY)).toHaveCount(0);
+  await expect(page.locator(TOOLTIP)).toHaveCount(0);
+
+  // Mở khóa lại -> tour KHÔNG tự mở.
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+  await page.waitForTimeout(1_200);
+  await expect(page.locator(OVERLAY)).toHaveCount(0);
+});
+
+// C — Double replay: singleton tuyệt đối, bắt đầu bước 1, Next tiến đúng 1 bước.
+test('Double replay nhanh: đúng 1 overlay/spotlight/tooltip, bắt đầu bước 1, Next sang bước 2', async ({ page }) => {
+  await seedAndUnlock(page, { markDone: true });
+  await page.waitForTimeout(1_500);
+
+  await page.evaluate(() => { window.OnboardingTour.replay(); window.OnboardingTour.replay(); });
+  await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 8_000 });
+  await page.waitForTimeout(400); // để cả hai timer (nếu có) đã chạy xong
+
+  await expect(page.locator(OVERLAY)).toHaveCount(1);
+  await expect(page.locator(SPOTLIGHT)).toHaveCount(1);
+  await expect(page.locator(TOOLTIP)).toHaveCount(1);
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/11');
+
+  await page.click('#tour-next');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/11');
+  // Vẫn đúng 1 bộ node sau khi Next.
+  await expect(page.locator(TOOLTIP)).toHaveCount(1);
+});
+
+// C — Replay trong teardown window (trước fade 350ms): không stale node, không chồng listener.
+test('Replay trong teardown window: 1 node/ID, không stale, Next đúng 1 bước, cleanup về 0', async ({ page }) => {
+  const errors = [];
+  await seedAndUnlock(page, { errors });
+  await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 15_000 });
+
+  // Sang bước 2 để chip của phiên cũ (2/11) khác phiên mới (1/11) khi teardown.
+  await page.click('#tour-next');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/11');
+
+  // Skip -> teardown 350ms; replay ngay trong cửa sổ đó.
+  await page.click('#tour-skip');
+  await page.evaluate(() => window.OnboardingTour.replay());
+
+  // Chờ phiên MỚI (chip 1/11) dựng xong VÀ chỉ có đúng 1 overlay.
+  await page.waitForFunction(() => {
+    const chip = document.querySelector('.tour-step-chip');
+    return !!chip && chip.textContent.trim() === 'Bước 1/11'
+      && document.querySelectorAll('#tour-overlay').length === 1;
+  }, null, { timeout: 8_000 });
+
+  await expect(page.locator(OVERLAY)).toHaveCount(1);
+  await expect(page.locator(SPOTLIGHT)).toHaveCount(1);
+  await expect(page.locator(TOOLTIP)).toHaveCount(1);
+
+  // Next đi đúng 1 bước (không chồng handler -> không nhảy nhiều bước).
+  await page.click('#tour-next');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/11');
+
+  // Cleanup cuối -> 0 node.
+  await page.click('#tour-skip');
+  await expect(page.locator(OVERLAY)).toHaveCount(0, { timeout: 4_000 });
+  const leftovers = await page.evaluate(() =>
+    document.querySelectorAll('#tour-overlay, #tour-tooltip, #tour-spotlight').length);
+  expect(leftovers).toBe(0);
+  expect(errors, 'Không exception qua teardown/replay').toEqual([]);
+});
+
+// B/lifecycle — startTour bị TỪ CHỐI khi lock / activation / setup đang hiện.
+test('startTour phòng thủ: bị chặn khi màn khóa / kích hoạt / thiết lập hiển thị', async ({ page }) => {
+  await seedAndUnlock(page, { markDone: true });
+  await page.waitForTimeout(1_500);
+
+  // 1) Màn khóa thật qua lockApp().
+  await page.evaluate(() => lockApp());
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 8_000 });
+  const startedLocked = await page.evaluate(() => window.OnboardingTour.start());
+  expect(startedLocked).toBe(false);
+  await expect(page.locator(OVERLAY)).toHaveCount(0);
+
+  // Mở khóa lại để test tiếp các modal khác.
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+
+  // 2) activation-modal & setup-lock-modal (giả lập đang hiện).
+  for (const id of ['activation-modal', 'setup-lock-modal']) {
+    await page.evaluate((i) => { const n = document.getElementById(i); if (n) n.classList.remove('hidden'); }, id);
+    const started = await page.evaluate(() => window.OnboardingTour.start());
+    expect(started, `start() phải bị chặn khi #${id} hiển thị`).toBe(false);
+    await expect(page.locator(OVERLAY)).toHaveCount(0);
+    await page.evaluate((i) => { const n = document.getElementById(i); if (n) n.classList.add('hidden'); }, id);
+  }
+});
+
+// Lifecycle — nhiều đường cleanup gần nhau: idempotent, không lỗi, không rò node.
+test('Cleanup idempotent: Esc + app lock + replay bị chặn chồng nhau, 0 node, 0 exception', async ({ page }) => {
+  const errors = [];
+  await seedAndUnlock(page, { errors });
+  await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 15_000 });
+
+  await page.keyboard.press('Escape');            // endTour -> removeTourUI (đặt teardown)
+  await page.evaluate(() => lockApp());            // khóa app (đường dọn thứ 2)
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 8_000 });
+  await page.evaluate(() => window.OnboardingTour.replay()); // bị chặn (đang khóa)
+  await page.waitForTimeout(700);                  // quá teardown 350ms + replay 260ms
+
+  const nodes = await page.evaluate(() =>
+    document.querySelectorAll('#tour-overlay, #tour-tooltip, #tour-spotlight').length);
+  expect(nodes).toBe(0);
+  expect(errors, 'Nhiều đường cleanup không được ném exception').toEqual([]);
+});

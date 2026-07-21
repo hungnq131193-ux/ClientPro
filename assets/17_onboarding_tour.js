@@ -8,7 +8,12 @@
 //   - Chỉ tự mở với user MỚI (khóa localStorage riêng), không ép user cũ xem lại.
 //   - Không tạo/sửa dữ liệu, không đụng IndexedDB/crypto, không đổi z-index toàn
 //     cục, không dùng innerHTML với dữ liệu động, không native alert/confirm.
-//   - Bước thiếu selector -> BỎ QUA an toàn (không crash, không treo).
+//   - Bước thiếu selector (KHÔNG tồn tại) hoặc ẩn (không có layout) -> BỎ QUA an
+//     toàn. Bước có target THẬT nhưng nằm NGOÀI viewport (dưới fold trên máy thấp)
+//     -> vẫn hiển thị nội dung bằng card ở giữa, KHÔNG bao giờ bỏ qua.
+//   - Không tự mở khi màn khóa / kích hoạt / thiết lập đang hiện, hoặc chưa unlock.
+//   - Singleton tuyệt đối: đúng một bộ #tour-overlay / #tour-spotlight /
+//     #tour-tooltip khi active; 0 node + 0 timer + 0 observer khi cleanup xong.
 //   - Cleanup đầy đủ khi Skip / Finish / đóng / APP LOCK / đổi kích thước.
 //   - Không đẩy history entry -> back/edge-back không để lại entry ma.
 // =======================
@@ -19,8 +24,10 @@
     const TOUR_VERSION = 4;
 
     // Cấu hình các bước. `target === null` => bước center (chào mừng / kết thúc /
-    // nhắc mở lại). Bước có `target` mà không tìm thấy phần tử VISIBLE trên
-    // Dashboard sẽ bị BỎ QUA (không spotlight phần tử ẩn).
+    // nhắc mở lại). Bước có `target`:
+    //   - selector KHÔNG tồn tại / element ẩn (không layout) -> BỎ QUA.
+    //   - element THẬT nhưng ngoài viewport -> hiển thị card center (không spotlight).
+    //   - element THẬT & trong viewport -> spotlight + card cạnh target.
     const tourSteps = [
         {
             target: null,
@@ -111,6 +118,8 @@
     let resizeTimer = null;
     let keyHandler = null;
     let lockObserver = null;
+    let replayTimer = null;       // timer chờ trước khi replay từ Menu
+    let teardownTimer = null;     // timer xóa node sau fade-out (350ms)
 
     // --- Trạng thái user mới / đã hoàn tất --------------------------------------
     function shouldShowTour() {
@@ -135,17 +144,68 @@
     function vw() { return (window.visualViewport && window.visualViewport.width) || window.innerWidth; }
     function vh() { return (window.visualViewport && window.visualViewport.height) || window.innerHeight; }
 
-    // Trả về: null = bước center; false = target thiếu/ẩn (bỏ qua); phần tử = spotlight.
+    // --- Cổng an toàn: KHÔNG dựng tour khi app chưa mở khóa hoặc màn khóa / kích
+    //     hoạt / thiết lập đang hiện. Dùng chung ở checkAndStartTour, replayTour và
+    //     startTour để không nhân bản điều kiện. -----------------------------------
+    function _screenVisible(id) {
+        const n = document.getElementById(id);
+        return !!(n && !n.classList.contains('hidden'));
+    }
+
+    function isTourBlocked() {
+        // Chưa mở khóa (masterKey chỉ có sau khi nhập PIN đúng) -> chặn.
+        try {
+            if (typeof isAppUnlocked === 'function') {
+                if (!isAppUnlocked()) return true;
+            } else if (typeof masterKey === 'undefined' || !masterKey) {
+                return true;
+            }
+        } catch (e) {
+            return true;
+        }
+        // Bất kỳ màn chặn nào đang hiển thị -> chặn.
+        return _screenVisible('screen-lock') ||
+            _screenVisible('activation-modal') ||
+            _screenVisible('setup-lock-modal');
+    }
+
+    // --- Phân loại trạng thái target của một bước --------------------------------
+    // Trả về { kind, element }:
+    //   center    : bước không có target (welcome / finish) -> card center.
+    //   missing   : selector KHÔNG tìm thấy -> được phép bỏ qua.
+    //   hidden    : element tồn tại nhưng không có layout / kích thước không hợp lệ
+    //               (display:none, chưa render) -> được phép bỏ qua.
+    //   offscreen : element THẬT, có layout hợp lệ nhưng nằm ngoài viewport
+    //               -> KHÔNG bỏ qua; hiển thị card center (không spotlight tọa độ ảo).
+    //   visible   : element THẬT & nằm trong viewport -> spotlight + card cạnh target.
     function resolveTarget(step) {
-        if (!step || !step.target) return null;
+        if (!step || !step.target) return { kind: 'center', element: null };
         const t = document.querySelector(step.target);
-        if (!t) return false;
+        if (!t) return { kind: 'missing', element: null };
+        const rects = t.getClientRects();
         const r = t.getBoundingClientRect();
-        if (r.width < 4 || r.height < 4 || r.bottom <= 0 || r.top >= vh()) return false;
-        return t;
+        const hasLayout = rects.length > 0 && r.width >= 4 && r.height >= 4;
+        if (!hasLayout) return { kind: 'hidden', element: null };
+        const onScreen = r.bottom > 0 && r.top < vh() && r.right > 0 && r.left < vw();
+        if (!onScreen) return { kind: 'offscreen', element: t };
+        return { kind: 'visible', element: t };
+    }
+
+    // Bước có được BỎ QUA khi điều hướng không? Chỉ missing/hidden mới bỏ qua.
+    function _isSkippable(state) {
+        return state.kind === 'missing' || state.kind === 'hidden';
     }
 
     // --- Dựng / gỡ UI -----------------------------------------------------------
+    // Xóa mọi node tour còn sót (kể cả của phiên đang fade-out) + hủy timer teardown
+    // để KHÔNG tồn tại hai bộ node cùng ID. Đồng bộ, gọi ngay trước khi dựng mới.
+    function purgeTourNodes() {
+        if (teardownTimer) { clearTimeout(teardownTimer); teardownTimer = null; }
+        const stale = document.querySelectorAll('#tour-overlay, #tour-spotlight, #tour-tooltip');
+        stale.forEach((n) => { try { n.remove(); } catch (e) { } });
+        overlay = spotlight = card = null;
+    }
+
     function createTourUI() {
         overlay = el('div', { id: 'tour-overlay', className: 'tour-overlay' });
         spotlight = el('div', { id: 'tour-spotlight', className: 'tour-spotlight', 'aria-hidden': 'true' });
@@ -167,7 +227,8 @@
         document.addEventListener('keydown', keyHandler);
 
         // Đóng tour khi app bị khóa (màn khóa hiện) — không đánh dấu hoàn tất,
-        // không tự mở lại sau unlock.
+        // không tự mở lại sau unlock. Kiểm tra NGAY trạng thái hiện tại trước khi
+        // chỉ dựa vào MutationObserver (observer chỉ bắt mutation về SAU).
         watchLock();
 
         requestAnimationFrame(() => { overlay && overlay.classList.add('is-visible'); });
@@ -176,6 +237,8 @@
     function watchLock() {
         try {
             const lock = document.getElementById('screen-lock');
+            // Màn khóa đã hiện sẵn -> hủy tour ngay, không chờ mutation.
+            if (lock && !lock.classList.contains('hidden')) { removeTourUI(); return; }
             if (!lock || typeof MutationObserver === 'undefined') return;
             lockObserver = new MutationObserver(() => {
                 if (active && lock && !lock.classList.contains('hidden')) removeTourUI();
@@ -184,13 +247,16 @@
         } catch (e) { }
     }
 
-    // Gỡ toàn bộ UI + listener + observer + timer. Không đánh dấu hoàn tất.
+    // Gỡ toàn bộ UI + listener + observer + timer. Idempotent (gọi nhiều lần an
+    // toàn). Không đánh dấu hoàn tất. Timer teardown chỉ xóa ĐÚNG node đã capture
+    // của phiên này -> không bao giờ xóa nhầm node của phiên tour mới.
     function removeTourUI() {
         active = false;
         if (resizeHandler) {
             window.removeEventListener('resize', resizeHandler);
             if (window.visualViewport) window.visualViewport.removeEventListener('resize', resizeHandler);
             clearTimeout(resizeTimer);
+            resizeTimer = null;
             resizeHandler = null;
         }
         if (keyHandler) {
@@ -201,26 +267,39 @@
             try { lockObserver.disconnect(); } catch (e) { }
             lockObserver = null;
         }
-        if (overlay) overlay.classList.remove('is-visible');
-        if (spotlight) spotlight.classList.remove('is-on');
-        if (card) card.style.opacity = '0';
+        // Hủy replay đang chờ (nếu có) — không để tour tự dựng lại sau teardown.
+        if (replayTimer) { clearTimeout(replayTimer); replayTimer = null; }
+
         const o = overlay, s = spotlight, c = card;
         overlay = spotlight = card = null;
-        setTimeout(() => {
+        // Không còn node -> đã cleanup xong (idempotent): không đụng teardownTimer
+        // đang giữ node THẬT của lần gọi trước.
+        if (!o && !s && !c) return;
+
+        if (o) o.classList.remove('is-visible');
+        if (s) s.classList.remove('is-on');
+        if (c) c.style.opacity = '0';
+        const t = setTimeout(() => {
             o && o.remove();
             s && s.remove();
             c && c.remove();
+            if (teardownTimer === t) teardownTimer = null;
         }, 350);
+        teardownTimer = t;
     }
 
     // --- Định vị spotlight + card cho bước hiện tại ------------------------------
-    function positionStep() {
+    // `state` (tùy chọn) là kết quả resolveTarget đã tính ở renderStep; khi thiếu
+    // (vd. gọi từ resize) sẽ tính lại theo currentStep.
+    function positionStep(state) {
         if (!overlay || !card || !spotlight) return;
         const step = tourSteps[currentStep];
-        const target = resolveTarget(step);
+        const st = state || resolveTarget(step);
+        // Chỉ spotlight khi target THẬT & trong viewport. center/offscreen/(missing
+        // trong tình huống race) -> card ở giữa, không spotlight tọa độ ngoài màn hình.
+        const target = (st && st.kind === 'visible') ? st.element : null;
 
         if (!target) {
-            // Bước center (target === null) hoặc target thiếu -> card ở giữa.
             overlay.classList.add('is-dim');
             spotlight.classList.remove('is-on');
             card.classList.add('tour-card--center');
@@ -276,13 +355,14 @@
         card.style.left = left + 'px';
     }
 
-    // --- Render bước, tự bỏ qua bước thiếu selector theo hướng điều hướng --------
+    // --- Render bước, tự bỏ qua bước thiếu/ẩn selector theo hướng điều hướng ------
     function renderStep() {
         if (!card) return;
         let guard = 0;
         while (guard++ <= tourSteps.length) {
             const step = tourSteps[currentStep];
-            if (resolveTarget(step) !== false) { paintStep(step); return; }
+            const state = resolveTarget(step);
+            if (!_isSkippable(state)) { paintStep(step, state); return; }
             // Bước có target nhưng thiếu/ẩn -> bỏ qua theo hướng điều hướng.
             const nextIdx = currentStep + navDir;
             if (nextIdx >= tourSteps.length) { endTour(); return; }
@@ -293,7 +373,7 @@
         endTour();
     }
 
-    function paintStep(step) {
+    function paintStep(step, state) {
         const isFirst = currentStep === 0;
         const isLast = currentStep === tourSteps.length - 1;
         const total = tourSteps.length;
@@ -328,7 +408,7 @@
         titleEl.textContent = step.title;
         contentEl.textContent = step.content;
 
-        positionStep();
+        positionStep(state);
 
         // Replay hiệu ứng vào của card cho mỗi bước.
         card.classList.remove('tour-card--in');
@@ -361,19 +441,34 @@
         removeTourUI();
     }
 
+    // Dựng tour. Idempotent + phòng thủ:
+    //   - Bị chặn (chưa unlock / màn khóa...) -> return false, không dựng.
+    //   - Đang active & DOM còn hợp lệ -> no-op (không dựng thêm bộ node).
+    //   - Còn node cũ (teardown chưa xong) -> purge đồng bộ trước khi dựng.
     function startTour() {
-        if (active) return;
+        if (isTourBlocked()) return false;
+        if (active && overlay && document.body.contains(overlay)) return true;
+        purgeTourNodes();          // xóa mọi node/tour cũ + hủy teardownTimer
         active = true;
         currentStep = 0;
         navDir = 1;
         createTourUI();
         renderStep();
+        return true;
     }
 
     // Mở lại thủ công từ Menu: đóng menu trước rồi bắt đầu, bất kể đã hoàn tất.
+    // Chống double-tap / gọi liên tiếp: chỉ giữ MỘT replayTimer. Kiểm tra bị chặn
+    // cả lúc lên lịch VÀ lúc timer chạy (app có thể khóa trong khoảng chờ).
     function replayTour() {
+        if (replayTimer) { clearTimeout(replayTimer); replayTimer = null; }
         try { if (typeof _closeMenuIfOpen === 'function') _closeMenuIfOpen(); } catch (e) { }
-        setTimeout(() => { startTour(); }, 260);
+        if (isTourBlocked()) return;   // đã khóa/không sẵn sàng -> không queue mở sau unlock
+        replayTimer = setTimeout(() => {
+            replayTimer = null;
+            if (isTourBlocked()) return;   // khóa xen vào trong lúc chờ -> hủy
+            startTour();
+        }, 260);
     }
 
     // Tự mở cho user mới sau khi app đã load & unlock (chờ PIN).
@@ -382,19 +477,12 @@
             setTimeout(checkAndStartTour, 500);
             return;
         }
-        // Chờ tới khi đã mở khóa (masterKey chỉ có sau khi nhập PIN đúng).
-        if (typeof masterKey === 'undefined' || !masterKey) {
+        // Chưa mở khóa / còn màn chặn -> chờ tiếp.
+        if (isTourBlocked()) {
             setTimeout(checkAndStartTour, 1000);
             return;
         }
-        const lockScreen = document.getElementById('screen-lock');
-        const activationModal = document.getElementById('activation-modal');
-        const setupModal = document.getElementById('setup-lock-modal');
-        if (lockScreen && !lockScreen.classList.contains('hidden')) { setTimeout(checkAndStartTour, 1000); return; }
-        if (activationModal && !activationModal.classList.contains('hidden')) { setTimeout(checkAndStartTour, 1000); return; }
-        if (setupModal && !setupModal.classList.contains('hidden')) { setTimeout(checkAndStartTour, 1000); return; }
-
-        setTimeout(() => { if (shouldShowTour()) startTour(); }, 800);
+        setTimeout(() => { if (!isTourBlocked() && shouldShowTour()) startTour(); }, 800);
     }
 
     // Public API (mở lại thủ công qua data-action="OnboardingTour.replay").
