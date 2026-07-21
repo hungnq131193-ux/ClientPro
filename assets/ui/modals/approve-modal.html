@@ -1,11 +1,13 @@
-<div id="approve-modal" class="fixed inset-0 z-[200] bg-black/90 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+<div id="approve-modal" class="fixed inset-0 z-[200] bg-black/90 hidden flex items-center justify-center p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="approve-modal-title">
         <div class="glass-panel w-full max-w-sm rounded-2xl p-6 shadow-2xl modal-animate relative">
             <button data-action="closeApproveModal" class="modal-close-x absolute" style="color: var(--text-sub)" aria-label="Đóng"><i data-lucide="x" class="w-5 h-5"></i></button>
             <div class="text-center mb-4">
                 <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style="background: color-mix(in srgb, var(--accent, #005b9f) 18%, transparent); color: var(--accent, #005b9f)"><i data-lucide="check" class="w-6 h-6"></i></div>
-                <h3 class="font-bold text-lg" style="color: var(--text-main)">Phê duyệt hồ sơ</h3>
+                <h3 id="approve-modal-title" class="font-bold text-lg" style="color: var(--text-main)">Phê duyệt hồ sơ</h3>
             </div>
-            <input id="approve-limit" type="text" placeholder="Nhập hạn mức (triệu đồng)" class="w-full bg-black/30 border-2 p-4 rounded-xl outline-none text-xl font-bold font-mono text-center placeholder:text-sm" style="border-color: var(--border-panel); color: var(--text-main)">
+            <label for="approve-limit" class="text-xs font-bold uppercase block mb-1.5 opacity-70" style="color: var(--text-sub)">Hạn mức được phê duyệt</label>
+            <input id="approve-limit" type="text" inputmode="numeric" placeholder="Ví dụ: 500" class="w-full border-2 p-4 rounded-xl outline-none text-xl font-bold font-mono text-center placeholder:text-sm" style="border-color: var(--border-panel); background: var(--input-bg); color: var(--text-main)">
+            <p class="text-xs mt-1.5 ml-0.5 opacity-70" style="color: var(--text-sub)">Đơn vị: triệu đồng</p>
             <div class="flex gap-3 mt-6">
                 <button data-action="closeApproveModal" class="flex-1 py-3 rounded-xl font-medium transition-colors hover:bg-white/5" style="background: rgba(255,255,255,0.05); color: var(--text-sub)">Hủy</button>
                 <button data-action="confirmApproval" class="flex-1 py-3 text-white font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform" style="background: var(--accent-gradient);">Xác nhận</button>

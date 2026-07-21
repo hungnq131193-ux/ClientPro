@@ -122,42 +122,80 @@ body.theme-midnight {
     radial-gradient(ellipse 120% 80% at 10% 20%, rgba(0, 91, 159, 0.6) 0%, transparent 50%),
     radial-gradient(ellipse 100% 60% at 90% 80%, rgba(0, 170, 255, 0.4) 0%, transparent 45%),
     radial-gradient(ellipse 80% 50% at 50% 100%, rgba(0, 91, 159, 0.3) 0%, transparent 40%);
-  --bg-panel: rgba(15, 30, 60, 0.65);
-  --header-bg: rgba(10, 22, 40, 0.85);
+  /* Midnight: panel ĐẶC hơn (giảm độ trong suốt) để tương phản cao trong phòng tối. */
+  --bg-panel: rgba(16, 30, 58, 0.82);
+  --header-bg: rgba(10, 22, 40, 0.9);
   --border-panel: rgba(0, 170, 255, 0.35);
-  --input-bg: rgba(15, 30, 60, 0.70);
+  --input-bg: rgba(15, 30, 60, 0.82);
   --accent: #00aaff;
   --accent-gradient: linear-gradient(135deg, #005b9f 0%, #00aaff 50%, #22d3ee 100%);
 }
 
-/* 3. OCEAN — Xanh Biển VietinBank (nền tối, sắc lam sâu) */
+/* 3. OCEAN — Xanh BIỂN / TEAL sâu (nền tối). Khác Midnight rõ: surface ngả
+   lục-lam (teal), accent xanh biển ngọc, độ đặc vừa (giữa Midnight và Aurora). */
 body.theme-ocean {
-  --bg-base: #041826;
+  --bg-base: #04202c;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(0, 91, 159, 0.55) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(6, 130, 195, 0.45) 0%, transparent 45%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(0, 160, 227, 0.35) 0%, transparent 40%);
-  --bg-panel: rgba(10, 40, 60, 0.65);
-  --header-bg: rgba(8, 30, 50, 0.85);
-  --border-panel: rgba(0, 160, 227, 0.38);
-  --input-bg: rgba(10, 40, 60, 0.70);
-  --accent: #00a0e3;
-  --accent-gradient: linear-gradient(135deg, #005b9f 0%, #0082c3 50%, #00a0e3 100%);
+    radial-gradient(ellipse 120% 80% at 15% 25%, rgba(6, 148, 160, 0.42) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 75%, rgba(8, 120, 150, 0.40) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(0, 170, 180, 0.28) 0%, transparent 40%);
+  --bg-panel: rgba(5, 36, 44, 0.92);
+  --header-bg: rgba(4, 28, 37, 0.94);
+  --border-panel: rgba(20, 190, 200, 0.34);
+  --input-bg: rgba(5, 36, 44, 0.93);
+  --accent: #00c2cb;
+  --accent-gradient: linear-gradient(135deg, #036073 0%, #00a0b0 50%, #22d3d3 100%);
 }
 
-/* 4. AZURE — Thiên Thanh (nền tối, sắc xanh trời tươi) */
+/* 4. AURORA — THIÊN THANH / xanh trời pha teal, sắc INDIGO-periwinkle sáng.
+   Airy nhất (đặc thấp nhất) nhưng vẫn đủ tương phản; accent xanh tím rõ khác Ocean. */
 body.theme-aurora {
-  --bg-base: #071627;
+  --bg-base: #0a1830;
   --bg-mesh:
-    radial-gradient(ellipse 120% 80% at 15% 30%, rgba(14, 165, 233, 0.55) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 85% 70%, rgba(0, 91, 159, 0.50) 0%, transparent 45%),
-    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(56, 189, 248, 0.32) 0%, transparent 40%);
-  --bg-panel: rgba(12, 34, 58, 0.65);
-  --header-bg: rgba(9, 26, 46, 0.85);
-  --border-panel: rgba(56, 189, 248, 0.38);
-  --input-bg: rgba(12, 34, 58, 0.70);
-  --accent: #38bdf8;
-  --accent-gradient: linear-gradient(135deg, #005b9f 0%, #0ea5e9 50%, #38bdf8 100%);
+    radial-gradient(ellipse 120% 80% at 15% 30%, rgba(99, 130, 255, 0.42) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 85% 70%, rgba(56, 130, 246, 0.40) 0%, transparent 45%),
+    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(120, 160, 255, 0.28) 0%, transparent 40%);
+  --bg-panel: rgba(20, 32, 72, 0.85);
+  --header-bg: rgba(12, 22, 50, 0.92);
+  --border-panel: rgba(120, 160, 255, 0.42);
+  --input-bg: rgba(20, 32, 72, 0.87);
+  --accent: #6aa0ff;
+  --accent-gradient: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%);
+}
+
+/* --- 3b. TOKEN NGỮ NGHĨA (semantic tokens) ---
+   Lớp bổ sung, ánh xạ sang token nền tảng theo từng theme. Component MỚI ưu tiên
+   dùng nhóm token này; token cũ (--bg-*, --text-*, --accent) vẫn giữ để tương thích.
+   Status/focus/shadow dùng chung 4 theme để giữ đúng ngữ nghĩa (success xanh lá,
+   danger đỏ, warning cam, info lam) — không đổi theo màu nền. */
+body {
+  --surface-page: var(--bg-base);
+  --surface-card: var(--bg-panel);
+  --surface-elevated: var(--bg-panel);
+  --surface-input: var(--input-bg, var(--bg-panel));
+  --surface-interactive: rgba(255, 255, 255, 0.05);
+  --surface-interactive-active: color-mix(in srgb, var(--accent, #005b9f) 16%, transparent);
+  --text-primary: var(--text-main);
+  --text-secondary: var(--text-sub);
+  --text-disabled: color-mix(in srgb, var(--text-sub, #5b7089) 55%, transparent);
+  --border-default: var(--border-panel);
+  --border-strong: color-mix(in srgb, var(--text-sub, #5b7089) 30%, transparent);
+  --focus-ring: var(--accent, #005b9f);
+  --status-success: #16a34a;
+  --status-warning: #d97706;
+  --status-danger: #dc2626;
+  --status-info: #2563eb;
+  --shadow-card: 0 10px 28px rgba(2, 6, 23, 0.18);
+  --shadow-modal: 0 24px 60px rgba(2, 6, 23, 0.42);
+}
+/* Trên nền tối, surface tương tác cần đậm hơn để đủ tách khỏi nền. */
+body.theme-vietinbank {
+  --surface-interactive: rgba(0, 74, 143, 0.05);
+}
+/* Vòng focus nhìn rõ trên MỌI theme — chỉ hiện khi điều hướng bằng bàn phím. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring, #005b9f);
+  outline-offset: 2px;
 }
 
 /* 4. GLASS & UTILS - Apple-style Glassmorphism */
@@ -415,6 +453,26 @@ body.theme-aurora {
 .customer-select-toggle {
   min-width: 46px;
   background: rgba(15, 23, 42, 0.58) !important;
+}
+
+/* Chỉ dẫn nhấn-giữ để chọn nhiều (thay cho nút "Chọn" đã gỡ khỏi toolbar).
+   Nhỏ, một dòng, ẩn khi đã vào chế độ chọn nhiều. */
+.customer-list-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub, #5b7089);
+  opacity: 0.85;
+}
+.customer-list-hint i {
+  flex: none;
+  opacity: 0.8;
+}
+body.cust-selection-mode .customer-list-hint {
+  display: none;
 }
 
 .glass-header {
@@ -2143,6 +2201,12 @@ textarea::placeholder {
 .drive-backup-status.error { color: #fca5a5; border-color: rgba(239,68,68,.30); background: rgba(239,68,68,.10); }
 .backup-action-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .backup-action-grid--local { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Khu vực "Thao tác với file": 2 hành động (Nhập / Tạo và xuất) — không phải tab. */
+.backup-action-grid--files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Segmented control chuyển giữa "Trong máy" / "Được gửi đến" (điều hướng, khác nút hành động). */
+.backup-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid var(--border-panel); }
+.backup-segment-btn { min-height: 38px; border-radius: 10px; border: 0; }
+body.theme-vietinbank .backup-segment { background: rgba(0,74,143,.05); border-color: rgba(0,74,143,.14); }
 .backup-action-card, .backup-mini-tab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 42px; padding: 9px 8px; border-radius: 14px; border: 1px solid var(--border-panel); background: rgba(255,255,255,.045); color: var(--text-main); font-size: 11px; font-weight: 850; text-align: center; overflow-wrap: anywhere; }
 .backup-action-card--wide { width: 100%; }
 .backup-mini-tab { min-height: 30px; padding: 6px 10px; color: #93c5fd; }
@@ -2174,6 +2238,7 @@ textarea::placeholder {
   .drive-backup-status { margin-top: 6px; padding: 7px 8px; font-size: 11px; line-height: 1.3; }
   .backup-inline-pane { padding-top: 6px; margin-top: 6px !important; overflow: visible; touch-action: pan-y !important; }
   .backup-action-grid, .backup-action-grid--local { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .backup-action-grid--files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .backup-action-card, .backup-mini-tab { min-height: 44px; padding: 6px 5px; border-radius: var(--radius-sm, 12px); gap: 4px; font-size: 12px; line-height: 1.15; flex-wrap: wrap; }
   .backup-action-card svg, .backup-mini-tab svg { width: 14px; height: 14px; flex: 0 0 auto; }
   .backup-pill { white-space: normal; text-align: right; padding: 4px 7px; font-size: 11px; }
@@ -2629,7 +2694,7 @@ body.theme-vietinbank .settings-btn:active {
   background: #e8f1fa !important;
 }
 body.theme-vietinbank .settings-btn.text-indigo-400 { color: #4f46e5 !important; }
-body.theme-vietinbank .settings-btn.text-pink-400 { color: #db2777 !important; }
+body.theme-vietinbank .settings-btn.text-pink-400 { color: #be185d !important; }
 body.theme-vietinbank .settings-btn.text-teal-400 { color: #0d9488 !important; }
 body.theme-vietinbank .theme-btn-sm {
   box-shadow: 0 2px 6px rgba(0, 51, 102, 0.18);

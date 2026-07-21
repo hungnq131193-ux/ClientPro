@@ -747,7 +747,7 @@ function renderList(list, opts = {}) {
             // rồi decrypt async cập nhật tại chỗ bên dưới.
             const nameMissing = !!(c.name && _looksEncrypted(c.name));
             const displayName = (c.name && !nameMissing) ? c.name : (nameMissing ? '—' : 'Chưa có tên');
-            const displayPhone = (c.phone && !_looksEncrypted(c.phone)) ? c.phone : '--';
+            const displayPhone = (c.phone && !_looksEncrypted(c.phone)) ? c.phone : '—';
             const displayInitial = nameMissing ? '?' : displayName.charAt(0).toUpperCase();
 
             // Avatar styling - glow for approved
@@ -778,6 +778,7 @@ function renderList(list, opts = {}) {
                 _displayPlainAsync(c.name, '—').then((v) => {
                     nameLineEl.textContent = v;
                     avatarEl.textContent = (v && v !== '—') ? v.charAt(0).toUpperCase() : '?';
+                    _setActionLabels(v);
                 }).catch(() => { });
             }
             const clValueEl = el.querySelector('.cl-value');
@@ -799,7 +800,17 @@ function renderList(list, opts = {}) {
             const zaloBtn = el.querySelector('[data-action="zalo"]');
             zaloBtn.setAttribute('href', getZaloLink(c.phone));
             zaloBtn.setAttribute('data-phone', c.phone || '');
-            el.querySelector('[data-action="call"]').setAttribute('href', getTelLink(c.phone));
+            zaloBtn.setAttribute('title', 'Mở Zalo');
+            const callBtn = el.querySelector('[data-action="call"]');
+            callBtn.setAttribute('href', getTelLink(c.phone));
+            callBtn.setAttribute('title', 'Gọi điện');
+            // Nhãn trợ năng theo tên khách hàng (cập nhật lại nếu tên giải mã async bên dưới).
+            const _setActionLabels = (nm) => {
+                const who = (nm && nm !== '—') ? nm : 'khách hàng';
+                zaloBtn.setAttribute('aria-label', `Nhắn Zalo cho ${who}`);
+                callBtn.setAttribute('aria-label', `Gọi cho ${who}`);
+            };
+            _setActionLabels(displayName);
 
         frag.appendChild(el);
     }
@@ -823,7 +834,7 @@ function openModal() {
     getEl('new-phone').value = '';
     if (getEl('new-cccd')) getEl('new-cccd').value = '';
     getEl('edit-cust-id').value = '';
-    getEl('modal-title-cust').textContent = "Khởi tạo hồ sơ";
+    getEl('modal-title-cust').textContent = "Thêm khách hàng";
     getEl('btn-save-cust').textContent = "Tạo mới";
     getEl('new-name').focus();
 }
@@ -850,7 +861,7 @@ async function openEditCustomerModal() {
     getEl('new-phone').value = '';
     if (getEl('new-cccd')) getEl('new-cccd').value = '';
     getEl('edit-cust-id').value = asked.id || '';
-    getEl('modal-title-cust').textContent = "Chỉnh sửa hồ sơ";
+    getEl('modal-title-cust').textContent = "Cập nhật khách hàng";
     getEl('btn-save-cust').textContent = "Lưu thay đổi";
 
     // Khóa nút Lưu trong lúc chờ decrypt: không cho lưu khi form chưa sẵn sàng.

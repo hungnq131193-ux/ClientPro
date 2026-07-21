@@ -451,8 +451,11 @@ const ModalA11y = (function () {
         const heading = modal.querySelector('h1[id],h2[id],h3[id]');
         if (heading) modal.setAttribute('aria-labelledby', heading.id);
         // Nút đóng icon-only -> gắn nhãn cho screen reader nếu thiếu.
+        // Chỉ gắn cho control THỰC (button/a/[role]) — tránh aria-label trên
+        // <div> backdrop (vi phạm aria-prohibited-attr; div không có accessible name).
         modal.querySelectorAll('[data-action^="close"]').forEach((b) => {
-            if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', 'Đóng');
+            const isControl = b.tagName === 'BUTTON' || b.tagName === 'A' || b.hasAttribute('role');
+            if (isControl && !b.getAttribute('aria-label')) b.setAttribute('aria-label', 'Đóng');
         });
         // Đưa focus vào modal: ưu tiên ô nhập đầu tiên, nếu không thì phần tử focus được đầu tiên.
         const firstInput = modal.querySelector('input:not([type=hidden]),textarea,select');

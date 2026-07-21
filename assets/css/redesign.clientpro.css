@@ -939,6 +939,19 @@ body.theme-vietinbank .map-style-control button.active {
 }
 
 /* Drive config panel (dashboard): typography/spacing khớp các card còn lại */
+.dashboard-drive-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+.dashboard-drive-help {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-sub);
+  opacity: 0.8;
+  margin-bottom: 12px;
+}
 .dashboard-drive-config label {
   letter-spacing: 0.08em !important;
   margin-bottom: 6px !important;
@@ -952,6 +965,26 @@ body.theme-vietinbank .map-style-control button.active {
 .dashboard-drive-row input {
   font-size: 13px !important;
   min-height: 44px;
+}
+/* Trạng thái lưu inline trong panel cấu hình Drive (F2) */
+.dashboard-drive-config-status {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  border: 1px solid transparent;
+}
+.dashboard-drive-config-status.is-success {
+  color: var(--status-success, #16a34a);
+  background: color-mix(in srgb, var(--status-success, #16a34a) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-success, #16a34a) 30%, transparent);
+}
+.dashboard-drive-config-status.is-error {
+  color: var(--status-danger, #dc2626);
+  background: color-mix(in srgb, var(--status-danger, #dc2626) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-danger, #dc2626) 30%, transparent);
 }
 
 /* --- Trung tâm Backup trên theme sáng: bỏ dark-glass cứng, dùng token sáng --- */
@@ -1015,18 +1048,39 @@ body.theme-vietinbank .backup-list-card {
 body.theme-vietinbank .backup-inline-pane {
   border-top-color: rgba(0, 74, 143, 0.10);
 }
-/* Nút hành động trong danh sách backup (Khôi phục / Gửi / Xóa) dựng bằng JS với
-   màu pastel-tối — trên nền trắng phải đậm lại mới đọc được. Thứ tự nút cố định. */
-body.theme-vietinbank .backup-list-actions .backup-list-action:nth-child(1) {
+/* Nút hành động trong danh sách backup dựng bằng JS với màu pastel-tối —
+   trên nền trắng (theme sáng) phải đậm lại mới đọc được.
+   Màu theo HÀNH ĐỘNG (class .backup-action--*) thay vì theo thứ tự nút. */
+body.theme-vietinbank .backup-list-action.backup-action--restore {
   background: rgba(22, 163, 74, 0.10) !important;
   color: #0f7a3d !important;
 }
-body.theme-vietinbank .backup-list-actions .backup-list-action:nth-child(2) {
+body.theme-vietinbank .backup-list-action.backup-action--export {
   background: rgba(29, 78, 216, 0.08) !important;
   color: #1d4ed8 !important;
   border-color: rgba(29, 78, 216, 0.22) !important;
 }
-body.theme-vietinbank .backup-list-actions .backup-list-action:nth-child(3) {
+body.theme-vietinbank .backup-list-action.backup-action--send {
+  background: rgba(79, 70, 229, 0.10) !important;
+  color: #4338ca !important;
+  border-color: rgba(79, 70, 229, 0.22) !important;
+}
+body.theme-vietinbank .backup-list-action.backup-action--delete {
+  background: rgba(220, 38, 38, 0.08) !important;
+  color: #b91c1c !important;
+}
+/* Danh sách sao lưu Drive (16_auto_backup_drive.js) vẫn dựng nút theo thứ tự cố
+   định Khôi phục / Gửi / Xóa — giữ ánh xạ nth-child riêng cho danh sách này. */
+body.theme-vietinbank #drive-backup-list .backup-list-action:nth-child(1) {
+  background: rgba(22, 163, 74, 0.10) !important;
+  color: #0f7a3d !important;
+}
+body.theme-vietinbank #drive-backup-list .backup-list-action:nth-child(2) {
+  background: rgba(79, 70, 229, 0.10) !important;
+  color: #4338ca !important;
+  border-color: rgba(79, 70, 229, 0.22) !important;
+}
+body.theme-vietinbank #drive-backup-list .backup-list-action:nth-child(3) {
   background: rgba(220, 38, 38, 0.08) !important;
   color: #b91c1c !important;
 }
@@ -1406,13 +1460,16 @@ body:has(#screen-folder:not(.translate-x-full)) .app-toast.app-toast-out {
   max-width: min(72vw, 288px) !important;
 }
 
-/* --- B4. Confirm / empty-state CTA dùng accent thương hiệu --- */
+/* --- B4. Confirm / empty-state CTA dùng accent thương hiệu ---
+   Dùng accent-GRADIENT (khởi đầu #005b9f đậm) thay vì var(--accent) đơn:
+   trên theme tối, --accent là cyan sáng khiến chữ trắng không đủ tương phản.
+   Gradient bắt đầu bằng xanh đậm nên chữ trắng đạt ≥4.5:1 ở cả 4 theme. */
 .cp-confirm-ok {
-  background: var(--accent, #005b9f);
+  background: var(--accent-gradient, var(--accent, #005b9f));
 }
 .cp-confirm-ok-danger { background: #dc2626; }
 .cp-state-action {
-  background: var(--accent, #005b9f);
+  background: var(--accent-gradient, var(--accent, #005b9f));
 }
 
 /* --- B5. Map style control active theo accent (theme tối) --- */
@@ -1519,4 +1576,50 @@ body.theme-vietinbank #guide-modal p b.text-emerald-400 { color: var(--accent) !
 .skeleton-card {
   background: var(--bg-panel, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--border-panel, rgba(255, 255, 255, 0.06));
+}
+
+/* ============================================================
+   A11y contrast (UX hardening 1.1.0) — đảm bảo tỉ lệ tương phản ≥ 4.5:1
+   trên THEME SÁNG cho nhãn/nút phụ nhỏ. Chỉ đổi màu/opacity trình bày,
+   không đụng cấu trúc hay logic. (Theme tối đã đạt contrast.)
+   ============================================================ */
+/* Nhãn trường trong form (nhạt do var(--text-sub) + opacity) -> đậm & full opacity */
+body.theme-vietinbank #add-modal label,
+body.theme-vietinbank #asset-modal label,
+body.theme-vietinbank #approve-modal label {
+  color: #35506f !important;
+  opacity: 1 !important;
+}
+body.theme-vietinbank #add-modal label .normal-case,
+body.theme-vietinbank #asset-modal label .normal-case {
+  opacity: 1 !important;
+}
+/* Nút Hủy + nút X đóng trong modal trên nền sáng */
+body.theme-vietinbank #add-modal [data-action="closeModal"],
+body.theme-vietinbank #asset-modal [data-action="closeAssetModal"],
+body.theme-vietinbank #approve-modal [data-action="closeApproveModal"],
+body.theme-vietinbank #ref-price-modal [data-action="closeRefModal"] {
+  color: #35506f !important;
+}
+/* Section header nhỏ trong menu cài đặt (Giao diện, …) */
+body.theme-vietinbank #settings-menu p.uppercase {
+  color: #3d5474 !important;
+  opacity: 1 !important;
+}
+/* Helper "Đơn vị: triệu đồng" dưới ô hạn mức (thẻ <p>, không phải label) */
+body.theme-vietinbank #approve-modal p.opacity-70 {
+  color: #35506f !important;
+  opacity: 1 !important;
+}
+/* Trung tâm sao lưu — text nhỏ nhạt trên nền sáng (kicker, empty, caption) */
+body.theme-vietinbank .backup-kicker {
+  color: #4a5f7a !important;
+  opacity: 1 !important;
+}
+body.theme-vietinbank #backup-empty,
+body.theme-vietinbank #inbox-empty,
+body.theme-vietinbank #backup-manager-modal .backup-list-caption,
+body.theme-vietinbank #inbox-backup-pane .opacity-70 {
+  color: #3d5474 !important;
+  opacity: 1 !important;
 }
