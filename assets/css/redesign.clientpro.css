@@ -1611,3 +1611,15 @@ body.theme-vietinbank #approve-modal p.opacity-70 {
   color: #35506f !important;
   opacity: 1 !important;
 }
+/* Trung tâm sao lưu — text nhỏ nhạt trên nền sáng (kicker, empty, caption) */
+body.theme-vietinbank .backup-kicker {
+  color: #4a5f7a !important;
+  opacity: 1 !important;
+}
+body.theme-vietinbank #backup-empty,
+body.theme-vietinbank #inbox-empty,
+body.theme-vietinbank #backup-manager-modal .backup-list-caption,
+body.theme-vietinbank #inbox-backup-pane .opacity-70 {
+  color: #3d5474 !important;
+  opacity: 1 !important;
+}
