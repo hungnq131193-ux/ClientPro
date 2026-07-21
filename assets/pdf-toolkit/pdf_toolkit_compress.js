@@ -19,7 +19,7 @@
     icon: 'archive',
     async mount(container, ctx) {
       const w = TK.widgets;
-      let bytes = null; let originalSize = 0; let baseName = 'tai-lieu';
+      let bytes = null; let originalSize = 0; let baseName = 'tai-lieu'; let totalPages = 0;
 
       const infoEl = el('div', { className: 'pdftk-doc-info' });
       const resultHost = el('div', {});
@@ -54,7 +54,7 @@
       function syncMode() { levelWrap.style.display = modeSeg.value === 'B' ? '' : 'none'; }
       syncMode();
 
-      ctx.registerCleanup(() => { bytes = null; });
+      ctx.registerCleanup(() => { bytes = null; totalPages = 0; });
 
       let loadSeq = 0; // chống race: chọn file mới trước khi file cũ tải xong
       async function load(file) {
@@ -62,6 +62,7 @@
         resultHost.replaceChildren();
         runBtn.disabled = true;
         bytes = null;
+        totalPages = 0;
         const v = await TK.validatePdfFile(file);
         if (mySeq !== loadSeq) return;
         if (!v.ok) { infoEl.textContent = v.error; return; }
@@ -69,7 +70,7 @@
         const meta = await TK.readPdfMeta(v.bytes);
         if (mySeq !== loadSeq || !ctx.isActive()) return;
         if (meta.error) { infoEl.textContent = meta.error; return; }
-        bytes = v.bytes; originalSize = file.size;
+        bytes = v.bytes; originalSize = file.size; totalPages = meta.pages;
         baseName = (file.name || 'tai-lieu').replace(/\.pdf$/i, '');
         infoEl.textContent = file.name + ' · ' + meta.pages + ' trang · ' + U.formatBytes(originalSize);
         runBtn.disabled = false;
@@ -80,8 +81,19 @@
         const mode = modeSeg.value;
 
         if (mode === 'B') {
+          if (totalPages > U.PDF_TOOLKIT_LIMITS.hardPages) {
+            if (window.ErrorHandler) ErrorHandler.showWarning('Tài liệu có quá nhiều trang (' + totalPages + '). Vui lòng chia nhỏ PDF trước khi nén scan.');
+            return;
+          }
+
+          let confirmMessage = 'Chế độ nén scan sẽ render các trang thành ảnh. Chữ trong tài liệu có thể không còn chọn hoặc tìm kiếm được, và chất lượng có thể giảm.';
+          if (totalPages > U.PDF_TOOLKIT_LIMITS.warnPages) {
+            confirmMessage = 'Tài liệu có ' + totalPages + ' trang. Thao tác có thể mất nhiều thời gian và tốn bộ nhớ. ' + confirmMessage;
+          }
+          confirmMessage += ' Bạn có chắc muốn tiếp tục?';
+
           const ok = window.showConfirm
-            ? await window.showConfirm('Chế độ nén scan sẽ render các trang thành ảnh. Chữ trong tài liệu có thể không còn chọn hoặc tìm kiếm được, và chất lượng có thể giảm. Bạn có chắc muốn tiếp tục?', { title: 'Xác nhận nén scan', confirmText: 'Tiếp tục', danger: true, icon: 'help' })
+            ? await window.showConfirm(confirmMessage, { title: totalPages > U.PDF_TOOLKIT_LIMITS.warnPages ? 'Tài liệu nhiều trang' : 'Xác nhận nén scan', confirmText: 'Tiếp tục', danger: true, icon: 'help' })
             : true;
           if (!ok) return;
         }
@@ -114,8 +126,14 @@
         const preset = U.compressionPreset(levelSeg.value);
         const doc = await TK.loadPdfJsDoc(bytes);
         try {
-          const pdf = await TK.vendor.PDFLib.PDFDocument.create();
           const n = doc.numPages;
+          // Phòng vệ lần hai ngay tại điểm rasterize, tránh mọi đường gọi tương lai
+          // bỏ qua kiểm tra UI và đưa hàng trăm canvas vào hàng đợi.
+          if (n > U.PDF_TOOLKIT_LIMITS.hardPages) {
+            const msg = 'Tài liệu có quá nhiều trang để nén scan an toàn. Vui lòng chia nhỏ PDF.';
+            const e = new Error(msg); e.friendly = msg; throw e;
+          }
+          const pdf = await TK.vendor.PDFLib.PDFDocument.create();
           for (let i = 1; i <= n; i++) {
             token.throwIfCancelled();
             const page = await doc.getPage(i);
