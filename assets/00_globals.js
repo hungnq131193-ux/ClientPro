@@ -251,6 +251,9 @@
             'BiometricUnlock.confirmEnable': () => BiometricUnlock.confirmEnable(),
             'BiometricUnlock.requestDisable': () => BiometricUnlock.requestDisable(),
             'BiometricUnlock.tryUnlock': () => BiometricUnlock.tryUnlock(),
+
+            // PDF Toolkit — điểm mở duy nhất từ Dashboard (module độc lập).
+            'PdfToolkit.open': () => { if (window.PdfToolkit) window.PdfToolkit.open(); },
           };
 
           const CHANGE_ACTIONS = {

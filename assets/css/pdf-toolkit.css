@@ -1,0 +1,296 @@
+/* assets/css/pdf-toolkit.css
+   PDF Toolkit — giao diện slide-in độc lập, mobile-first, tương thích mọi theme
+   qua CSS variables sẵn có (--accent, --bg-*, --text-*, --border-panel...).
+   Vùng chạm >= 44px, tôn trọng safe-area, không phụ thuộc hover. */
+
+.pdftk-screen {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base, #0b1220);
+  color: var(--text-main, #e8f1fb);
+}
+
+/* Header */
+.pdftk-header {
+  flex: none;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px 12px;
+  border-bottom: 1px solid var(--border-panel, rgba(255, 255, 255, 0.08));
+  background: var(--bg-panel, rgba(15, 23, 42, 0.6));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.pdftk-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pdftk-title {
+  flex: 1;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-main, #e8f1fb);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdftk-back-btn,
+.pdftk-info-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-main, #e8f1fb);
+  cursor: pointer;
+  transition: background-color .15s, transform .1s;
+}
+.pdftk-back-btn:active,
+.pdftk-info-btn:active { transform: scale(.94); background: rgba(255, 255, 255, .08); }
+
+/* Scroll area */
+.pdftk-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 12px calc(env(safe-area-inset-bottom, 0px) + 24px);
+}
+.pdftk-intro,
+.pdftk-hint-text {
+  font-size: .8rem;
+  line-height: 1.4;
+  color: var(--text-sub, #94a3b8);
+  margin: 4px 2px 12px;
+}
+.pdftk-hint-text { margin: 6px 2px; }
+
+/* Tool grid */
+.pdftk-tool-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 520px) { .pdftk-tool-grid { grid-template-columns: 1fr 1fr; } }
+.pdftk-tool-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  min-height: 68px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border-panel, rgba(255, 255, 255, 0.1));
+  background: var(--bg-panel, rgba(255, 255, 255, 0.04));
+  color: var(--text-main, #e8f1fb);
+  cursor: pointer;
+  transition: transform .1s, border-color .15s, background-color .15s;
+}
+.pdftk-tool-card:active { transform: scale(.98); border-color: var(--accent, #38bdf8); }
+.pdftk-tool-icon {
+  flex: none;
+  width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 12px;
+  color: #fff;
+  background: var(--accent-gradient, linear-gradient(135deg, #0ea5e9, #38bdf8));
+}
+.pdftk-tool-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pdftk-tool-name { font-size: .95rem; font-weight: 700; }
+.pdftk-tool-desc { font-size: .78rem; color: var(--text-sub, #94a3b8); }
+.pdftk-tool-ready {
+  flex: none; font-size: .68rem; font-weight: 700;
+  color: #10b981; background: rgba(16, 185, 129, .12);
+  padding: 3px 8px; border-radius: 999px;
+}
+
+/* Sections & fields */
+.pdftk-section { margin: 14px 0; }
+.pdftk-section-title {
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
+  font-weight: 800; color: var(--text-sub, #94a3b8); margin: 0 2px 8px;
+}
+.pdftk-field { display: block; margin: 10px 0; }
+.pdftk-field-label { display: block; font-size: .78rem; font-weight: 600; color: var(--text-sub, #94a3b8); margin-bottom: 6px; }
+.pdftk-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-panel, rgba(255, 255, 255, 0.14));
+  background: rgba(0, 0, 0, .18);
+  color: var(--text-main, #e8f1fb);
+  font-size: .92rem;
+  outline: none;
+}
+.pdftk-input:focus { border-color: var(--accent, #38bdf8); }
+.pdftk-hidden-input { display: none; }
+
+/* Buttons */
+.pdftk-btn {
+  min-height: 46px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  font-size: .9rem; font-weight: 700;
+  cursor: pointer;
+  transition: transform .1s, opacity .15s, background-color .15s;
+}
+.pdftk-btn:active { transform: scale(.98); }
+.pdftk-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.pdftk-btn-block { width: 100%; margin-top: 8px; }
+.pdftk-btn-primary { color: #fff; background: var(--accent-gradient, linear-gradient(135deg, #0ea5e9, #38bdf8)); border-color: rgba(255, 255, 255, .16); }
+.pdftk-btn-ghost { color: var(--text-main, #e8f1fb); background: rgba(255, 255, 255, .06); border-color: var(--border-panel, rgba(255, 255, 255, .12)); }
+.pdftk-btn-danger { color: #fecaca; background: rgba(239, 68, 68, .14); border-color: rgba(239, 68, 68, .3); }
+.pdftk-picker-wrap { margin: 6px 0; }
+.pdftk-picker { width: 100%; }
+
+/* Segmented */
+.pdftk-segmented { display: flex; flex-wrap: wrap; gap: 6px; }
+.pdftk-seg {
+  flex: 1 1 auto; min-width: 72px; min-height: 40px;
+  padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--border-panel, rgba(255, 255, 255, .14));
+  background: rgba(255, 255, 255, .04);
+  color: var(--text-sub, #94a3b8);
+  font-size: .82rem; font-weight: 600; cursor: pointer;
+  transition: background-color .15s, color .15s, border-color .15s;
+}
+.pdftk-seg.is-active { color: #fff; background: var(--accent, #38bdf8); border-color: var(--accent, #38bdf8); }
+
+/* File list (merge) */
+.pdftk-file-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.pdftk-file-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px; border-radius: 12px;
+  border: 1px solid var(--border-panel, rgba(255, 255, 255, .1));
+  background: var(--bg-panel, rgba(255, 255, 255, .04));
+}
+.pdftk-file-row.has-error { border-color: rgba(239, 68, 68, .4); }
+.pdftk-file-index {
+  flex: none; width: 26px; height: 26px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .78rem; font-weight: 700; color: #fff;
+  background: var(--accent, #38bdf8);
+}
+.pdftk-file-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pdftk-file-name { font-size: .86rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdftk-file-meta { font-size: .74rem; color: var(--text-sub, #94a3b8); }
+.pdftk-file-error { font-size: .74rem; color: #f87171; }
+.pdftk-file-ctrls { flex: none; display: flex; gap: 4px; }
+.pdftk-mini-btn {
+  min-width: 40px; min-height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; border: 1px solid var(--border-panel, rgba(255, 255, 255, .12));
+  background: rgba(255, 255, 255, .05); color: var(--text-main, #e8f1fb);
+  cursor: pointer; transition: transform .1s, background-color .15s;
+}
+.pdftk-mini-btn:active { transform: scale(.92); }
+.pdftk-mini-btn[disabled] { opacity: .35; }
+.pdftk-mini-danger { color: #fca5a5; }
+
+/* Image thumbnails (img2pdf) */
+.pdftk-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin: 10px 0; }
+.pdftk-thumb-cell { display: flex; flex-direction: column; gap: 6px; }
+.pdftk-thumb-cell.has-error .pdftk-thumb-box { border-color: rgba(239, 68, 68, .5); }
+.pdftk-thumb-box {
+  position: relative; aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border-panel, rgba(255, 255, 255, .12));
+  background: rgba(0, 0, 0, .25);
+  display: flex; align-items: center; justify-content: center;
+}
+.pdftk-thumb-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.pdftk-thumb-err { color: #f87171; font-size: 1.6rem; font-weight: 800; }
+.pdftk-thumb-index {
+  position: absolute; top: 4px; left: 4px;
+  font-size: .68rem; font-weight: 700; color: #fff;
+  background: rgba(0, 0, 0, .55); padding: 1px 6px; border-radius: 999px;
+}
+.pdftk-thumb-ctrls { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
+
+/* Page board (split / organize) */
+.pdftk-doc-info { font-size: .82rem; color: var(--text-sub, #94a3b8); margin: 8px 2px; }
+.pdftk-page-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.pdftk-page-toolbar .pdftk-btn { min-height: 40px; flex: 1 1 auto; padding: 8px 10px; font-size: .8rem; }
+.pdftk-page-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin: 10px 0; }
+.pdftk-page-cell {
+  display: flex; flex-direction: column; gap: 6px;
+  border-radius: 12px; padding: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  user-select: none; -webkit-user-select: none;
+}
+.pdftk-page-cell.is-selected { border-color: var(--accent, #38bdf8); background: rgba(56, 189, 248, .1); }
+.pdftk-page-thumb {
+  position: relative; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden;
+  background: #fff; border: 1px solid var(--border-panel, rgba(255, 255, 255, .12));
+  display: flex; align-items: center; justify-content: center;
+}
+.pdftk-page-canvas { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform .2s; }
+.pdftk-page-num {
+  position: absolute; bottom: 4px; left: 4px;
+  font-size: .68rem; font-weight: 700; color: #fff;
+  background: rgba(0, 0, 0, .6); padding: 1px 6px; border-radius: 999px;
+}
+.pdftk-page-check {
+  position: absolute; top: 4px; right: 4px;
+  width: 24px; height: 24px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; background: var(--accent, #38bdf8);
+}
+.pdftk-page-ctrls { display: flex; justify-content: center; gap: 3px; flex-wrap: wrap; }
+.pdftk-page-ctrls .pdftk-mini-btn { min-width: 34px; min-height: 34px; }
+
+/* Result panel */
+.pdftk-result {
+  margin-top: 12px; padding: 12px; border-radius: 14px;
+  border: 1px solid rgba(16, 185, 129, .3); background: rgba(16, 185, 129, .08);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.pdftk-result-info { display: flex; align-items: center; gap: 8px; color: var(--text-main, #e8f1fb); font-size: .86rem; font-weight: 600; }
+.pdftk-result-info i, .pdftk-result-info svg { color: #10b981; }
+.pdftk-result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pdftk-result-actions .pdftk-btn { flex: 1 1 auto; }
+
+/* Compress-specific */
+.pdftk-warn-box {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin-top: 8px; padding: 10px; border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, .35); background: rgba(245, 158, 11, .1);
+  color: var(--text-main, #e8f1fb); font-size: .78rem; line-height: 1.4;
+}
+.pdftk-warn-box i, .pdftk-warn-box svg { color: #f59e0b; flex: none; }
+.pdftk-compare { display: flex; flex-direction: column; gap: 4px; }
+.pdftk-compare-row { display: flex; justify-content: space-between; font-size: .84rem; color: var(--text-sub, #94a3b8); }
+.pdftk-compare-row strong { color: var(--text-main, #e8f1fb); }
+.pdftk-compress-banner {
+  display: flex; gap: 8px; align-items: center; padding: 10px; border-radius: 12px; font-size: .82rem; font-weight: 600;
+}
+.pdftk-compress-banner.is-ok { color: var(--text-main, #e8f1fb); }
+.pdftk-compress-banner.is-warn { background: rgba(245, 158, 11, .1); border: 1px solid rgba(245, 158, 11, .3); }
+.pdftk-compress-banner.is-ok i, .pdftk-compress-banner.is-ok svg { color: #10b981; }
+.pdftk-compress-banner.is-warn i, .pdftk-compress-banner.is-warn svg { color: #f59e0b; }
+
+/* Progress + cancel sheet (bottom) */
+.pdftk-progress-host { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 40; }
+.pdftk-progress-host.is-visible { pointer-events: auto; }
+.pdftk-progress-sheet {
+  margin: 0 10px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  padding: 14px; border-radius: 16px;
+  border: 1px solid var(--border-panel, rgba(255, 255, 255, .12));
+  background: var(--bg-panel, rgba(15, 23, 42, .92));
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .4);
+}
+.pdftk-progress-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.pdftk-progress-label { font-size: .86rem; font-weight: 600; color: var(--text-main, #e8f1fb); }
+.pdftk-progress-cancel {
+  flex: none; min-height: 40px; padding: 8px 16px; border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, .3); background: rgba(239, 68, 68, .14); color: #fca5a5;
+  font-weight: 700; font-size: .82rem; cursor: pointer;
+}
+.pdftk-progress-track { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.pdftk-progress-fill { height: 100%; width: 0%; border-radius: 999px; background: var(--accent, #38bdf8); transition: width .2s; }
+
+/* Ngăn chọn văn bản khi thao tác trên thẻ trang/ảnh (giữ lâu) */
+.pdftk-page-board, .pdftk-thumb-grid { -webkit-touch-callout: none; }
