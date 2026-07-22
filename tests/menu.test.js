@@ -32,6 +32,8 @@ test('toggleMenu is a safe no-op when optional menu DOM is missing', () => {
   assert.doesNotThrow(() => menu._closeMenuIfOpen());
 });
 
+// Overlay taps and back gestures both call the same dismiss action. During the
+// 200ms close animation, another dismiss must not reverse the intended close.
 test('a second dismiss during the close animation cannot reopen the menu', async () => {
   const elements = {
     'settings-menu': { classList: classList(['hidden', 'scale-95', 'opacity-0']) },
