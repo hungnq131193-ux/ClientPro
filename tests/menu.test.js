@@ -32,7 +32,7 @@ test('toggleMenu is a safe no-op when optional menu DOM is missing', () => {
   assert.doesNotThrow(() => menu._closeMenuIfOpen());
 });
 
-test('rapid close then reopen cannot be hidden by a stale close timer', async () => {
+test('a second dismiss during the close animation cannot reopen the menu', async () => {
   const elements = {
     'settings-menu': { classList: classList(['hidden', 'scale-95', 'opacity-0']) },
     'menu-overlay': { classList: classList(['hidden']) },
@@ -49,6 +49,11 @@ test('rapid close then reopen cannot be hidden by a stale close timer', async ()
   menu.toggleMenu();
   await sleep(230);
 
+  assert.equal(elements['settings-menu'].classList.contains('hidden'), true);
+  assert.equal(elements['menu-overlay'].classList.contains('hidden'), true);
+
+  menu.toggleMenu();
+  await sleep(20);
   assert.equal(elements['settings-menu'].classList.contains('hidden'), false);
   assert.equal(elements['settings-menu'].classList.contains('opacity-0'), false);
   assert.equal(elements['menu-overlay'].classList.contains('hidden'), false);
