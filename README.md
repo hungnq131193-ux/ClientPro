@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 
 **Demo:** https://client-pro-beryl.vercel.app
@@ -195,10 +195,10 @@ command**. Header bảo mật và CSP nằm trong `vercel.json`.
 
 - **Tên phát hành** — **Genesis** (tên phát hành công khai, không hiển thị trong
   UI app).
-- **Phiên bản app (semver)** — hiện tại **`1.3.0`**. Số kỹ thuật nội bộ giữ cho
+- **Phiên bản app (semver)** — hiện tại **`1.3.1`**. Số kỹ thuật nội bộ giữ cho
   tooling đồng bộ và tương thích, không hiển thị cho người dùng. Nguồn duy nhất:
   `package.json`.
-- **cache-buster asset** — hiện tại **`DOCS_ONBOARD_20260721`**. Nguồn: `ASSET_V`
+- **cache-buster asset** — hiện tại **`CODE_CLEANUP_20260722`**. Nguồn: `ASSET_V`
   trong `sw.js`.
 
 Sau khi thay đổi phiên bản, đồng bộ ra mọi nơi (manifest, SW, PWA, README):

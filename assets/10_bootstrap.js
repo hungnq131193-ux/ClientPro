@@ -59,13 +59,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Dữ liệu sẽ render dần khi IndexedDB trả về. CHỈ ẩn khi gate đã hiện —
   // nếu modal partials chưa nạp được thì giữ loader che dashboard, retry ở onsuccess.
   try {
-    const ld = getEl && getEl("loader");
+    const ld = typeof getEl === "function" ? getEl("loader") : null;
     if (ld && securityGateShown) ld.classList.add("hidden");
   } catch (e) { }
 
-  // Không để lỗi CDN (lucide chưa tải được) chặn toàn bộ boot — nếu throw ở đây,
+  // Không để lỗi vendor icon chặn toàn bộ boot — nếu throw ở đây,
   // IndexedDB không bao giờ được mở và app đứng im.
-  try { lucide.createIcons(); } catch (e) { }
+  try {
+    if (window.lucide && typeof window.lucide.createIcons === "function") window.lucide.createIcons();
+  } catch (e) { }
   const setAppHeight = () =>
     document.documentElement.style.setProperty(
       "--app-height",
@@ -90,7 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setTheme(savedTheme);
   updateDashboardDateTicker();
   // 🌤 Khởi động thời tiết
-  initWeather();
+  try { if (typeof initWeather === "function") initWeather(); } catch (e) { }
 
   // Vì gate hiện trước khi DB mở xong, luồng mở khóa (validatePin) await promise này
   // để migration/primeFieldCache/loadCustomers không chạy khi db còn undefined.
@@ -137,15 +139,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   req.onsuccess = (e) => {
     db = e.target.result;
     // Update folder counts on home screen instead of loading customer list directly
-    if (typeof updateFolderCounts === 'function') {
-      updateFolderCounts();
+    try {
+      if (typeof updateFolderCounts === "function") updateFolderCounts();
+    } catch (err) {
+      try { if (window.ErrorHandler) ErrorHandler.logError("updateFolderCounts failed", err); } catch (e) { }
     }
     // Fallback hiếm: nếu gate chưa hiện được lúc DOMContentLoaded (modal partials
     // nạp chậm/timeout) thì thử lại ở đây trước khi ẩn loader.
     if (!securityGateShown) {
       try { checkSecurity(); } catch (err) { }
     }
-    getEl("loader").classList.add("hidden");
+    const loader = typeof getEl === "function" ? getEl("loader") : null;
+    if (loader) loader.classList.add("hidden");
     if (dbReadyResolve) dbReadyResolve();
 
     // Auth gate: kiểm tra ngầm quyền + thiết bị với Admin GAS (issue_kdata, TTL 24h).
@@ -159,14 +164,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Cloud transfer inbox polling (notify when other users send backups)
     try {
-      if (window.CloudTransferUI && typeof window.CloudTransferUI.startPolling === 'function') {
+      if (window.CloudTransferUI && typeof window.CloudTransferUI.startPolling === "function") {
         window.CloudTransferUI.startPolling();
       }
     } catch (err) { }
 
     // Auto backup to Drive (daily check)
     try {
-      if (window.DriveBackup && typeof window.DriveBackup.checkDaily === 'function') {
+      if (window.DriveBackup && typeof window.DriveBackup.checkDaily === "function") {
         // Delay to avoid blocking UI on startup
         setTimeout(() => { window.DriveBackup.checkDaily(); }, 15000);
       }
@@ -175,32 +180,36 @@ document.addEventListener("DOMContentLoaded", async () => {
   req.onerror = () => {
     // DB mở thất bại: vẫn resolve để luồng mở khóa không treo — các hàm sau unlock
     // đều có guard !db riêng.
-    try { if (window.ErrorHandler) ErrorHandler.logError('indexedDB.open failed', req.error); } catch (e) { }
+    try { if (window.ErrorHandler) ErrorHandler.logError("indexedDB.open failed", req.error); } catch (e) { }
     if (dbReadyResolve) dbReadyResolve();
   };
   // Debounce search to avoid decrypt + render on every single keystroke (mượt hơn với danh sách lớn)
   // Giữ reference toàn cục để openCustomerList() hủy được debounce đang chờ khi reset tìm kiếm.
-  const onSearchInput = (e) => loadCustomers(e.target.value);
-  window.__searchDebounced = (typeof debounce === 'function') ? debounce(onSearchInput, 180) : onSearchInput;
-  getEl("search-input").addEventListener("input", window.__searchDebounced);
-  // Nút × xóa nhanh ô tìm kiếm: hiện/ẩn tức thời khi gõ (loadCustomers đồng bộ lại
-  // cho các đường reset còn lại); bấm × = xóa query + load lại + giữ focus để gõ tiếp.
-  const searchClearBtn = getEl("search-clear-btn");
-  if (searchClearBtn) {
-    getEl("search-input").addEventListener("input", (e) => {
-      searchClearBtn.classList.toggle("hidden", !e.target.value.trim());
-    });
-    searchClearBtn.addEventListener("click", () => {
-      const s = getEl("search-input");
-      if (!s) return;
-      s.value = "";
-      searchClearBtn.classList.add("hidden");
-      if (window.__searchDebounced && typeof window.__searchDebounced.cancel === "function") {
-        window.__searchDebounced.cancel();
-      }
-      loadCustomers("");
-      s.focus();
-    });
+  const searchInput = typeof getEl === "function" ? getEl("search-input") : null;
+  if (searchInput) {
+    const onSearchInput = (e) => loadCustomers(e.target.value);
+    window.__searchDebounced = (typeof debounce === "function") ? debounce(onSearchInput, 180) : onSearchInput;
+    searchInput.addEventListener("input", window.__searchDebounced);
+
+    // Nút × xóa nhanh ô tìm kiếm: hiện/ẩn tức thời khi gõ (loadCustomers đồng bộ lại
+    // cho các đường reset còn lại); bấm × = xóa query + load lại + giữ focus để gõ tiếp.
+    const searchClearBtn = getEl("search-clear-btn");
+    if (searchClearBtn) {
+      searchInput.addEventListener("input", (e) => {
+        searchClearBtn.classList.toggle("hidden", !e.target.value.trim());
+      });
+      searchClearBtn.addEventListener("click", () => {
+        searchInput.value = "";
+        searchClearBtn.classList.add("hidden");
+        if (window.__searchDebounced && typeof window.__searchDebounced.cancel === "function") {
+          window.__searchDebounced.cancel();
+        }
+        loadCustomers("");
+        searchInput.focus();
+      });
+    }
   }
-  setupSwipe();
+
+  const lightbox = typeof getEl === "function" ? getEl("lightbox") : null;
+  if (lightbox && typeof setupSwipe === "function") setupSwipe();
 });
