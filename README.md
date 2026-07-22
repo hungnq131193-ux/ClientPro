@@ -198,7 +198,7 @@ command**. Header bảo mật và CSP nằm trong `vercel.json`.
 - **Phiên bản app (semver)** — hiện tại **`1.3.1`**. Số kỹ thuật nội bộ giữ cho
   tooling đồng bộ và tương thích, không hiển thị cho người dùng. Nguồn duy nhất:
   `package.json`.
-- **cache-buster asset** — hiện tại **`DOCS_ONBOARD_20260721`**. Nguồn: `ASSET_V`
+- **cache-buster asset** — hiện tại **`CODE_CLEANUP_20260722`**. Nguồn: `ASSET_V`
   trong `sw.js`.
 
 Sau khi thay đổi phiên bản, đồng bộ ra mọi nơi (manifest, SW, PWA, README):
