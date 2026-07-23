@@ -149,16 +149,8 @@ body.theme-aurora .glass-header h2 {
 
 /* Toolbar danh sách KH: nút "Chọn" + dropdown sắp xếp phải nổi rõ trên header
    gradient xanh ở CẢ 4 theme — cùng ngôn ngữ pill trắng mờ với ô tìm kiếm. */
-#screen-customer-list .customer-select-toggle {
-  background: rgba(255, 255, 255, 0.16) !important;
-  border: 1px solid rgba(255, 255, 255, 0.28) !important;
-  color: #ffffff !important;
-  border-radius: 14px !important;
-}
-#screen-customer-list .customer-select-toggle[aria-pressed="true"] {
-  background: rgba(255, 255, 255, 0.92) !important;
-  color: #005b9f !important;
-}
+
+
 #screen-customer-list #customer-sort-select {
   background: rgba(255, 255, 255, 0.16) !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
@@ -840,7 +832,7 @@ select {
   color: #94a3b8;
   background: rgba(148, 163, 184, 0.1);
 }
-.cp-state-error .cp-state-icon { color: #f87171; background: rgba(239, 68, 68, 0.1); }
+
 .cp-state-title {
   font-size: 15.5px;
   font-weight: 700;
@@ -1060,15 +1052,8 @@ body.theme-vietinbank .backup-list-action.backup-action--export {
   color: #1d4ed8 !important;
   border-color: rgba(29, 78, 216, 0.22) !important;
 }
-body.theme-vietinbank .backup-list-action.backup-action--send {
-  background: rgba(79, 70, 229, 0.10) !important;
-  color: #4338ca !important;
-  border-color: rgba(79, 70, 229, 0.22) !important;
-}
-body.theme-vietinbank .backup-list-action.backup-action--delete {
-  background: rgba(220, 38, 38, 0.08) !important;
-  color: #b91c1c !important;
-}
+
+
 /* Danh sách sao lưu Drive (16_auto_backup_drive.js) vẫn dựng nút theo thứ tự cố
    định Khôi phục / Gửi / Xóa — giữ ánh xạ nth-child riêng cho danh sách này. */
 body.theme-vietinbank #drive-backup-list .backup-list-action:nth-child(1) {
@@ -1371,8 +1356,7 @@ body.theme-vietinbank .app-toast-info { background: #eff6ff; }
 .backup-list-action {
   min-height: 44px;
 }
-.backup-drive-btn,
-.backup-export-btn {
+.backup-drive-btn {
   min-height: 48px;
 }
 
