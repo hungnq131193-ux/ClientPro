@@ -832,6 +832,7 @@ select {
   color: #94a3b8;
   background: rgba(148, 163, 184, 0.1);
 }
+.cp-state-error .cp-state-icon { color: #f87171; background: rgba(239, 68, 68, 0.1); }
 
 .cp-state-title {
   font-size: 15.5px;
@@ -1054,6 +1055,15 @@ body.theme-vietinbank .backup-list-action.backup-action--export {
 }
 
 
+body.theme-vietinbank .backup-list-action.backup-action--send {
+  background: rgba(79, 70, 229, 0.10) !important;
+  color: #4338ca !important;
+  border-color: rgba(79, 70, 229, 0.22) !important;
+}
+body.theme-vietinbank .backup-list-action.backup-action--delete {
+  background: rgba(220, 38, 38, 0.08) !important;
+  color: #b91c1c !important;
+}
 /* Danh sách sao lưu Drive (16_auto_backup_drive.js) vẫn dựng nút theo thứ tự cố
    định Khôi phục / Gửi / Xóa — giữ ánh xạ nth-child riêng cho danh sách này. */
 body.theme-vietinbank #drive-backup-list .backup-list-action:nth-child(1) {
