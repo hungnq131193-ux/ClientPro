@@ -4,3 +4,18 @@ package-lock.json
 test-results/
 playwright-report/
 .lighthouseci/
+coverage/
+.nyc_output/
+
+# Local logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*~
+.DS_Store
+Thumbs.db
+
+# Bulk before/after screenshots are PR evidence, not repository source.
+docs/screenshots/*/

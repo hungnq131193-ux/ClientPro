@@ -47,27 +47,13 @@ jobs:
       - name: Verify version single-source (package.json → manifest/sw/pwa/README)
         run: node scripts/sync-version.mjs --check
 
-      - name: Verify version is synchronized across files
+      - name: Verify asset cache-buster and self-host policy
         run: |
           set -euo pipefail
-          # Phiên bản app (semver): manifest.json = sw.js VERSION = pwa.js SW_BUILD.
-          # So sánh nguyên chuỗi version ổn định.
-          MANIFEST_VER=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' manifest.json | sed -E 's/.*"([^"]+)"$/\1/')
-          SW_VERSION=$(grep -oE "VERSION[[:space:]]*=[[:space:]]*'v?[0-9A-Za-z.-]+'" sw.js | sed -E "s/.*'v?([^']+)'.*/\1/")
-          PWA_BUILD=$(grep -oE "SW_BUILD[[:space:]]*=[[:space:]]*'v?[0-9A-Za-z.-]+'" assets/pwa.js | sed -E "s/.*'v?([^']+)'.*/\1/")
-          # Cache-buster asset (tag tự do, ví dụ REDESIGN_20260705): sw.js ASSET_V = mọi ?v= trong index.html.
+          # Cache-buster asset: sw.js ASSET_V = mọi ?v= trong index.html = MAPLIBRE_V.
           ASSET_V=$(grep -oE "ASSET_V[[:space:]]*=[[:space:]]*'[^']+'" sw.js | sed -E "s/.*'([^']+)'.*/\1/")
-          echo "manifest=$MANIFEST_VER  sw.VERSION=$SW_VERSION  pwa.SW_BUILD=$PWA_BUILD  sw.ASSET_V=$ASSET_V"
+          echo "sw.ASSET_V=$ASSET_V"
 
-          for pair in "manifest:$MANIFEST_VER" "sw.VERSION:$SW_VERSION" "pwa.SW_BUILD:$PWA_BUILD"; do
-            name=${pair%%:*}; val=${pair#*:}
-            if [ "$val" != "$MANIFEST_VER" ]; then
-              echo "::error::Lệch phiên bản: $name=$val nhưng manifest=$MANIFEST_VER"
-              exit 1
-            fi
-          done
-
-          # Mọi query ?v= trong index.html phải trùng ASSET_V (đồng bộ precache SW)
           INDEX_TOKENS=$(grep -oE '\?v=[A-Za-z0-9._-]+' index.html | sed 's/?v=//' | sort -u)
           COUNT=$(printf '%s\n' "$INDEX_TOKENS" | grep -c .)
           if [ "$COUNT" -ne 1 ] || [ "$INDEX_TOKENS" != "$ASSET_V" ]; then
@@ -75,7 +61,6 @@ jobs:
             exit 1
           fi
 
-          # 03_map.js lazy-load maplibre với cache-buster riêng -> cũng phải trùng ASSET_V.
           MAP_V=$(grep -oE "MAPLIBRE_V[[:space:]]*=[[:space:]]*'[^']+'" assets/03_map.js | sed -E "s/.*'([^']+)'.*/\1/")
           if [ "$MAP_V" != "$ASSET_V" ]; then
             echo "::error file=assets/03_map.js::MAPLIBRE_V ($MAP_V) phải bằng ASSET_V ($ASSET_V)"
@@ -87,7 +72,7 @@ jobs:
             echo "::error::Phát hiện tham chiếu CDN ngoài — app phải self-host toàn bộ script/style/font."
             exit 1
           fi
-          echo "✅ Phiên bản đồng bộ: app=$MANIFEST_VER, asset tag=$ASSET_V"
+          echo "✅ Cache-buster đồng bộ: asset tag=$ASSET_V"
 
   tests:
     name: Automated tests (crypto & data integrity)
