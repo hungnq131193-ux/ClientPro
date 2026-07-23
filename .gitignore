@@ -17,5 +17,13 @@ coverage/
 .DS_Store
 Thumbs.db
 
-# Bulk before/after screenshots are PR evidence, not repository source.
-docs/screenshots/*/
+# Generated screenshot evidence belongs in PR attachments or CI artifacts.
+# Durable documentation images such as docs/screenshots/guide/onboarding.png remain trackable.
+docs/screenshots/**/before/
+docs/screenshots/**/after/
+docs/screenshots/**/actual/
+docs/screenshots/**/expected/
+docs/screenshots/**/diff/
+docs/screenshots/**/diffs/
+docs/screenshots/**/generated/
+docs/screenshots/**/review-artifacts/
