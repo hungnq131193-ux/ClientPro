@@ -7,7 +7,6 @@
   'use strict';
   const TK = window.__PdfTK;
   const U = TK.U;
-  const W = TK.widgets;
 
   TK.registerTool({
     id: 'merge',
