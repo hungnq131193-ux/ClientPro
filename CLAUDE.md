@@ -162,6 +162,9 @@ scripts/sync-version.mjs  Sync/verify semver + ASSET_V across manifest/sw/pwa/RE
 assets/00…19_*.js, pwa.js Business modules, in dependency order (see §9)
 assets/head.js            Early head-level setup
 assets/pdf-toolkit/*.js   PDF Toolkit (utils/core/ui + tool modules)
+assets/dvhc-lookup/*.js   Tra cứu sáp nhập ĐVHC (utils/data/ui)
+assets/data/dvhc/         Dữ liệu ĐVHC offline (dvhc.v1.json + README nguồn)
+scripts/build-dvhc-data.mjs  Sinh lại dữ liệu ĐVHC từ nguồn mở (chạy tay)
 assets/ui/load_modals.js  Loads the modal HTML fragments
 assets/ui/modals/*.html   Modal fragments (activation, lock, backup, camera, etc.)
 assets/vendor/            Self-hosted deps (crypto-js, lucide, maplibre, supercluster, pdf-lib, pdf.js, jszip)
@@ -193,7 +196,8 @@ source before relying on it):
   `window.AppToast`.
 - Feature namespaces: `window.AuthGate`, `window.BackupCore`,
   `window.DriveBackup`, `window.CloudTransferUI`, `window.UISelectCustomers`,
-  `window.BiometricUnlock`, `window.PdfToolkit`, `window.OnboardingTour`.
+  `window.BiometricUnlock`, `window.PdfToolkit`, `window.DvhcLookup`,
+  `window.OnboardingTour`.
 - Shared crypto state lives as module-level globals in `02_security.js`
   (`masterKey`, `masterCryptoKey`, caches). Treat these as read-only outside
   security/unlock code.
@@ -581,6 +585,48 @@ Debugging a PDF tool or verifying a limit.
 ### Must not affect
 App crypto, IndexedDB, Service Worker strategy.
 
+## DVHC Lookup (Tra cứu sáp nhập ĐVHC)
+
+### Purpose
+Tool độc lập tra cứu đối chiếu đơn vị hành chính cũ ↔ mới sau sắp xếp
+01/7/2025 (63 → 34 tỉnh, bỏ cấp huyện): tra xuôi (đơn vị cũ → xã/tỉnh mới),
+tra ngược (xã mới → các đơn vị cũ hợp thành), chuyển nhanh một dòng địa chỉ
+cũ → mới, và nạp "gói thôn/TDP theo tỉnh" (đợt sắp xếp 2026) từ file JSON.
+
+### Core invariants
+- Hoàn toàn on-device: dữ liệu là file tĩnh `assets/data/dvhc/dvhc.v1.json`
+  (fetch same-origin, precache trong SW) — không gọi API ngoài, không sửa CSP.
+- Không đọc/ghi dữ liệu nghiệp vụ, không đụng IndexedDB/crypto; gói thôn/TDP
+  lưu `localStorage` key `clientpro_dvhc_pack` (chỉ dữ liệu hành chính công
+  khai người dùng tự nạp).
+- Màn hình `#screen-dvhc-lookup` là slide-in z-20 một cấp (back = đóng),
+  dựng runtime bằng `el()`/`textContent`; kết quả chỉ để đối chiếu tham khảo.
+- Khóa app (quan sát `#screen-lock`) ẩn màn hình ngay và không tự mở lại.
+
+### Primary files
+`assets/dvhc-lookup/dvhc_utils.js` (hàm thuần, unit-test được),
+`dvhc_data.js` (nạp dữ liệu + gói thôn/TDP), `dvhc_ui.js` (màn hình +
+`window.DvhcLookup`), `assets/css/dvhc-lookup.css`, dữ liệu
+`assets/data/dvhc/` (xem README.md trong đó về nguồn/schema/cách sinh lại
+bằng `scripts/build-dvhc-data.mjs`).
+
+### Public entry points
+`DvhcLookup.open()` (nút trong `#settings-menu`, action `DvhcLookup.open`
+trong `00_globals.js`), `window.dvhcLookupHandleBack` (cascade back trong
+`11_edge_back_swipe.js`; id có mặt trong `TRACKED_SLIDE_IDS`).
+
+### Read source code only when
+Sửa tool này, cập nhật dữ liệu ĐVHC (chạy lại script build), hoặc debug
+tra cứu/back/khóa app liên quan trực tiếp tới nó.
+
+### Required tests when changed
+`npm test` (`tests/dvhc-utils.test.js` — gồm kiểm tra toàn vẹn dữ liệu),
+`e2e/dvhc-lookup.spec.js`, `node --check` các file của tool.
+
+### Must not affect
+Activation, unlock, crypto, IndexedDB, backup, business screens, modal
+stacking, global z-index, edge-back/history, LoadingManager/ErrorHandler.
+
 ## Service Worker / PWA
 
 ### Purpose
@@ -835,13 +881,14 @@ for CI tooling.
 
 `node --test 'tests/**/*.test.js'` (also `npm test`). Covers crypto, field
 migration, data integrity, schema, backup, KDATA cache, PWA, SW routing,
-regressions, and PDF Toolkit pure utils. Add unit tests for pure logic you change.
+regressions, PDF Toolkit pure utils, and DVHC Lookup utils + data integrity.
+Add unit tests for pure logic you change.
 
 ## E2E test
 
 `npm run test:e2e` (Playwright, mobile Pixel 5 profile, static python server).
 Specs cover a11y, autolock, confirm, CRUD, edge-swipe, layering, offline, PDF
-Toolkit, smoke, UX hardening, and onboarding. Tests must assert real behavior, not
+Toolkit, DVHC Lookup, smoke, UX hardening, and onboarding. Tests must assert real behavior, not
 just CSS classes.
 
 ## Release process
