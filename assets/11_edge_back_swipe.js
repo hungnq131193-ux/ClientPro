@@ -264,6 +264,13 @@
       return true;
     }
 
+    // Tra cứu sáp nhập ĐVHC (slide-in độc lập từ Menu, một cấp: back = đóng).
+    if (isVisibleSlide('screen-dvhc-lookup')) {
+      if (typeof window.dvhcLookupHandleBack === 'function' && window.dvhcLookupHandleBack() === true) return true;
+      get('screen-dvhc-lookup').classList.add('translate-x-full');
+      return true;
+    }
+
     // Slide panels (order matters: most nested first)
     if (isVisibleSlide('screen-asset-gallery')) {
       return callIfFn('closeAssetGallery') || (get('screen-asset-gallery').classList.add('translate-x-full'), true);
@@ -468,7 +475,7 @@
     ];
     const TRACKED_SLIDE_IDS = [
       'screen-asset-gallery', 'screen-map', 'screen-folder', 'screen-customer-list',
-      'screen-pdf-toolkit'
+      'screen-pdf-toolkit', 'screen-dvhc-lookup'
     ];
     const lastVisible = new Map();
     TRACKED_MODAL_IDS.forEach((id) => lastVisible.set(id, isVisibleModal(id)));
