@@ -182,7 +182,17 @@
   async function _checkByIssueKdata() {
     // Điều kiện tối thiểu để check
     const activated = (typeof ACTIVATED_KEY !== "undefined") ? localStorage.getItem(ACTIVATED_KEY) : null;
-    const employeeId = (typeof EMPLOYEE_KEY !== "undefined") ? (localStorage.getItem(EMPLOYEE_KEY) || "") : "";
+    // RAM trước (sau unlock — máy đã migrate không còn plaintext), fallback plaintext
+    // (cửa sổ kích hoạt / máy legacy). Cùng nguồn với _resolveEmployeeId (02_security.js).
+    let employeeId = "";
+    try {
+      if (typeof __employeeIdPlain !== "undefined" && __employeeIdPlain) {
+        employeeId = String(__employeeIdPlain).trim();
+      }
+    } catch (e) {}
+    if (!employeeId) {
+      employeeId = (typeof EMPLOYEE_KEY !== "undefined") ? (localStorage.getItem(EMPLOYEE_KEY) || "") : "";
+    }
     if (!activated || !employeeId) return { ok: true, skipped: true };
 
     // Nếu không có GAS URL thì không thể check
@@ -322,7 +332,14 @@
       _inflight = (async () => {
         const r = await _checkByIssueKdata();
         if (!r || r.ok) {
-          _resetLockStrikes();
+          // CHỈ xóa strike khi server thật sự trả verdict OK. Kết quả `skipped`
+          // (chưa có mã NV lúc boot trên máy đã seal, thiếu ADMIN_SERVER_URL,
+          // offline, TTL, cooldown, lỗi mạng, softError) và `unknown` KHÔNG
+          // chứng minh thiết bị còn quyền — đó là "hoãn kiểm tra", không phải
+          // "đã kiểm tra và sạch". Xóa strike ở đó khiến mỗi lần mở lại app
+          // reset bộ đếm, nên lần check thật sau unlock mãi mãi chỉ đạt strike
+          // #1 và ngưỡng AUTH_LOCK_STRIKES_REQUIRED không bao giờ tới.
+          if (r && r.ok && !r.skipped && !r.unknown) _resetLockStrikes();
           return true;
         }
 
@@ -358,6 +375,22 @@
       return true;
     }
   }
+
+  // Máy đã migrate không còn plaintext mã NV lúc boot -> chạy lại preflight ngay
+  // sau khi mở khóa (RAM đã có mã NV). TTL 24h + cooldown trong _checkByIssueKdata
+  // tự chống gọi lặp; fire-and-forget như lời gọi lúc boot (10_bootstrap.js).
+  try {
+    document.addEventListener("clientpro:unlocked", () => {
+      try { preflight(); } catch (e) {}
+      // check_status trong checkSecurity() cũng bị bỏ qua lúc boot vì cùng lý do
+      // (chưa có mã NV). Chạy bù ở đây để giữ đường thu hồi TỨC THÌ (server báo
+      // locked -> thu hồi app_activated ngay lần đầu), thay vì chỉ còn đường
+      // 2-strike của preflight. Cờ __serverStatusChecked chống gọi lặp.
+      try {
+        if (typeof runServerStatusCheck === "function") runServerStatusCheck();
+      } catch (e) {}
+    });
+  } catch (e) {}
 
   // Expose
   window.AuthGate = {

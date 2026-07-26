@@ -296,13 +296,26 @@
       } catch (e) { /* localStorage đầy/không khả dụng — bỏ qua, không chặn app */ }
     },
 
+    // Key có khả năng chứa dữ liệu nhạy cảm (field KH/TSBĐ đã giải mã, toạ độ,
+    // secret) — bị che khi stringify object bất kỳ vào error log (localStorage).
+    _SENSITIVE_DETAIL_KEY_RE: /name|phone|cccd|note|address|token|secret|kdata|employee|pin|coord|lat|lng|link|valuation/i,
+
     _detailToString(detail) {
       if (detail == null) return '';
       if (typeof detail === 'string') return detail;
       try {
         if (detail instanceof Error) return (detail.name || 'Error') + ': ' + (detail.message || '') + (detail.stack ? '\n' + detail.stack : '');
         if (detail.message) return String(detail.message);
-        return JSON.stringify(detail);
+        // Object bất kỳ: log là nơi duy nhất plaintext có thể lọt xuống localStorage
+        // nếu call site lỡ truyền record đã giải mã -> redact key nhạy cảm + cắt
+        // string dài (thông tin định vị lỗi thường nằm ở code/status/tên trường).
+        const re = this._SENSITIVE_DETAIL_KEY_RE;
+        const out = JSON.stringify(detail, function (key, value) {
+          if (key && re.test(key)) return '[redacted]';
+          if (typeof value === 'string' && value.length > 80) return value.slice(0, 80) + '…';
+          return value;
+        });
+        return String(out == null ? '' : out).slice(0, 600);
       } catch (e) { return String(detail); }
     },
 

@@ -1,6 +1,6 @@
 // ClientPro Service Worker — offline-first cache and update lifecycle.
 // Bump version when changing static assets or cache behavior.
-const VERSION = 'v1.3.8';
+const VERSION = 'v1.4.0';
 // Cache generation identifier. Bump for every major public release.
 const CACHE_EPOCH = 'genesis';
 const STATIC_CACHE = `clientpro-${CACHE_EPOCH}-static-${VERSION}`;
@@ -20,7 +20,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'PERF_TRANSITIONS_20260726';
+const ASSET_V = 'SECURITY_PERF_20260726';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -92,7 +92,7 @@ const STATIC_ASSETS = [
   `./assets/dvhc-lookup/dvhc_ui.js?v=${ASSET_V}`,
   `./assets/data/dvhc/dvhc.v1.json?v=${ASSET_V}`,
 
-  './assets/ui/load_modals.js',
+  `./assets/ui/load_modals.js?v=${ASSET_V}`,
 
   './assets/ui/modals/screen-lock.html',
   './assets/ui/modals/setup-lock-modal.html',
@@ -109,7 +109,8 @@ const STATIC_ASSETS = [
   './assets/ui/modals/backup-manager-modal.html',
 
   // Font woff2 (self-host) — precache để chữ hiển thị đúng khi offline.
-  // Chỉ còn subset latin + vietnamese (đã bỏ latin-ext và Inter 300 khỏi fonts.css).
+  // Chỉ còn Be Vietnam Pro subset latin + vietnamese (đã bỏ latin-ext và toàn bộ
+  // Inter khỏi fonts.css — font hiển thị thực tế luôn là Be Vietnam Pro).
   './assets/fonts/be-vietnam-pro-400-latin.woff2',
   './assets/fonts/be-vietnam-pro-400-vietnamese.woff2',
   './assets/fonts/be-vietnam-pro-500-latin.woff2',
@@ -122,16 +123,6 @@ const STATIC_ASSETS = [
   './assets/fonts/be-vietnam-pro-800-vietnamese.woff2',
   './assets/fonts/be-vietnam-pro-900-latin.woff2',
   './assets/fonts/be-vietnam-pro-900-vietnamese.woff2',
-  './assets/fonts/inter-400-latin.woff2',
-  './assets/fonts/inter-400-vietnamese.woff2',
-  './assets/fonts/inter-500-latin.woff2',
-  './assets/fonts/inter-500-vietnamese.woff2',
-  './assets/fonts/inter-600-latin.woff2',
-  './assets/fonts/inter-600-vietnamese.woff2',
-  './assets/fonts/inter-700-latin.woff2',
-  './assets/fonts/inter-700-vietnamese.woff2',
-  './assets/fonts/inter-800-latin.woff2',
-  './assets/fonts/inter-800-vietnamese.woff2',
 ];
 
 self.addEventListener('install', (event) => {

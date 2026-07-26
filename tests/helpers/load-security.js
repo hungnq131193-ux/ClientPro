@@ -150,6 +150,13 @@ function loadSecurity() {
       _readCachedKdataAsync,
       _writeCachedKdata,
       _flushPendingKdataCache,
+      // Sealed employee id (mã NV không persist plaintext sau unlock)
+      runEmployeeIdSealMigrationIfNeeded,
+      _writeSealedEmployeeId,
+      _readSealedEmployeeIdAsync,
+      _resolveEmployeeId,
+      getEmployeeIdRam: () => __employeeIdPlain,
+      setEmployeeIdRam: (v) => { __employeeIdPlain = v; },
       getKdataRam: () => APP_BACKUP_KDATA_B64U,
       setKdataRam: (v) => { APP_BACKUP_KDATA_B64U = v; },
       getPendingKdata: () => __pendingKdataCache,

@@ -78,6 +78,13 @@
         // Nguồn duy nhất — thay cho các bản sao từng nằm rải rác ở 09/14/16.
         // =======================
         function getEmployeeId() {
+          // Sau unlock, mã NV nằm trong RAM (__employeeIdPlain, 02_security.js);
+          // plaintext localStorage chỉ còn ở cửa sổ kích hoạt → tạo PIN / máy legacy.
+          try {
+            if (typeof __employeeIdPlain !== 'undefined' && __employeeIdPlain) {
+              return String(__employeeIdPlain).trim();
+            }
+          } catch (e) {}
           return (localStorage.getItem(typeof EMPLOYEE_KEY !== 'undefined' ? EMPLOYEE_KEY : 'app_employee_id') || '').trim();
         }
 
@@ -109,6 +116,125 @@
             i += 1;
           }
           return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+        }
+
+        // =======================
+        // LAZY MODULES (PDF Toolkit / Tra cứu ĐVHC)
+        // Hai tool phụ (~158 KB JS + 20 KB CSS) KHÔNG nạp lúc boot; ensure()
+        // inject đúng thứ tự khi người dùng mở lần đầu (mẫu ensureMapLibreLoaded,
+        // 03_map.js). URL kèm ?v=LAZY_MODULES_V (01_config.js — CI check-policy +
+        // tests/pwa.test.js giữ = ASSET_V) nên request rơi trúng precache của
+        // Service Worker: offline vẫn mở được tool.
+        // =======================
+        const LAZY_MODULE_DEFS = {
+          pdf: {
+            ready: () => !!(window.PdfToolkit && window.PdfToolkit.open),
+            css: ['./assets/css/pdf-toolkit.css'],
+            scripts: [
+              './assets/pdf-toolkit/pdf_toolkit_utils.js',
+              './assets/pdf-toolkit/pdf_toolkit_core.js',
+              './assets/pdf-toolkit/pdf_toolkit_merge.js',
+              './assets/pdf-toolkit/pdf_toolkit_pages.js',
+              './assets/pdf-toolkit/pdf_toolkit_images.js',
+              './assets/pdf-toolkit/pdf_toolkit_pdf2img.js',
+              './assets/pdf-toolkit/pdf_toolkit_compress.js',
+              './assets/pdf-toolkit/pdf_toolkit_ui.js',
+            ],
+          },
+          dvhc: {
+            ready: () => !!(window.DvhcLookup && window.DvhcLookup.open),
+            css: ['./assets/css/dvhc-lookup.css'],
+            scripts: [
+              './assets/dvhc-lookup/dvhc_utils.js',
+              './assets/dvhc-lookup/dvhc_data.js',
+              './assets/dvhc-lookup/dvhc_ui.js',
+            ],
+          },
+        };
+        const __lazyModulePromises = {};
+
+        function __lazyInjectCss(href) {
+          return new Promise((resolve) => {
+            if (document.querySelector(`link[href="${href}"]`)) return resolve(true);
+            const l = document.createElement('link');
+            l.rel = 'stylesheet';
+            l.href = href;
+            l.onload = () => resolve(true);
+            l.onerror = () => resolve(false);
+            document.head.appendChild(l);
+            // CSS load event không đáng tin 100% cross-browser -> resolve nhanh.
+            setTimeout(() => resolve(true), 250);
+          });
+        }
+
+        function __lazyInjectScript(src, timeoutMs) {
+          return new Promise((resolve, reject) => {
+            const existing = document.querySelector(`script[src="${src}"]`);
+            if (existing && existing.getAttribute('data-loaded') === '1') return resolve(true);
+            const s = existing || document.createElement('script');
+            if (!existing) { s.src = src; document.body.appendChild(s); }
+            let done = false;
+            const to = setTimeout(() => {
+              if (done) return; done = true;
+              reject(new Error(`Lazy module script timeout: ${src}`));
+            }, timeoutMs || 15000);
+            s.onload = () => {
+              if (done) return; done = true;
+              clearTimeout(to);
+              s.setAttribute('data-loaded', '1');
+              resolve(true);
+            };
+            s.onerror = () => {
+              if (done) return; done = true;
+              clearTimeout(to);
+              reject(new Error(`Lazy module script load failed: ${src}`));
+            };
+          });
+        }
+
+        window.LazyModules = {
+          /** Nạp module 'pdf' | 'dvhc' đúng một lần. Trả true khi sẵn sàng. */
+          async ensure(name) {
+            const def = LAZY_MODULE_DEFS[name];
+            if (!def) return false;
+            if (def.ready()) return true;
+            if (__lazyModulePromises[name]) return __lazyModulePromises[name];
+            __lazyModulePromises[name] = (async () => {
+              const v = (typeof LAZY_MODULES_V !== 'undefined' && LAZY_MODULES_V) ? LAZY_MODULES_V : '';
+              const vq = v ? `?v=${v}` : '';
+              // Script inject động không có document.currentScript.src đáng tin —
+              // truyền version tường minh cho assetVersion() của các module.
+              window.__CLIENTPRO_LAZY_V = v;
+              for (const href of def.css) await __lazyInjectCss(href + vq);
+              // Tuần tự để giữ đúng thứ tự phụ thuộc (utils -> core -> ... -> ui).
+              for (const src of def.scripts) await __lazyInjectScript(src + vq);
+              if (!def.ready()) throw new Error(`Lazy module ${name} not ready after load`);
+              return true;
+            })();
+            return __lazyModulePromises[name].catch((err) => {
+              __lazyModulePromises[name] = null;
+              try {
+                ErrorHandler.showError('NETWORK', 'Không tải được công cụ. Vui lòng kiểm tra mạng và thử lại.', err);
+              } catch (e) {}
+              return false;
+            });
+          },
+        };
+
+        // Mở tool sau khi ensure xong + spinner trên nút quick action trong lúc tải.
+        async function __openLazyModule(name, btnId, open) {
+          const btn = document.getElementById(btnId);
+          const needLoad = !LAZY_MODULE_DEFS[name].ready();
+          if (needLoad && btn && window.LoadingManager) {
+            try { LoadingManager.showButtonLoading(btn); } catch (e) {}
+          }
+          try {
+            if (await window.LazyModules.ensure(name)) open();
+          } finally {
+            if (needLoad && btn && window.LoadingManager) {
+              try { LoadingManager.hideButtonLoading(btn); } catch (e) {}
+            }
+          }
         }
 
         // =======================
@@ -253,12 +379,13 @@
             'BiometricUnlock.requestDisable': () => BiometricUnlock.requestDisable(),
             'BiometricUnlock.tryUnlock': () => BiometricUnlock.tryUnlock(),
 
-            // PDF Toolkit — điểm mở duy nhất từ Dashboard (module độc lập).
-            'PdfToolkit.open': () => { if (window.PdfToolkit) window.PdfToolkit.open(); },
+            // PDF Toolkit — điểm mở duy nhất từ Dashboard (module độc lập,
+            // LAZY-LOAD khi mở lần đầu — xem LazyModules phía trên).
+            'PdfToolkit.open': () => __openLazyModule('pdf', 'btn-quick-pdf', () => window.PdfToolkit.open()),
 
             // Tra cứu sáp nhập ĐVHC — điểm mở duy nhất từ lưới Thao tác nhanh trên
-    // Dashboard (module độc lập).
-            'DvhcLookup.open': () => { if (window.DvhcLookup) window.DvhcLookup.open(); },
+            // Dashboard (module độc lập, LAZY-LOAD khi mở lần đầu).
+            'DvhcLookup.open': () => __openLazyModule('dvhc', 'btn-quick-dvhc', () => window.DvhcLookup.open()),
 
             // Onboarding — mở lại tour hướng dẫn thủ công từ Menu.
             'OnboardingTour.replay': () => { if (window.OnboardingTour) window.OnboardingTour.replay(); },

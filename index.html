@@ -8,7 +8,7 @@
         content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClientPro</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
     <meta name="theme-color" content="#005b9f" id="meta-theme-color">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,32 +19,29 @@
          vào connect-src trong vercel.json. -->
     <link rel="preconnect" href="https://zalo.me">
     <link rel="dns-prefetch" href="https://zalo.me">
-    <!-- Fonts (self-host: Inter + Be Vietnam Pro, subset latin/vietnamese) -->
+    <!-- Fonts (self-host: Be Vietnam Pro, subset latin/vietnamese) -->
     <!-- Preload font chính (Be Vietnam Pro 400/700) để chữ hiện sớm, giảm FOUT -->
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-latin.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-vietnamese.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-latin.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-vietnamese.woff2">
-    <link rel="stylesheet" href="./assets/css/fonts.css?v=PERF_TRANSITIONS_20260726">
-    <!-- Tailwind (self-host) -->
-    <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
-    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=PERF_TRANSITIONS_20260726">
-    <link rel="stylesheet" href="./assets/css/app.patch.css?v=PERF_TRANSITIONS_20260726">
+    <link rel="stylesheet" href="./assets/css/fonts.css?v=SECURITY_PERF_20260726">
+    <!-- Tailwind (self-host; đường dẫn ./ tương đối theo <base> để hoạt động ở mọi subpath) -->
+    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=SECURITY_PERF_20260726">
+    <link rel="stylesheet" href="./assets/css/app.patch.css?v=SECURITY_PERF_20260726">
     <!-- Lucide icons (self-host, xem assets/vendor/README.md) -->
-    <script defer src="./assets/vendor/lucide.min.js?v=PERF_TRANSITIONS_20260726"></script>
-    <!-- Transfer Backup uses TEXT chunks (no QR image) -->
+    <script defer src="./assets/vendor/lucide.min.js?v=SECURITY_PERF_20260726"></script>
     <!-- MapLibre GL JS is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
     <!-- CryptoJS library for hashing and encryption (self-host) -->
-    <script defer src="./assets/vendor/crypto-js.min.js?v=PERF_TRANSITIONS_20260726"></script>
+    <script defer src="./assets/vendor/crypto-js.min.js?v=SECURITY_PERF_20260726"></script>
 
-    <script defer src="./assets/head.js?v=PERF_TRANSITIONS_20260726"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=PERF_TRANSITIONS_20260726">
+    <script defer src="./assets/head.js?v=SECURITY_PERF_20260726"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=SECURITY_PERF_20260726">
     <!-- REDESIGN LAYER (banking / Vietinbank) — nạp cuối để đè lớp giao diện, không đụng JS -->
-    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=PERF_TRANSITIONS_20260726">
-    <!-- PDF Toolkit (tính năng độc lập; CSS tách riêng, không đụng lớp cũ) -->
-    <link rel="stylesheet" href="./assets/css/pdf-toolkit.css?v=PERF_TRANSITIONS_20260726">
-    <!-- Tra cứu sáp nhập ĐVHC (tính năng độc lập; CSS tách riêng, không đụng lớp cũ) -->
-    <link rel="stylesheet" href="./assets/css/dvhc-lookup.css?v=PERF_TRANSITIONS_20260726">
+    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=SECURITY_PERF_20260726">
+    <!-- PDF Toolkit + Tra cứu ĐVHC: JS lẫn CSS đều LAZY-LOAD khi mở tool lần đầu
+         (LazyModules trong 00_globals.js) — không tải lúc khởi động app. File vẫn
+         nằm trong precache của sw.js nên offline vẫn mở được. -->
     <!-- Prevent Chrome horizontal overscroll/back gesture as much as possible -->
     <!-- style-src vẫn giữ 'unsafe-inline' trong vercel.json: hàng trăm thuộc tính style="..."
          và nhiều chỗ .style.cssText/.style.x trong assets/*.js dùng cho theme động, vị trí
@@ -66,7 +63,7 @@
     <div id="cust-selection-bar"
         class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
         <div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button
-                data-action="toggleCustSelectionMode" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
+                data-action="toggleCustSelectionMode" aria-label="Thoát chế độ chọn khách hàng" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
                     data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count"
                     class="text-lg font-bold" style="color: var(--accent)">0</span></span></div>
         <div class="flex gap-3"><button data-action="sendSelectedCustomersToUser"
@@ -78,7 +75,7 @@
     <div id="selection-bar"
         class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
         <div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button
-                data-action="toggleSelectionMode" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
+                data-action="toggleSelectionMode" aria-label="Thoát chế độ chọn ảnh" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
                     data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="selection-count"
                 class="text-blue-400 font-bold text-lg">0</span> ảnh</span></div>
         <div class="flex gap-3"><button data-action="shareSelectedImages"
@@ -184,7 +181,7 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button id="btn-open-menu" data-action="toggleMenu"
+                    <button id="btn-open-menu" data-action="toggleMenu" aria-label="Mở menu cài đặt"
                         class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
                         style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
                         <i data-lucide="settings-2" class="w-6 h-6"></i>
@@ -333,10 +330,10 @@
     <div id="screen-map"
         class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black">
         <div id="map-container"></div>
-        <button data-action="toggleMap"
+        <button data-action="toggleMap" aria-label="Đóng bản đồ"
             class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i
                 data-lucide="arrow-left" class="w-6 h-6"></i></button>
-        <button data-action="locateMe"
+        <button data-action="locateMe" aria-label="Đến vị trí của tôi"
             class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i
                 data-lucide="crosshair" class="w-6 h-6"></i></button>
     </div>
@@ -345,12 +342,12 @@
         style="background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg-base);">
         <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
             <div class="flex items-center justify-between mb-4">
-                <button data-action="closeFolder" class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
+                <button data-action="closeFolder" aria-label="Quay lại danh sách khách hàng" class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
                     style="color: var(--text-main)">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
                 <div class="flex gap-2">
-                    <button data-action="deleteCurrentCustomer"
+                    <button data-action="deleteCurrentCustomer" aria-label="Xóa khách hàng này"
                         class="glass-btn p-2 text-red-400 rounded-full active:scale-90 transition-transform">
                         <i data-lucide="trash-2" class="w-5 h-5"></i>
                     </button>
@@ -358,7 +355,7 @@
             </div>
 
             <div class="profile-glass-box">
-                <button data-action="openEditCustomerModal"
+                <button data-action="openEditCustomerModal" aria-label="Sửa thông tin khách hàng"
                     class="absolute top-3 right-3 p-2 rounded-xl hover:bg-white/10 active:bg-white/10 active:scale-95 text-slate-300 hover:text-white transition">
                     <i data-lucide="pencil" class="w-4 h-4"></i>
                 </button>
@@ -494,7 +491,7 @@
         class="app-container z-30 transform translate-x-full transition-transform duration-300"
         style="background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg-base);">
         <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full">
-            <div class="flex items-center justify-between"><button data-action="closeAssetGallery"
+            <div class="flex items-center justify-between"><button data-action="closeAssetGallery" aria-label="Đóng thư viện ảnh"
                     class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition" style="color: var(--text-main)"><i
                         data-lucide="arrow-left" class="w-6 h-6"></i></button>
                 <div class="flex items-center gap-3">
@@ -543,73 +540,62 @@
 
     <div id="lightbox"
         class="fixed inset-0 z-[60] bg-black/95 hidden flex flex-col justify-center items-center touch-none backdrop-blur-xl">
-        <button
+        <button aria-label="Ảnh trước"
             class="lightbox-nav left-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute"
             data-action="navigateLightbox" data-arg="-1"><i data-lucide="chevron-left" class="w-8 h-8 text-white"></i></button><img
             id="lightbox-img"
-            class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform"><button
+            class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform"><button aria-label="Ảnh sau"
             class="lightbox-nav right-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute"
             data-action="navigateLightbox" data-arg="1"><i data-lucide="chevron-right" class="w-8 h-8 text-white"></i></button><button
-            data-action="closeLightbox"
+            data-action="closeLightbox" aria-label="Đóng ảnh phóng to"
             class="absolute top-6 right-6 text-white p-3 z-[70] bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20"><i
                 data-lucide="x" class="w-6 h-6"></i></button>
         <div class="absolute bottom-12 text-white text-xs font-bold bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 tracking-widest"
             id="lightbox-counter">1/1</div>
-        <div class="absolute bottom-12 right-6 flex gap-4"><button data-action="shareOpenedImage"
+        <div class="absolute bottom-12 right-6 flex gap-4"><button data-action="shareOpenedImage" aria-label="Chia sẻ ảnh này"
                 class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20"><i data-lucide="share-2"
-                    class="w-5 h-5"></i></button><button data-action="deleteOpenedImage"
+                    class="w-5 h-5"></i></button><button data-action="deleteOpenedImage" aria-label="Xóa ảnh này"
                 class="p-3 bg-red-500/20 rounded-full text-red-400 hover:bg-red-500/30"><i data-lucide="trash-2"
                     class="w-5 h-5"></i></button></div>
     </div>
 
     <!-- UI Partials: Modals are loaded from /assets/ui/modals/*.html for maintainability -->
     <div id="ui-modals-root"></div>
-    <script src="./assets/ui/load_modals.js" defer></script>
+    <script src="./assets/ui/load_modals.js?v=SECURITY_PERF_20260726" defer></script>
 
-    <script src="./assets/00_globals.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/01_config.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/02_security.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/12_backup_core.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/13_ui_select_customers.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/15_auth_gate.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/03_map.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/04_ui_common.js?v=PERF_TRANSITIONS_20260726" defer></script>
+    <script src="./assets/00_globals.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/01_config.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/02_security.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/12_backup_core.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/13_ui_select_customers.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/15_auth_gate.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/03_map.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/04_ui_common.js?v=SECURITY_PERF_20260726" defer></script>
     <!-- Chuẩn hóa error messages & loading states (ErrorHandler / LoadingManager / AppToast) -->
-    <script src="./assets/19_error_loading.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/05_customers.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/06_assets.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/08_images_camera.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/09_menu.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/09_backup_manager.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/09_donate.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/09_weather.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/07_drive.js?v=PERF_TRANSITIONS_20260726" defer></script>
+    <script src="./assets/19_error_loading.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/05_customers.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/06_assets.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/08_images_camera.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/09_menu.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/09_backup_manager.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/09_donate.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/09_weather.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/07_drive.js?v=SECURITY_PERF_20260726" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=PERF_TRANSITIONS_20260726" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=SECURITY_PERF_20260726" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=PERF_TRANSITIONS_20260726" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=SECURITY_PERF_20260726" defer></script>
     <!-- Onboarding tour for new users -->
-    <script src="./assets/17_onboarding_tour.js?v=PERF_TRANSITIONS_20260726" defer></script>
+    <script src="./assets/17_onboarding_tour.js?v=SECURITY_PERF_20260726" defer></script>
     <!-- Mở khóa sinh trắc học (Face ID / vân tay) - tính năng bổ sung, không thay đổi luồng PIN -->
-    <script src="./assets/18_biometric_unlock.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/10_bootstrap.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/11_edge_back_swipe.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <!-- PDF Toolkit — module độc lập, xử lý file hoàn toàn trên thiết bị. Thư viện
-         vendor (pdf-lib / pdf.js / JSZip) được LAZY-LOAD khi mở toolkit lần đầu,
-         KHÔNG tải lúc khởi động app. Thứ tự: utils -> core -> (tools) -> ui. -->
-    <script src="./assets/pdf-toolkit/pdf_toolkit_utils.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/pdf-toolkit/pdf_toolkit_core.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/pdf-toolkit/pdf_toolkit_merge.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/pdf-toolkit/pdf_toolkit_pages.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/pdf-toolkit/pdf_toolkit_images.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/pdf-toolkit/pdf_toolkit_pdf2img.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/pdf-toolkit/pdf_toolkit_compress.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/pdf-toolkit/pdf_toolkit_ui.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <!-- Tra cứu sáp nhập ĐVHC (module độc lập: utils -> data -> ui) -->
-    <script src="./assets/dvhc-lookup/dvhc_utils.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/dvhc-lookup/dvhc_data.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/dvhc-lookup/dvhc_ui.js?v=PERF_TRANSITIONS_20260726" defer></script>
-    <script src="./assets/pwa.js?v=PERF_TRANSITIONS_20260726" defer></script>
+    <script src="./assets/18_biometric_unlock.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/10_bootstrap.js?v=SECURITY_PERF_20260726" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=SECURITY_PERF_20260726" defer></script>
+    <!-- PDF Toolkit (utils -> core -> tools -> ui) và Tra cứu ĐVHC (utils -> data
+         -> ui) KHÔNG còn thẻ script ở đây: cả hai LAZY-LOAD qua LazyModules
+         (00_globals.js) khi người dùng mở tool lần đầu; vendor PDF (pdf-lib /
+         pdf.js / JSZip) vẫn lazy-load tầng hai như trước. -->
+    <script src="./assets/pwa.js?v=SECURITY_PERF_20260726" defer></script>
 </body>
 
 </html>

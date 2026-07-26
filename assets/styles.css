@@ -1,4 +1,4 @@
-/* Font Inter tự host: khai báo @font-face nằm ở assets/css/fonts.css (nạp từ index.html). */
+/* Font Be Vietnam Pro tự host: khai báo @font-face nằm ở assets/css/fonts.css (nạp từ index.html). */
 
 :root {
   --app-height: 100dvh;
@@ -31,7 +31,7 @@ body {
   --text-main: #ffffff;
   --text-sub: #cbd5e1;
 
-  font-family: "Inter", sans-serif;
+  font-family: "Be Vietnam Pro", system-ui, sans-serif;
   color: var(--text-main);
 
   /* Mesh Gradient Background */

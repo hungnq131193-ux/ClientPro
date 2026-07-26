@@ -31,6 +31,7 @@
   // - Cache list_users for a short TTL to make "Chọn user" open instantly.
   // - Cache auth check for a short TTL to avoid duplicated ensureBackupSecret calls
   //   when user is doing send/receive operations back-to-back.
+  // Key persist CŨ — chỉ còn dùng để dọn (cache giờ là RAM-only, xem _usersCacheRam).
   const USERS_CACHE_KEY = 'clientpro_ct_users_cache_v1';
   const USERS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
   // NOTE: Do not relax security gates for backup/restore. We only use caching for
@@ -91,23 +92,22 @@
     return true;
   }
 
+  // Cache danh sách người nhận là PII của NHÂN VIÊN KHÁC ({deviceId, employeeId,
+  // name}) — không persist plaintext xuống localStorage. TTL chỉ 2 phút nên cache
+  // RAM trong phiên là đủ; key persist cũ được dọn một lần bên dưới.
+  let _usersCacheRam = null;
+
   function _readUsersCache() {
-    try {
-      const raw = localStorage.getItem(USERS_CACHE_KEY);
-      if (!raw) return null;
-      const obj = JSON.parse(raw);
-      if (!obj || !Array.isArray(obj.users) || !obj.ts) return null;
-      return obj;
-    } catch (e) {
-      return null;
-    }
+    if (!_usersCacheRam || !Array.isArray(_usersCacheRam.users) || !_usersCacheRam.ts) return null;
+    return _usersCacheRam;
   }
 
   function _writeUsersCache(users) {
-    try {
-      localStorage.setItem(USERS_CACHE_KEY, JSON.stringify({ ts: now(), users: users || [] }));
-    } catch (e) {}
+    _usersCacheRam = { ts: now(), users: users || [] };
   }
+
+  // Dọn bản persist cũ (plaintext PII) còn sót từ phiên bản trước.
+  try { localStorage.removeItem(USERS_CACHE_KEY); } catch (e) {}
 
   async function fetchTextWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();

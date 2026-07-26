@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
 
       - name: Validate JSON files
         run: |
@@ -35,44 +35,14 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check sw.js
-          find assets -name '*.js' -print0 | xargs -0 -n1 node --check
-
-      - name: Ensure edge back-swipe debug scaffold is absent
-        run: |
-          if grep -nE 'DEBUG_MODE|clientpro_edgeback_debug_log|clientpro-edgeback-debug|dbg\(' assets/11_edge_back_swipe.js; then
-            echo "::error file=assets/11_edge_back_swipe.js::Debug scaffold detected — remove it before merging."
-            exit 1
-          fi
+          find assets scripts -name '*.js' -o -name '*.mjs' | xargs -n1 node --check
 
       - name: Verify version single-source (package.json → manifest/sw/pwa/README)
         run: node scripts/sync-version.mjs --check
 
-      - name: Verify asset cache-buster and self-host policy
-        run: |
-          set -euo pipefail
-          # Cache-buster asset: sw.js ASSET_V = mọi ?v= trong index.html = MAPLIBRE_V.
-          ASSET_V=$(grep -oE "ASSET_V[[:space:]]*=[[:space:]]*'[^']+'" sw.js | sed -E "s/.*'([^']+)'.*/\1/")
-          echo "sw.ASSET_V=$ASSET_V"
-
-          INDEX_TOKENS=$(grep -oE '\?v=[A-Za-z0-9._-]+' index.html | sed 's/?v=//' | sort -u)
-          COUNT=$(printf '%s\n' "$INDEX_TOKENS" | grep -c .)
-          if [ "$COUNT" -ne 1 ] || [ "$INDEX_TOKENS" != "$ASSET_V" ]; then
-            echo "::error file=index.html::Query ?v= trong index.html phải đồng nhất và bằng ASSET_V ($ASSET_V). Tìm thấy: $INDEX_TOKENS"
-            exit 1
-          fi
-
-          MAP_V=$(grep -oE "MAPLIBRE_V[[:space:]]*=[[:space:]]*'[^']+'" assets/03_map.js | sed -E "s/.*'([^']+)'.*/\1/")
-          if [ "$MAP_V" != "$ASSET_V" ]; then
-            echo "::error file=assets/03_map.js::MAPLIBRE_V ($MAP_V) phải bằng ASSET_V ($ASSET_V)"
-            exit 1
-          fi
-
-          # Không còn CDN script/style/font ngoài (đã self-host trong assets/vendor + assets/fonts).
-          if grep -nE 'unpkg\.com|cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com' index.html vercel.json assets/*.js assets/*.css assets/css/*.css; then
-            echo "::error::Phát hiện tham chiếu CDN ngoài — app phải self-host toàn bộ script/style/font."
-            exit 1
-          fi
-          echo "✅ Cache-buster đồng bộ: asset tag=$ASSET_V"
+      # Debug scaffold + cache-buster + self-host policy — cùng script để dev chạy local được.
+      - name: Verify repo policy (debug scaffold / cache-buster / self-host)
+        run: node scripts/check-policy.mjs
 
   tests:
     name: Automated tests (crypto & data integrity)
@@ -86,7 +56,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
 
       # Không cần `npm install`: bộ test chạy bằng test runner tích hợp của Node
       # (node --test) + node:crypto (WebCrypto) + crypto-js.min.js self-host sẵn.
@@ -106,7 +76,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
+
+      # Cache npm + Chromium theo devDeps đã pin exact trong package.json
+      # (không có lockfile — chính sách no-lockfile giữ nguyên).
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
 
       # devDeps CHỈ cho CI (Playwright/axe/Lighthouse). App shipped vẫn zero-dependency.
       # Dùng `npm install` (không `npm ci`) vì không commit package-lock.json.
@@ -119,9 +103,10 @@ jobs:
       - name: Run Playwright E2E + axe a11y
         run: npx playwright test
 
+      # Gate thật: assertion a11y (error, minScore 0.9) trong lighthouserc.json
+      # làm đỏ CI nếu vi phạm; perf/best-practices vẫn chỉ cảnh báo.
       - name: Lighthouse CI (a11y gate + perf/best-practices cảnh báo)
         run: npx lhci autorun
-        continue-on-error: true
 
       - name: Upload E2E & Lighthouse reports
         if: always()

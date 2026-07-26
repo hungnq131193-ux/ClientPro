@@ -4,9 +4,8 @@
       "startServerCommand": "python3 -m http.server 8080",
       "startServerReadyPattern": "Serving HTTP",
       "url": ["http://127.0.0.1:8080/index.html"],
-      "numberOfRuns": 1,
+      "numberOfRuns": 3,
       "settings": {
-        "preset": "desktop",
         "chromeFlags": "--no-sandbox --headless=new",
         "onlyCategories": ["accessibility", "best-practices", "performance"],
         "skipAudits": ["uses-http2", "canonical"]

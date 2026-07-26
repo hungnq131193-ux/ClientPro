@@ -8,7 +8,7 @@ const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'PERF_TRANSITIONS_20260726';
+const MAPLIBRE_V = 'SECURITY_PERF_20260726';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 // Theme sáng dùng nền bản đồ sáng (Carto Positron — cùng host với dark-matter,
 // đã nằm trong CSP connect-src/img-src, không thêm origin mới).
@@ -302,18 +302,42 @@ async function __osrmFetchTable(baseUrl, coordsStr) {
 // bám được là cả batch trả lỗi NoSegment -> mất luôn kết quả của các điểm còn lại.
 // Không bao giờ reject. Tọa độ (đã giải mã) được gửi tới server OSRM công cộng,
 // tương đương việc app đã gửi GPS tới Open-Meteo cho thời tiết.
+// Cache quãng đường chứa TOẠ ĐỘ GPS tài sản khách hàng -> dữ liệu nghiệp vụ,
+// không được nằm plaintext trong localStorage. v4 seal NGUYÊN BLOB JSON bằng
+// AES-GCM dưới masterKey (cpg1:, helper của 02_security.js). Tính năng khoảng
+// cách chỉ chạy khi app đã mở khóa nên luôn có key; nếu vì lý do gì chưa có
+// (hoặc sai khóa sau wipe) -> coi cache rỗng, chạy không cache rồi ghi đè.
+async function _readRoadDistCacheAsync() {
+    try {
+        const sealed = localStorage.getItem(ROAD_DIST_CACHE_KEY) || '';
+        if (!sealed) return {};
+        if (typeof masterCryptoKey === 'undefined' || !masterCryptoKey || !sealed.startsWith(GCM_PREFIX)) return {};
+        return JSON.parse(await _gcmDecryptField(sealed)) || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+async function _writeRoadDistCacheSealed(cache) {
+    if (typeof masterCryptoKey === 'undefined' || !masterCryptoKey) return;
+    const sealed = await _gcmEncryptField(JSON.stringify(cache));
+    localStorage.setItem(ROAD_DIST_CACHE_KEY, sealed);
+}
+
+// Dọn NGAY các cache cũ (v3 trở về trước lưu toạ độ plaintext) khi nạp module —
+// không đợi người dùng mở tính năng khoảng cách.
+try { (ROAD_DIST_CACHE_OLD_KEYS || []).forEach((k) => localStorage.removeItem(k)); } catch (e) { }
+
 async function fetchRoadDistances(origin, points) {
     const r5 = (v) => Math.round(v * 1e5) / 1e5;
     const oLat = r5(origin.lat), oLng = r5(origin.lng);
     const pts = points.map((p) => ({ lat: r5(p.lat), lng: r5(p.lng) }));
 
-    // Dọn cache phiên bản cũ (có thể chứa quãng đường sai)
+    // Dọn cache phiên bản cũ (plaintext / quãng đường sai) — giữ cả ở đây cho
+    // trường hợp key cũ xuất hiện lại sau restore backup thiết bị.
     try { (ROAD_DIST_CACHE_OLD_KEYS || []).forEach((k) => localStorage.removeItem(k)); } catch (e) { }
 
-    let cache = {};
-    try {
-        cache = JSON.parse(localStorage.getItem(ROAD_DIST_CACHE_KEY)) || {};
-    } catch (e) { cache = {}; }
+    const cache = await _readRoadDistCacheAsync();
 
     const now = Date.now();
     const results = new Array(pts.length).fill(undefined);
@@ -388,8 +412,8 @@ async function fetchRoadDistances(origin, points) {
                     .slice(0, keys.length - ROAD_DIST_CACHE_MAX)
                     .forEach((k) => delete cache[k]);
             }
-            localStorage.setItem(ROAD_DIST_CACHE_KEY, JSON.stringify(cache));
-        } catch (e) { /* quota đầy -> chạy không cache */ }
+            await _writeRoadDistCacheSealed(cache);
+        } catch (e) { /* quota đầy / thiếu key -> chạy không cache */ }
     }
 
     return results;

@@ -288,3 +288,57 @@ test('nhóm ổn định B #8: put-wrapper trong 2 migration của 02_security.j
     assert.ok(/\bonabort\b/.test(body), `${fn}: thiếu onabort — migration treo giữa unlock flow khi tx abort`);
   }
 });
+
+test('privacy: cache quãng đường (toạ độ GPS TSBĐ) phải seal, không ghi JSON plaintext', () => {
+  const map = read('assets/03_map.js');
+  const body = fnBody(map, 'fetchRoadDistances');
+  assert.ok(!/localStorage\.setItem\(\s*ROAD_DIST_CACHE_KEY\s*,\s*JSON\.stringify/.test(body),
+    'fetchRoadDistances: không được ghi cache plaintext trực tiếp — phải qua _writeRoadDistCacheSealed');
+  assert.ok(/_writeRoadDistCacheSealed\(/.test(body), 'fetchRoadDistances: phải ghi qua helper seal');
+  assert.ok(/_readRoadDistCacheAsync\(/.test(body), 'fetchRoadDistances: phải đọc qua helper unseal');
+  const writeBody = fnBody(map, '_writeRoadDistCacheSealed');
+  assert.ok(/_gcmEncryptField\(/.test(writeBody), '_writeRoadDistCacheSealed: phải seal AES-GCM (cpg1:)');
+
+  const config = read('assets/01_config.js');
+  assert.ok(/ROAD_DIST_CACHE_KEY\s*=\s*'app_road_dist_cache_v4'/.test(config),
+    'Cache seal phải dùng key v4 (v3 là plaintext)');
+  assert.ok(/ROAD_DIST_CACHE_OLD_KEYS\s*=\s*\[[^\]]*'app_road_dist_cache_v3'/.test(config),
+    'v3 plaintext phải nằm trong OLD_KEYS để được dọn');
+});
+
+test('revocation: preflight chỉ xóa strike khi có verdict THẬT từ server', () => {
+  const src = read('assets/15_auth_gate.js');
+  const body = fnBody(src, 'preflight');
+  // Nhánh "ok" đầu tiên gộp cả kết quả skipped (thiếu mã NV lúc boot trên máy đã
+  // seal, offline, TTL, cooldown, lỗi mạng). Reset vô điều kiện ở đó = mỗi lần mở
+  // app xóa bộ đếm -> ngưỡng 2-strike không bao giờ tới, máy bị khóa không bị chặn.
+  assert.ok(/if\s*\(\s*r\s*&&\s*r\.ok\s*&&\s*!r\.skipped[^)]*\)\s*_resetLockStrikes\(\)/.test(body),
+    'preflight: _resetLockStrikes phải được gate bằng !r.skipped (verdict thật)');
+  assert.ok(!/if\s*\(\s*!r\s*\|\|\s*r\.ok\s*\)\s*\{\s*_resetLockStrikes\(\);/.test(body),
+    'preflight: không được reset strike vô điều kiện trên nhánh ok/skipped');
+});
+
+test('revocation: check_status chạy lại sau unlock (máy đã seal mã NV không có identity lúc boot)', () => {
+  const sec = read('assets/02_security.js');
+  assert.ok(/(?:async\s+)?function\s+runServerStatusCheck\s*\(/.test(sec),
+    '02_security.js: check_status phải tách thành runServerStatusCheck() để gọi lại được');
+  const checkBody = fnBody(sec, 'checkSecurity');
+  assert.ok(/runServerStatusCheck\(/.test(checkBody),
+    'checkSecurity: vẫn phải chạy check ngầm lúc boot (máy legacy / cửa sổ kích hoạt)');
+  assert.ok(!/action=check_status/.test(checkBody),
+    'checkSecurity: không được inline lại check_status — dùng runServerStatusCheck()');
+
+  const gate = read('assets/15_auth_gate.js');
+  const listener = gate.slice(gate.indexOf('clientpro:unlocked'));
+  assert.ok(/runServerStatusCheck\(/.test(listener),
+    '15_auth_gate.js: listener clientpro:unlocked phải chạy bù check_status');
+});
+
+test('privacy: users-cache cloud transfer (PII NV khác) không persist — RAM-only', () => {
+  const src = read('assets/14_cloud_transfer.js');
+  assert.ok(!/localStorage\.setItem\(\s*USERS_CACHE_KEY/.test(src),
+    'Không được ghi users-cache xuống localStorage');
+  assert.ok(/localStorage\.removeItem\(\s*USERS_CACHE_KEY\s*\)/.test(src),
+    'Phải dọn key persist cũ clientpro_ct_users_cache_v1');
+  assert.ok(/_usersCacheRam/.test(src), 'Cache phải nằm trong RAM (_usersCacheRam)');
+});

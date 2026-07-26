@@ -114,6 +114,18 @@ test('sw.js: ASSET_V (cache-buster) khớp mọi ?v= trong index.html', () => {
   assert.deepEqual(unique, [assetV], `Mọi ?v= trong index.html phải bằng ASSET_V (${assetV})`);
 });
 
+test('cache-buster lazy-load: MAPLIBRE_V (03_map) và LAZY_MODULES_V (01_config) bằng ASSET_V', () => {
+  const sw = read('sw.js');
+  const assetV = (sw.match(/ASSET_V\s*=\s*'([^']+)'/) || [])[1];
+  assert.ok(assetV, 'Không đọc được ASSET_V trong sw.js');
+
+  const mapV = (read('assets/03_map.js').match(/MAPLIBRE_V\s*=\s*'([^']+)'/) || [])[1];
+  assert.equal(mapV, assetV, 'MAPLIBRE_V phải bằng ASSET_V (lazy-load maplibre rơi trúng precache)');
+
+  const lazyV = (read('assets/01_config.js').match(/LAZY_MODULES_V\s*=\s*'([^']+)'/) || [])[1];
+  assert.equal(lazyV, assetV, 'LAZY_MODULES_V phải bằng ASSET_V (lazy-load PDF/DVHC rơi trúng precache)');
+});
+
 test('manifest.json: đủ trường tối thiểu để cài đặt PWA', () => {
   const m = JSON.parse(read('manifest.json'));
   assert.ok(m.name || m.short_name, 'Manifest cần name/short_name');
