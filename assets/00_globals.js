@@ -255,7 +255,8 @@
             // PDF Toolkit — điểm mở duy nhất từ Dashboard (module độc lập).
             'PdfToolkit.open': () => { if (window.PdfToolkit) window.PdfToolkit.open(); },
 
-            // Tra cứu sáp nhập ĐVHC — điểm mở duy nhất từ Menu (module độc lập).
+            // Tra cứu sáp nhập ĐVHC — điểm mở duy nhất từ lưới Thao tác nhanh trên
+    // Dashboard (module độc lập).
             'DvhcLookup.open': () => { if (window.DvhcLookup) window.DvhcLookup.open(); },
 
             // Onboarding — mở lại tour hướng dẫn thủ công từ Menu.

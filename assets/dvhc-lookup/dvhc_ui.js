@@ -509,8 +509,8 @@
   // Mở / đóng / reset + cascade back.
   // ----------------------------------------------------------------------
   function open() {
-    // Điểm mở nằm trong Menu cài đặt (z-70, cao hơn màn hình này) — đóng menu
-    // trước, như OnboardingTour.replay vẫn làm.
+    // Điểm mở nằm ở lưới Thao tác nhanh trên Dashboard, nhưng vẫn đóng menu
+    // phòng khi được gọi lúc Menu cài đặt (z-70, cao hơn màn hình này) đang mở.
     try { if (typeof _closeMenuIfOpen === 'function') _closeMenuIfOpen(); } catch (e) {}
     build();
     if (state.open) return;

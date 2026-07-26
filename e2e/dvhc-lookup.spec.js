@@ -1,6 +1,6 @@
 // e2e/dvhc-lookup.spec.js
 // ============================================================================
-// E2E cho tool Tra cứu sáp nhập ĐVHC: mở từ Menu cài đặt, tra xuôi/ngược,
+// E2E cho tool Tra cứu sáp nhập ĐVHC: mở từ lưới Thao tác nhanh, tra xuôi/ngược,
 // chuyển địa chỉ, back gesture/history, khóa app giữa chừng, và KHÔNG phát
 // sinh uncaught exception. Dùng chung cơ chế seed PIN như crud.spec.js.
 // ============================================================================
@@ -22,6 +22,9 @@ async function seedAndUnlock(page) {
     localStorage.setItem('app_employee_id', 'TEST');
     localStorage.setItem('app_pin', env);
     localStorage.setItem('app_crypto_schema_v', '2');
+    // Tắt tour lần đầu: spec này không kiểm tour, để overlay tour không chắn
+    // các thao tác trên Dashboard/Menu.
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 4, completedAt: Date.now() }));
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
@@ -31,21 +34,14 @@ async function seedAndUnlock(page) {
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10000 });
 }
 
-// Mở tool từ Menu cài đặt; menu phải tự đóng để không che màn hình tool.
+// Mở tool từ lưới "Thao tác nhanh" trên Dashboard (điểm mở duy nhất).
 async function openLookup(page) {
-  await page.click('#btn-open-menu');
-  await page.waitForSelector('#settings-menu', { state: 'visible' });
-  await page.click('[data-action="DvhcLookup.open"]');
+  await page.click('#btn-quick-dvhc');
   await page.waitForSelector('#screen-dvhc-lookup', { state: 'visible' });
   await page.waitForFunction(() => {
     const s = document.getElementById('screen-dvhc-lookup');
     return s && !s.classList.contains('translate-x-full');
   });
-  await page.waitForFunction(
-    () => document.getElementById('settings-menu').classList.contains('hidden'),
-    undefined,
-    { timeout: 5000 }
-  );
   // Chờ dữ liệu nạp xong (input tra cứu xuất hiện thay cho trạng thái loading).
   await page.waitForSelector('#screen-dvhc-lookup .dvhc-input', { timeout: 15000 });
 }
@@ -54,7 +50,7 @@ function attachErrorGuard(page, bag) {
   page.on('pageerror', (e) => bag.push(String(e)));
 }
 
-test('Mở từ Menu, tra xuôi địa chỉ cũ không dấu ra đơn vị mới', async ({ page }) => {
+test('Mở từ Thao tác nhanh, tra xuôi địa chỉ cũ không dấu ra đơn vị mới', async ({ page }) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   await openLookup(page);
@@ -116,11 +112,6 @@ test('Back: nút back đóng màn hình; hardware back (popstate) cũng đóng',
   await openLookup(page);
 
   // Hardware back (popstate) NGAY sau khi mở — không chờ cửa sổ dedupe nào.
-  // Mở tool từ Menu khiến menu tự đóng ~200ms sau, và cú đóng đó chạy
-  // consumeTrackedHistoryStep() -> history.back() của riêng app. Trước đây
-  // cú back() đó dedupe bằng cửa sổ thời gian 600ms nên nuốt luôn back thật
-  // của người dùng: entry history bị tiêu thụ mà màn hình vẫn mở, lần back kế
-  // tiếp thoát app. Nay dedupe theo ĐẾM nên back thật luôn được xử lý.
   await page.evaluate(() => history.back());
   await page.waitForFunction(() => document.getElementById('screen-dvhc-lookup').classList.contains('translate-x-full'));
   // Dashboard vẫn hiển thị bình thường.
@@ -137,6 +128,35 @@ test('Back: nút back đóng màn hình; hardware back (popstate) cũng đóng',
   await page.click('#screen-dvhc-lookup .dvhc-back-btn');
   await page.waitForFunction(() => document.getElementById('screen-dvhc-lookup').classList.contains('translate-x-full'));
   await expect(page.locator('#screen-dashboard')).toBeVisible();
+  expect(errors, errors.join(' | ')).toEqual([]);
+});
+
+test('Menu cài đặt không còn mục ĐVHC; đóng menu không nuốt back thật', async ({ page }) => {
+  const errors = []; attachErrorGuard(page, errors);
+  await seedAndUnlock(page);
+
+  // Điểm mở tool đã chuyển hẳn ra Dashboard — menu không được còn lối vào cũ.
+  await page.click('#btn-open-menu');
+  await page.waitForSelector('#settings-menu', { state: 'visible' });
+  await expect(page.locator('#settings-menu [data-action="DvhcLookup.open"]')).toHaveCount(0);
+
+  // Đóng menu bằng cách chạm overlay ở đáy màn hình (ngoài panel menu góc trên
+  // phải): menu (modal tracked) ẩn trễ ~200ms rồi mới trả entry history bằng
+  // consumeTrackedHistoryStep() -> history.back() của riêng app. Trước đây cú
+  // back() đó dedupe bằng cửa sổ thời gian 600ms nên nuốt luôn back thật của
+  // người dùng ngay sau đó. Nay dedupe theo ĐẾM (selfPopPending) nên back thật
+  // luôn được xử lý.
+  await page.locator('#menu-overlay').click({ position: { x: 30, y: 650 } });
+  await page.waitForFunction(() => document.getElementById('settings-menu').classList.contains('hidden'));
+  await page.waitForTimeout(300);
+
+  await openLookup(page);
+  await page.evaluate(() => history.back());
+  await page.waitForFunction(() => document.getElementById('screen-dvhc-lookup').classList.contains('translate-x-full'));
+  await expect(page.locator('#screen-dashboard')).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => !!(history.state && history.state.__clientpro_edge_back)))
+    .toBe(true);
   expect(errors, errors.join(' | ')).toEqual([]);
 });
 
