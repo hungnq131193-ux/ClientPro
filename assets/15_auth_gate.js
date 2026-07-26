@@ -8,6 +8,52 @@
 (function () {
   "use strict";
 
+  // Guard káº¿t quáº£ giáº£i mÃ£ theo tháº¿ há»‡ khÃ³a. Promise thuá»™c phiÃªn cÅ© khÃ´ng Ä‘Æ°á»£c tráº£
+  // plaintext cho caller (caller cÃ³ thá»ƒ ghi tiáº¿p vÃ o cache KH/tÃ¬m kiáº¿m sau khi
+  // clearMasterKeyMaterial() vá»«a xÃ³a sáº¡ch RAM). Äá»“ng thá»i Promise cÅ© chá»‰ Ä‘Æ°á»£c xÃ³a
+  // chÃ­nh entry pending cá»§a nÃ³, khÃ´ng xÃ³a nháº§m Promise cá»§a phiÃªn má»Ÿ khÃ³a má»›i.
+  try {
+    if (typeof decryptFieldAsync === "function"
+      && typeof __keyGeneration !== "undefined"
+      && typeof __fieldPlainCache !== "undefined"
+      && typeof __fieldDecryptPending !== "undefined"
+      && !window.__decryptFieldGenerationGuardV2) {
+      decryptFieldAsync = async function decryptFieldAsyncGuarded(cipher) {
+        if (cipher === undefined || cipher === null) return cipher;
+        const s = String(cipher);
+        if (!s.startsWith(GCM_PREFIX)) return decryptText(s);
+        const hit = __fieldPlainCache.get(s);
+        if (hit !== undefined) return hit;
+
+        let pending = __fieldDecryptPending.get(s);
+        if (!pending) {
+          const gen = __keyGeneration;
+          let ownPromise;
+          ownPromise = _gcmDecryptField(s)
+            .then((pt) => {
+              // KhÃ³a/thu há»“i xáº£y ra giá»¯a await: tuyá»‡t Ä‘á»‘i khÃ´ng tráº£ plaintext cho
+              // caller cÅ©, vÃ¬ caller cÃ³ thá»ƒ repopulate cache khÃ¡c sau khi lock.
+              if (gen !== __keyGeneration) return s;
+              __fieldPlainCache.set(s, pt);
+              return pt;
+            })
+            .catch(() => s)
+            .finally(() => {
+              // PhiÃªn má»›i cÃ³ thá»ƒ Ä‘Ã£ táº¡o pending khÃ¡c cho cÃ¹ng ciphertext. Promise
+              // cÅ© khÃ´ng Ä‘Æ°á»£c xÃ³a entry má»›i Ä‘Ã³.
+              if (__fieldDecryptPending.get(s) === ownPromise) {
+                __fieldDecryptPending.delete(s);
+              }
+            });
+          pending = ownPromise;
+          __fieldDecryptPending.set(s, pending);
+        }
+        return pending;
+      };
+      window.__decryptFieldGenerationGuardV2 = true;
+    }
+  } catch (e) {}
+
   const AUTH_GATE_LAST_OK_TS = "app_auth_gate_last_ok_ts";
   const AUTH_GATE_LAST_MSG = "app_auth_gate_last_msg";
   const AUTH_GATE_COOLDOWN_UNTIL = "app_auth_gate_cooldown_until";
@@ -116,7 +162,6 @@
     btnCopy.style.background = "transparent";
     btnCopy.style.color = "var(--text-main, #fff)";
     btnCopy.style.fontWeight = "600";
-
     actions.appendChild(btnReset);
     actions.appendChild(btnCopy);
     card.appendChild(title);
@@ -128,283 +173,9 @@
 
     btnReset.addEventListener("click", () => {
       try {
-        // XÃ³a váº­t liá»‡u khÃ³a RAM TRÆ¯á»šC khi bá» PIN_KEY: lockApp() return sá»›m khi
-        // khÃ´ng cÃ²n PIN_KEY nÃªn gá»i sau Ä‘Ã³ lÃ  vÃ´ tÃ¡c dá»¥ng.
+        // XÃ³a váº­t liá»‡u khÃ³a RAM TRÂ°á»šC khi bá» PIN_KEY: lockApp() return sá»›m khi
+        // khÃ´ng cÃ²n PIN_KEY nÃªn gá»i sau Ä‘Ã³ lÃ  vÃ´ tÃ¡c dÃ©ng.
         if (typeof revokeUnlockedSession === "function") revokeUnlockedSession();
       } catch (e) {}
       try {
-        // Thu há»“i kÃ­ch hoáº¡t Ä‘á»ƒ buá»™c user pháº£i activate láº¡i.
-        if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
-        if (typeof PIN_KEY !== "undefined") localStorage.removeItem(PIN_KEY);
-        // PIN bá»‹ thu há»“i thÃ¬ envelope sinh tráº¯c há»c (mÃ£ hÃ³a PIN cÅ©) cÅ©ng pháº£i bá»
-        if (window.BiometricUnlock) window.BiometricUnlock.disable();
-        // KhÃ´ng xÃ³a dá»¯ liá»‡u khÃ¡ch hÃ ng (IndexedDB) Ä‘á»ƒ trÃ¡nh máº¥t dá»¯ liá»‡u.
-      } catch (e) {}
-      try {
-        // Má»Ÿ modal activation náº¿u tá»“n táº¡i
-        const actModal = document.getElementById("activation-modal");
-        if (actModal) actModal.classList.remove("hidden");
-      } catch (e) {}
-      // áº¨n overlay Ä‘á»ƒ user thao tÃ¡c nháº­p key
-      try {
-        overlay.style.display = "none";
-      } catch (e) {}
-    });
-
-    btnCopy.addEventListener("click", async () => {
-      const t = _safeText(document.getElementById("auth-gate-message")?.textContent);
-      try {
-        await navigator.clipboard.writeText(t);
-      } catch (e) {
-        try {
-          const ta = document.createElement("textarea");
-          ta.value = t;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand("copy");
-          document.body.removeChild(ta);
-        } catch (e2) {}
-      }
-    });
-  }
-
-  function _block(message) {
-    _ensureGateUI();
-
-    const overlay = document.getElementById("auth-gate-overlay");
-    const msgEl = document.getElementById("auth-gate-message");
-    const titleEl = document.getElementById("auth-gate-title");
-
-    if (titleEl) titleEl.textContent = "Quyá»n truy cáº­p bá»‹ cháº·n";
-    if (msgEl) msgEl.textContent = message || "Thiáº¿t bá»‹ cá»§a báº¡n khÃ´ng cÃ²n quyá»n sá»­ dá»¥ng.";
-    if (overlay) overlay.style.display = "flex";
-
-    try {
-      localStorage.setItem(AUTH_GATE_LAST_MSG, _safeText(message));
-    } catch (e) {}
-  }
-
-  async function _checkByIssueKdata() {
-    // Äiá»u kiá»‡n tá»‘i thiá»ƒu Ä‘á»ƒ check
-    const activated = (typeof ACTIVATED_KEY !== "undefined") ? localStorage.getItem(ACTIVATED_KEY) : null;
-    // RAM trÆ°á»›c (sau unlock â€” mÃ¡y Ä‘Ã£ migrate khÃ´ng cÃ²n plaintext), fallback plaintext
-    // (cá»­a sá»• kÃ­ch hoáº¡t / mÃ¡y legacy). CÃ¹ng nguá»“n vá»›i _resolveEmployeeId (02_security.js).
-    let employeeId = "";
-    try {
-      if (typeof __employeeIdPlain !== "undefined" && __employeeIdPlain) {
-        employeeId = String(__employeeIdPlain).trim();
-      }
-    } catch (e) {}
-    if (!employeeId) {
-      employeeId = (typeof EMPLOYEE_KEY !== "undefined") ? (localStorage.getItem(EMPLOYEE_KEY) || "") : "";
-    }
-    if (!activated || !employeeId) return { ok: true, skipped: true };
-
-    // Náº¿u khÃ´ng cÃ³ GAS URL thÃ¬ khÃ´ng thá»ƒ check
-    if (typeof ADMIN_SERVER_URL === "undefined" || !ADMIN_SERVER_URL) return { ok: true, skipped: true };
-
-    // Náº¿u offline thÃ¬ khÃ´ng cháº·n (giá»¯ UX). Backup/restore Ä‘Ã£ tá»± cháº·n theo ensureBackupSecret().
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      return { ok: true, skipped: true, offline: true };
-    }
-
-    // TTL: náº¿u Ä‘Ã£ OK trong 24h thÃ¬ bá» qua check Ä‘á»ƒ giáº£m táº£i.
-    try {
-      const lastOk = parseInt(localStorage.getItem(AUTH_GATE_LAST_OK_TS) || "0", 10) || 0;
-      if (lastOk && (Date.now() - lastOk) < AUTH_TTL_MS) {
-        return { ok: true, skipped: true, ttl: true };
-      }
-    } catch (e) {}
-
-    // Cooldown náº¿u trÆ°á»›c Ä‘Ã³ GAS lá»—i/timeout: trÃ¡nh spam retry.
-    try {
-      const until = parseInt(localStorage.getItem(AUTH_GATE_COOLDOWN_UNTIL) || "0", 10) || 0;
-      if (until && Date.now() < until) {
-        return { ok: true, skipped: true, cooldown: true };
-      }
-    } catch (e) {}
-
-    const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
-    const url = `${ADMIN_SERVER_URL}?action=issue_kdata&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}&_t=${Date.now()}`;
-
-    let txt = "";
-    try {
-      const res = await fetch(url, { method: "GET", cache: "no-store" });
-      txt = await res.text();
-    } catch (e) {
-      // Lá»—i máº¡ng/timeout: khÃ´ng cháº·n UI nhÆ°ng Ä‘áº·t cooldown Ä‘á»ƒ khÃ´ng spam.
-      try {
-        localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL, String(Date.now() + AUTH_COOLDOWN_MS));
-      } catch (e2) {}
-      return { ok: true, skipped: true, neterr: true };
-    }
-    const js = _parseMaybeJson(txt);
-
-    // Contract Æ°u tiÃªn JSON: {status:'success'|'error'|'locked', message, kdata_b64u}
-    if (js && typeof js === "object") {
-      const st = _safeText(js.status).toLowerCase();
-      const msg = _safeText(js.message);
-      if (st === "success") {
-        // Cache KDATA Ä‘á»ƒ backup/restore dÃ¹ng nhanh (khÃ´ng thay Ä‘á»•i logic ensureBackupSecret).
-        try {
-          if (js.kdata_b64u && typeof APP_BACKUP_KDATA_B64U !== "undefined") {
-            APP_BACKUP_KDATA_B64U = _safeText(js.kdata_b64u);
-          }
-        } catch (e) {}
-        // Ghi cache KDATA chung (02_security.js) Ä‘á»ƒ ensureBackupSecret() dÃ¹ng láº¡i ngay,
-        // trÃ¡nh Ä‘á»¥ng rate-limit 30s cá»§a issue_kdata phÃ­a GAS khi user backup ngay sau khi má»Ÿ app.
-        try {
-          if (js.kdata_b64u && typeof _writeCachedKdata === "function") {
-            _writeCachedKdata(employeeId, deviceId, _safeText(js.kdata_b64u));
-          }
-        } catch (e) {}
-        try {
-          localStorage.setItem(AUTH_GATE_LAST_OK_TS, String(Date.now()));
-        } catch (e) {}
-        return { ok: true };
-      }
-      if (st === "locked") return { ok: false, reason: "locked", message: msg || "TÃ i khoáº£n Ä‘Ã£ bá»‹ khÃ³a." };
-      if (st === "error") {
-        // Admin GAS v12: issue_kdata KHÃ”NG tráº£ status:'locked' â€” khÃ³a/sai thiáº¿t bá»‹ Ä‘á»u vá»
-        // status:'error' + message tiáº¿ng Viá»‡t khÃ´ng dáº¥u ("ISSUE_KDATA FAIL: ..."), nÃªn pháº£i
-        // phÃ¢n loáº¡i theo message thÃ¬ gate má»›i cháº·n Ä‘Æ°á»£c.
-        const lowMsg = msg.toLowerCase();
-        if (/bi khoa|bá»‹ khÃ³a/.test(lowMsg)) {
-          return { ok: false, reason: "locked", message: "TÃ i khoáº£n cá»§a báº¡n Ä‘Ã£ bá»‹ khÃ³a." };
-        }
-        if (/sai thiet bi|khong khop|device id/.test(lowMsg)) {
-          return { ok: false, reason: "device", message: "Sai thiáº¿t bá»‹ (Device ID khÃ´ng khá»›p)." };
-        }
-        // "chua kich hoat" / "chua gan thiet bi" / rate-limited / lá»—i chung: soft-fail,
-        // khÃ´ng cháº·n UI (backup/restore váº«n tá»± giá»›i háº¡n qua ensureBackupSecret).
-        try {
-          localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL, String(Date.now() + AUTH_COOLDOWN_MS));
-        } catch (e) {}
-        return { ok: true, skipped: true, softError: true, message: msg || "" };
-      }
-
-      // Unknown status -> khÃ´ng cháº·n, chá»‰ coi nhÆ° khÃ´ng xÃ¡c Ä‘á»‹nh
-      return { ok: true, unknown: true };
-    }
-
-    // Fallback text parsing (defensive)
-    const low = _safeText(txt).toLowerCase();
-    if (low.includes("locked") || low.includes("khoa")) {
-      return { ok: false, reason: "locked", message: "TÃ i khoáº£n cá»§a báº¡n Ä‘Ã£ bá»‹ khÃ³a." };
-    }
-    if (low.includes("sai thiet bi") || low.includes("device") || low.includes("khong khop")) {
-      return { ok: false, reason: "device", message: "Sai thiáº¿t bá»‹ (Device ID khÃ´ng khá»›p)." };
-    }
-    if (low.includes("chua kich hoat") || low.includes("chÆ°a kÃ­ch hoáº¡t")) {
-      return { ok: false, reason: "inactive", message: "TÃ i khoáº£n chÆ°a kÃ­ch hoáº¡t." };
-    }
-    return { ok: true };
-  }
-
-  function _registerLockStrike() {
-    try {
-      const now = Date.now();
-      const raw = localStorage.getItem(AUTH_GATE_LOCK_STRIKES) || "";
-      let data = null;
-      try {
-        data = JSON.parse(raw);
-      } catch (e) {
-        data = null;
-      }
-      const firstTs = data && Number(data.firstTs || 0) ? Number(data.firstTs) : now;
-      const count = data && Number(data.count || 0) ? Number(data.count) : 0;
-      const inWindow = now - firstTs <= AUTH_LOCK_STRIKE_WINDOW_MS;
-      const next = {
-        firstTs: inWindow ? firstTs : now,
-        count: inWindow ? count + 1 : 1,
-      };
-      localStorage.setItem(AUTH_GATE_LOCK_STRIKES, JSON.stringify(next));
-      return next.count >= AUTH_LOCK_STRIKES_REQUIRED;
-    } catch (e) {
-      return false; // fail-open Ä‘á»ƒ trÃ¡nh khÃ³a oan khi localStorage bá»‹ lá»—i táº¡m
-    }
-  }
-
-  function _resetLockStrikes() {
-    try {
-      localStorage.removeItem(AUTH_GATE_LOCK_STRIKES);
-    } catch (e) {}
-  }
-
-  async function preflight() {
-    try {
-      if (_inflight) return await _inflight;
-      _inflight = (async () => {
-        const r = await _checkByIssueKdata();
-        if (!r || r.ok) {
-          // CHá»ˆ xÃ³a strike khi server tháº­t sá»± tráº£ verdict OK. Káº¿t quáº£ `skipped`
-          // (chÆ°a cÃ³ mÃ£ NV lÃºc boot trÃªn mÃ¡y Ä‘Ã£ seal, thiáº¿u ADMIN_SERVER_URL,
-          // offline, TTL, cooldown, lá»—i máº¡ng, softError) vÃ  `unknown` KHÃ”NG
-          // chá»©ng minh thiáº¿t bá»‹ cÃ²n quyá»n â€” Ä‘Ã³ lÃ  "hoÃ£n kiá»ƒm tra", khÃ´ng pháº£i
-          // "Ä‘Ã£ kiá»ƒm tra vÃ  sáº¡ch". XÃ³a strike á»Ÿ Ä‘Ã³ khiáº¿n má»—i láº§n má»Ÿ láº¡i app
-          // reset bá»™ Ä‘áº¿m, nÃªn láº§n check tháº­t sau unlock mÃ£i mÃ£i chá»‰ Ä‘áº¡t strike
-          // #1 vÃ  ngÆ°á»¡ng AUTH_LOCK_STRIKES_REQUIRED khÃ´ng bao giá» tá»›i.
-          if (r && r.ok && !r.skipped && !r.unknown) _resetLockStrikes();
-          return true;
-        }
-
-        // Chá»‰ cháº·n cá»©ng + thu há»“i khi server bÃ¡o LOCKED / SAI THIáº¾T Bá»Š liÃªn tiáº¿p nhiá»u láº§n
-        // (2 strike trong 6h) â€” trÃ¡nh cháº·n oan vÃ¬ lá»—i thoÃ¡ng qua phÃ­a server.
-        if (r.reason === "locked" || r.reason === "device") {
-          const shouldBlock = _registerLockStrike();
-          if (!shouldBlock) {
-            try {
-              localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL, String(Date.now() + AUTH_COOLDOWN_MS));
-            } catch (e) {}
-            return true;
-          }
-          // Äá»§ strike: thu há»“i kÃ­ch hoáº¡t local vÃ  cháº·n UI (nÃºt "ThoÃ¡t vÃ  kÃ­ch hoáº¡t láº¡i"
-          // trÃªn overlay sáº½ má»Ÿ activation-modal Ä‘á»ƒ user activate + bind láº¡i thiáº¿t bá»‹).
-          // preflight cÅ©ng cháº¡y SAU unlock (listener bÃªn dÆ°á»›i) nÃªn pháº£i xÃ³a váº­t liá»‡u
-          // khÃ³a trong RAM trÆ°á»›c, khÃ´ng Ä‘á»ƒ phiÃªn vá»«a bá»‹ thu há»“i cÃ²n masterKey/KDATA.
-          try {
-            if (typeof revokeUnlockedSession === "function") revokeUnlockedSession();
-          } catch (e) {}
-          try {
-            if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
-          } catch (e) {}
-          _block(r.message || "Thiáº¿t bá»‹ cá»§a báº¡n khÃ´ng cÃ²n quyá»n sá»­ dá»¥ng.");
-          return false;
-        }
-
-        // CÃ¡c lÃ½ do khÃ¡c (chÆ°a kÃ­ch hoáº¡t, chÆ°a gáº¯n thiáº¿t bá»‹...): soft-fail, khÃ´ng cháº·n UI.
-        _resetLockStrikes();
-        return true;
-      })();
-      const ok = await _inflight;
-      _inflight = null;
-      return ok;
-    } catch (e) {
-      _inflight = null;
-      // Lá»—i máº¡ng/parse: khÃ´ng cháº·n UI
-      return true;
-    }
-  }
-
-  // MÃ¡y Ä‘Ã£ migrate khÃ´ng cÃ²n plaintext mÃ£ NV lÃºc boot -> cháº¡y láº¡i preflight ngay
-  // sau khi má»Ÿ khÃ³a (RAM Ä‘Ã£ cÃ³ mÃ£ NV). TTL 24h + cooldown trong _checkByIssueKdata
-  // tá»± chá»‘ng gá»i láº·p; fire-and-forget nhÆ° lá»i gá»i lÃºc boot (10_bootstrap.js).
-  try {
-    document.addEventListener("clientpro:unlocked", () => {
-      try { preflight(); } catch (e) {}
-      // check_status trong checkSecurity() cÅ©ng bá»‹ bá» qua lÃºc boot vÃ¬ cÃ¹ng lÃ½ do
-      // (chÆ°a cÃ³ mÃ£ NV). Cháº¡y bÃ¹ á»Ÿ Ä‘Ã¢y Ä‘á»ƒ giá»¯ Ä‘Æ°á»ng thu há»“i Tá»¨C THÃŒ (server bÃ¡o
-      // locked -> thu há»“i app_activated ngay láº§n Ä‘áº§u), thay vÃ¬ chá»‰ cÃ²n Ä‘Æ°á»ng
-      // 2-strike cá»§a preflight. Cá» __serverStatusChecked chá»‘ng gá»i láº·p.
-      try {
-        if (typeof runServerStatusCheck === "function") runServerStatusCheck();
-      } catch (e) {}
-    });
-  } catch (e) {}
-
-  // Expose
-  window.AuthGate = {
-    preflight,
-    block: _block,
-  };
-})();
+        // Thu há»“i kÃ­ch hoáº¡t mÃ  dá»ƒ bwÃ†îeŒÕÍ•ÈÁ£†ê¤…Ñ¥Ù…Ñ”³†ê…¤¸(€€€€€€€¥˜€¡ÑåÁ•½˜Q%YQ}-d€„ôô€‰Õ¹‘•™¥¹•ˆ¤±½…±MÑ½É…”¹É•µ½Ù•%Ñ•´¡Q%YQ}-d¤ì(€€€€€€€¥˜€¡ÑåÁ•½˜A%9}-d€„ôô€‰Õ¹‘•™¥¹•ˆ¤±½…±MÑ½É…”¹É•µ½Ù•%Ñ•´¡A%9}-d¤ì(€€€€€€€€¼¼A%8‹†î,Ñ¡Ô£†îM¤Ñ£¸•¹Ù•±½Á”Í¥¹ ÑËÃ†îmŒ£†î5Œ€¡·Œ£Í„A%8Œ¤†í¹ÕœÁ£†ê¤‹†î<€(€€€€€€€¥˜€¡İ¥¹‘½Ü¹	¥½µ•ÑÉ¥U¹±½¬¤İ¥¹‘½Ü¹	¥½µ•ÑÉ¥U¹±½¬¹‘¥Í…‰±” ¤ì(€€€€€€€€¼¼-£Ñ¹œãÍ„“†î¼±§†îÔ­£… £¹œ€¡%¹‘•á•‘¤ƒG†îÑË…¹ ·†ê•Ğ“†î¼±§†îÔ¸(€€€€€ô…Ñ €¡”¤íô(€€€€€ÑÉäì(€€€€€€€€¼¼7†î|µ½‘…°…Ñ¥Ù…Ñ¥½¸»†êıÔÓ†îM¸Ó†ê…¤(€€€€€€€½¹ÍĞ…Ñ5½‘…°€ô‘½Õµ•¹Ğ¹•Ñ±•µ•¹Ñ	å% ‰…Ñ¥Ù…Ñ¥½¸µµ½‘…°ˆ¤ì(€€€€€€€¥˜€¡…Ñ5½‘…°¤…Ñ5½‘…°¹±…ÍÍ1¥ÍĞ¹É•µ½Ù” ‰¡¥‘‘•¸ˆ¤ì(€€€€€ô…Ñ €¡”¤íô(€€€€€€¼¼ƒ†ê¡¸½Ù•É±…äƒG†îÕÍ•ÈÑ¡…¼Ó…Œ¹£†êµÀ­•ä(€€€€€ÑÉäì(€€€€€€€½Ù•É±…ä¹ÍÑå±”¹‘¥ÍÁ±…ä€ô€‰¹½¹”ˆì(€€€€€ô…Ñ €¡”¤íô(€€€ô¤ì((€€€‰Ñ¹½Áä¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ°…Íå¹Œ€ ¤€ôøì(€€€€€½¹ÍĞĞ€ô}Í…™•Q•áĞ¡‘½Õµ•¹Ğ¹•Ñ±•µ•¹Ñ	å% ‰…ÕÑ µ…Ñ”µµ•ÍÍ…”ˆ¤ü¹Ñ•áÑ½¹Ñ•¹Ğ¤ì(€€€€€ÑÉäì(€€€€€€€…İ…¥Ğ¹…Ù¥…Ñ½È¹±¥Á‰½…É¹İÉ¥Ñ•Q•áĞ¡Ğ¤ì(€€€€€ô…Ñ €¡”¤ì(€€€€€€€ÑÉäì(€€€€€€€€€½¹ÍĞÑ„€ô‘½Õµ•¹Ğ¹É•…Ñ•±•µ•¹Ğ ‰Ñ•áÑ…É•„ˆ¤ì(€€€€€€€€€Ñ„¹Ù…±Õ”€ôĞì(€€€€€€€€€‘½Õµ•¹Ğ¹‰½‘ä¹…ÁÁ•¹‘¡¥±¡Ñ„¤ì(€€€€€€€€€Ñ„¹Í•±•Ğ ¤ì(€€€€€€€€€‘½Õµ•¹Ğ¹•á•½µµ…¹ ‰½Áäˆ¤ì(€€€€€€€€€‘½Õµ•¹Ğ¹‰½‘ä¹É•µ½Ù•¡¥±¡Ñ„¤ì(€€€€€€€ô…Ñ €¡”È¤íô(€€€€€ô(€€€ô¤ì(€ô((€™Õ¹Ñ¥½¸}‰±½¬¡µ•ÍÍ…”¤ì(€€€}•¹ÍÕÉ•…Ñ•U$ ¤ì((€€€½¹ÍĞ½Ù•É±…ä€ô‘½Õµ•¹Ğ¹•Ñ±•µ•¹Ñ	å% ‰…ÕÑ µ…Ñ”µ½Ù•É±…äˆ¤ì(€€€½¹ÍĞµÍ°€ô‘½Õµ•¹Ğ¹•Ñ±•µ•¹Ñ	å% ‰…ÕÑ µ…Ñ”µµ•ÍÍ…”ˆ¤ì(€€€½¹ÍĞÑ¥Ñ±•°€ô‘½Õµ•¹Ğ¹•Ñ±•µ•¹Ñ	å% ‰…ÕÑ µ…Ñ”µÑ¥Ñ±”ˆ¤ì((€€€¥˜€¡Ñ¥Ñ±•°¤Ñ¥Ñ±•°¹Ñ•áÑ½¹Ñ•¹Ğ€ô€‰EÕç†î¸ÑÉÕä†êµÀ‹†î,£†êİ¸ˆì(€€€¥˜€¡µÍ°¤µÍ°¹Ñ•áÑ½¹Ñ•¹Ğ€ôµ•ÍÍ…”ñğ€‰Q¡§†êıĞ‹†î,†î„‹†ê…¸­£Ñ¹œÉ¸ÅÕç†î¸Ï†î´“†î•¹œ¸ˆì(€€€¥˜€¡½Ù•É±…ä¤½Ù•É±…ä¹ÍÑå±”¹‘¥ÍÁ±…ä€ô€‰™±•àˆì((€€€ÑÉäì(€€€€€±½…±MÑ½É…”¹Í•Ñ%Ñ•´¡UQ!}Q}1MQ}5M°}Í…™•Q•áĞ¡µ•ÍÍ…”¤¤ì(€€€ô…Ñ €¡”¤íô(€ô((€…Íå¹Œ™Õ¹Ñ¥½¸}¡•­	å%ÍÍÕ•-‘…Ñ„ ¤ì(€€€€¼¼ƒA§†îÔ­§†î¸Ó†îE¤Ñ¡§†îÔƒG†î¡•¬(€€€½¹ÍĞ…Ñ¥Ù…Ñ•€ô€¡ÑåÁ•½˜Q%YQ}-d€„ôô€‰Õ¹‘•™¥¹•ˆ¤€ü±½…±MÑ½É…”¹•Ñ%Ñ•´¡Q%YQ}-d¤€è¹Õ±°ì(€€€€¼¼I4ÑËÃ†îmŒ€¡Í…ÔÕ¹±½¬ƒŠP·…äƒGŒµ¥É…Ñ”­£Ñ¹œÉ¸Á±…¥¹Ñ•áĞ¤°™…±±‰…¬Á±…¥¹Ñ•áĞ(€€€€¼¼€¡†îµ„Ï†îT¯µ ¡¿†ê…Ğ€¼·…ä±•…ä¤¸å¹œ¹×†îM¸Û†îm¤}É•Í½±Ù•µÁ±½å••%€ ÀÉ}Í•ÕÉ¥Ñä¹©Ì¤¸(€€€±•Ğ•µÁ±½å••%€ô€ˆˆì(€€€ÑÉäì(€€€€€¥˜€¡ÑåÁ•½˜}}•µÁ±½å••%‘A±…¥¸€„ôô€‰Õ¹‘•™¥¹•ˆ€˜˜}}•µÁ±½å••%‘A±…¥¸¤ì(€€€€€€€•µÁ±½å••%€ôMÑÉ¥¹œ¡}}•µÁ±½å••%‘A±…¥¸¤¹ÑÉ¥´ ¤ì(€€€€€ô(€€€ô…Ñ €¡”¤íô(€€€¥˜€ …•µÁ±½å••%¤ì(€€€€€•µÁ±½å••%€ô€¡ÑåÁ•½˜5A1=e}-d€„ôô€‰Õ¹‘•™¥¹•ˆ¤€ü€¡±½…±MÑ½É…”¹•Ñ%Ñ•´¡5A1=e}-d¤ñğ€ˆˆ¤€è€ˆˆì(€€€ô(€€€¥˜€ ……Ñ¥Ù…Ñ•ñğ€…•µÁ±½å••%¤É•ÑÕÉ¸ì½¬èÑÉÕ”°Í­¥ÁÁ•èÑÉÕ”ôì((€€€€¼¼;†êıÔ­£Ñ¹œÌLUI0Ñ£°­£Ñ¹œÑ£†î¡•¬(€€€¥˜€¡ÑåÁ•½˜5%9}MIYI}UI0€ôôô€‰Õ¹‘•™¥¹•ˆñğ€…5%9}MIYI}UI0¤É•ÑÕÉ¸ì½¬èÑÉÕ”°Í­¥ÁÁ•èÑÉÕ”ôì((€€€€¼¼;†êıÔ½™™±¥¹”Ñ£°­£Ñ¹œ£†êİ¸€¡§†î¼U`¤¸	…­ÕÀ½É•ÍÑ½É”ƒGŒÓ†îÄ£†êİ¸Ñ¡•¼•¹ÍÕÉ•	…­ÕÁM•É•Ğ ¤¸(€€€¥˜€¡ÑåÁ•½˜¹…Ù¥…Ñ½È€„ôô€‰Õ¹‘•™¥¹•ˆ€˜˜¹…Ù¥…Ñ½È¹½¹1¥¹”€ôôô™…±Í”¤ì(€€€€€É•ÑÕÉ¸ì½¬èÑÉÕ”°Í­¥ÁÁ•èÑÉÕ”°½™™±¥¹”èÑÉÕ”ôì(€€€ô((€€€€¼¼QQ0è»†êıÔƒGŒ=,ÑÉ½¹œ€ÈÑ Ñ£°‹†î<ÅÕ„¡•¬ƒG†î§†ê´Ó†ê¤¸(€€€ÑÉäì(€€€€€½¹ÍĞ±…ÍÑ=¬€ôÁ…ÉÍ•%¹Ğ¡±½…±MÑ½É…”¹•Ñ%Ñ•´¡UQ!}Q}1MQ}=-}QL¤ñğ€ˆÀˆ°€ÄÀ¤ñğ€Àì(€€€€€¥˜€¡±…ÍÑ=¬€˜˜€¡…Ñ”¹¹½Ü ¤€´±…ÍÑ=¬¤€ğUQ!}QQ1}5L¤ì(€€€€€€€É•ÑÕÉ¸ì½¬èÑÉÕ”°Í­¥ÁÁ•èÑÉÕ”°ÑÑ°èÑÉÕ”ôì(€€€€€ô(€€€ô…Ñ €¡”¤íô((€€€€¼¼½½±‘½İ¸»†êıÔÑËÃ†îmŒƒGÌL³†î]¤½Ñ¥µ•½ÕĞèÑË…¹ ÍÁ…´É•ÑÉä¸(€€€ÑÉäì(€€€€€½¹ÍĞÕ¹Ñ¥°€ôÁ…ÉÍ•%¹Ğ¡±½…±MÑ½É…”¹•Ñ%Ñ•´¡UQ!}Q}==1=]9}U9Q%0¤ñğ€ˆÀˆ°€ÄÀ¤ñğ€Àì(€€€€€¥˜€¡Õ¹Ñ¥°€˜˜…Ñ”¹¹½Ü ¤€ğÕ¹Ñ¥°¤ì(€€€€€€€É•ÑÕÉ¸ì½¬èÑÉÕ”°Í­¥ÁÁ•èÑÉÕ”°½½±‘½İ¸èÑÉÕ”ôì(€€€€€ô(€€€ô…Ñ €¡”¤íô((€€€½¹ÍĞ‘•Ù¥•%€ô€¡ÑåÁ•½˜•Ñ•Ù¥•%€ôôô€‰™Õ¹Ñ¥½¸ˆ¤€ü•Ñ•Ù¥•% ¤€è€¡±½…±MÑ½É…”¹•Ñ%Ñ•´ ‰…ÁÁ}‘•Ù¥•}Õ¹¥ÅÕ•}¥ˆ¤ñğ€ˆˆ¤ì(€€€½¹ÍĞÕÉ°€ô€‘í5%9}MIYI}UI1ôı…Ñ¥½¸õ¥ÍÍÕ•}­‘…Ñ„™•µÁ±½å••%ô‘í•¹½‘•UI%½µÁ½¹•¹Ğ¡•µÁ±½å••%¥ô™‘•Ù¥•%ô‘í•¹½‘•UI%½µÁ½¹•¹Ğ¡‘•Ù¥•%¥ô™}Ğô‘í…Ñ”¹¹½Ü ¥õ€ì((€€€±•ĞÑáĞ€ô€ˆˆì(€€€ÑÉäì(€€€€€½¹ÍĞÉ•Ì€ô…İ…¥Ğ™•Ñ ¡ÕÉ°°ìµ•Ñ¡½è€‰Pˆ°…¡”è€‰¹¼µÍÑ½É”ˆô¤ì(€€€€€ÑáĞ€ô…İ…¥ĞÉ•Ì¹Ñ•áĞ ¤ì(€€€ô…Ñ €¡”¤ì(€€€€€€¼¼3†î]¤·†ê…¹œ½Ñ¥µ•½ÕĞè­£Ñ¹œ£†êİ¸U$¹£Á¹œƒG†êİĞ½½±‘½İ¸ƒG†î­£Ñ¹œÍÁ…´¸(€€€€€ÑÉäì(€€€€€€€±½…±MÑ½É…”¹Í•Ñ%Ñ•´¡UQ!}Q}==1=]9}U9Q%0°MÑÉ¥¹œ¡…Ñ”¹¹½Ü ¤€¬UQ!}==1=]9}5L¤¤ì(€€€€€ô…Ñ €¡”È¤íô(€€€€€É•ÑÕÉ¸ì½¬èÑÉÕ”°Í­¥ÁÁ•èÑÉÕ”°¹•Ñ•ÉÈèÑÉÕ”ôì(€€€ô(€€€½¹ÍĞ©Ì€ô}Á…ÉÍ•5…å‰•)Í½¸¡ÑáĞ¤ì((€€€€¼¼½¹ÑÉ…ĞƒÁÔÑ§©¸)M=8èíÍÑ…ÑÕÌèÍÕ•ÍÌğ•ÉÉ½Èğ±½­•œ°µ•ÍÍ…”°­‘…Ñ…}ˆØÑÕô(€€€¥˜€¡©Ì€˜˜ÑåÁ•½˜©Ì€ôôô€‰½‰©•Ğˆ¤ì(€€€€€½¹ÍĞÍĞ€ô}Í…™•Q•áĞ¡©Ì¹ÍÑ…ÑÕÌ¤¹Ñ½1½İ•É…Í” ¤ì(€€€€€½¹ÍĞµÍœ€ô}Í…™•Q•áĞ¡©Ì¹µ•ÍÍ…”¤ì(€€€€€¥˜€¡ÍĞ€ôôô€‰ÍÕ•ÍÌˆ¤ì(€€€€€€€€¼¼…¡”-QƒG†î‰…­ÕÀ½É•ÍÑ½É”“å¹œ¹¡…¹ €¡­£Ñ¹œÑ¡…äƒG†îU¤±½¥Œ•¹ÍÕÉ•	…­ÕÁM•É•Ğ¤¸(€€€€€€€ÑÉäì(€€€€€€€€€¥˜€¡©Ì¹­‘…Ñ…}ˆØÑÔ€˜˜ÑåÁ•½˜AA}	-UA}-Q}ØÑT€„ôô€‰Õ¹‘•™¥¹•ˆ¤ì(€€€€€€€€€€€AA}	-UA}-Q}ØÑT€ô}Í…™•Q•áĞ¡©Ì¹­‘…Ñ…}ˆØÑÔ¤ì(€€€€€€€€€ô(€€€€€€€ô…Ñ €¡”¤íô(€€€€€€€€¼¼¡¤…¡”-Q¡Õ¹œ€ ÀÉ}Í•ÕÉ¥Ñä¹©Ì¤ƒG†î•¹ÍÕÉ•	…­ÕÁM•É•Ğ ¤“å¹œ³†ê…¤¹…ä°(€€€€€€€€¼¼ÑË…¹ ƒG†î•¹œÉ…Ñ”µ±¥µ¥Ğ€ÌÁÌ†î„¥ÍÍÕ•}­‘…Ñ„Á£µ„L­¡¤ÕÍ•È‰…­ÕÀ¹…äÍ…Ô­¡¤·†î|…ÁÀ¸(€€€€€€€ÑÉäì(€€€€€€€€€¥˜€¡©Ì¹­‘…Ñ…}ˆØÑÔ€˜˜ÑåÁ•½˜}İÉ¥Ñ•…¡•‘-‘…Ñ„€ôôô€‰™Õ¹Ñ¥½¸ˆ¤ì(€€€€€€€€€€€}İÉ¥Ñ•…¡•‘-‘…Ñ„¡•µÁ±½å••%°‘•Ù¥•%°}Í…™•Q•áĞ¡©Ì¹­‘…Ñ…}ˆØÑÔ¤¤ì(€€€€€€€€€ô(€€€€€€€ô…Ñ €¡”¤íô(€€€€€€€ÑÉäì(€€€€€€€€€±½…±MÑ½É…”¹Í•Ñ%Ñ•´¡UQ!}Q}1MQ}=-}QL°MÑÉ¥¹œ¡…Ñ”¹¹½Ü ¤¤¤ì(€€€€€€€ô…Ñ €¡”¤íô(€€€€€€€É•ÑÕÉ¸ì½¬èÑÉÕ”ôì(€€€€€ô(€€€€€¥˜€¡ÍĞ€ôôô€‰±½­•ˆ¤É•ÑÕÉ¸ì½¬è™…±Í”°É•…Í½¸è€‰±½­•ˆ°µ•ÍÍ…”èµÍœñğ€‰S¤­¡¿†ê¸ƒGŒ‹†î,­£Í„¸ˆôì(€€€€€¥˜€¡ÍĞ€ôôô€‰•ÉÉ½Èˆ¤ì(€€€€€€€€¼¼‘µ¥¸LØÄÈè¥ÍÍÕ•}­‘…Ñ„-#Q9ÑË†êŒÍÑ…ÑÕÌè±½­•œƒŠP­£Í„½Í…¤Ñ¡§†êıĞ‹†î,ƒG†îÔÛ†î(€€€€€€€€¼¼ÍÑ…ÑÕÌè•ÉÉ½Èœ€¬µ•ÍÍ…”Ñ§†êı¹œY§†îĞ­£Ñ¹œ“†ê•Ô€ ‰%MMU}-Q%0è€¸¸¸ˆ¤°»©¸Á£†ê¤(€€€€€€€€¼¼Á£‰¸±¿†ê…¤Ñ¡•¼µ•ÍÍ…”Ñ£°…Ñ”·†îm¤£†êİ¸ƒGÃ†îŒ¸(€€€€€€€½¹ÍĞ±½İ5Íœ€ôµÍœ¹Ñ½1½İ•É…Í” ¤ì(€€€€€€€¥˜€ ½‰¤­¡½…ñ‹†î,­£Í„¼¹Ñ•ÍĞ¡±½İ5Íœ¤¤ì(€€€€€€€€€É•ÑÕÉ¸ì½¬è™…±Í”°É•…Í½¸è€‰±½­•ˆ°µ•ÍÍ…”è€‰S¤­¡¿†ê¸†î„‹†ê…¸ƒGŒ‹†î,­£Í„¸ˆôì(€€€€€€€ô(€€€€€€€¥˜€ ½Í…¤Ñ¡¥•Ğ‰¥ñ­¡½¹œ­¡½Áñ‘•Ù¥”¥¼¹Ñ•ÍĞ¡±½İ5Íœ¤¤ì(€€€€€€€€€É•ÑÕÉ¸ì½¬è™…±Í”°É•…Í½¸è€‰‘•Ù¥”ˆ°µ•ÍÍ…”è€‰M…¤Ñ¡§†êıĞ‹†î,€¡•Ù¥”%­£Ñ¹œ­£†îmÀ¤¸ˆôì(€€€€€€€ô(€€€€€€€€¼¼€‰¡Õ„­¥ ¡½…Ğˆ€¼€‰¡Õ„…¸Ñ¡¥•Ğ‰¤ˆ€¼É…Ñ”µ±¥µ¥Ñ•€¼³†î]¤¡Õ¹œèÍ½™Ğµ™…¥°°(€€€€€€€€¼¼­£Ñ¹œ£†êİ¸U$€¡‰…­ÕÀ½É•ÍÑ½É”Û†ê­¸Ó†îÄ§†îm¤£†ê…¸ÅÕ„•¹ÍÕÉ•	…­ÕÁM•É•Ğ¤¸(€€€€€€€ÑÉäì(€€€€€€€€€±½…±MÑ½É…”¹Í•Ñ%Ñ•´¡UQ!}Q}==1=]9}U9Q%0°MÑÉ¥¹œ¡…Ñ”¹¹½Ü ¤€¬UQ!}==1=]9}5L¤¤ì(€€€€€€€ô…Ñ €¡”¤íô(€€€€€€€É•ÑÕÉ¸ì½¬èÑÉÕ”°Í­¥ÁÁ•èÑÉÕ”°Í½™ÑÉÉ½ÈèÑÉÕ”°µ•ÍÍ…”èµÍœñğ€ˆˆôì(€€€€€ô((€€€€€€¼¼U¹­¹½İ¸ÍÑ…ÑÕÌ€´ø­£Ñ¹œ£†êİ¸°£†î$½¤¹£À­£Ñ¹œã…ŒƒG†î-¹ (€€€€€É•ÑÕÉ¸ì½¬èÑÉÕ”°Õ¹­¹½İ¸èÑÉÕ”ôì(€€€ô((€€€€¼¼…±±‰…¬Ñ•áĞÁ…ÉÍ¥¹œ€¡‘•™•¹Í¥Ù”¤(€€€½¹ÍĞ±½Ü€ô}Í…™•Q•áĞ¡ÑáĞ¤¹Ñ½1½İ•É…Í” ¤ì(€€€¥˜€¡±½Ü¹¥¹±Õ‘•Ì ‰±½­•ˆ¤ñğ±½Ü¹¥¹±Õ‘•Ì ‰­¡½„ˆ¤¤ì(€€€€€É•ÑÕÉ¸ì½¬è™…±Í”°É•…Í½¸è€‰±½­•ˆ°µ•ÍÍ…”è€‰S¤­¡¿†ê¸†î„‹†ê…¸ƒGŒ‹†î,­£Í„¸ˆôì(€€€ô(€€€¥˜€¡±½Ü¹¥¹±Õ‘•Ì ‰Í…¤Ñ¡¥•Ğ‰¤ˆ¤ñğ±½Ü¹¥¹±Õ‘•Ì ‰‘•Ù¥”ˆ¤ñğ±½Ü¹¥¹±Õ‘•Ì ‰­¡½¹œ­¡½Àˆ¤¤ì(€€€€€É•ÑÕÉ¸ì½¬è™…±Í”°É•…Í½¸è€‰‘•Ù¥”ˆ°µ•ÍÍ…”è€‰M…¤Ñ¡§†êıĞ‹†î,€¡•Ù¥”%­£Ñ¹œ­£†îmÀ¤¸ˆôì(€€€ô(€€€¥˜€¡±½Ü¹¥¹±Õ‘•Ì ‰¡Õ„­¥ ¡½…Ğˆ¤ñğ±½Ü¹¥¹±Õ‘•Ì ‰£Á„¯µ ¡¿†ê…Ğˆ¤¤ì(€€€€€É•ÑÕÉ¸ì½¬è™…±Í”°É•…Í½¸è€‰¥¹…Ñ¥Ù”ˆ°µ•ÍÍ…”è€‰S¤­¡¿†ê¸£Á„¯µ ¡¿†ê…Ğ¸ˆôì(€€€ô(€€€É•ÑÕÉ¸ì½¬èÑÉÕ”ôì(€ô((€™Õ¹Ñ¥½¸}É•¥ÍÑ•É1½­MÑÉ¥­” ¤ì(€€€ÑÉäì(€€€€€½¹ÍĞ¹½Ü€ô…Ñ”¹¹½Ü ¤ì(€€€€€½¹ÍĞÉ…Ü€ô±½…±MÑ½É…”¹•Ñ%Ñ•´¡UQ!}Q}1=-}MQI%-L¤ñğ€ˆˆì(€€€€€±•Ğ‘…Ñ„€ô¹Õ±°ì(€€€€€ÑÉäì(€€€€€€€‘…Ñ„€ô)M=8¹Á…ÉÍ”¡É…Ü¤ì(€€€€€ô…Ñ €¡”¤ì(€€€€€€€‘…Ñ„€ô¹Õ±°ì(€€€€€ô(€€€€€½¹ÍĞ™¥ÉÍÑQÌ€ô‘…Ñ„€˜˜9Õµ‰•È¡‘…Ñ„¹™¥ÉÍÑQÌñğ€À¤€ü9Õµ‰•È¡‘…Ñ„¹™¥ÉÍÑQÌ¤€è¹½Üì(€€€€€½¹ÍĞ½Õ¹Ğ€ô‘…Ñ„€˜˜9Õµ‰•È¡‘…Ñ„¹½Õ¹Ğñğ€À¤€ü9Õµ‰•È¡‘…Ñ„¹½Õ¹Ğ¤€è€Àì(€€€€€½¹ÍĞ¥¹]¥¹‘½Ü€ô¹½Ü€´™¥ÉÍÑQÌ€ğôUQ!}1=-}MQI%-}]%9=]}5Lì(€€€€€½¹ÍĞ¹•áĞ€ôì(€€€€€€€™¥ÉÍÑQÌè¥¹]¥¹‘½Ü€ü™¥ÉÍÑQÌ€è¹½Ü°(€€€€€€€½Õ¹Ğè¥¹]¥¹‘½Ü€ü½Õ¹Ğ€¬€Ä€è€Ä°(€€€€€ôì(€€€€€±½…±MÑ½É…”¹Í•Ñ%Ñ•´¡UQ!}Q}1=-}MQI%-L°)M=8¹ÍÑÉ¥¹¥™ä¡¹•áĞ¤¤ì(€€€€€É•ÑÕÉ¸¹•áĞ¹½Õ¹Ğ€øôUQ!}1=-}MQI%-M}IEU%Iì(€€€ô…Ñ €¡”¤ì(€€€€€É•ÑÕÉ¸™…±Í”ì€¼¼™…¥°µ½Á•¸ƒG†îÑË…¹ ­£Í„½…¸­¡¤±½…±MÑ½É…”‹†î,³†î]¤Ó†ê…´(€€€ô(€ô((€™Õ¹Ñ¥½¸}É•Í•Ñ1½­MÑÉ¥­•Ì ¤ì(€€€ÑÉäì(€€€€€±½…±MÑ½É…”¹É•µ½Ù•%Ñ•´¡UQ!}Q}1=-}MQI%-L¤ì(€€€ô…Ñ €¡”¤íô(€ô((€…Íå¹Œ™Õ¹Ñ¥½¸ÁÉ•™±¥¡Ğ ¤ì(€€€ÑÉäì(€€€€€¥˜€¡}¥¹™±¥¡Ğ¤É•ÑÕÉ¸…İ…¥Ğ}¥¹™±¥¡Ğì(€€€€€}¥¹™±¥¡Ğ€ô€¡…Íå¹Œ€ ¤€ôøì(€€€€€€€½¹ÍĞÈ€ô…İ…¥Ğ}¡•­	å%ÍÍÕ•-‘…Ñ„ ¤ì(€€€€€€€¥˜€ …ÈñğÈ¹½¬¤ì(€€€€€€€€€€¼¼#†î ãÍ„ÍÑÉ¥­”­¡¤Í•ÉÙ•ÈÑ£†êµĞÏ†îÄÑË†êŒÙ•É‘¥Ğ=,¸/†êıĞÅ×†êŒÍ­¥ÁÁ•‘€(€€€€€€€€€€¼¼€¡£Á„Ì·Œ9X³éŒ‰½½ĞÑË©¸·…äƒGŒÍ•…°°Ñ¡§†êıÔ5%9}MIYI}UI0°(€€€€€€€€€€¼¼½™™±¥¹”°QQ0°½½±‘½İ¸°³†î]¤·†ê…¹œ°Í½™ÑÉÉ½È¤Û€Õ¹­¹½İ¹€-#Q9(€€€€€€€€€€¼¼£†î¥¹œµ¥¹ Ñ¡§†êıĞ‹†î,É¸ÅÕç†î¸ƒŠPƒGÌ³€€‰¡¿¸­§†î´ÑÉ„ˆ°­£Ñ¹œÁ£†ê¤(€€€€€€€€€€¼¼€‹GŒ­§†î´ÑÉ„Û€Ï†ê… ˆ¸cÍ„ÍÑÉ¥­”ƒ†î|ƒGÌ­¡§†êı¸·†î]¤³†ê¸·†î|³†ê…¤…ÁÀ(€€€€€€€€€€¼¼É•Í•Ğ‹†îdƒG†êı´°»©¸³†ê¸¡•¬Ñ£†êµĞÍ…ÔÕ¹±½¬·¤·¤£†î$ƒG†ê…ĞÍÑÉ¥­”(€€€€€€€€€€¼¼€ŒÄÛ€¹ŸÃ†î…¹œUQ!}1=-}MQI%-M}IEU%I­£Ñ¹œ‰…¼§†îtÓ†îm¤¸(€€€€€€€€€¥˜€¡È€˜˜È¹½¬€˜˜€…È¹Í­¥ÁÁ•€˜˜€…È¹Õ¹­½İ¸¤}É•Í•Ñ1½­MÑÉ¥­•Ì ¤ì(€€€€€€€€€É•ÑÕÉ¸ÑÉÕ”ì(€€€€€€€ô((€€€€€€€€¼¼£†î$£†êİ¸†î¥¹œ€¬Ñ¡Ô£†îM¤­¡¤Í•ÉÙ•È‹…¼1=-€¼M$Q!'†êùP†î(±§©¸Ñ§†êıÀ¹¡§†îÔ³†ê¸(€€€€€€€€¼¼€ ÈÍÑÉ¥­”ÑÉ½¹œ€Ù ¤ƒŠPÑË…¹ £†êİ¸½…¸Û°³†î]¤Ñ¡¿…¹œÅ×„Á£µ„Í•ÉÙ•È¸(€€€€€€€¥˜€¡È¹É•…Í½¸€ôôô€‰±½­•ˆñğÈ¹É•…Í½¸€ôôô€‰‘•Ù¥”ˆ¤ì(€€€€€€€€€½¹ÍĞÍ¡½Õ±‘	±½¬€ô}É•¥ÍÑ•É1½­MÑÉ¥­” ¤ì(€€€€€€€€€¥˜€ …Í¡½Õ±‘	±½¬¤ì(€€€€€€€€€€€ÑÉäì(€€€€€€€€€€€€€±½…±MÑ½É…”¹Í•Ñ%Ñ•´¡UQ!}Q}==1=]9}U9Q%0°MÑÉ¥¹œ¡…Ñ”¹¹½Ü ¤€¬UQ!}==1=]9}5L¤¤ì(€€€€€€€€€€€ô…Ñ €¡”¤íô(€€€€€€€€€€€É•ÑÕÉ¸ÑÉÕ”ì(€€€€€€€€€ô(€€€€€€€€€€¼¼ƒC†îœÍÑÉ¥­”èÑ¡Ô£†îM¤¯µ ¡¿†ê…Ğ±½…°Û€£†êİ¸U$€¡»éĞ€‰Q¡¿…ĞÛ€¯µ ¡¿†ê…Ğ³†ê…¤ˆ(€€€€€€€€€€¼¼ÑË©¸½Ù•É±…äÏ†êô·†î|…Ñ¥Ù…Ñ¥½¸µµ½‘…°ƒG†îÕÍ•È…Ñ¥Ù…Ñ”€¬‰¥¹³†ê…¤Ñ¡§†êıĞ‹†î,¤¸(€€€€€€€€€€¼¼ÁÉ•™±¥¡Ğ¥¹œ£†ê…äMTÕ¹±½¬€¡±¥ÍÑ•¹•È‹©¸“Ã†îm¤¤»©¸Á£†ê¤ãÍ„Û†êµĞ±§†îÔ(€€€€€€€€€€¼¼­£Í„ÑÉ½¹œI4ÑËÃ†îmŒ°­£Ñ¹œƒG†îÁ¡§©¸Û†î­„‹†î,Ñ¡Ô£†îM¤É¸µ…ÍÑ•É-•ä½-Q¸(€€€€€€€€€ÑÉäì(€€€€€€€€€€€¥˜€¡ÑåÁ•½˜É•Ù½­•U¹±½­•‘M•ÍÍ¥½¸€ôôô€‰™Õ¹Ñ¥½¸ˆ¤É•Ù½­•U¹±½­•‘M•ÍÍ¥½¸ ¤ì(€€€€€€€€€ô…Ñ €¡”¤íô(€€€€€€€€€ÑÉäì(€€€€€€€€€€€¥˜€¡ÑåÁ•½˜Q%YQ}-d€„ôô€‰Õ¹‘•™¥¹•ˆ¤±½…±MÑ½É…”¹É•µ½Ù•%Ñ•´¡Q%YQ}-d¤ì(€€€€€€€€€ô…Ñ €¡”¤íô(€€€€€€€€€}‰±½¬¡È¹µ•ÍÍ…”ñğ€‰Q¡§†êıĞ‹†î,†î„‹†ê…¸­£Ñ¹œÉ¸ÅÕç†î¸Ï†î´“†î•¹œ¸ˆ¤ì(€€€€€€€€€É•ÑÕÉ¸™…±Í”ì(€€€€€€€ô((€€€€€€€€¼¼…Œ³ô‘¼­£…Œ€¡£Á„¯µ ¡¿†ê…Ğ°£Á„Ÿ†ê½¸Ñ¡§†êıĞ‹†î,¸¸¸¤èÍ½™Ğµ™…¥°°­£Ñ¹œ£†êİ¸U$¸(€€€€€€€}É•Í•Ñ1½­MÑÉ¥­•Ì ¤ì(€€€€€€€É•ÑÕÉ¸ÑÉÕ”ì(€€€€€ô¤ ¤ì(€€€€€½¹ÍĞ½¬€ô…İ…¥Ğ}¥¹™±¥¡Ğì(€€€€€}¥¹™±¥¡Ğ€ô¹Õ±°ì(€€€€€É•ÑÕÉ¸½¬ì(€€€ô…Ñ €¡”¤ì(€€€€€}¥¹™±¥¡Ğ€ô¹Õ±°ì(€€€€€€¼¼3†î]¤·†ê…¹œ½Á…ÉÍ”è­£Ñ¹œ£†êİ¸U$(€€€€€É•ÑÕÉ¸ÑÉÕ”ì(€€€ô(€ô((€€¼¼7…äƒGŒµ¥É…Ñ”­£Ñ¹œÉ¸Á±…¥¹Ñ•áĞ·Œ9X³éŒ‰½½Ğ€´ø£†ê…ä³†ê…¤ÁÉ•™±¥¡Ğ¹…ä(€€¼¼Í…Ô­¡¤·†î|­£Í„€¡I4ƒGŒÌ·Œ9X¤¸QQ0€ÈÑ €¬½½±‘½İ¸ÑÉ½¹œ}¡•­	å%ÍÍÕ•-‘…Ñ„(€€¼¼Ó†îÄ£†îE¹œŸ†î5¤³†êİÀì™¥É”µ…¹µ™½É•Ğ¹£À³†îu¤Ÿ†î5¤³éŒ‰½½Ğ€ ÄÁ}‰½½ÑÍÑÉ…À¹©Ì¤¸(€ÑÉäì(€€€‘½Õµ•¹Ğ¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥•¹ÑÁÉ¼éÕ¹±½­•ˆ°€ ¤€ôøì(€€€€€ÑÉäìÁÉ•™±¥¡Ğ ¤ìô…Ñ €¡”¤íô(€€€€€€¼¼¡•­}ÍÑ…ÑÕÌÑÉ½¹œ¡•­M•ÕÉ¥Ñä ¤¥¹œ‹†î,‹†î<ÅÕ„³éŒ‰½½ĞÛ°å¹œ³ô‘¼(€€€€€€¼¼€¡£Á„Ì·Œ9X¤¸£†ê…ä‹äƒ†î|ƒG‰äƒG†î§†î¼ƒGÃ†îu¹œÑ¡Ô£†îM¤S†î¡Q#0€¡Í•ÉÙ•È‹…¼(€€€€€€¼¼±½­•€´øÑ¡Ô£†îM¤…ÁÁ}…Ñ¥Ù…Ñ•¹…ä³†ê¸ƒG†êÔ¤°Ñ¡…äÛ°£†î$É¸ƒGÃ†îu¹œ(€€€€€€¼¼€ÈµÍÑÉ¥­”†î„ÁÉ•™±¥¡Ğ¸†ît}}Í•ÉÙ•ÉMÑ…ÑÕÍ¡•­•£†îE¹œŸ†î5¤³†êİÀ¸(€€€€€ÑÉäì(€€€€€€€¥˜€¡ÑåÁ•½˜ÉÕ¹M•ÉÙ•ÉMÑ…ÑÕÍ¡•¬€ôôô€‰™Õ¹Ñ¥½¸ˆ¤ÉÕ¹M•ÉÙ•ÉMÑ…ÑÕÍ¡•¬ ¤ì(€€€€€ô…Ñ €¡”¤íô(€€€ô¤ì(€ô…Ñ €¡”¤íô((€€¼¼áÁ½Í”(€İ¥¹‘½Ü¹ÕÑ¡…Ñ”€ôì(€€€ÁÉ•™±¥¡Ğ°(€€€‰±½¬è}‰±½¬°(€ôì)ô¤ ¤ì(
