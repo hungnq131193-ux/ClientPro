@@ -1189,6 +1189,67 @@ function setTheme(themeName) {
   const meta = document.getElementById("meta-theme-color");
   if (meta) meta.setAttribute("content", THEME_META_COLORS[themeName] || "#005b9f");
 }
+// Check ngầm check_status đã chạy tới nơi (nhận + parse được phản hồi) trong
+// phiên này. Lỗi mạng/offline KHÔNG set cờ để lần sau còn thử lại.
+let __serverStatusChecked = false;
+
+/**
+ * Check ngầm với Admin GAS (action=check_status): server báo "locked" thì thu hồi
+ * kích hoạt local và bắt user kích hoạt lại. Không chặn UI, nuốt lỗi mạng.
+ *
+ * Tách khỏi checkSecurity() vì máy đã seal mã NV không còn identity lúc boot
+ * (app còn khóa) -> check này bị bỏ qua; 15_auth_gate.js gọi lại sau
+ * clientpro:unlocked khi RAM đã có mã NV. Cờ __serverStatusChecked chống gọi lặp.
+ */
+async function runServerStatusCheck() {
+  if (__serverStatusChecked) return;
+  try {
+    if (!localStorage.getItem(ACTIVATED_KEY)) return;
+  } catch (e) {
+    return;
+  }
+  try {
+    const savedEmp = _resolveEmployeeId();
+    if (!savedEmp) return;
+    // Theo bản index trước đó chạy ổn: check_status chỉ cần employeeId + deviceInfo
+    const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
+
+    const res = await fetch(ADMIN_SERVER_URL + query);
+    const txt = await res.text();
+    let result;
+    try {
+      result = JSON.parse(txt);
+    } catch (e) {
+      result = txt;
+    }
+    // Đã nhận được phản hồi -> không cần hỏi lại trong phiên này.
+    __serverStatusChecked = true;
+
+    const status =
+      result && typeof result === "object" && result.status
+        ? String(result.status).toLowerCase()
+        : typeof result === "string" &&
+          result.toLowerCase().includes("locked")
+          ? "locked"
+          : "";
+    const msg =
+      result && typeof result === "object" && result.message
+        ? result.message
+        : "";
+    if (status === "locked") {
+      getEl("screen-lock").classList.add("hidden");
+      getEl("setup-lock-modal").classList.add("hidden");
+      const modal = getEl("activation-modal");
+      modal.classList.remove("hidden");
+      const titleEl = document.getElementById("activation-title");
+      if (titleEl) titleEl.textContent = msg || "Tài khoản đã bị thu hồi!";
+      localStorage.removeItem(ACTIVATED_KEY);
+    }
+  } catch (err) {
+    // Offline: bỏ qua check ngầm với server, app vẫn hoạt động bình thường
+  }
+}
+
 /** * Kiểm tra trạng thái kích hoạt và bảo mật của ứng dụng. * Trình tự: * 1. Nếu chưa kích hoạt (không có app_activated), hiển thị modal kích hoạt. * 2. Nếu đã kích hoạt nhưng chưa tạo PIN, hiển thị màn hình thiết lập PIN. * Mã nhân viên sẽ được điền sẵn từ localStorage để người dùng không cần nhập lại. * 3. Nếu đã có PIN, hiển thị màn hình khóa để nhập PIN. */
 // --- HÀM CHECK BẢO MẬT MỚI (MỞ KHÓA SIÊU TỐC) ---
 async function checkSecurity() {
@@ -1216,48 +1277,10 @@ async function checkSecurity() {
   }
 
   // 2. CHECK NGẦM VỚI SERVER (Background Check)
-  // Phần này chạy âm thầm bên dưới, không làm đơ màn hình của bạn
-  try {
-    // Máy đã migrate không còn plaintext lúc boot -> check ngầm chạy lại sau
-    // unlock qua listener clientpro:unlocked của AuthGate (15_auth_gate.js).
-    const savedEmp = _resolveEmployeeId();
-    if (savedEmp) {
-      // Theo bản index trước đó chạy ổn: check_status chỉ cần employeeId + deviceInfo
-      const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
-
-      const res = await fetch(ADMIN_SERVER_URL + query);
-      const txt = await res.text();
-      let result;
-      try {
-        result = JSON.parse(txt);
-      } catch (e) {
-        result = txt;
-      }
-
-      const status =
-        result && typeof result === "object" && result.status
-          ? String(result.status).toLowerCase()
-          : typeof result === "string" &&
-            result.toLowerCase().includes("locked")
-            ? "locked"
-            : "";
-      const msg =
-        result && typeof result === "object" && result.message
-          ? result.message
-          : "";
-      if (status === "locked") {
-        getEl("screen-lock").classList.add("hidden");
-        getEl("setup-lock-modal").classList.add("hidden");
-        const modal = getEl("activation-modal");
-        modal.classList.remove("hidden");
-        const titleEl = document.getElementById("activation-title");
-        if (titleEl) titleEl.textContent = msg || "Tài khoản đã bị thu hồi!";
-        localStorage.removeItem(ACTIVATED_KEY);
-      }
-    }
-  } catch (err) {
-    // Offline: bỏ qua check ngầm với server, app vẫn hoạt động bình thường
-  }
+  // Phần này chạy âm thầm bên dưới, không làm đơ màn hình của bạn.
+  // Máy đã seal mã NV chưa có identity lúc này -> hàm return sớm và được gọi
+  // lại sau clientpro:unlocked (15_auth_gate.js).
+  await runServerStatusCheck();
 }
 
 /**

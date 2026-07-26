@@ -332,7 +332,14 @@
       _inflight = (async () => {
         const r = await _checkByIssueKdata();
         if (!r || r.ok) {
-          _resetLockStrikes();
+          // CHỈ xóa strike khi server thật sự trả verdict OK. Kết quả `skipped`
+          // (chưa có mã NV lúc boot trên máy đã seal, thiếu ADMIN_SERVER_URL,
+          // offline, TTL, cooldown, lỗi mạng, softError) và `unknown` KHÔNG
+          // chứng minh thiết bị còn quyền — đó là "hoãn kiểm tra", không phải
+          // "đã kiểm tra và sạch". Xóa strike ở đó khiến mỗi lần mở lại app
+          // reset bộ đếm, nên lần check thật sau unlock mãi mãi chỉ đạt strike
+          // #1 và ngưỡng AUTH_LOCK_STRIKES_REQUIRED không bao giờ tới.
+          if (r && r.ok && !r.skipped && !r.unknown) _resetLockStrikes();
           return true;
         }
 
@@ -375,6 +382,13 @@
   try {
     document.addEventListener("clientpro:unlocked", () => {
       try { preflight(); } catch (e) {}
+      // check_status trong checkSecurity() cũng bị bỏ qua lúc boot vì cùng lý do
+      // (chưa có mã NV). Chạy bù ở đây để giữ đường thu hồi TỨC THÌ (server báo
+      // locked -> thu hồi app_activated ngay lần đầu), thay vì chỉ còn đường
+      // 2-strike của preflight. Cờ __serverStatusChecked chống gọi lặp.
+      try {
+        if (typeof runServerStatusCheck === "function") runServerStatusCheck();
+      } catch (e) {}
     });
   } catch (e) {}
 

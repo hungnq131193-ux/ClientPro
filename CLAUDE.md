@@ -247,6 +247,15 @@ Gate app usage behind a device activation record before any data flow.
 - Do not bypass, weaken, or auto-complete activation.
 - Do not persist activation secrets/tokens as plaintext beyond what the existing
   code already stores.
+- Revocation must survive app restarts. `preflight()` clears the lock-strike
+  counter (`app_auth_gate_lock_strikes`) **only on a real server verdict** — a
+  `skipped` result (no employee id yet at boot, offline, TTL, cooldown, network
+  error) means "check deferred", not "device is clean". Resetting on `skipped`
+  makes the 2-strike threshold unreachable across restarts.
+- Both server checks must still run on devices whose employee id is sealed:
+  `issue_kdata` via `AuthGate.preflight()` and `check_status` via
+  `runServerStatusCheck()` — neither has an identity at boot, so both re-run on
+  `clientpro:unlocked`.
 
 ### Primary files
 `assets/15_auth_gate.js`, `assets/ui/modals/activation-modal.html`,
@@ -266,8 +275,12 @@ and deletes the plaintext (`runEmployeeIdSealMigrationIfNeeded`,
 `02_security.js`). At runtime the code lives in RAM (`__employeeIdPlain`,
 cleared on lock); `getEmployeeId()` (00_globals) reads RAM first, then the
 legacy plaintext. The auth gate decides between activation, lock, and normal
-start at load, and re-runs `AuthGate.preflight()` on `clientpro:unlocked`
-(migrated devices have no plaintext employee id at boot).
+start at load, and on `clientpro:unlocked` re-runs both server checks that had
+no identity at boot on migrated devices: `AuthGate.preflight()` (`issue_kdata`,
+2 strikes in 6h before blocking) and `runServerStatusCheck()` (`check_status`,
+revokes `app_activated` on the first `locked` reply; extracted from
+`checkSecurity()` in `02_security.js`, guarded once per session by
+`__serverStatusChecked`).
 
 ### Read source code only when
 You must verify the gate order, an activation bug is reported, or you are

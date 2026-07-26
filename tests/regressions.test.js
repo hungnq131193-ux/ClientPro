@@ -306,6 +306,34 @@ test('privacy: cache quãng đường (toạ độ GPS TSBĐ) phải seal, khôn
     'v3 plaintext phải nằm trong OLD_KEYS để được dọn');
 });
 
+test('revocation: preflight chỉ xóa strike khi có verdict THẬT từ server', () => {
+  const src = read('assets/15_auth_gate.js');
+  const body = fnBody(src, 'preflight');
+  // Nhánh "ok" đầu tiên gộp cả kết quả skipped (thiếu mã NV lúc boot trên máy đã
+  // seal, offline, TTL, cooldown, lỗi mạng). Reset vô điều kiện ở đó = mỗi lần mở
+  // app xóa bộ đếm -> ngưỡng 2-strike không bao giờ tới, máy bị khóa không bị chặn.
+  assert.ok(/if\s*\(\s*r\s*&&\s*r\.ok\s*&&\s*!r\.skipped[^)]*\)\s*_resetLockStrikes\(\)/.test(body),
+    'preflight: _resetLockStrikes phải được gate bằng !r.skipped (verdict thật)');
+  assert.ok(!/if\s*\(\s*!r\s*\|\|\s*r\.ok\s*\)\s*\{\s*_resetLockStrikes\(\);/.test(body),
+    'preflight: không được reset strike vô điều kiện trên nhánh ok/skipped');
+});
+
+test('revocation: check_status chạy lại sau unlock (máy đã seal mã NV không có identity lúc boot)', () => {
+  const sec = read('assets/02_security.js');
+  assert.ok(/(?:async\s+)?function\s+runServerStatusCheck\s*\(/.test(sec),
+    '02_security.js: check_status phải tách thành runServerStatusCheck() để gọi lại được');
+  const checkBody = fnBody(sec, 'checkSecurity');
+  assert.ok(/runServerStatusCheck\(/.test(checkBody),
+    'checkSecurity: vẫn phải chạy check ngầm lúc boot (máy legacy / cửa sổ kích hoạt)');
+  assert.ok(!/action=check_status/.test(checkBody),
+    'checkSecurity: không được inline lại check_status — dùng runServerStatusCheck()');
+
+  const gate = read('assets/15_auth_gate.js');
+  const listener = gate.slice(gate.indexOf('clientpro:unlocked'));
+  assert.ok(/runServerStatusCheck\(/.test(listener),
+    '15_auth_gate.js: listener clientpro:unlocked phải chạy bù check_status');
+});
+
 test('privacy: users-cache cloud transfer (PII NV khác) không persist — RAM-only', () => {
   const src = read('assets/14_cloud_transfer.js');
   assert.ok(!/localStorage\.setItem\(\s*USERS_CACHE_KEY/.test(src),
