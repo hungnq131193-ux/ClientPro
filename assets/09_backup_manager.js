@@ -81,7 +81,8 @@ async function openBackupManager() {
     }
   } catch (e) { }
 
-  if (window.lucide) lucide.createIcons();
+  // Scope icon scan vào modal — tránh quét lại toàn bộ document khi mở.
+  if (window.lucide) lucide.createIcons({ root: modal || document });
 }
 
 function closeBackupManager() {
