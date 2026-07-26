@@ -147,12 +147,19 @@ ui/load_modals → 00_globals → 01_config → 02_security → 12_backup_core �
 05_customers → 06_assets → 08_images_camera → 09_menu → 09_backup_manager →
 09_donate → 09_weather → 07_drive → 14_cloud_transfer → 16_auto_backup_drive →
 17_onboarding_tour → 18_biometric_unlock → 10_bootstrap → 11_edge_back_swipe →
-pdf-toolkit/{utils → core → merge → pages → images → pdf2img → compress → ui} →
-dvhc-lookup/{dvhc_utils → dvhc_data → dvhc_ui} → pwa.js
+pwa.js
 ```
 
 `10_bootstrap.js` opens IndexedDB and starts the app; `pwa.js` registers the
 Service Worker last. If you add or reorder a module, update this list.
+
+PDF Toolkit (`pdf-toolkit/{utils → core → merge → pages → images → pdf2img →
+compress → ui}`) and DVHC Lookup (`dvhc-lookup/{dvhc_utils → dvhc_data →
+dvhc_ui}`) have NO `<script>` tags in `index.html`: both are lazy-loaded in
+that order (CSS first, then scripts sequentially) by `window.LazyModules`
+(`00_globals.js`) the first time the user opens them, using
+`?v=<LAZY_MODULES_V>` URLs (`01_config.js`) that hit the Service Worker
+precache — so both tools still work offline.
 
 ## 10. Directory structure (architecture level)
 
@@ -165,16 +172,18 @@ package.json              Semver single source of truth + CI/test scripts
 playwright.config.js      Playwright e2e config (mobile profile + static server)
 lighthouserc.json         Lighthouse CI config
 scripts/sync-version.mjs  Sync/verify semver + ASSET_V across manifest/sw/pwa/README
+scripts/check-policy.mjs  Repo policy checks (debug scaffold / cache-buster / self-host) — CI + local
+.nvmrc                    Node version for CI (node-version-file) and local dev
 assets/00…19_*.js, pwa.js Business modules, in dependency order (see §9)
 assets/head.js            Early head-level setup
-assets/pdf-toolkit/*.js   PDF Toolkit (utils/core/ui + tool modules)
-assets/dvhc-lookup/*.js   Tra cứu sáp nhập ĐVHC (utils/data/ui)
+assets/pdf-toolkit/*.js   PDF Toolkit (utils/core/ui + tool modules; lazy-loaded, see §9)
+assets/dvhc-lookup/*.js   Tra cứu sáp nhập ĐVHC (utils/data/ui; lazy-loaded, see §9)
 assets/data/dvhc/         Dữ liệu ĐVHC offline (dvhc.v1.json + README nguồn)
 scripts/build-dvhc-data.mjs  Sinh lại dữ liệu ĐVHC từ nguồn mở (chạy tay)
 assets/ui/load_modals.js  Loads the modal HTML fragments
 assets/ui/modals/*.html   Modal fragments (activation, lock, backup, camera, etc.)
 assets/vendor/            Self-hosted deps (crypto-js, lucide, maplibre, supercluster, pdf-lib, pdf.js, jszip)
-assets/fonts/             Self-hosted fonts (Be Vietnam Pro, Inter)
+assets/fonts/             Self-hosted fonts (Be Vietnam Pro only)
 assets/styles.css, css/   App CSS (styles.css + css/{fonts,tailwind.clientpro,app.patch,redesign.clientpro,pdf-toolkit,dvhc-lookup}.css)
 gas/                      Google Apps Script: AdminAPI.gs, UserDriveAPI.gs
 tests/                    Node unit tests (node --test)
@@ -185,10 +194,13 @@ docs/                     terminology.md + screenshots
 
 ## 11. Script load-order rule
 
-Every business script is included in `index.html` with a `?v=<ASSET_V>` query and
-executes in the order shown in §9. The order encodes real dependencies (security
-before anything that decrypts; error/loading helpers before UI modules; bootstrap
-near the end). Do not reorder without verifying the dependency chain.
+Every business script is included in `index.html` with a `?v=<ASSET_V>` query
+(including `ui/load_modals.js`) and executes in the order shown in §9. The order
+encodes real dependencies (security before anything that decrypts; error/loading
+helpers before UI modules; bootstrap near the end). Do not reorder without
+verifying the dependency chain. Lazy-loaded modules (map vendor, PDF Toolkit,
+DVHC) build their URLs from `MAPLIBRE_V` / `LAZY_MODULES_V`, which must equal
+`ASSET_V` (enforced by `scripts/check-policy.mjs` and `tests/pwa.test.js`).
 
 ## 12. Global namespace
 
@@ -204,7 +216,10 @@ source before relying on it):
 - Feature namespaces: `window.AuthGate`, `window.BackupCore`,
   `window.DriveBackup`, `window.CloudTransferUI`, `window.UISelectCustomers`,
   `window.BiometricUnlock`, `window.PdfToolkit`, `window.DvhcLookup`,
-  `window.OnboardingTour`.
+  `window.OnboardingTour`. `window.LazyModules` (`00_globals.js`) lazy-loads the
+  PDF Toolkit and DVHC modules on first open — `window.PdfToolkit` /
+  `window.DvhcLookup` do not exist until then (their `data-action` handlers go
+  through `LazyModules.ensure`).
 - Shared crypto state lives as module-level globals in `02_security.js`
   (`masterKey`, `masterCryptoKey`, caches). Treat these as read-only outside
   security/unlock code.
@@ -242,9 +257,17 @@ Gate app usage behind a device activation record before any data flow.
 `window.AuthGate`.
 
 ### Data and lifecycle
-Activation state and identifiers live in `localStorage` (e.g. `app_activated`,
-`app_employee_id`). The auth gate decides between activation, lock, and normal
-start at load.
+Activation state lives in `localStorage` (`app_activated`). The employee code is
+the masterKey RECOVERY SECRET (it opens the `app_sec_qa` envelope) and is NOT
+persisted plaintext long-term: plaintext `app_employee_id` exists only in the
+activation → PIN-setup window (and on not-yet-migrated legacy devices); the
+first unlock seals it into `app_employee_id_sealed_v1` (AES-GCM under masterKey)
+and deletes the plaintext (`runEmployeeIdSealMigrationIfNeeded`,
+`02_security.js`). At runtime the code lives in RAM (`__employeeIdPlain`,
+cleared on lock); `getEmployeeId()` (00_globals) reads RAM first, then the
+legacy plaintext. The auth gate decides between activation, lock, and normal
+start at load, and re-runs `AuthGate.preflight()` on `clientpro:unlocked`
+(migrated devices have no plaintext employee id at boot).
 
 ### Read source code only when
 You must verify the gate order, an activation bug is reported, or you are
@@ -534,6 +557,11 @@ Show customers on a map with clustering and compute road distance.
 ### Core invariants
 - MapLibre is lazy-loaded with its own cache-buster `MAPLIBRE_V`, which must equal
   `ASSET_V`.
+- The road-distance cache (`app_road_dist_cache_v4`) contains customer asset GPS
+  coordinates and is sealed AES-GCM under masterKey (read/write only through
+  `_readRoadDistCacheAsync` / `_writeRoadDistCacheSealed`; older plaintext keys
+  are in `ROAD_DIST_CACHE_OLD_KEYS` and get cleaned up). Never write it plaintext
+  (tripwire in `tests/regressions.test.js`).
 - Do not change clustering/routing logic for docs/tour.
 
 ### Primary files
@@ -582,7 +610,8 @@ navigation, progress/cancel, cleanup, `window.PdfToolkit`), plus the tool files
 above.
 
 ### Public entry points
-`PdfToolkit.open()`, `window.pdfToolkitHandleBack`.
+`PdfToolkit.open()` (action `PdfToolkit.open` đi qua `LazyModules.ensure('pdf')` —
+module lazy-load khi mở lần đầu), `window.pdfToolkitHandleBack`.
 
 ### Read source code only when
 Debugging a PDF tool or verifying a limit.
@@ -627,9 +656,10 @@ bằng `scripts/build-dvhc-data.mjs`).
 
 ### Public entry points
 `DvhcLookup.open()` (nút `#btn-quick-dvhc` trong lưới `.quick-action-grid`
-"Thao tác nhanh" trên Dashboard, action `DvhcLookup.open`
-trong `00_globals.js`), `window.dvhcLookupHandleBack` (cascade back trong
-`11_edge_back_swipe.js`; id có mặt trong `TRACKED_SLIDE_IDS`).
+"Thao tác nhanh" trên Dashboard, action `DvhcLookup.open` trong `00_globals.js`
+đi qua `LazyModules.ensure('dvhc')` — module lazy-load khi mở lần đầu),
+`window.dvhcLookupHandleBack` (cascade back trong `11_edge_back_swipe.js`;
+id có mặt trong `TRACKED_SLIDE_IDS`).
 
 ### Read source code only when
 Sửa tool này, cập nhật dữ liệu ĐVHC (chạy lại script build), hoặc debug
@@ -652,7 +682,8 @@ Installable PWA with offline app shell.
 - `install` does not force activation; `activate` keeps only the current
   allowlisted caches.
 - Cache names: `clientpro-genesis-{static,runtime-so,runtime-cdn,runtime-tile}-<VERSION>`.
-- `ASSET_V` (cache-buster) must equal every `?v=` in `index.html` and `MAPLIBRE_V`.
+- `ASSET_V` (cache-buster) must equal every `?v=` in `index.html`, `MAPLIBRE_V`,
+  and `LAZY_MODULES_V`.
 - Do not change the caching strategy or add a CDN.
 
 ### Primary files
@@ -822,9 +853,14 @@ direct `addEventListener`). No inline `onclick`.
 ## localStorage / sessionStorage
 
 `localStorage` holds only config, sealed envelopes, markers, and sealed caches —
-never a plaintext master key or KDATA. Tour state uses its own clearly named key.
-`sessionStorage` holds transient markers (e.g. the SW reload guard). Do not store
-sensitive plaintext.
+never a plaintext master key, KDATA, or the employee code (sealed as
+`app_employee_id_sealed_v1` after first unlock; see Activation). The road-distance
+cache (`app_road_dist_cache_v4`) is sealed AES-GCM because it contains customer
+asset GPS coordinates; the cloud-transfer users cache is RAM-only (its old
+persist key `clientpro_ct_users_cache_v1` is cleaned up). `ErrorHandler`'s
+`app_error_log` redacts sensitive keys and truncates long strings before
+writing. Tour state uses its own clearly named key. The app does not write
+`sessionStorage`. Do not store sensitive plaintext.
 
 ## Tour / onboarding
 
@@ -891,14 +927,17 @@ Keep one semver and one asset cache-buster consistent everywhere.
   backup format version — these are independent.
 
 ### Primary files
-`package.json`, `sw.js`, `scripts/sync-version.mjs`, `manifest.json`,
-`assets/pwa.js`, `README.md`, `index.html`, `assets/03_map.js`.
+`package.json`, `sw.js`, `scripts/sync-version.mjs`, `scripts/check-policy.mjs`,
+`manifest.json`, `assets/pwa.js`, `README.md`, `index.html`, `assets/03_map.js`,
+`assets/01_config.js` (`LAZY_MODULES_V`).
 
 ### Data and lifecycle
 `npm run sync:version` writes semver + `ASSET_V` into `manifest.json`, `sw.js`
 `VERSION` (`v<semver>`), `assets/pwa.js` `SW_BUILD`, and `README.md`.
-`npm run check:version` verifies. CI additionally enforces that every `?v=` in
-`index.html` and `MAPLIBRE_V` in `03_map.js` equal `ASSET_V`.
+`npm run check:version` verifies. CI (and `node scripts/check-policy.mjs`,
+runnable locally) additionally enforces that every `?v=` in `index.html`,
+`MAPLIBRE_V` in `03_map.js`, and `LAZY_MODULES_V` in `01_config.js` equal
+`ASSET_V` (also asserted by `tests/pwa.test.js`).
 
 ### Read source code only when
 Performing a release/version bump.
@@ -913,7 +952,7 @@ Caching strategy, IndexedDB version, crypto version, backup format.
 
 `ASSET_V` is a free-form tag (e.g. `PDFTOOLKIT_20260721`). Changing it invalidates
 precache and forces fresh assets. Every `?v=` in `index.html`, the `sw.js`
-precache list, and `MAPLIBRE_V` must use the same `ASSET_V`.
+precache list, `MAPLIBRE_V`, and `LAZY_MODULES_V` must use the same `ASSET_V`.
 
 ## Test architecture
 
@@ -925,10 +964,11 @@ for CI tooling.
 ## Unit test
 
 `node --test 'tests/**/*.test.js'` (also `npm test`). Covers crypto, field
-migration, data integrity, schema, backup, KDATA cache, PWA, SW routing,
-regressions, menu, repository hygiene (screenshot policy), PDF Toolkit pure
-utils, and DVHC Lookup utils + data integrity. Add unit tests for pure logic
-you change.
+migration, data integrity, schema, backup, KDATA cache, sealed employee id
+(`tests/employee-id-seal.test.js`), error-log redaction
+(`tests/error-detail.test.js`), PWA, SW routing, regressions, menu, repository
+hygiene (screenshot policy), PDF Toolkit pure utils, and DVHC Lookup utils +
+data integrity. Add unit tests for pure logic you change.
 
 ## E2E test
 
@@ -944,11 +984,13 @@ Order for a release:
 2. Set the new semver in `package.json` and, if assets changed, set a new
    `ASSET_V` in `sw.js`.
 3. Run `npm run sync:version` then `npm run check:version`.
-4. Manually sync every `?v=` in `index.html` and `MAPLIBRE_V` in `03_map.js` to
-   the new `ASSET_V` (the sync script deliberately does not touch these; CI
-   verifies them).
+4. Manually sync every `?v=` in `index.html`, `MAPLIBRE_V` in `03_map.js`, and
+   `LAZY_MODULES_V` in `01_config.js` to the new `ASSET_V` (the sync script
+   deliberately does not touch these; CI and `node scripts/check-policy.mjs`
+   verify them).
 5. Run `npm test`, `node --check sw.js`, `find assets -name '*.js' -print0 |
-   xargs -0 -n1 node --check`, and `npm run test:e2e`.
+   xargs -0 -n1 node --check`, `node scripts/check-policy.mjs`, and
+   `npm run test:e2e`.
 6. Confirm the diff touches only release-system locations — never IndexedDB
    version, crypto version, or backup format.
 
