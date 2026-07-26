@@ -21,10 +21,20 @@ function toggleMenu() {
     __menuOpen = true;
     m.classList.remove("hidden");
     o.classList.remove("hidden");
-    __menuAnimationTimer = setTimeout(() => {
-      __menuAnimationTimer = null;
+    // Chờ browser commit frame hết display:none rồi mới gỡ class ẩn để transition
+    // chạy chắc chắn. Ưu tiên nextFrame (00_globals, double-rAF) thay cho
+    // setTimeout(10); giữ fallback setTimeout cho môi trường không có rAF (unit test vm).
+    const reveal = () => {
       if (__menuOpen) m.classList.remove("scale-95", "opacity-0");
-    }, 10);
+    };
+    if (typeof nextFrame === 'function') {
+      nextFrame(reveal);
+    } else {
+      __menuAnimationTimer = setTimeout(() => {
+        __menuAnimationTimer = null;
+        reveal();
+      }, 10);
+    }
     return;
   }
 

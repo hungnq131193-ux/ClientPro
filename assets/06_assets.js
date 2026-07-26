@@ -273,11 +273,13 @@ function renderAssets() {
       });
     } else {
       list.innerHTML = `<div class="text-center py-20 text-slate-500"><i data-lucide="building" class="w-10 h-10 mx-auto mb-2 opacity-40"></i><p class="text-sm">Chưa có tài sản</p></div>`;
-      lucide.createIcons();
+      lucide.createIcons({ root: list });
     }
     return;
   }
 
+  // Gom card vào fragment, append 1 lần — tránh layout/style dirty từng card một.
+  const frag = document.createDocumentFragment();
   assets.forEach((asset, index) => {
     const el = document.createElement("div");
     el.className =
@@ -351,9 +353,11 @@ function renderAssets() {
     if (referenceBtn) referenceBtn.addEventListener("click", () => referenceAssetPrice(index));
     const galleryBtn = el.querySelector('[data-asset-action="gallery"]');
     if (galleryBtn) galleryBtn.addEventListener("click", () => openAssetGallery(asset.id, decName, index));
-    list.appendChild(el);
+    frag.appendChild(el);
   });
-  lucide.createIcons();
+  list.appendChild(frag);
+  // Scope icon scan vào danh sách tài sản — không quét lại cả document.
+  lucide.createIcons({ root: list });
 }
 // Legacy asset gallery functions removed; canonical implementations live in assets/08_images_camera.js.
 

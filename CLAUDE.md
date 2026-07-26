@@ -685,6 +685,26 @@ Static screens live in `index.html`; modal fragments live in
 `el()` helper and `textContent` — never `innerHTML` with dynamic data. Icons are
 Lucide (self-hosted). Buttons wire behavior through `data-action`.
 
+### Screen slide contract
+
+Full screens are `.app-container` siblings that slide via
+`translate-x-full ↔` (transform-only, GPU-composited). The slide duration has a
+single source of truth: the CSS custom property `--screen-slide-ms` plus the
+rule `.app-container.transition-transform` (both in `assets/styles.css`),
+mirrored in JS by `UI_SLIDE_MS` in `assets/00_globals.js` — change both
+together. Open/close goes through `slideScreenIn`/`slideScreenOut`/
+`afterTransition` (`assets/00_globals.js`). Screens are shown/hidden only by
+the slide classes — do not toggle `display:none` (`hidden`) around the slide
+(forces relayout right before the transform; `#screen-customer-list` was
+normalized to this rule). Do not put `backdrop-filter` on an animating
+`.app-container` (it forces a full-screen re-blur every frame); screen roots
+paint an opaque background instead.
+
+Render paths that run while a screen opens must scope the icon scan:
+`lucide.createIcons({ root: <container> })` — an unscoped call re-creates every
+`[data-lucide]` icon in the whole document. The unscoped call is reserved for
+boot (`10_bootstrap.js`).
+
 ## Theme
 
 Multiple themes are selectable from the settings menu via

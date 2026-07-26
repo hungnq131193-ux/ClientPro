@@ -193,8 +193,9 @@ function openCustomerList(type) {
         titleEl.textContent = type === 'approved' ? 'Khách hàng đã vay' : (type === 'all' ? 'Tất cả khách hàng' : 'KH đang thẩm định');
     }
 
-    // Show screen with slide animation first (ưu tiên mượt animation)
-    screen.classList.remove('hidden');
+    // Show screen with slide animation first (ưu tiên mượt animation).
+    // Màn hình này chỉ dùng translate-x-full như các screen khác — không toggle
+    // `hidden` (display:none) quanh animation để tránh force relayout ngay trước slide.
     if (dashboard) dashboard.style.transform = 'translate3d(-30%, 0, 0)';
     if (typeof slideScreenIn === 'function') slideScreenIn(screen);
     else if (typeof nextFrame === 'function') nextFrame(() => screen.classList.remove('translate-x-full'));
@@ -210,7 +211,9 @@ function openCustomerList(type) {
     }
     // Load ngay danh sách (không lazy/defer) để tránh cảm giác trễ khi bấm mở màn hình.
     loadCustomers('');
-    try { lucide.createIcons(); } catch (e) { }
+    // Scope icon scan vào screen này — createIcons() không root quét/replace lại
+    // toàn bộ [data-lucide] của cả document (rất tốn khi đang trượt màn hình).
+    try { lucide.createIcons({ root: screen }); } catch (e) { }
 }
 
 function closeCustomerList() {
@@ -221,7 +224,6 @@ function closeCustomerList() {
 
     if (dashboard) dashboard.style.transform = '';
     const finishClose = () => {
-        screen.classList.add('hidden');
         // Refresh folder counts when returning to home
         updateFolderCounts();
     };
@@ -266,8 +268,9 @@ async function updateFolderCounts(customersOpt) {
         if (assetsEl) assetsEl.textContent = assetCount;
         // Chỉ scan lại icon ở đường gọi cũ (boot/đóng màn hình); đường gọi từ
         // loadCustomers chạy theo từng keystroke search nên bỏ qua cho nhẹ.
+        // Icon các bộ đếm đều nằm trên dashboard -> scope scan vào đó.
         if (!Array.isArray(customersOpt)) {
-            try { lucide.createIcons(); } catch (e) { }
+            try { lucide.createIcons({ root: getEl('screen-dashboard') || document }); } catch (e) { }
         }
     } catch (e) { }
 }
@@ -812,7 +815,7 @@ function renderList(list, opts = {}) {
     if (done) delete listEl.dataset.loading;
     // Tránh scan lại toàn bộ DOM mỗi batch (lucide.createIcons rất tốn khi list lớn)
     if (done) {
-        try { lucide.createIcons(); } catch (e) { }
+        try { lucide.createIcons({ root: listEl }); } catch (e) { }
     }
 }
 
@@ -1445,7 +1448,8 @@ function renderFolderHeader(data) {
         badge.className = "px-4 py-2 rounded-lg text-xs font-bold border flex items-center gap-2 active:scale-95 transition-transform bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
         badge.innerHTML = `<i data-lucide="hourglass" class="w-3.5 h-3.5"></i> <span>Đang thẩm định</span>`;
     }
-    try { lucide.createIcons(); } catch (e) { }
+    // Icon mới chỉ nằm trong badge -> scope scan, tránh quét cả document giữa lúc mở hồ sơ.
+    try { lucide.createIcons({ root: badge }); } catch (e) { }
 }
 
 function openFolder(id) {
@@ -1706,7 +1710,7 @@ function loadCustomerInfo() {
     if (createdEl) createdEl.textContent = `Tạo: ${createdAt}`;
     if (notesEl) notesEl.value = notes;
 
-    try { lucide.createIcons(); } catch (e) { }
+    try { lucide.createIcons({ root: getEl('content-info') || document }); } catch (e) { }
 }
 
 // Save customer notes

@@ -210,7 +210,8 @@ body.theme-vietinbank {
     inset 0 -1px 0 0 rgba(0, 0, 0, 0.1);
   position: relative;
   z-index: 10;
-  will-change: transform, opacity;
+  /* Không giữ will-change vĩnh viễn trên mọi panel (tốn compositor layer trên
+     mobile); translateZ(0) bên dưới đã đủ promote khi cần. */
   transform: translateZ(0);
 }
 
@@ -557,6 +558,19 @@ body.cust-selection-mode .customer-list-hint {
 
 .app-container.is-sliding {
   overflow: hidden;
+}
+
+/* Single source of truth for the screen slide duration.
+   Mirrored in JS by UI_SLIDE_MS (assets/00_globals.js) — keep both in sync. */
+:root {
+  --screen-slide-ms: 240ms;
+}
+
+/* Screen slide: fast decelerating ease, transform-only, GPU-composited. */
+.app-container.transition-transform {
+  transition-property: transform;
+  transition-duration: var(--screen-slide-ms);
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .scroll-area {
@@ -1036,6 +1050,12 @@ textarea::placeholder {
 #settings-menu {
   top: calc(5rem + var(--sat));
   /* Tailwind top-20 */
+  /* Chỉ transition transform + opacity (đè `transition-all` — animate cả
+     backdrop-filter/box-shadow của .glass-panel rất tốn), và kết thúc đúng
+     lúc timer đóng 200ms trong 09_menu.js thêm `hidden` (trước đây CSS 300ms
+     bị display:none cắt ngang ở 200ms). */
+  transition-property: transform, opacity;
+  transition-duration: 200ms;
 }
 
 #cust-selection-bar,
@@ -1265,26 +1285,22 @@ textarea::placeholder {
   z-index: 10080;
 }
 
-/* transforms + slide-in bars */
+/* transforms + slide-in bars — translate3d để trượt trên compositor (GPU),
+   đồng bộ với remap translate3d của .app-container.transform cho trục X. */
 .translate-y-full {
-  transform: translateY(100%);
+  transform: translate3d(0, 100%, 0);
 }
 
 .translate-y-0 {
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0);
 }
 
 .-translate-y-full {
-  transform: translateY(-100%);
+  transform: translate3d(0, -100%, 0);
 }
 
 .-translate-y-0 {
-  transform: translateY(0);
-}
-.transition-transform {
-  transition-property: transform;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 300ms;
+  transform: translate3d(0, 0, 0);
 }
 
 .transition-opacity {
