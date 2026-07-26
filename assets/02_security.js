@@ -783,6 +783,11 @@ async function completeUnlockDataLoad(pinForMigration, empForMigration) {
   } finally {
     _setUnlockLoading(false);
   }
+  // Auto-lock có thể nổ GIỮA pipeline này (key cài trước khi chạy, nên
+  // isAppUnlocked() đã true và _onAppHiddenForAutoLock đủ điều kiện khóa).
+  // Phiên đã mất thì không được đánh thức auto-backup/preflight bằng sự kiện
+  // của một unlock không còn hiệu lực.
+  if (!isAppUnlocked()) return;
   // B2: báo cho các module (auto-backup Drive...) biết app vừa mở khóa xong.
   // Guard đầy đủ vì test harness (tests/helpers/load-security.js) stub document
   // không có dispatchEvent/CustomEvent. Dispatch lặp lại vô hại (listener idempotent).
@@ -1636,6 +1641,11 @@ async function validatePin() {
     resetPinFailures();
     _setKeypadDisabled(false);
     await completeUnlockDataLoad(pinForMigration, empForMigration);
+    // Auto-lock (60s ẩn) có thể đã nổ GIỮA pipeline dài phía trên và xóa key +
+    // hiện lại màn khóa. Ẩn màn khóa vô điều kiện ở đây là mở app với
+    // masterKey=null — vào được dashboard mà không qua PIN. Mất phiên thì giữ
+    // nguyên màn khóa, người dùng nhập PIN lại.
+    if (!isAppUnlocked()) return;
     getEl("screen-lock").classList.add("hidden");
     // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới (masterKey giữ nguyên, dữ liệu không đổi)
     if (res.legacy) _openForcedPinUpgrade();
