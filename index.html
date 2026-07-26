@@ -8,7 +8,7 @@
         content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClientPro</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
     <meta name="theme-color" content="#005b9f" id="meta-theme-color">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -26,13 +26,11 @@
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-latin.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-vietnamese.woff2">
     <link rel="stylesheet" href="./assets/css/fonts.css?v=PERF_TRANSITIONS_20260726">
-    <!-- Tailwind (self-host) -->
-    <!-- Self-host Tailwind CSS (use ./ to ensure correct resolution on GitHub Pages subpaths) -->
+    <!-- Tailwind (self-host; đường dẫn ./ tương đối theo <base> để hoạt động ở mọi subpath) -->
     <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=PERF_TRANSITIONS_20260726">
     <link rel="stylesheet" href="./assets/css/app.patch.css?v=PERF_TRANSITIONS_20260726">
     <!-- Lucide icons (self-host, xem assets/vendor/README.md) -->
     <script defer src="./assets/vendor/lucide.min.js?v=PERF_TRANSITIONS_20260726"></script>
-    <!-- Transfer Backup uses TEXT chunks (no QR image) -->
     <!-- MapLibre GL JS is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
     <!-- CryptoJS library for hashing and encryption (self-host) -->
     <script defer src="./assets/vendor/crypto-js.min.js?v=PERF_TRANSITIONS_20260726"></script>
@@ -564,7 +562,7 @@
 
     <!-- UI Partials: Modals are loaded from /assets/ui/modals/*.html for maintainability -->
     <div id="ui-modals-root"></div>
-    <script src="./assets/ui/load_modals.js" defer></script>
+    <script src="./assets/ui/load_modals.js?v=PERF_TRANSITIONS_20260726" defer></script>
 
     <script src="./assets/00_globals.js?v=PERF_TRANSITIONS_20260726" defer></script>
     <script src="./assets/01_config.js?v=PERF_TRANSITIONS_20260726" defer></script>

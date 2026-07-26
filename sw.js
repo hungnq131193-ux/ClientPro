@@ -92,7 +92,7 @@ const STATIC_ASSETS = [
   `./assets/dvhc-lookup/dvhc_ui.js?v=${ASSET_V}`,
   `./assets/data/dvhc/dvhc.v1.json?v=${ASSET_V}`,
 
-  './assets/ui/load_modals.js',
+  `./assets/ui/load_modals.js?v=${ASSET_V}`,
 
   './assets/ui/modals/screen-lock.html',
   './assets/ui/modals/setup-lock-modal.html',

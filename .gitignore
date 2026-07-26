@@ -7,6 +7,15 @@ playwright-report/
 coverage/
 .nyc_output/
 
+# Secrets / môi trường — không bao giờ commit
+.env
+.env.*
+
+# IDE / deploy tooling
+.vercel/
+.idea/
+.vscode/
+
 # Local logs and temporary files
 *.log
 *.tmp

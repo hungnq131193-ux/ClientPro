@@ -1,4 +1,4 @@
-        // --- WEATHER CONFIG (Open-Meteo: không cần API key) ---
+// --- WEATHER CONFIG (Open-Meteo: không cần API key) ---
 const WEATHER_STORAGE_KEY = 'app_weather_cache_v1';
 const WEATHER_CACHE_TTL = 15 * 60 * 1000; // 15 phút
 // --- CẤU HÌNH SERVER TRUNG TÂM ---
