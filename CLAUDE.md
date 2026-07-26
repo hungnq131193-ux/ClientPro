@@ -602,6 +602,13 @@ cũ → mới, và nạp "gói thôn/TDP theo tỉnh" (đợt sắp xếp 2026) 
 - Màn hình `#screen-dvhc-lookup` là slide-in z-20 một cấp (back = đóng),
   dựng runtime bằng `el()`/`textContent`; kết quả chỉ để đối chiếu tham khảo.
 - Khóa app (quan sát `#screen-lock`) ẩn màn hình ngay và không tự mở lại.
+- `dvhc.v1.json` **không được chứa dòng đối chiếu trùng** (cùng bộ
+  `[xã cũ, huyện cũ, xã mới]`): build script lọc trùng, unit test canh giữ.
+  Còn trùng thì tra xuôi hiện thẻ lặp và tra ngược đếm sai số đơn vị cũ.
+- Gói thôn/TDP (tới 4 MB / 50.000 dòng) phải được parse + dựng chỉ mục **một
+  lần** rồi cache (`getPackIndex()` trong `dvhc_data.js`, cache theo chuỗi thô
+  trong `localStorage`, xoá khi `setPack`/`clearPack`). Đường render gọi
+  `packLookupFromIndex()`, không bao giờ parse lại gói cho từng thẻ kết quả.
 
 ### Primary files
 `assets/dvhc-lookup/dvhc_utils.js` (hàm thuần, unit-test được),
@@ -708,6 +715,15 @@ Android-style edge swipe to go back / close the topmost overlay.
 - Claims a gesture only after the drag direction is confirmed.
 - Do not alter global edge-back or history behavior for docs/tour.
 - CI blocks any debug scaffold in this file (`DEBUG_MODE`, debug log keys, `dbg(`).
+- Depth model: mỗi screen/modal trong `TRACKED_MODAL_IDS`/`TRACKED_SLIDE_IDS`
+  mở ra = đúng 1 history entry; đóng bằng tap/swipe thì
+  `consumeTrackedHistoryStep()` trả lại entry đó.
+- `popstate` do chính app gây ra (`history.back()` trong
+  `consumeTrackedHistoryStep`) được nhận biết bằng **bộ đếm** `selfPopPending`
+  (đúng 1 popstate hấp thụ cho mỗi `back()` đã phát), KHÔNG bằng cửa sổ thời
+  gian. Cửa sổ thời gian `POPSTATE_DEDUPE_MS` chỉ còn dùng cho touch gesture.
+  Đừng quay lại dedupe theo thời gian: nó nuốt cả back thật của người dùng khi
+  một mục mở từ Menu (menu ẩn trễ 200ms rồi mới trả entry).
 
 ### Primary files
 `assets/11_edge_back_swipe.js`.

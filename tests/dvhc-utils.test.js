@@ -79,6 +79,26 @@ test('dữ liệu: mỗi tỉnh mới đều có ít nhất 1 xã, mã xã khôn
   });
 });
 
+// Nguồn có ~140 dòng lặp y hệt một cặp (đơn vị cũ → xã mới); build script lọc
+// trùng. Còn sót thì tra xuôi hiện thẻ trùng, tra ngược đếm sai số đơn vị cũ.
+test('dữ liệu: không có dòng đối chiếu trùng lặp', () => {
+  const seen = new Set();
+  const dups = [];
+  for (const [oW, dIdx, wIdx] of DATA.map) {
+    const key = oW + '|' + dIdx + '|' + wIdx;
+    if (seen.has(key)) {
+      if (dups.length < 5) dups.push(oW + ' → ' + DATA.wards[wIdx][1]);
+    }
+    seen.add(key);
+  }
+  assert.equal(dups.length, 0, 'dòng trùng: ' + dups.join(', '));
+  assert.equal(seen.size, DATA.map.length);
+});
+
+test('dữ liệu: meta.counts.mappings khớp số dòng map thật', () => {
+  assert.equal(DATA.meta.counts.mappings, DATA.map.length);
+});
+
 // --------------------------- Tra xuôi (cũ -> mới) --------------------------
 test('searchOld: tìm không dấu "phuong 12, go vap" ra Phường An Hội Tây', () => {
   const rs = U.searchOld(INDEX, 'phuong 12, go vap', 10);
@@ -192,6 +212,46 @@ test('packLookup: tra theo tên xã mới, không phân biệt dấu/tiền tố
   assert.equal(U.packLookup(v.pack, 'xa cao phong').length, 1);
   assert.equal(U.packLookup(v.pack, 'Cao Phong').length, 1);
   assert.equal(U.packLookup(v.pack, 'Xã Khác').length, 0);
+});
+
+test('buildPackIndex: gom theo tên xã đã chuẩn hoá + tên tỉnh chuẩn hoá sẵn', () => {
+  const v = U.validatePack({
+    schema: 'dvhc-pack@1',
+    province: 'Tỉnh Phú Thọ',
+    mappings: [
+      { xa: 'Xã Cao Phong', cu: 'Xóm Đồng Mới', moi: 'Xóm Trung Hoà' },
+      { xa: 'Cao Phong', cu: 'Xóm Bãi Bệ', moi: 'Xóm Trung Hoà' },
+      { xa: 'Phường Việt Trì', cu: 'TDP 1', moi: 'TDP Tân Dân' },
+    ],
+  });
+  assert.ok(v.ok);
+  const idx = U.buildPackIndex(v.pack);
+  assert.equal(idx.province, 'phu tho', 'tên tỉnh đã bỏ tiền tố + bỏ dấu');
+  // Hai cách viết cùng một xã phải gộp chung một khoá.
+  assert.equal(idx.byWard.get('cao phong').length, 2);
+  assert.equal(idx.byWard.size, 2);
+});
+
+test('packLookupFromIndex: tra không phân biệt dấu/tiền tố, khớp packLookup', () => {
+  const v = U.validatePack({
+    schema: 'dvhc-pack@1',
+    province: 'Phú Thọ',
+    mappings: [{ xa: 'Xã Cao Phong', cu: 'Xóm Đồng Mới', moi: 'Xóm Trung Hoà' }],
+  });
+  assert.ok(v.ok);
+  const idx = U.buildPackIndex(v.pack);
+  for (const q of ['xa cao phong', 'Cao Phong', 'Xã Cao Phong', 'Xã Khác', '']) {
+    assert.deepEqual(
+      U.packLookupFromIndex(idx, q),
+      U.packLookup(v.pack, q),
+      'khác kết quả với truy vấn: ' + q
+    );
+  }
+  assert.equal(U.packLookupFromIndex(idx, 'cao phong').length, 1);
+  assert.equal(U.packLookupFromIndex(idx, 'Xã Khác').length, 0);
+  // Gói rỗng/không hợp lệ: không ném lỗi.
+  assert.deepEqual(U.packLookupFromIndex(null, 'Cao Phong'), []);
+  assert.deepEqual(U.buildPackIndex(null).byWard.size, 0);
 });
 
 // --------------------------- Helper ----------------------------------------

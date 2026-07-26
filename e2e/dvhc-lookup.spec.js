@@ -115,15 +115,21 @@ test('Back: nút back đóng màn hình; hardware back (popstate) cũng đóng',
   await seedAndUnlock(page);
   await openLookup(page);
 
-  // Hardware back (popstate) trên lần mở đầu — history đang sạch.
-  // Chờ QUA cửa sổ POPSTATE_DEDUPE_MS (600ms) của 11_edge_back_swipe.js:
-  // việc menu tự đóng khi mở tool chạy consumeTrackedHistoryStep() và mọi
-  // popstate trong 600ms sau đó bị coi là cùng một thao tác (đúng thiết kế).
-  await page.waitForTimeout(900);
+  // Hardware back (popstate) NGAY sau khi mở — không chờ cửa sổ dedupe nào.
+  // Mở tool từ Menu khiến menu tự đóng ~200ms sau, và cú đóng đó chạy
+  // consumeTrackedHistoryStep() -> history.back() của riêng app. Trước đây
+  // cú back() đó dedupe bằng cửa sổ thời gian 600ms nên nuốt luôn back thật
+  // của người dùng: entry history bị tiêu thụ mà màn hình vẫn mở, lần back kế
+  // tiếp thoát app. Nay dedupe theo ĐẾM nên back thật luôn được xử lý.
   await page.evaluate(() => history.back());
   await page.waitForFunction(() => document.getElementById('screen-dvhc-lookup').classList.contains('translate-x-full'));
   // Dashboard vẫn hiển thị bình thường.
   await expect(page.locator('#screen-dashboard')).toBeVisible();
+  // Chiều sâu history không bị tiêu thụ quá tay: sentinel gốc vẫn còn, nên
+  // back tiếp theo còn chỗ để tiêu thụ thay vì thoát app.
+  await expect
+    .poll(() => page.evaluate(() => !!(history.state && history.state.__clientpro_edge_back)))
+    .toBe(true);
   await page.waitForTimeout(500);
 
   // Mở lại rồi đóng bằng nút back trên header.
