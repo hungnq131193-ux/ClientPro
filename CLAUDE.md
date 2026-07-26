@@ -618,7 +618,8 @@ cũ → mới, và nạp "gói thôn/TDP theo tỉnh" (đợt sắp xếp 2026) 
 bằng `scripts/build-dvhc-data.mjs`).
 
 ### Public entry points
-`DvhcLookup.open()` (nút trong `#settings-menu`, action `DvhcLookup.open`
+`DvhcLookup.open()` (nút `#btn-quick-dvhc` trong lưới `.quick-action-grid`
+"Thao tác nhanh" trên Dashboard, action `DvhcLookup.open`
 trong `00_globals.js`), `window.dvhcLookupHandleBack` (cascade back trong
 `11_edge_back_swipe.js`; id có mặt trong `TRACKED_SLIDE_IDS`).
 
