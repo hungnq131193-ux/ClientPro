@@ -1049,6 +1049,12 @@ textarea::placeholder {
 #settings-menu {
   top: calc(5rem + var(--sat));
   /* Tailwind top-20 */
+  /* Chỉ transition transform + opacity (đè `transition-all` — animate cả
+     backdrop-filter/box-shadow của .glass-panel rất tốn), và kết thúc đúng
+     lúc timer đóng 200ms trong 09_menu.js thêm `hidden` (trước đây CSS 300ms
+     bị display:none cắt ngang ở 200ms). */
+  transition-property: transform, opacity;
+  transition-duration: 200ms;
 }
 
 #cust-selection-bar,
