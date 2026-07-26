@@ -13,8 +13,28 @@ function initWeather() {
       console.warn("Weather cache error", e);
     }
   }
-  // sau đó gọi GPS để cập nhật mới
-  refreshWeather();
+  // KHÔNG gọi GPS ngay lúc boot: initWeather chạy khi người dùng còn đang nhìn
+  // màn hình PIN/kích hoạt — popup xin quyền vị trí bật lên lúc đó là thời điểm
+  // tệ nhất (tỉ lệ từ chối cao). Chỉ auto-refresh ngay nếu quyền ĐÃ được cấp;
+  // ngược lại đợi mở khóa xong (clientpro:unlocked, một lần). Người dùng vẫn
+  // chủ động được bất cứ lúc nào qua tap pill (data-action="refreshWeather").
+  const refreshAfterUnlockOnce = () => {
+    try {
+      document.addEventListener("clientpro:unlocked", () => refreshWeather(), { once: true });
+    } catch (e) {}
+  };
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: "geolocation" }).then(
+        (st) => { (st && st.state === "granted") ? refreshWeather() : refreshAfterUnlockOnce(); },
+        () => refreshAfterUnlockOnce()
+      );
+    } else {
+      refreshAfterUnlockOnce();
+    }
+  } catch (e) {
+    refreshAfterUnlockOnce();
+  }
 }
 
 function refreshWeather() {
