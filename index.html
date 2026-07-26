@@ -63,7 +63,7 @@
     <div id="cust-selection-bar"
         class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
         <div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button
-                data-action="toggleCustSelectionMode" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
+                data-action="toggleCustSelectionMode" aria-label="Thoát chế độ chọn khách hàng" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
                     data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="cust-selection-count"
                     class="text-lg font-bold" style="color: var(--accent)">0</span></span></div>
         <div class="flex gap-3"><button data-action="sendSelectedCustomersToUser"
@@ -75,7 +75,7 @@
     <div id="selection-bar"
         class="fixed bottom-0 left-0 right-0 glass-panel border-t p-4 pb-8 z-[60] transform translate-y-full flex justify-between items-center shadow-2xl transition-transform duration-300">
         <div class="font-bold text-sm ml-2 flex items-center gap-2" style="color: var(--text-main)"><button
-                data-action="toggleSelectionMode" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
+                data-action="toggleSelectionMode" aria-label="Thoát chế độ chọn ảnh" class="p-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"><i
                     data-lucide="x" class="w-5 h-5"></i></button><span>Đã chọn: <span id="selection-count"
                 class="text-blue-400 font-bold text-lg">0</span> ảnh</span></div>
         <div class="flex gap-3"><button data-action="shareSelectedImages"
@@ -181,7 +181,7 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button id="btn-open-menu" data-action="toggleMenu"
+                    <button id="btn-open-menu" data-action="toggleMenu" aria-label="Mở menu cài đặt"
                         class="p-2.5 rounded-xl border transition-colors hover:bg-white/10 active:scale-95"
                         style="background: rgba(255,255,255,0.05); border-color: var(--border-panel); color: var(--text-main);">
                         <i data-lucide="settings-2" class="w-6 h-6"></i>
@@ -330,10 +330,10 @@
     <div id="screen-map"
         class="app-container z-20 transform translate-x-full transition-transform duration-300 bg-black">
         <div id="map-container"></div>
-        <button data-action="toggleMap"
+        <button data-action="toggleMap" aria-label="Đóng bản đồ"
             class="absolute top-4 left-4 z-[400] p-3 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg active:scale-95 transition-transform"><i
                 data-lucide="arrow-left" class="w-6 h-6"></i></button>
-        <button data-action="locateMe"
+        <button data-action="locateMe" aria-label="Đến vị trí của tôi"
             class="absolute bottom-8 right-6 z-[400] p-4 rounded-full bg-blue-600/80 backdrop-blur-md text-white border border-white/10 shadow-xl active:scale-95 transition-transform"><i
                 data-lucide="crosshair" class="w-6 h-6"></i></button>
     </div>
@@ -342,12 +342,12 @@
         style="background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg-base);">
         <div class="glass-header px-4 pt-4 pb-0 flex-none w-full">
             <div class="flex items-center justify-between mb-4">
-                <button data-action="closeFolder" class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
+                <button data-action="closeFolder" aria-label="Quay lại danh sách khách hàng" class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition"
                     style="color: var(--text-main)">
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </button>
                 <div class="flex gap-2">
-                    <button data-action="deleteCurrentCustomer"
+                    <button data-action="deleteCurrentCustomer" aria-label="Xóa khách hàng này"
                         class="glass-btn p-2 text-red-400 rounded-full active:scale-90 transition-transform">
                         <i data-lucide="trash-2" class="w-5 h-5"></i>
                     </button>
@@ -355,7 +355,7 @@
             </div>
 
             <div class="profile-glass-box">
-                <button data-action="openEditCustomerModal"
+                <button data-action="openEditCustomerModal" aria-label="Sửa thông tin khách hàng"
                     class="absolute top-3 right-3 p-2 rounded-xl hover:bg-white/10 active:bg-white/10 active:scale-95 text-slate-300 hover:text-white transition">
                     <i data-lucide="pencil" class="w-4 h-4"></i>
                 </button>
@@ -491,7 +491,7 @@
         class="app-container z-30 transform translate-x-full transition-transform duration-300"
         style="background: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--bg-base);">
         <div class="glass-header px-4 pt-3 pb-3 border-b shadow-lg flex-none w-full">
-            <div class="flex items-center justify-between"><button data-action="closeAssetGallery"
+            <div class="flex items-center justify-between"><button data-action="closeAssetGallery" aria-label="Đóng thư viện ảnh"
                     class="p-2 -ml-2 rounded-full hover:bg-white/10 active:bg-white/10 active:scale-95 transition" style="color: var(--text-main)"><i
                         data-lucide="arrow-left" class="w-6 h-6"></i></button>
                 <div class="flex items-center gap-3">
@@ -540,21 +540,21 @@
 
     <div id="lightbox"
         class="fixed inset-0 z-[60] bg-black/95 hidden flex flex-col justify-center items-center touch-none backdrop-blur-xl">
-        <button
+        <button aria-label="Ảnh trước"
             class="lightbox-nav left-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute"
             data-action="navigateLightbox" data-arg="-1"><i data-lucide="chevron-left" class="w-8 h-8 text-white"></i></button><img
             id="lightbox-img"
-            class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform"><button
+            class="max-w-full max-h-full object-contain p-2 transition-all duration-300 transform"><button aria-label="Ảnh sau"
             class="lightbox-nav right-4 bg-white/10 backdrop-blur-md p-3 rounded-full hover:bg-white/20 transition absolute"
             data-action="navigateLightbox" data-arg="1"><i data-lucide="chevron-right" class="w-8 h-8 text-white"></i></button><button
-            data-action="closeLightbox"
+            data-action="closeLightbox" aria-label="Đóng ảnh phóng to"
             class="absolute top-6 right-6 text-white p-3 z-[70] bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20"><i
                 data-lucide="x" class="w-6 h-6"></i></button>
         <div class="absolute bottom-12 text-white text-xs font-bold bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 tracking-widest"
             id="lightbox-counter">1/1</div>
-        <div class="absolute bottom-12 right-6 flex gap-4"><button data-action="shareOpenedImage"
+        <div class="absolute bottom-12 right-6 flex gap-4"><button data-action="shareOpenedImage" aria-label="Chia sẻ ảnh này"
                 class="p-3 bg-white/10 rounded-full text-white hover:bg-white/20"><i data-lucide="share-2"
-                    class="w-5 h-5"></i></button><button data-action="deleteOpenedImage"
+                    class="w-5 h-5"></i></button><button data-action="deleteOpenedImage" aria-label="Xóa ảnh này"
                 class="p-3 bg-red-500/20 rounded-full text-red-400 hover:bg-red-500/30"><i data-lucide="trash-2"
                     class="w-5 h-5"></i></button></div>
     </div>

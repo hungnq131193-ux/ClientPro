@@ -65,3 +65,67 @@ test('axe: màn hình chính + modal thêm khách hàng không có vi phạm CRI
   await page.waitForSelector('#add-modal', { state: 'visible' });
   await scan('add-modal');
 });
+
+// Mở rộng phủ axe: danh sách khách hàng + hồ sơ (nơi có nhiều nút icon-only),
+// và 2 tool lazy-load (PDF Toolkit / Tra cứu ĐVHC). Cùng quy ước gate CRITICAL.
+test('axe: danh sách KH + hồ sơ + PDF Toolkit + Tra cứu ĐVHC không có vi phạm CRITICAL', async ({ page }) => {
+  await page.addInitScript((env) => {
+    localStorage.setItem('app_activated', 'true');
+    localStorage.setItem('app_employee_id', 'TEST');
+    localStorage.setItem('app_pin', env);
+    localStorage.setItem('app_crypto_schema_v', '2');
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 4, completedAt: Date.now() }));
+    const o = sessionStorage.getItem.bind(sessionStorage);
+    sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
+  }, PIN_ENVELOPE);
+  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+
+  const scan = async (label) => {
+    const res = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const critical = res.violations.filter((v) => v.impact === 'critical');
+    const serious = res.violations.filter((v) => v.impact === 'serious');
+    if (serious.length) console.log(`a11y serious [${label}] (không chặn):`, serious.map((v) => `${v.id} x${v.nodes.length}`).join(', '));
+    expect(critical, `Vi phạm a11y CRITICAL [${label}]:\n` + critical.map((v) => `${v.id} x${v.nodes.length}`).join('\n')).toEqual([]);
+  };
+
+  // Tạo 1 KH qua UI để danh sách/hồ sơ có nội dung thật (card + nút zalo/call).
+  await page.click('#btn-quick-add');
+  await page.waitForSelector('#add-modal', { state: 'visible' });
+  await page.fill('#new-name', 'KH Kiểm Thử A11y');
+  await page.fill('#new-phone', '0900000011');
+  await page.click('[data-action="saveCustomer"]');
+  await page.waitForSelector('#add-modal', { state: 'hidden', timeout: 10_000 });
+
+  // App tự mở hồ sơ KH mới -> quét hồ sơ.
+  await page.waitForFunction(
+    () => !document.getElementById('screen-folder').classList.contains('translate-x-full'),
+    undefined, { timeout: 10_000 }
+  );
+  await scan('folder-detail');
+  await page.click('#screen-folder [data-action="closeFolder"]');
+  await page.waitForFunction(
+    () => document.getElementById('screen-folder').classList.contains('translate-x-full'),
+    undefined, { timeout: 10_000 }
+  );
+
+  // Danh sách khách hàng.
+  await page.click('[data-action="openCustomerList"][data-arg="pending"]');
+  await page.waitForSelector('#screen-customer-list', { state: 'visible' });
+  await expect(page.locator('.cust-card')).toHaveCount(1, { timeout: 10_000 });
+  await scan('customer-list');
+  await page.click('#screen-customer-list [data-action="closeCustomerList"]');
+
+  // PDF Toolkit (lazy-load lần đầu -> chờ screen do module tạo).
+  await page.click('#btn-quick-pdf');
+  await page.waitForSelector('#screen-pdf-toolkit', { state: 'visible', timeout: 15_000 });
+  await scan('pdf-toolkit');
+  await page.click('#screen-pdf-toolkit .pdftk-back-btn');
+
+  // Tra cứu ĐVHC (lazy-load).
+  await page.click('#btn-quick-dvhc');
+  await page.waitForSelector('#screen-dvhc-lookup', { state: 'visible', timeout: 15_000 });
+  await scan('dvhc-lookup');
+});
