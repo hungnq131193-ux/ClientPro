@@ -2,7 +2,7 @@
 
 function toggleDashboardDriveConfig() {
     const panel = getEl('dashboard-drive-config');
-    const input = getEl('dashboard-drive-url') || getEl('user-script-url');
+    const input = getEl('dashboard-drive-url');
     if (!panel) {
         if (input) input.focus();
         return;
@@ -132,7 +132,7 @@ function _setDriveConfigStatus(msg, kind) {
 }
 
 async function saveScriptUrl() {
-    const input = getEl('dashboard-drive-url') || getEl('user-script-url');
+    const input = getEl('dashboard-drive-url');
     const url = input ? input.value.trim() : '';
     if (!url.startsWith('https://script.google.com/')) {
         _setDriveConfigStatus('Link kết nối chưa đúng. Link phải bắt đầu bằng https://script.google.com/', 'error');
@@ -165,7 +165,7 @@ async function saveScriptUrl() {
 document.addEventListener('DOMContentLoaded', () => {
     const savedUrl = localStorage.getItem(USER_SCRIPT_KEY);
     if(savedUrl) {
-        const input = getEl('dashboard-drive-url') || getEl('user-script-url');
+        const input = getEl('dashboard-drive-url');
         if (input) input.value = savedUrl;
     }
     // KHÔNG prefill token ở đây: lúc DOMContentLoaded app còn khóa (masterKey chưa có)

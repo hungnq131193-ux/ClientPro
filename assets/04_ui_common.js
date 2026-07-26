@@ -309,8 +309,6 @@ function cancelAllSelectionModes() {
     cancelImageSelectionMode();
     document.querySelectorAll('.selected, .selecting, .active-selection').forEach((el) => el.classList.remove('selected', 'selecting', 'active-selection'));
     document.body && document.body.classList.remove('selection-mode', 'cust-selection-mode', 'image-selection-mode', 'active-selection');
-    const app = document.getElementById('app');
-    if (app) app.classList.remove('selection-mode', 'cust-selection-mode', 'image-selection-mode', 'active-selection');
     clearNativeTextSelection();
     clearSelectionHistoryLayer();
 }

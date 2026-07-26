@@ -137,14 +137,18 @@ static markup in `index.html` plus HTML modal fragments loaded at runtime.
 
 ## 9. App bootstrap sequence
 
-The script order in `index.html` is the authoritative execution order:
+The script order in `index.html` is the authoritative execution order.
+Head-level (defer, before everything): `vendor/lucide.min.js` →
+`vendor/crypto-js.min.js` → `head.js`. Then the body modules:
 
 ```
 ui/load_modals → 00_globals → 01_config → 02_security → 12_backup_core →
 13_ui_select_customers → 15_auth_gate → 03_map → 04_ui_common → 19_error_loading →
 05_customers → 06_assets → 08_images_camera → 09_menu → 09_backup_manager →
 09_donate → 09_weather → 07_drive → 14_cloud_transfer → 16_auto_backup_drive →
-17_onboarding_tour → 18_biometric_unlock → 10_bootstrap → 11_edge_back_swipe → pwa.js
+17_onboarding_tour → 18_biometric_unlock → 10_bootstrap → 11_edge_back_swipe →
+pdf-toolkit/{utils → core → merge → pages → images → pdf2img → compress → ui} →
+dvhc-lookup/{dvhc_utils → dvhc_data → dvhc_ui} → pwa.js
 ```
 
 `10_bootstrap.js` opens IndexedDB and starts the app; `pwa.js` registers the
@@ -158,6 +162,8 @@ sw.js                     Service Worker: precache list, VERSION, ASSET_V, CACHE
 manifest.json             Web App Manifest (name, icons, version)
 vercel.json               Security headers + CSP
 package.json              Semver single source of truth + CI/test scripts
+playwright.config.js      Playwright e2e config (mobile profile + static server)
+lighthouserc.json         Lighthouse CI config
 scripts/sync-version.mjs  Sync/verify semver + ASSET_V across manifest/sw/pwa/README
 assets/00…19_*.js, pwa.js Business modules, in dependency order (see §9)
 assets/head.js            Early head-level setup
@@ -169,7 +175,7 @@ assets/ui/load_modals.js  Loads the modal HTML fragments
 assets/ui/modals/*.html   Modal fragments (activation, lock, backup, camera, etc.)
 assets/vendor/            Self-hosted deps (crypto-js, lucide, maplibre, supercluster, pdf-lib, pdf.js, jszip)
 assets/fonts/             Self-hosted fonts (Be Vietnam Pro, Inter)
-assets/styles.css, css/   App CSS (styles.css + css/{fonts,tailwind.clientpro,app.patch,redesign.clientpro}.css)
+assets/styles.css, css/   App CSS (styles.css + css/{fonts,tailwind.clientpro,app.patch,redesign.clientpro,pdf-toolkit,dvhc-lookup}.css)
 gas/                      Google Apps Script: AdminAPI.gs, UserDriveAPI.gs
 tests/                    Node unit tests (node --test)
 e2e/                      Playwright + axe specs
@@ -190,8 +196,9 @@ Modules share state and helpers through globals rather than imports. Key
 `window.*` namespaces and helpers (authoritative names — verify a signature in
 source before relying on it):
 
-- Helpers: `getEl`, `el` (safe DOM builder in `04_ui_common.js`), `showToast` /
-  `showSuccess` / `showWarning` / `showError`, `showConfirm`.
+- Helpers: `getEl` (`00_globals.js`), `el` (safe DOM builder in
+  `04_ui_common.js`), `showToast` / `showSuccess` / `showWarning` / `showError`
+  and `showConfirm` (all provided by `19_error_loading.js`).
 - Managers: `window.ErrorHandler`, `window.LoadingManager`, `window.Haptics`,
   `window.AppToast`.
 - Feature namespaces: `window.AuthGate`, `window.BackupCore`,
@@ -342,7 +349,8 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
   placeholder for ciphertext). Do not hard-code the ciphertext prefix.
 
 ### Primary files
-`assets/02_security.js`.
+`assets/02_security.js`; the helpers `_looksEncrypted`, `_displayPlain`,
+`_displayPlainAsync` are defined in `assets/00_globals.js`.
 
 ### Public entry points
 `encryptText`, `decryptText`, `decryptFieldAsync`, `encryptImageData`,
@@ -687,9 +695,9 @@ theme system for docs/tour work.
 
 ## Modals and overlays
 
-Business modals use the shared overlay/modal frame (`04_ui_common.js`), the
-standard confirm (`showConfirm`), and `ModalA11y` behavior from
-`19_error_loading.js`. Do not modify existing modal stacking to accommodate a
+Business modals use the shared overlay/modal frame and `ModalA11y` behavior
+(both in `04_ui_common.js`) and the standard confirm (`showConfirm`, provided
+by `19_error_loading.js`). Do not modify existing modal stacking to accommodate a
 local flow.
 
 ## Z-index contract
@@ -898,8 +906,9 @@ for CI tooling.
 
 `node --test 'tests/**/*.test.js'` (also `npm test`). Covers crypto, field
 migration, data integrity, schema, backup, KDATA cache, PWA, SW routing,
-regressions, PDF Toolkit pure utils, and DVHC Lookup utils + data integrity.
-Add unit tests for pure logic you change.
+regressions, menu, repository hygiene (screenshot policy), PDF Toolkit pure
+utils, and DVHC Lookup utils + data integrity. Add unit tests for pure logic
+you change.
 
 ## E2E test
 

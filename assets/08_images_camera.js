@@ -112,19 +112,12 @@ function toggleSelectionMode() {
   setImageSelectionMode(!isSelectionMode);
 }
 function updateSelectionUI() {
-  const btns = [getEl("btn-select-mode"), getEl("btn-select-mode-asset")];
   const bar = getEl("selection-bar");
   const count = getEl("selection-count");
   if (isSelectionMode) {
-    btns.forEach((b) => {
-      if (b) b.classList.add("btn-active");
-    });
     bar.classList.remove("translate-y-full");
     bar.classList.add("translate-y-0");
   } else {
-    btns.forEach((b) => {
-      if (b) b.classList.remove("btn-active");
-    });
     bar.classList.add("translate-y-full");
     bar.classList.remove("translate-y-0");
   }

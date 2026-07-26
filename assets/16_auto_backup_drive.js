@@ -692,11 +692,9 @@
         // Update tab buttons
         const tabLocal = document.getElementById('bkTabLocal');
         const tabInbox = document.getElementById('bkTabInbox');
-        const tabDrive = document.getElementById('bkTabDrive');
 
         if (tabLocal) tabLocal.style.background = 'rgba(255,255,255,0.04)';
         if (tabInbox) tabInbox.style.background = 'rgba(255,255,255,0.04)';
-        if (tabDrive) tabDrive.style.background = 'rgba(59,130,246,0.2)';
 
         // Load drive backups
         renderDriveBackupsList('drive-backup-list');
