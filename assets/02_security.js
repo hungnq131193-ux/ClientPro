@@ -578,31 +578,62 @@ async function decryptImageData(cipher) {
 async function runImageCryptoMigrationIfNeeded() {
   if (localStorage.getItem(IMG_SCHEMA_KEY) === "1") return;
   if (!masterCryptoKey || typeof db === "undefined" || !db) return;
-  const all = await new Promise((resolve) => {
-    try {
-      const req = db.transaction(["images"], "readonly").objectStore("images").getAll();
-      req.onsuccess = (e) => resolve(e.target.result || []);
-      req.onerror = () => resolve([]);
-    } catch (e) { resolve([]); }
-  });
+
+  const looksEnc = (v) => (typeof _looksEncrypted === "function")
+    ? _looksEncrypted(v)
+    : (typeof v === "string" && (v.startsWith("U2FsdGVk") || v.startsWith(GCM_PREFIX)));
+
+  // Đọc lỗi KHÔNG được coi là "không có ảnh nào": coi rỗng thì failures=0 và
+  // marker set sai -> ảnh plaintext không bao giờ được migrate nữa (cùng lý do
+  // đã xử lý ở runFieldEncryptMigrationV2IfNeeded).
+  let all;
+  try {
+    all = await new Promise((resolve, reject) => {
+      try {
+        const req = db.transaction(["images"], "readonly").objectStore("images").getAll();
+        req.onsuccess = (e) => resolve(e.target.result || []);
+        req.onerror = () => reject(req.error || new Error("IMG_MIGR_READ_ERROR"));
+      } catch (e) { reject(e); }
+    });
+  } catch (e) {
+    return; // không set marker -> lần mở khóa sau tự thử lại
+  }
+
+  let failures = 0;
   for (const img of all) {
     if (!img || img.imgCryptoV === 1) continue;
     if (!_isPlainImageDataUrl(img.data)) continue;
-    const enc = await encryptImageData(img.data);
-    await new Promise((resolve, reject) => {
-      img.data = enc;
-      img.imgCryptoV = 1;
-      // Resolve trên oncomplete (không phải put onsuccess) + reject cả onabort:
-      // tx có thể abort KHÔNG kèm request error — thiếu onabort là promise treo
-      // vĩnh viễn giữa unlock flow (mirror __imgTxDone, 08_images_camera.js).
-      const tx = db.transaction(["images"], "readwrite");
-      tx.objectStore("images").put(img);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error || new Error("Transaction error"));
-      tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
-    });
+    try {
+      const enc = await encryptImageData(img.data);
+      // Race lockApp giữa migration: masterKey bị xóa -> encryptImageData trả
+      // NGUYÊN data URL plaintext (fail-open). Không chốt chặn thì ảnh plaintext
+      // bị ghi kèm imgCryptoV=1 và marker toàn cục set sai -> ảnh nằm plaintext
+      // trong IndexedDB vĩnh viễn. Bắt buộc kết quả phải là ciphertext.
+      if (!looksEnc(enc)) throw new Error("IMG_MIGR_NOT_ENCRYPTED");
+      await new Promise((resolve, reject) => {
+        img.data = enc;
+        img.imgCryptoV = 1;
+        // Resolve trên oncomplete (không phải put onsuccess) + reject cả onabort:
+        // tx có thể abort KHÔNG kèm request error — thiếu onabort là promise treo
+        // vĩnh viễn giữa unlock flow (mirror __imgTxDone, 08_images_camera.js).
+        const tx = db.transaction(["images"], "readwrite");
+        tx.objectStore("images").put(img);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error("Transaction error"));
+        tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
+      });
+    } catch (e) {
+      failures++;
+    }
   }
-  localStorage.setItem(IMG_SCHEMA_KEY, "1");
+
+  if (failures === 0) {
+    localStorage.setItem(IMG_SCHEMA_KEY, "1");
+  } else {
+    try {
+      ErrorHandler.showWarning(`Mã hóa ảnh chưa hoàn tất cho ${failures} ảnh — sẽ tự thử lại ở lần mở khóa sau.`);
+    } catch (e) {}
+  }
 }
 
 // ============================================================
