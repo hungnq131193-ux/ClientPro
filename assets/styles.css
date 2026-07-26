@@ -559,6 +559,19 @@ body.cust-selection-mode .customer-list-hint {
   overflow: hidden;
 }
 
+/* Single source of truth for the screen slide duration.
+   Mirrored in JS by UI_SLIDE_MS (assets/00_globals.js) — keep both in sync. */
+:root {
+  --screen-slide-ms: 240ms;
+}
+
+/* Screen slide: fast decelerating ease, transform-only, GPU-composited. */
+.app-container.transition-transform {
+  transition-property: transform;
+  transition-duration: var(--screen-slide-ms);
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 .scroll-area {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -1280,11 +1293,6 @@ textarea::placeholder {
 
 .-translate-y-0 {
   transform: translateY(0);
-}
-.transition-transform {
-  transition-property: transform;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 300ms;
 }
 
 .transition-opacity {

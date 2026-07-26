@@ -114,10 +114,12 @@
         // =======================
         // UI PERF HELPERS
         // =======================
-        // Standard slide transition in this app uses: transition-transform duration-300
+        // Standard slide transition for app screens is defined by the CSS rule
+        // `.app-container.transition-transform` + `--screen-slide-ms` (assets/styles.css).
+        // UI_SLIDE_MS mirrors that duration — keep both in sync when changing it.
         // Avoid doing heavy work (IndexedDB getAll, decrypt, DOM render) during the animation
         // to prevent jank and visual "flash" of stale screen content.
-        const UI_SLIDE_MS = 300;
+        const UI_SLIDE_MS = 240;
 
         function nextFrame(fn) {
           try { requestAnimationFrame(() => requestAnimationFrame(fn)); }
