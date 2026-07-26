@@ -20,6 +20,74 @@ const BACKUP_KDATA_CACHE_TTL_MS = 30 * 60 * 1000; // 30 phút
 // KDATA nhận được khi app còn khóa (vd AuthGate preflight) chờ seal trong RAM;
 // _flushPendingKdataCache() ghi xuống sau khi unlock. Bị xóa khi lockApp().
 let __pendingKdataCache = null;
+// Mã nhân viên là secret khôi phục masterKey (SEC_KEY được niêm phong dưới nó)
+// nên KHÔNG được persist plaintext lâu dài — plaintext nằm cạnh envelope là
+// bypass PIN cho bất kỳ ai đọc được localStorage. Bản plaintext EMPLOYEE_KEY
+// chỉ tồn tại trong cửa sổ kích hoạt → tạo PIN (chưa có masterKey) và trên
+// thiết bị cũ chưa migrate; lần mở khóa đầu tiên seal vào EMPLOYEE_SEALED_KEY
+// rồi xóa plaintext (runEmployeeIdSealMigrationIfNeeded).
+const EMPLOYEE_SEALED_KEY = "app_employee_id_sealed_v1";
+let __employeeIdPlain = null; // RAM sau unlock — xóa trong clearMasterKeyMaterial()
+
+/** Nguồn mã NV hợp nhất: RAM (sau unlock) → plaintext (cửa sổ kích hoạt / legacy). */
+function _resolveEmployeeId() {
+  if (__employeeIdPlain) return String(__employeeIdPlain).trim();
+  try { return (localStorage.getItem(EMPLOYEE_KEY) || "").trim(); } catch (e) { return ""; }
+}
+
+/** Seal mã NV dưới masterKey → ghi → đọc lại xác minh (mẫu _writeCachedKdata). */
+async function _writeSealedEmployeeId(emp) {
+  const val = String(emp || "").trim();
+  if (!val || !masterCryptoKey) return false;
+  try {
+    const sealed = await _gcmEncryptField(val);
+    localStorage.setItem(EMPLOYEE_SEALED_KEY, sealed);
+    const back = localStorage.getItem(EMPLOYEE_SEALED_KEY) || "";
+    if (back !== sealed) return false;
+    return (await _gcmDecryptField(back)) === val;
+  } catch (e) {
+    return false;
+  }
+}
+
+/** Đọc mã NV sealed. Đã mở khóa mà unseal fail (sai khóa/tamper) → xóa key chết. */
+async function _readSealedEmployeeIdAsync() {
+  try {
+    const sealed = localStorage.getItem(EMPLOYEE_SEALED_KEY) || "";
+    if (!sealed) return "";
+    if (!masterCryptoKey || !sealed.startsWith(GCM_PREFIX)) return "";
+    try {
+      return String((await _gcmDecryptField(sealed)) || "").trim();
+    } catch (e) {
+      try { localStorage.removeItem(EMPLOYEE_SEALED_KEY); } catch (e2) {}
+      return "";
+    }
+  } catch (e) { return ""; }
+}
+
+/**
+ * Migration một lần sau unlock: seal EMPLOYEE_KEY plaintext dưới masterKey rồi
+ * XÓA bản plaintext (chỉ xóa sau khi ghi + xác minh thành công). Idempotent —
+ * máy đã migrate chỉ nạp sealed vào RAM.
+ */
+async function runEmployeeIdSealMigrationIfNeeded() {
+  if (!masterCryptoKey) return;
+  let plain = "";
+  try { plain = (localStorage.getItem(EMPLOYEE_KEY) || "").trim(); } catch (e) {}
+  if (plain) {
+    if (await _writeSealedEmployeeId(plain)) {
+      try { localStorage.removeItem(EMPLOYEE_KEY); } catch (e) {}
+    }
+    __employeeIdPlain = plain;
+    return;
+  }
+  if (!__employeeIdPlain) __employeeIdPlain = await _readSealedEmployeeIdAsync();
+  // RAM có (vừa nhập tay ở setup/recovery dưới key legacy) mà sealed chưa ghi
+  // được trước đó -> ghi bù ngay khi đã có key GCM.
+  if (__employeeIdPlain && !localStorage.getItem(EMPLOYEE_SEALED_KEY)) {
+    try { await _writeSealedEmployeeId(__employeeIdPlain); } catch (e) {}
+  }
+}
 
 function _backupAuthIdentity(employeeId, deviceId) {
   const scopeUrl = (typeof ADMIN_SERVER_URL !== "undefined" && ADMIN_SERVER_URL) ? String(ADMIN_SERVER_URL) : "";
@@ -442,6 +510,8 @@ function clearMasterKeyMaterial() {
   // localStorage giữ nguyên vì đã là ciphertext).
   APP_BACKUP_KDATA_B64U = "";
   __pendingKdataCache = null;
+  // Mã NV plaintext trong RAM cũng là secret khôi phục -> xóa cùng lúc với khóa.
+  __employeeIdPlain = null;
   __fieldPlainCache.clear();
   __fieldDecryptPending.clear();
   // Cache plaintext của danh sách KH (summary + blob tìm kiếm, 05_customers.js)
@@ -661,6 +731,10 @@ async function completeUnlockDataLoad(pinForMigration, empForMigration) {
     } catch (e) {
       try { ErrorHandler.logError("field-encrypt-migration-v2", e); } catch (_) {}
     }
+    // Mã NV: seal bản plaintext còn sót (máy legacy / vừa kích hoạt) rồi nạp RAM.
+    // Chạy SAU field-migration (migration legacy còn cần đọc plaintext) và TRƯỚC
+    // flush KDATA/backup (các luồng đó resolve mã NV từ RAM).
+    try { await runEmployeeIdSealMigrationIfNeeded(); } catch (e) {}
     await primeFieldCache();
     // Prime summary list (name/phone/cccd/creditLimit) TRƯỚC loadCustomers đầu tiên:
     // list render plaintext ngay sau unlock, không flash "Đang tải..."/"•••".
@@ -1133,8 +1207,8 @@ async function checkSecurity() {
   if (!pinEnc) {
     // Chưa có PIN -> Hiện bảng tạo PIN
     getEl("setup-lock-modal").classList.remove("hidden");
-    // Điền sẵn mã NV nếu có
-    const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
+    // Điền sẵn mã NV nếu có (plaintext chỉ còn trong cửa sổ kích hoạt → tạo PIN)
+    const storedEmp = _resolveEmployeeId();
     if (storedEmp) getEl("setup-answer").value = storedEmp;
   } else {
     // Đã có PIN -> Hiện bàn phím nhập PIN ngay lập tức
@@ -1144,7 +1218,9 @@ async function checkSecurity() {
   // 2. CHECK NGẦM VỚI SERVER (Background Check)
   // Phần này chạy âm thầm bên dưới, không làm đơ màn hình của bạn
   try {
-    const savedEmp = localStorage.getItem(EMPLOYEE_KEY) || "";
+    // Máy đã migrate không còn plaintext lúc boot -> check ngầm chạy lại sau
+    // unlock qua listener clientpro:unlocked của AuthGate (15_auth_gate.js).
+    const savedEmp = _resolveEmployeeId();
     if (savedEmp) {
       // Theo bản index trước đó chạy ổn: check_status chỉ cần employeeId + deviceInfo
       const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
@@ -1211,7 +1287,7 @@ async function requireBackupSecretOrAlert() {
 }
 
 async function ensureBackupSecret() {
-  const employeeId = localStorage.getItem(EMPLOYEE_KEY) || "";
+  const employeeId = _resolveEmployeeId();
   if (!employeeId) return { ok: false, message: "Chưa có mã nhân viên." };
 
   const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
@@ -1316,7 +1392,7 @@ const TRANSFER_KEY_TTL_MS = 10 * 60 * 1000;
  * @returns {Promise<string>} base64url 32 byte
  */
 async function ensureTransferKey(targetEmployeeId) {
-  const employeeId = localStorage.getItem(EMPLOYEE_KEY) || "";
+  const employeeId = _resolveEmployeeId();
   if (!employeeId) throw new Error("Chưa có mã nhân viên.");
   const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
   const target = String(targetEmployeeId || "").trim();
@@ -1382,9 +1458,10 @@ async function saveSecuritySetup() {
   const pin = getEl("setup-pin").value;
   let ans = getEl("setup-answer").value.trim();
   if (!/^\d{6}$/.test(pin)) { ErrorHandler.showError('VALIDATION', "Mã PIN phải là 6 số"); return; }
-  // Nếu người dùng không nhập mã nhân viên, lấy từ localStorage đã lưu khi kích hoạt (nếu có)
+  // Nếu người dùng không nhập mã nhân viên, lấy từ RAM (sau unlock) hoặc
+  // plaintext tạm của cửa sổ kích hoạt (nếu có)
   if (!ans) {
-    const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
+    const storedEmp = _resolveEmployeeId();
     if (storedEmp) {
       ans = storedEmp;
       // hiển thị lại cho người dùng biết
@@ -1393,8 +1470,6 @@ async function saveSecuritySetup() {
       ErrorHandler.showError('VALIDATION', "Vui lòng nhập mã nhân viên"); return;
     }
   }
-  // Lưu lại mã nhân viên đề phòng chưa lưu lúc kích hoạt
-  localStorage.setItem(EMPLOYEE_KEY, ans);
   /* * Thiết lập bảo mật v2: * - Sinh masterKey nếu chưa tồn tại * - Niêm phong masterKey bằng PBKDF2 + AES-GCM với 2 secret: PIN 6 số (mở khóa hằng ngày) và mã nhân viên (khôi phục) */
   // Nếu masterKey chưa sinh (lần đầu thiết lập), tạo mới bằng CSPRNG (MK2)
   if (!masterKey) {
@@ -1402,6 +1477,11 @@ async function saveSecuritySetup() {
   }
   // Dựng key GCM cho phiên (fresh install), hoặc giữ nguyên nếu đã cài từ unlock/recovery.
   await _installMasterKey(masterKey);
+  // Mã NV: giữ RAM + seal dưới masterKey; xóa bản plaintext tạm của cửa sổ kích hoạt.
+  __employeeIdPlain = ans;
+  try {
+    if (await _writeSealedEmployeeId(ans)) localStorage.removeItem(EMPLOYEE_KEY);
+  } catch (e) {}
   const btn = getEl("setup-save-btn");
   const btnLabel = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Đang mã hóa..."; }
@@ -1495,7 +1575,9 @@ async function validatePin() {
     // Giải mã thành công: cài masterKey (dựng key GCM) — giữ lock đến khi load xong dữ liệu
     await _installMasterKey(res.masterKey);
     const pinForMigration = currentPin;
-    const empForMigration = (localStorage.getItem(EMPLOYEE_KEY) || "").trim();
+    // Máy legacy chưa migrate vẫn còn plaintext; máy đã migrate trả "" (migration
+    // legacy khi đó là no-op nên không cần mã NV).
+    const empForMigration = _resolveEmployeeId();
     currentPin = ""; // không giữ PIN trong bộ nhớ lâu hơn cần thiết
     resetPinFailures();
     _setKeypadDisabled(false);
@@ -1516,7 +1598,7 @@ function _openForcedPinUpgrade() {
   if (!modal) return;
   modal.classList.remove("hidden");
   getEl("setup-pin").value = "";
-  const storedEmp = localStorage.getItem(EMPLOYEE_KEY);
+  const storedEmp = _resolveEmployeeId();
   if (storedEmp) getEl("setup-answer").value = storedEmp;
   const note = getEl("setup-pin-note");
   if (note) {
@@ -1543,6 +1625,9 @@ async function checkRecovery() {
     // Khôi phục masterKey (cài key GCM/legacy) và cho phép đặt lại PIN 6 số.
     // Migration (nếu dữ liệu còn CryptoJS) sẽ chạy trong saveSecuritySetup dưới PIN mới.
     await _installMasterKey(res.masterKey);
+    // Mã NV vừa xác thực đúng: giữ RAM + seal (không persist plaintext).
+    __employeeIdPlain = input;
+    try { await _writeSealedEmployeeId(input); } catch (e) {}
     resetPinFailures();
     ErrorHandler.showSuccess("Xác thực thành công. Vui lòng tạo PIN mới.");
     closeForgotModal();
@@ -1620,7 +1705,11 @@ async function activateApp() {
             try { localStorage.setItem(SEC_KEY, await sealMasterKey(employeeId, masterKey)); } catch (e) { }
           }
           localStorage.setItem(ACTIVATED_KEY, "true");
-          localStorage.setItem(EMPLOYEE_KEY, employeeId);
+          // masterKey đã cài -> không persist plaintext: giữ RAM + seal, dọn bản cũ.
+          __employeeIdPlain = employeeId;
+          try {
+            if (await _writeSealedEmployeeId(employeeId)) localStorage.removeItem(EMPLOYEE_KEY);
+          } catch (e) {}
           try { await ensureBackupSecret(); } catch (e) { }
           const modal = getEl("activation-modal");
           if (modal) modal.classList.add("hidden");

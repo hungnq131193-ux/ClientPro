@@ -182,7 +182,17 @@
   async function _checkByIssueKdata() {
     // Điều kiện tối thiểu để check
     const activated = (typeof ACTIVATED_KEY !== "undefined") ? localStorage.getItem(ACTIVATED_KEY) : null;
-    const employeeId = (typeof EMPLOYEE_KEY !== "undefined") ? (localStorage.getItem(EMPLOYEE_KEY) || "") : "";
+    // RAM trước (sau unlock — máy đã migrate không còn plaintext), fallback plaintext
+    // (cửa sổ kích hoạt / máy legacy). Cùng nguồn với _resolveEmployeeId (02_security.js).
+    let employeeId = "";
+    try {
+      if (typeof __employeeIdPlain !== "undefined" && __employeeIdPlain) {
+        employeeId = String(__employeeIdPlain).trim();
+      }
+    } catch (e) {}
+    if (!employeeId) {
+      employeeId = (typeof EMPLOYEE_KEY !== "undefined") ? (localStorage.getItem(EMPLOYEE_KEY) || "") : "";
+    }
     if (!activated || !employeeId) return { ok: true, skipped: true };
 
     // Nếu không có GAS URL thì không thể check
@@ -358,6 +368,15 @@
       return true;
     }
   }
+
+  // Máy đã migrate không còn plaintext mã NV lúc boot -> chạy lại preflight ngay
+  // sau khi mở khóa (RAM đã có mã NV). TTL 24h + cooldown trong _checkByIssueKdata
+  // tự chống gọi lặp; fire-and-forget như lời gọi lúc boot (10_bootstrap.js).
+  try {
+    document.addEventListener("clientpro:unlocked", () => {
+      try { preflight(); } catch (e) {}
+    });
+  } catch (e) {}
 
   // Expose
   window.AuthGate = {

@@ -78,6 +78,13 @@
         // Nguồn duy nhất — thay cho các bản sao từng nằm rải rác ở 09/14/16.
         // =======================
         function getEmployeeId() {
+          // Sau unlock, mã NV nằm trong RAM (__employeeIdPlain, 02_security.js);
+          // plaintext localStorage chỉ còn ở cửa sổ kích hoạt → tạo PIN / máy legacy.
+          try {
+            if (typeof __employeeIdPlain !== 'undefined' && __employeeIdPlain) {
+              return String(__employeeIdPlain).trim();
+            }
+          } catch (e) {}
           return (localStorage.getItem(typeof EMPLOYEE_KEY !== 'undefined' ? EMPLOYEE_KEY : 'app_employee_id') || '').trim();
         }
 
