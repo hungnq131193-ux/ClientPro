@@ -67,28 +67,62 @@
   // ----------------------------------------------------------------------
   // Gói thôn/TDP trong localStorage (một gói duy nhất — theo tỉnh người dùng).
   // ----------------------------------------------------------------------
-  function getPack() {
+  // Gói được phép tới 4 MB / 50.000 dòng và MỖI thẻ kết quả đều hỏi gói —
+  // parse + validate lại chuỗi thô cho từng thẻ sẽ treo main thread sau mỗi
+  // lần gõ. Cache theo chính chuỗi thô: đọc localStorage vẫn rẻ, còn phần đắt
+  // (JSON.parse + validate + dựng chỉ mục) chỉ chạy khi gói thật sự đổi —
+  // kể cả khi gói bị thay ở tab/phiên khác.
+  let _cache = null; // { raw, pack, index }
+
+  function _ensureCache() {
+    let raw = null;
     try {
-      const raw = localStorage.getItem(PACK_STORAGE_KEY);
-      if (!raw) return null;
-      const v = U.validatePack(JSON.parse(raw));
-      return v.ok ? v.pack : null;
+      raw = localStorage.getItem(PACK_STORAGE_KEY);
     } catch (e) {
+      _cache = null;
       return null;
     }
+    if (!raw) {
+      _cache = null;
+      return null;
+    }
+    if (_cache && _cache.raw === raw) return _cache;
+    try {
+      const v = U.validatePack(JSON.parse(raw));
+      if (!v.ok) { _cache = null; return null; }
+      _cache = { raw, pack: v.pack, index: U.buildPackIndex(v.pack) };
+      return _cache;
+    } catch (e) {
+      _cache = null;
+      return null;
+    }
+  }
+
+  function getPack() {
+    const c = _ensureCache();
+    return c ? c.pack : null;
+  }
+
+  // Chỉ mục tra thôn/TDP theo tên xã mới (O(1)) — dùng cho đường nóng render.
+  function getPackIndex() {
+    const c = _ensureCache();
+    return c ? c.index : null;
   }
 
   // Lưu gói đã validate. Trả { ok } | { ok:false, error }.
   function setPack(pack) {
     try {
       localStorage.setItem(PACK_STORAGE_KEY, JSON.stringify(pack));
+      _cache = null;
       return { ok: true };
     } catch (e) {
+      _cache = null;
       return { ok: false, error: 'Không lưu được gói (bộ nhớ đầy?). Hãy dùng gói nhỏ hơn.' };
     }
   }
 
   function clearPack() {
+    _cache = null;
     try { localStorage.removeItem(PACK_STORAGE_KEY); } catch (e) {}
   }
 
@@ -114,5 +148,5 @@
     });
   }
 
-  window.__DvhcData = { loadIndex, getPack, setPack, clearPack, readPackFile, PACK_STORAGE_KEY };
+  window.__DvhcData = { loadIndex, getPack, getPackIndex, setPack, clearPack, readPackFile, PACK_STORAGE_KEY };
 })();

@@ -394,13 +394,14 @@
   // ----------------------------------------------------------------------
   // Gói thôn/TDP (đợt sắp xếp 2026) — trạng thái + nhập/xoá.
   // ----------------------------------------------------------------------
+  // Chạy cho MỖI thẻ kết quả (tối đa 30 thẻ mỗi lần gõ) nên phải rẻ: chỉ mục
+  // gói do __DvhcData cache sẵn, tên tỉnh của gói cũng đã chuẩn hoá trong đó.
   function packRowsForWard(newWardName, newProvinceName) {
-    const pack = D.getPack();
-    if (!pack) return [];
-    const packProv = U.stripUnitPrefix(U.normalizeName(pack.province), 'province');
+    const packIndex = D.getPackIndex();
+    if (!packIndex) return [];
     const prov = U.stripUnitPrefix(U.normalizeName(newProvinceName), 'province');
-    if (packProv && prov && packProv !== prov) return [];
-    return U.packLookup(pack, newWardName);
+    if (packIndex.province && prov && packIndex.province !== prov) return [];
+    return U.packLookupFromIndex(packIndex, newWardName);
   }
 
   function buildPackToggle(rows) {

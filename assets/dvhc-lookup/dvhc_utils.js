@@ -292,14 +292,40 @@
     };
   }
 
-  // Tra thôn/TDP trong gói theo tên xã mới (chuẩn hoá không dấu).
-  function packLookup(pack, newWardName) {
-    if (!pack || !Array.isArray(pack.mappings)) return [];
+  // Dựng chỉ mục gói MỘT lần: gói được phép tới 50.000 dòng, mà mỗi thẻ kết
+  // quả đều cần tra thôn/TDP — quét tuyến tính + chuẩn hoá lại từng dòng cho
+  // mỗi thẻ sẽ treo UI trên điện thoại. Chuẩn hoá sẵn ở đây, tra O(1) sau đó.
+  // Trả { province, byWard: Map<key, [dòng,...]> } — province là tên tỉnh của
+  // gói đã chuẩn hoá sẵn để UI khỏi normalize lại mỗi thẻ.
+  function buildPackIndex(pack) {
+    const byWard = new Map();
+    if (!pack || !Array.isArray(pack.mappings)) return { province: '', byWard };
+    for (const m of pack.mappings) {
+      if (!m) continue;
+      const key = stripUnitPrefix(normalizeName(m.xa), 'ward');
+      if (!key) continue;
+      const list = byWard.get(key);
+      if (list) list.push(m);
+      else byWard.set(key, [m]);
+    }
+    return {
+      province: stripUnitPrefix(normalizeName(pack.province || ''), 'province'),
+      byWard,
+    };
+  }
+
+  // Tra thôn/TDP theo tên xã mới trên chỉ mục đã dựng (chuẩn hoá không dấu).
+  function packLookupFromIndex(index, newWardName) {
+    if (!index || !(index.byWard instanceof Map)) return [];
     const key = stripUnitPrefix(normalizeName(newWardName), 'ward');
     if (!key) return [];
-    return pack.mappings.filter(
-      (m) => stripUnitPrefix(normalizeName(m.xa), 'ward') === key
-    );
+    return index.byWard.get(key) || [];
+  }
+
+  // Tra trực tiếp trên gói (tiện cho lời gọi lẻ/test). Đường nóng của UI dùng
+  // buildPackIndex + packLookupFromIndex với chỉ mục đã cache.
+  function packLookup(pack, newWardName) {
+    return packLookupFromIndex(buildPackIndex(pack), newWardName);
   }
 
   return {
@@ -314,6 +340,8 @@
     formatOldUnit,
     formatNewUnit,
     validatePack,
+    buildPackIndex,
+    packLookupFromIndex,
     packLookup,
     PACK_MAX_MAPPINGS,
   };
