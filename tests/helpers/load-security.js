@@ -125,6 +125,9 @@ function loadSecurity() {
       clearMasterKeyMaterial,
       lockApp,
       isAppUnlocked,
+      // Thu hồi quyền: check_status + xóa vật liệu khóa RAM của phiên bị thu hồi
+      runServerStatusCheck,
+      revokeUnlockedSession,
       _gcmEncryptField,
       _gcmDecryptField,
       primeFieldCache,

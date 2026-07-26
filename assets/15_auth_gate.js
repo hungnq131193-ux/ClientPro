@@ -128,6 +128,11 @@
 
     btnReset.addEventListener("click", () => {
       try {
+        // Xóa vật liệu khóa RAM TRƯỚC khi bỏ PIN_KEY: lockApp() return sớm khi
+        // không còn PIN_KEY nên gọi sau đó là vô tác dụng.
+        if (typeof revokeUnlockedSession === "function") revokeUnlockedSession();
+      } catch (e) {}
+      try {
         // Thu hồi kích hoạt để buộc user phải activate lại.
         if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
         if (typeof PIN_KEY !== "undefined") localStorage.removeItem(PIN_KEY);
@@ -355,6 +360,11 @@
           }
           // Đủ strike: thu hồi kích hoạt local và chặn UI (nút "Thoát và kích hoạt lại"
           // trên overlay sẽ mở activation-modal để user activate + bind lại thiết bị).
+          // preflight cũng chạy SAU unlock (listener bên dưới) nên phải xóa vật liệu
+          // khóa trong RAM trước, không để phiên vừa bị thu hồi còn masterKey/KDATA.
+          try {
+            if (typeof revokeUnlockedSession === "function") revokeUnlockedSession();
+          } catch (e) {}
           try {
             if (typeof ACTIVATED_KEY !== "undefined") localStorage.removeItem(ACTIVATED_KEY);
           } catch (e) {}

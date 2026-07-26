@@ -534,6 +534,20 @@ function lockApp() {
 }
 
 /**
+ * Thu hồi phiên đang mở khóa: xóa NGAY toàn bộ vật liệu khóa trong RAM
+ * (masterKey, KDATA, mã NV, cache plaintext) khi server báo tài khoản bị khóa /
+ * sai thiết bị.
+ *
+ * KHÔNG dùng lockApp() cho việc này: các đường thu hồi xóa PIN_KEY, mà lockApp()
+ * return sớm khi không còn PIN_KEY -> gọi sau đó là vô tác dụng. Vì vậy phải gọi
+ * hàm này TRƯỚC khi xóa ACTIVATED_KEY/PIN_KEY.
+ */
+function revokeUnlockedSession() {
+  try { clearMasterKeyMaterial(); } catch (e) {}
+  currentPin = "";
+}
+
+/**
  * Prime tối thiểu sau unlock: chỉ token Drive (getUserToken đồng bộ).
  * Field KH/TSBĐ giải mã lazy qua decryptFieldAsync khi render.
  */
@@ -1273,6 +1287,11 @@ async function runServerStatusCheck() {
         ? result.message
         : "";
     if (status === "locked") {
+      // Check này giờ chạy cả SAU khi mở khóa (máy đã seal mã NV không có
+      // identity lúc boot) -> phải xóa key khỏi RAM trước khi dựng UI chặn,
+      // nếu không phiên vừa bị thu hồi vẫn còn masterKey/KDATA sống tới khi
+      // đóng tab và tác vụ nền vẫn dùng được.
+      revokeUnlockedSession();
       getEl("screen-lock").classList.add("hidden");
       getEl("setup-lock-modal").classList.add("hidden");
       const modal = getEl("activation-modal");
