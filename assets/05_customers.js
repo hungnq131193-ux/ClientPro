@@ -31,13 +31,6 @@ function setCustSelectionMode(enabled, options) {
     }
     const count = getEl('cust-selection-count');
     if (count) count.textContent = selectedCustomers.size;
-    // Nút "Chọn" trên toolbar (discoverability, bổ sung cho long-press): đồng bộ
-    // nhãn Chọn ↔ Xong + aria-pressed theo trạng thái selection mode.
-    const selBtn = getEl('btn-cust-select');
-    if (selBtn) {
-        selBtn.textContent = isCustSelectionMode ? 'Xong' : 'Chọn';
-        selBtn.setAttribute('aria-pressed', isCustSelectionMode ? 'true' : 'false');
-    }
     if (!opts.skipReload) loadCustomers(getEl('search-input').value);
 }
 function toggleCustSelectionMode() {
