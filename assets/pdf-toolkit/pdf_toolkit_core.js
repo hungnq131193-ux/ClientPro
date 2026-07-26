@@ -16,8 +16,12 @@
   'use strict';
 
   const U = window.PdfToolkitUtils;
-  // Cache-buster: đọc từ chính thẻ script để mọi asset toolkit cùng version.
+  // Cache-buster: ưu tiên version do LazyModules truyền (script inject động
+  // không có document.currentScript đáng tin), fallback đọc từ thẻ script.
   function assetVersion() {
+    try {
+      if (window.__CLIENTPRO_LAZY_V) return String(window.__CLIENTPRO_LAZY_V);
+    } catch (e) {}
     try {
       const cur = document.currentScript && document.currentScript.src;
       const m = (cur || '').match(/[?&]v=([^&]+)/);

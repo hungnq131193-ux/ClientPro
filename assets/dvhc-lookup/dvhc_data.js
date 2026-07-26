@@ -17,8 +17,12 @@
 
   const U = window.DvhcUtils;
 
-  // Cache-buster: đọc từ chính thẻ script để cùng version với mọi asset khác.
+  // Cache-buster: ưu tiên version do LazyModules truyền (script inject động
+  // không có document.currentScript đáng tin), fallback đọc từ thẻ script.
   function assetVersion() {
+    try {
+      if (window.__CLIENTPRO_LAZY_V) return String(window.__CLIENTPRO_LAZY_V);
+    } catch (e) {}
     try {
       const cur = document.currentScript && document.currentScript.src;
       const m = (cur || '').match(/[?&]v=([^&]+)/);
