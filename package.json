@@ -12,9 +12,12 @@
     "test:e2e": "playwright test",
     "test:lh": "lhci autorun"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
-    "@axe-core/playwright": "^4.10.0",
-    "@lhci/cli": "^0.14.0",
-    "@playwright/test": "^1.49.0"
+    "@axe-core/playwright": "4.12.1",
+    "@lhci/cli": "0.15.1",
+    "@playwright/test": "1.62.0"
   }
 }
