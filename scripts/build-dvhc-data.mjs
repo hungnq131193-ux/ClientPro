@@ -109,6 +109,10 @@ function main() {
   const oldDistricts = [];
   const dIdxByName = new Map();
   const rows = [];
+  // Nguồn có ~140 dòng lặp lại y hệt cùng một cặp (đơn vị cũ → xã mới). Giữ
+  // lại thì tra xuôi hiện thẻ trùng, tra ngược đếm sai số đơn vị cũ và dòng
+  // trùng chiếm chỗ trong giới hạn 30 kết quả → chỉ ghi lần xuất hiện đầu.
+  const seenRows = new Set();
   const problems = [];
 
   for (const m of mappings) {
@@ -154,6 +158,11 @@ function main() {
       oldDistricts.push([oDist, opIdx]);
       dIdxByName.set(dKey, dIdx);
     }
+    // Lọc trùng SAU khi dIdx/wIdx đã giải quyết: dòng trùng không đóng góp
+    // entry mới nào cho oldProvinces/oldDistricts nên các bảng đó không đổi.
+    const rowKey = `${oWard || ''}|${dIdx}|${wIdx}`;
+    if (seenRows.has(rowKey)) continue;
+    seenRows.add(rowKey);
     rows.push([oWard || '', dIdx, wIdx]);
   }
 
