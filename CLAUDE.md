@@ -256,6 +256,11 @@ Gate app usage behind a device activation record before any data flow.
   `issue_kdata` via `AuthGate.preflight()` and `check_status` via
   `runServerStatusCheck()` — neither has an identity at boot, so both re-run on
   `clientpro:unlocked`.
+- Because those checks now also run **after** unlock, every revocation path must
+  call `revokeUnlockedSession()` (`02_security.js`) first — it clears
+  `masterKey`, KDATA, the employee id, and the plaintext caches. Do not use
+  `lockApp()` for this: revocation removes `PIN_KEY`, and `lockApp()` returns
+  early when `PIN_KEY` is absent, so calling it afterwards does nothing.
 
 ### Primary files
 `assets/15_auth_gate.js`, `assets/ui/modals/activation-modal.html`,
@@ -343,6 +348,11 @@ Turn a valid PIN into an in-RAM master key and load data.
   `completeUnlockDataLoad` (runs migration, primes cache, flushes pending KDATA,
   loads data, dispatches `clientpro:unlocked`).
 - Do not reorder or short-circuit this path.
+- The key is installed **before** the long pipeline, so `isAppUnlocked()` is
+  already true and auto-lock (60s hidden) can fire mid-pipeline. Both ends must
+  re-check `isAppUnlocked()` after the awaits: `completeUnlockDataLoad` skips the
+  `clientpro:unlocked` dispatch, and `validatePin` must not hide `#screen-lock`.
+  Hiding it unconditionally opens the dashboard with `masterKey === null`.
 
 ### Primary files
 `assets/02_security.js`.
@@ -383,6 +393,14 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
 - Never write an empty fallback on decrypt failure, never double-encrypt, never
   render ciphertext (use `_displayPlain` / `_displayPlainAsync`; show a
   placeholder for ciphertext). Do not hard-code the ciphertext prefix.
+- `encryptText` / `encryptImageData` are **fail-open**: with no `masterKey` they
+  return the plaintext input. Every migration must therefore (a) verify the
+  result is ciphertext (`_looksEncrypted`) before writing, (b) treat an
+  IndexedDB read error as "unknown", not "nothing to do", and (c) set its
+  completion marker only when zero records failed — so an auto-lock landing
+  mid-migration resumes on the next unlock instead of stamping plaintext as
+  migrated. Applies to `runFieldEncryptMigrationV2IfNeeded` and
+  `runImageCryptoMigrationIfNeeded`.
 
 ### Primary files
 `assets/02_security.js`; the helpers `_looksEncrypted`, `_displayPlain`,
@@ -870,7 +888,11 @@ never a plaintext master key, KDATA, or the employee code (sealed as
 `app_employee_id_sealed_v1` after first unlock; see Activation). The road-distance
 cache (`app_road_dist_cache_v4`) is sealed AES-GCM because it contains customer
 asset GPS coordinates; the cloud-transfer users cache is RAM-only (its old
-persist key `clientpro_ct_users_cache_v1` is cleaned up). `ErrorHandler`'s
+persist key `clientpro_ct_users_cache_v1` is cleaned up). The weather cache
+(`app_weather_cache_v1`) stores only what the pill renders — never the
+Open-Meteo response's `latitude`/`longitude`/`timezone`/`elevation`; write it
+through `_trimWeatherForCache` (`09_weather.js`). It stays unsealed on purpose
+because the pill renders before unlock. `ErrorHandler`'s
 `app_error_log` redacts sensitive keys and truncates long strings before
 writing. Tour state uses its own clearly named key. The app does not write
 `sessionStorage`. Do not store sensitive plaintext.
