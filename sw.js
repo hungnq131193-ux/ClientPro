@@ -1,6 +1,6 @@
 // ClientPro Service Worker — offline-first cache and update lifecycle.
 // Bump version when changing static assets or cache behavior.
-const VERSION = 'v1.3.4';
+const VERSION = 'v1.3.5';
 // Cache generation identifier. Bump for every major public release.
 const CACHE_EPOCH = 'genesis';
 const STATIC_CACHE = `clientpro-${CACHE_EPOCH}-static-${VERSION}`;
@@ -20,7 +20,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'AUDIT_CLEANUP_20260724';
+const ASSET_V = 'DVHC_LOOKUP_20260725';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -86,6 +86,11 @@ const STATIC_ASSETS = [
   `./assets/pdf-toolkit/pdf_toolkit_pdf2img.js?v=${ASSET_V}`,
   `./assets/pdf-toolkit/pdf_toolkit_compress.js?v=${ASSET_V}`,
   `./assets/pdf-toolkit/pdf_toolkit_ui.js?v=${ASSET_V}`,
+  `./assets/css/dvhc-lookup.css?v=${ASSET_V}`,
+  `./assets/dvhc-lookup/dvhc_utils.js?v=${ASSET_V}`,
+  `./assets/dvhc-lookup/dvhc_data.js?v=${ASSET_V}`,
+  `./assets/dvhc-lookup/dvhc_ui.js?v=${ASSET_V}`,
+  `./assets/data/dvhc/dvhc.v1.json?v=${ASSET_V}`,
 
   './assets/ui/load_modals.js',
 

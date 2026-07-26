@@ -264,6 +264,13 @@
       return true;
     }
 
+    // Tra cứu sáp nhập ĐVHC (slide-in độc lập từ Menu, một cấp: back = đóng).
+    if (isVisibleSlide('screen-dvhc-lookup')) {
+      if (typeof window.dvhcLookupHandleBack === 'function' && window.dvhcLookupHandleBack() === true) return true;
+      get('screen-dvhc-lookup').classList.add('translate-x-full');
+      return true;
+    }
+
     // Slide panels (order matters: most nested first)
     if (isVisibleSlide('screen-asset-gallery')) {
       return callIfFn('closeAssetGallery') || (get('screen-asset-gallery').classList.add('translate-x-full'), true);
@@ -293,14 +300,35 @@
   // (e.g. the selection-mode toggles in 04_ui_common.js call this) — leaves
   // the entry on the stack and DOES need it consumed here, otherwise it
   // lingers as a phantom step the Dashboard's real back has to burn through.
+  //
+  // The popstate our own history.back() produces must NOT be mistaken for a
+  // real hardware back. It used to be silenced by stamping lastTouchBackAt,
+  // i.e. by a 600ms TIME window — which also swallowed any GENUINE back the
+  // user pressed inside that window. That window is reachable in normal use:
+  // opening a screen from the settings menu closes the menu ~200ms later
+  // (toggleMenu's animation), which lands here; a hardware back right after
+  // was then ignored while the browser had already consumed a history entry,
+  // leaving the screen open with one step less depth than it looks — the next
+  // back exits the app. Count our own pending pops instead, so exactly one
+  // popstate per back() we issue is absorbed and every other one is real.
   function consumeTrackedHistoryStep() {
     if (viaPopstateBack) return;
     try {
       if (history.state && (history.state.__clientpro_edge_back || history.state.clientProSelectionLayer)) {
-        lastTouchBackAt = Date.now(); // dedupe the resulting popstate; already handled
+        notePendingSelfPop();
         history.back();
       }
     } catch (_) { }
+  }
+
+  // Safety valve: if a back() somehow never delivers its popstate, the pending
+  // count would swallow the user's next real back forever. Decay it instead.
+  // The `> 0` guard makes a late timer harmless when popstate already matched.
+  function notePendingSelfPop() {
+    selfPopPending++;
+    setTimeout(function () {
+      if (selfPopPending > 0) selfPopPending--;
+    }, SELF_POP_TIMEOUT_MS);
   }
 
   // -------- Gesture handling (both edges) --------
@@ -315,6 +343,8 @@
   let cooldownUntil = 0;
   let lastTouchBackAt = 0;          // timestamp of last touch-driven runBackAction()
   const POPSTATE_DEDUPE_MS = 600;   // if popstate fires this soon after, treat as the same physical gesture
+  let selfPopPending = 0;           // history.back() calls WE issued whose popstate hasn't arrived yet
+  const SELF_POP_TIMEOUT_MS = 1500; // decay guard so a lost popstate can't swallow a real back forever
   const SENTINEL_STATE = { __clientpro_edge_back: 1 };
   let suppressDepthPush = false;    // true while we're closing something, so that doesn't get miscounted as an "open"
   let viaPopstateBack = false;      // true while a close cascade was started by a popstate (browser already popped the entry)
@@ -468,7 +498,7 @@
     ];
     const TRACKED_SLIDE_IDS = [
       'screen-asset-gallery', 'screen-map', 'screen-folder', 'screen-customer-list',
-      'screen-pdf-toolkit'
+      'screen-pdf-toolkit', 'screen-dvhc-lookup'
     ];
     const lastVisible = new Map();
     TRACKED_MODAL_IDS.forEach((id) => lastVisible.set(id, isVisibleModal(id)));
@@ -547,10 +577,17 @@
         history.pushState(SENTINEL_STATE, document.title, location.href);
       }
       window.addEventListener('popstate', function (ev) {
-        const justHandledByTouch = (Date.now() - lastTouchBackAt) < POPSTATE_DEDUPE_MS;
         // Closing a screen changes classes too; don't let that close also
         // count as a fresh "open" in the very same tick.
         suppressDepthPush = true;
+        // Our own consumeTrackedHistoryStep() back() — absorb exactly one
+        // popstate per pop we issued, then let real backs through again.
+        if (selfPopPending > 0) {
+          selfPopPending--;
+          clearBackFlagsAfterScan();
+          return;
+        }
+        const justHandledByTouch = (Date.now() - lastTouchBackAt) < POPSTATE_DEDUPE_MS;
         if (!justHandledByTouch) {
           // The browser already popped one history entry for this event;
           // flag it so the close-scan doesn't pop a second one on top.
