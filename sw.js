@@ -109,7 +109,8 @@ const STATIC_ASSETS = [
   './assets/ui/modals/backup-manager-modal.html',
 
   // Font woff2 (self-host) — precache để chữ hiển thị đúng khi offline.
-  // Chỉ còn subset latin + vietnamese (đã bỏ latin-ext và Inter 300 khỏi fonts.css).
+  // Chỉ còn Be Vietnam Pro subset latin + vietnamese (đã bỏ latin-ext và toàn bộ
+  // Inter khỏi fonts.css — font hiển thị thực tế luôn là Be Vietnam Pro).
   './assets/fonts/be-vietnam-pro-400-latin.woff2',
   './assets/fonts/be-vietnam-pro-400-vietnamese.woff2',
   './assets/fonts/be-vietnam-pro-500-latin.woff2',
@@ -122,16 +123,6 @@ const STATIC_ASSETS = [
   './assets/fonts/be-vietnam-pro-800-vietnamese.woff2',
   './assets/fonts/be-vietnam-pro-900-latin.woff2',
   './assets/fonts/be-vietnam-pro-900-vietnamese.woff2',
-  './assets/fonts/inter-400-latin.woff2',
-  './assets/fonts/inter-400-vietnamese.woff2',
-  './assets/fonts/inter-500-latin.woff2',
-  './assets/fonts/inter-500-vietnamese.woff2',
-  './assets/fonts/inter-600-latin.woff2',
-  './assets/fonts/inter-600-vietnamese.woff2',
-  './assets/fonts/inter-700-latin.woff2',
-  './assets/fonts/inter-700-vietnamese.woff2',
-  './assets/fonts/inter-800-latin.woff2',
-  './assets/fonts/inter-800-vietnamese.woff2',
 ];
 
 self.addEventListener('install', (event) => {

@@ -14,7 +14,7 @@ PDF Toolkit (`pdf-lib`, `pdf.js`, `jszip`) chỉ **lazy-load lúc runtime** khi 
 PDF lần đầu — KHÔNG tải lúc khởi động app. `pdf.js` worker trỏ tới `pdf.worker.min.mjs`
 cục bộ (không gọi mạng để tải worker). Sau lần tải đầu, Service Worker cache để dùng offline.
 
-Font tự host tại `../fonts/` (Inter, Be Vietnam Pro — SIL OFL 1.1, subset latin/vietnamese,
+Font tự host tại `../fonts/` (Be Vietnam Pro — SIL OFL 1.1, subset latin/vietnamese,
 khai báo trong `../css/fonts.css`).
 
 Khi nâng cấp: tải tarball từ registry.npmjs.org, thay file tương ứng, bump cache-buster

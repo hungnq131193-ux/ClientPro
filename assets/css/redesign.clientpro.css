@@ -25,7 +25,7 @@ select,
 .vietin-brand,
 .customer-name-line,
 .dashboard-section-head h2 {
-  font-family: "Be Vietnam Pro", "Inter", system-ui, -apple-system, sans-serif !important;
+  font-family: "Be Vietnam Pro", system-ui, -apple-system, sans-serif !important;
 }
 
 /* Số điện thoại giữ dạng số đều để dễ đọc, nhưng vẫn dùng Be Vietnam Pro */
