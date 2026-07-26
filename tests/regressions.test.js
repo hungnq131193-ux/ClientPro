@@ -288,3 +288,20 @@ test('nhóm ổn định B #8: put-wrapper trong 2 migration của 02_security.j
     assert.ok(/\bonabort\b/.test(body), `${fn}: thiếu onabort — migration treo giữa unlock flow khi tx abort`);
   }
 });
+
+test('privacy: cache quãng đường (toạ độ GPS TSBĐ) phải seal, không ghi JSON plaintext', () => {
+  const map = read('assets/03_map.js');
+  const body = fnBody(map, 'fetchRoadDistances');
+  assert.ok(!/localStorage\.setItem\(\s*ROAD_DIST_CACHE_KEY\s*,\s*JSON\.stringify/.test(body),
+    'fetchRoadDistances: không được ghi cache plaintext trực tiếp — phải qua _writeRoadDistCacheSealed');
+  assert.ok(/_writeRoadDistCacheSealed\(/.test(body), 'fetchRoadDistances: phải ghi qua helper seal');
+  assert.ok(/_readRoadDistCacheAsync\(/.test(body), 'fetchRoadDistances: phải đọc qua helper unseal');
+  const writeBody = fnBody(map, '_writeRoadDistCacheSealed');
+  assert.ok(/_gcmEncryptField\(/.test(writeBody), '_writeRoadDistCacheSealed: phải seal AES-GCM (cpg1:)');
+
+  const config = read('assets/01_config.js');
+  assert.ok(/ROAD_DIST_CACHE_KEY\s*=\s*'app_road_dist_cache_v4'/.test(config),
+    'Cache seal phải dùng key v4 (v3 là plaintext)');
+  assert.ok(/ROAD_DIST_CACHE_OLD_KEYS\s*=\s*\[[^\]]*'app_road_dist_cache_v3'/.test(config),
+    'v3 plaintext phải nằm trong OLD_KEYS để được dọn');
+});

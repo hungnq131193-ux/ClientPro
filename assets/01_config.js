@@ -44,8 +44,10 @@ const OSRM_TABLE_URLS = [
 const ROAD_DIST_TIMEOUT_MS = 8000;
 // v3: đổi key vì format entry mới (kèm độ tin cậy) + validation chặt hơn bản v2
 // -> loại bỏ các quãng đường đã cache với ngưỡng bám đường lỏng (500m) của bản cũ.
-const ROAD_DIST_CACHE_KEY = 'app_road_dist_cache_v3';
-const ROAD_DIST_CACHE_OLD_KEYS = ['app_road_dist_cache_v1', 'app_road_dist_cache_v2'];
+// v4: blob được SEAL AES-GCM dưới masterKey (cpg1:) — v3 lưu toạ độ GPS tài sản
+// khách hàng plaintext trong localStorage nên bị dọn như key cũ.
+const ROAD_DIST_CACHE_KEY = 'app_road_dist_cache_v4';
+const ROAD_DIST_CACHE_OLD_KEYS = ['app_road_dist_cache_v1', 'app_road_dist_cache_v2', 'app_road_dist_cache_v3'];
 const ROAD_DIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 ngày
 const ROAD_DIST_CACHE_MAX = 600; // số cặp tọa độ tối đa trong cache
 // Tọa độ bị OSRM "bám" vào đường xa hơn mức này (mét) -> bản đồ thiếu đường quanh đó,
