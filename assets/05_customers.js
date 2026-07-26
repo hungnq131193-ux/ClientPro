@@ -193,8 +193,9 @@ function openCustomerList(type) {
         titleEl.textContent = type === 'approved' ? 'Khách hàng đã vay' : (type === 'all' ? 'Tất cả khách hàng' : 'KH đang thẩm định');
     }
 
-    // Show screen with slide animation first (ưu tiên mượt animation)
-    screen.classList.remove('hidden');
+    // Show screen with slide animation first (ưu tiên mượt animation).
+    // Màn hình này chỉ dùng translate-x-full như các screen khác — không toggle
+    // `hidden` (display:none) quanh animation để tránh force relayout ngay trước slide.
     if (dashboard) dashboard.style.transform = 'translate3d(-30%, 0, 0)';
     if (typeof slideScreenIn === 'function') slideScreenIn(screen);
     else if (typeof nextFrame === 'function') nextFrame(() => screen.classList.remove('translate-x-full'));
@@ -221,7 +222,6 @@ function closeCustomerList() {
 
     if (dashboard) dashboard.style.transform = '';
     const finishClose = () => {
-        screen.classList.add('hidden');
         // Refresh folder counts when returning to home
         updateFolderCounts();
     };

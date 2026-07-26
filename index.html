@@ -283,7 +283,7 @@
 
     <!-- CUSTOMER LIST SCREEN (Slide Panel) -->
     <div id="screen-customer-list"
-        class="app-container z-20 transform translate-x-full transition-transform duration-300 hidden"
+        class="app-container z-20 transform translate-x-full transition-transform duration-300"
         style="background: var(--bg-base);">
 
         <header class="glass-header px-4 py-4 flex-none w-full">
@@ -305,7 +305,7 @@
                 <div class="relative flex-1 customer-search-wrap">
                     <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 opacity-50"
                         style="color: var(--text-main)"></i>
-                    <input type="text" id="search-input" placeholder="Tìm tên, SĐT..."
+                    <input type="text" id="search-input" placeholder="Tìm tên, SĐT..." aria-label="Tìm khách hàng"
                         class="w-full border rounded-xl pl-9 pr-10 py-3 text-sm outline-none transition-colors"
                         style="border-color: var(--border-panel); color: var(--text-main); background: transparent;">
                     <button type="button" id="search-clear-btn" class="search-clear-btn hidden"
