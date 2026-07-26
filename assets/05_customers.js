@@ -484,6 +484,9 @@ async function primeCustomerSummaryCache() {
     // Batch nhỏ để không chiếm main thread quá lâu (loader unlock vẫn đang hiện).
     const BATCH = 20;
     for (let i = 0; i < all.length; i += BATCH) {
+        // Auto-lock/thu hồi quyền có thể nổ giữa các batch: dừng ngay, không nạp
+        // tiếp plaintext KH vào __custSummaryCache của phiên vừa bị xóa.
+        if (typeof masterKey === 'undefined' || !masterKey) return;
         await Promise.all(all.slice(i, i + BATCH).map((c) => _ensureSummaryDecryptedAsync(c).catch(() => { })));
     }
 }

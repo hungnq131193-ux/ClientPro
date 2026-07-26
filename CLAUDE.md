@@ -396,11 +396,23 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
 - `encryptText` / `encryptImageData` are **fail-open**: with no `masterKey` they
   return the plaintext input. Every migration must therefore (a) verify the
   result is ciphertext (`_looksEncrypted`) before writing, (b) treat an
-  IndexedDB read error as "unknown", not "nothing to do", and (c) set its
-  completion marker only when zero records failed — so an auto-lock landing
-  mid-migration resumes on the next unlock instead of stamping plaintext as
-  migrated. Applies to `runFieldEncryptMigrationV2IfNeeded` and
-  `runImageCryptoMigrationIfNeeded`.
+  IndexedDB read error as "unknown", not "nothing to do", (c) set its completion
+  marker only when zero records failed, and (d) decide per record from the
+  **stored data**, never from a per-record "already migrated" flag — a buggy
+  earlier build may have stamped plaintext as migrated. Applies to
+  `runFieldEncryptMigrationV2IfNeeded` and `runImageCryptoMigrationIfNeeded`
+  (whose completion marker is `IMG_SCHEMA_DONE = "2"`; `"1"` came from the buggy
+  build and must stay a re-scan trigger).
+- **Key generation** (`__keyGeneration`, bumped by `_installMasterKey` and
+  `clearMasterKeyMaterial`): clearing key material cannot cancel promises already
+  in flight, so any async work that writes key material or plaintext into RAM
+  must capture the generation before its first `await` and drop its result if the
+  generation changed. Without it a locked or revoked session gets its key back
+  (`_installMasterKey` assigns `masterCryptoKey` after `await importKey`) or its
+  plaintext back (`decryptFieldAsync` repopulating `__fieldPlainCache`). Guarded
+  sites: `_installMasterKey`, `decryptFieldAsync`, `primeFieldCache`,
+  `runEmployeeIdSealMigrationIfNeeded`, and the batch loop in
+  `primeCustomerSummaryCache` (`05_customers.js`).
 
 ### Primary files
 `assets/02_security.js`; the helpers `_looksEncrypted`, `_displayPlain`,

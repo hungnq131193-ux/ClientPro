@@ -18,6 +18,7 @@ const assert = require('node:assert/strict');
 const { loadSecurity, makeFakeDb } = require('./helpers/load-security');
 
 const IMG_SCHEMA_KEY = 'app_image_crypto_schema_v';
+const IMG_SCHEMA_DONE = '2'; // "1" là marker của bản cũ có bug -> không còn là mốc hoàn tất
 const GCM_PREFIX = 'cpg1:';
 const PLAIN_1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg1111';
 const PLAIN_2 = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA2222';
@@ -87,7 +88,7 @@ test('resume: mở khóa lại xong migration phần còn lại rồi mới set 
   api.setDb(makeFakeDbFrom(db));
   await api.runImageCryptoMigrationIfNeeded();
 
-  assert.equal(localStorage.getItem(IMG_SCHEMA_KEY), '1', 'Sạch hết thì mới set marker');
+  assert.equal(localStorage.getItem(IMG_SCHEMA_KEY), IMG_SCHEMA_DONE, 'Sạch hết thì mới set marker');
 });
 
 /** Dựng db giả mới từ nội dung store hiện tại (bỏ hook auto-lock). */
@@ -110,6 +111,46 @@ test('lỗi đọc IndexedDB KHÔNG được coi là "không có ảnh" rồi se
     'Đọc lỗi -> hoãn migration, không set marker (nếu set thì ảnh plaintext mất cơ hội mã hóa vĩnh viễn)');
 });
 
+test('máy đã dính bug bản cũ (marker "1" + ảnh plaintext đóng dấu imgCryptoV=1) được cứu', async () => {
+  // Bản trước đặt marker "1" ngay cả khi auto-lock làm ảnh bị ghi plaintext kèm
+  // imgCryptoV=1. Nếu bản mới vẫn coi "1" là hoàn tất, hoặc vẫn tin imgCryptoV,
+  // thì ảnh đó nằm plaintext vĩnh viễn — nâng cấp không cứu được gì.
+  const { api, localStorage } = loadSecurity();
+  await api.setMasterKey(api.generateMasterKey());
+
+  localStorage.setItem(IMG_SCHEMA_KEY, '1');
+  const db = makeFakeDb([], [
+    { id: 'i1', data: PLAIN_1, imgCryptoV: 1 }, // plaintext nhưng bị đóng dấu "đã mã hóa"
+    { id: 'i2', data: PLAIN_2 },
+  ]);
+  api.setDb(db);
+
+  await api.runImageCryptoMigrationIfNeeded();
+
+  const stored1 = db._stores.images.get('i1');
+  assert.ok(stored1.data.startsWith(GCM_PREFIX),
+    'Ảnh bị đóng dấu sai phải được mã hóa lại — không được tin imgCryptoV');
+  assert.ok(db._stores.images.get('i2').data.startsWith(GCM_PREFIX));
+  assert.equal(localStorage.getItem(IMG_SCHEMA_KEY), IMG_SCHEMA_DONE,
+    'Quét cứu xong mới nâng marker lên mốc mới');
+  assert.equal(await api.decryptImageData(stored1.data), PLAIN_1, 'Không mất dữ liệu ảnh');
+});
+
+test('máy đã ở marker mới: không quét lại lần nữa', async () => {
+  const { api, localStorage } = loadSecurity();
+  await api.setMasterKey(api.generateMasterKey());
+  localStorage.setItem(IMG_SCHEMA_KEY, IMG_SCHEMA_DONE);
+
+  let touched = false;
+  api.setDb({
+    objectStoreNames: { contains: () => true },
+    transaction: () => { touched = true; throw new Error('không được đụng store'); },
+  });
+
+  await api.runImageCryptoMigrationIfNeeded();
+  assert.equal(touched, false, 'Marker mốc mới -> return sớm, không quét lại mỗi lần mở khóa');
+});
+
 test('đường bình thường: mọi ảnh mã hóa xong -> set marker', async () => {
   const { api, localStorage } = loadSecurity();
   await api.setMasterKey(api.generateMasterKey());
@@ -123,7 +164,7 @@ test('đường bình thường: mọi ảnh mã hóa xong -> set marker', async
     assert.ok(im.data.startsWith(GCM_PREFIX), `Ảnh ${im.id} phải là ciphertext`);
     assert.equal(im.imgCryptoV, 1);
   }
-  assert.equal(localStorage.getItem(IMG_SCHEMA_KEY), '1');
+  assert.equal(localStorage.getItem(IMG_SCHEMA_KEY), IMG_SCHEMA_DONE);
   // Giải mã lại phải ra đúng ảnh gốc (không mất dữ liệu).
   assert.equal(await api.decryptImageData(db._stores.images.get('i1').data), PLAIN_1);
 });
