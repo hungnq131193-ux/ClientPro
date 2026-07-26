@@ -305,3 +305,12 @@ test('privacy: cache quãng đường (toạ độ GPS TSBĐ) phải seal, khôn
   assert.ok(/ROAD_DIST_CACHE_OLD_KEYS\s*=\s*\[[^\]]*'app_road_dist_cache_v3'/.test(config),
     'v3 plaintext phải nằm trong OLD_KEYS để được dọn');
 });
+
+test('privacy: users-cache cloud transfer (PII NV khác) không persist — RAM-only', () => {
+  const src = read('assets/14_cloud_transfer.js');
+  assert.ok(!/localStorage\.setItem\(\s*USERS_CACHE_KEY/.test(src),
+    'Không được ghi users-cache xuống localStorage');
+  assert.ok(/localStorage\.removeItem\(\s*USERS_CACHE_KEY\s*\)/.test(src),
+    'Phải dọn key persist cũ clientpro_ct_users_cache_v1');
+  assert.ok(/_usersCacheRam/.test(src), 'Cache phải nằm trong RAM (_usersCacheRam)');
+});
