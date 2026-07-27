@@ -541,3 +541,17 @@ test('tour: observer đóng tour phải nghe MỌI màn chặn, không chỉ #sc
   assert.ok(/isTourBlocked\(\)/.test(body),
     'Điều kiện đóng tour phải dùng chung isTourBlocked(), không nhân bản danh sách màn chặn');
 });
+
+test('validatePin: ẩn màn khóa phải buộc đúng lượt mở khóa, không chỉ isAppUnlocked()', () => {
+  const body = fnBody(read('assets/02_security.js'), 'validatePin');
+  const hideAt = body.indexOf('getEl("screen-lock").classList.add("hidden")');
+  assert.ok(hideAt !== -1, 'validatePin phải còn lệnh ẩn màn khóa');
+  const before = body.slice(0, hideAt);
+  // isAppUnlocked() thôi thì chưa đủ: sau auto-lock, người dùng nhập PIN lại ngay và
+  // lượt CŨ tỉnh dậy sẽ thấy khóa của lượt MỚI -> ẩn màn khóa giữa chừng pipeline
+  // của lượt mới. Không dùng __keyGeneration được: migration legacy cố ý bump nó.
+  assert.ok(/myUnlockAttempt\s*!==\s*__unlockAttemptSeq[\s\S]{0,20}return/.test(before),
+    'Phải kiểm myUnlockAttempt === __unlockAttemptSeq (và return) trước khi ẩn màn khóa');
+  assert.ok(!/\bawait\s+[A-Za-z_(]/.test(before.slice(before.lastIndexOf('__unlockAttemptSeq'))),
+    'Không được có await giữa kiểm tra lượt và lệnh ẩn màn khóa');
+});

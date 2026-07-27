@@ -400,3 +400,74 @@ test('validatePin: PIN đúng + khóa app giữa importKey -> không mở khóa,
   assert.equal(loadingPanelShown, false,
     'không được chạy pipeline unlock khi cài khóa thất bại');
 });
+
+// ---------------------------------------------------------------------------
+// 6. Hai lượt mở khóa chồng nhau
+//
+// Auto-lock nổ giữa pipeline unlock -> người dùng nhập PIN lại ngay. Lượt CŨ tỉnh
+// dậy sau khi lượt MỚI đã cài khóa: isAppUnlocked() lúc đó trả true (của lượt mới),
+// nên nếu chỉ dựa vào nó thì lượt cũ sẽ ẩn màn khóa GIỮA CHỪNG pipeline của lượt
+// mới — và còn áp cả prompt nâng cấp PIN dựa trên kết quả `res` đã cũ.
+// ---------------------------------------------------------------------------
+
+/**
+ * "Cổng" đặt vào window.__dbReady — await ĐẦU TIÊN của completeUnlockDataLoad.
+ * Là một thenable: `then` được gọi đúng lúc pipeline chạm tới nó, nên test biết
+ * CHẮC CHẮN lượt unlock đã vào pipeline rồi mới đi bước tiếp theo (không đoán bằng
+ * số microtask — PBKDF2 mất thời gian thật và số nhịp await không tất định).
+ */
+function pipelineGate() {
+  const entered = deferred();
+  const release = deferred();
+  return {
+    entered: entered.promise,
+    release,
+    thenable: {
+      then: (resolve, reject) => {
+        entered.resolve();
+        release.promise.then(resolve, reject);
+      },
+    },
+  };
+}
+
+test('validatePin: lượt cũ tỉnh dậy sau lượt mới -> KHÔNG ẩn màn khóa của lượt mới', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  const mk = api.generateMasterKey();
+  await api.setMasterKey(mk);
+  localStorage.setItem('app_pin', await api.sealMasterKey('654321', mk));
+  api.clearMasterKeyMaterial();
+  dom.getEl('screen-lock').classList.remove('hidden');
+
+  const gate1 = pipelineGate();
+  ctx.window.__dbReady = gate1.thenable;
+  api.setCurrentPin('654321');
+  const firstUnlock = api.validatePin();
+  await gate1.entered;   // lượt 1 đã cài khóa và đang ở trong pipeline
+
+  // Auto-lock nổ giữa pipeline của lượt 1.
+  api.clearMasterKeyMaterial();
+
+  // Người dùng nhập PIN lại ngay -> lượt 2 cài khóa và vào pipeline (còn đang chạy).
+  const gate2 = pipelineGate();
+  ctx.window.__dbReady = gate2.thenable;
+  api.setCurrentPin('654321');
+  const secondUnlock = api.validatePin();
+  await gate2.entered;
+
+  // Lượt 1 tỉnh dậy: phiên hiện tại là của lượt 2, nó phải im lặng rút lui.
+  gate1.release.resolve();
+  await firstUnlock;
+
+  assert.equal(api.isAppUnlocked(), true, 'phiên của lượt 2 vẫn sống');
+  assert.equal(dom.isHidden('screen-lock'), false,
+    'lượt cũ KHÔNG được ẩn màn khóa khi pipeline của lượt mới còn đang chạy');
+  assert.equal(dom.isHidden('setup-lock-modal'), false,
+    'lượt cũ không được áp prompt nâng cấp PIN dựa trên kết quả đã cũ');
+
+  // Lượt 2 hoàn tất -> nó mới là bên được ẩn màn khóa.
+  gate2.release.resolve();
+  await secondUnlock;
+  assert.equal(dom.isHidden('screen-lock'), true, 'lượt sở hữu phiên mở khóa bình thường');
+});

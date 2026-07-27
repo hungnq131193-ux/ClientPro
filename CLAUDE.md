@@ -353,6 +353,13 @@ Turn a valid PIN into an in-RAM master key and load data.
   re-check `isAppUnlocked()` after the awaits: `completeUnlockDataLoad` skips the
   `clientpro:unlocked` dispatch, and `validatePin` must not hide `#screen-lock`.
   Hiding it unconditionally opens the dashboard with `masterKey === null`.
+- `isAppUnlocked()` alone is not enough for UI decisions: unlock attempts can
+  overlap (auto-lock mid-pipeline, user re-enters the PIN at once), and the older
+  attempt would see the newer attempt's key. Every unlock entry point
+  (`validatePin`, `checkRecovery`, `saveSecuritySetup`) claims a ticket from
+  `__unlockAttemptSeq` after installing its key and must own the current ticket
+  before changing the UI. `__keyGeneration` cannot serve this role — the legacy
+  migration inside the pipeline installs a key and bumps it by design.
 - `_installMasterKey` is **fail-closed**: if `__keyGeneration` changes while
   `crypto.subtle.importKey` is awaited (auto-lock, `lockApp`,
   `revokeUnlockedSession`, or a competing install), it throws

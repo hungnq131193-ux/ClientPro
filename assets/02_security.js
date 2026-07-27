@@ -25,6 +25,12 @@ let __pendingKdataCache = null;
 // thế hệ lúc bắt đầu và chỉ ghi kết quả vào RAM nếu thế hệ chưa đổi — nếu không,
 // một phiên vừa bị khóa/thu hồi sẽ nhận lại key hoặc plaintext ngay sau khi xóa.
 let __keyGeneration = 0;
+// Số thứ tự "lượt mở khóa": mỗi lần người dùng khởi động một phiên mới (validatePin,
+// checkRecovery, saveSecuritySetup) mở đúng một lượt. KHÔNG dùng __keyGeneration cho
+// việc này: migration legacy bên trong pipeline unlock cố ý cài khóa mới và bump
+// generation, nên so generation sẽ nhầm "chính mình" thành "đã bị tiếp quản". Lượt cũ
+// tỉnh dậy sau một lượt mới phải im lặng rút lui, không được đổi UI của lượt mới.
+let __unlockAttemptSeq = 0;
 // Migration legacy CryptoJS→GCM đã cài MK2 làm khóa phiên nhưng CHƯA finalize:
 // PIN_KEY/SEC_KEY vẫn niêm phong khóa legacy, và các record U2FsdGVk… còn lại chỉ
 // đọc được bằng khóa legacy đó. Niêm phong lại PIN/SEC bằng masterKey hiện tại
@@ -1771,6 +1777,9 @@ async function saveSecuritySetup() {
     return;
   }
   const setupGeneration = __keyGeneration;
+  // Thiết lập/đặt lại PIN cũng mở một lượt phiên mới: lượt validatePin cũ còn treo
+  // trong pipeline phải rút lui thay vì đổi UI của lượt này.
+  __unlockAttemptSeq++;
   // Phiên còn đúng khóa vừa cài? PHẢI kiểm lại ngay trước MỖI lệnh ghi envelope —
   // giữa _installMasterKey và hai lệnh seal còn một await (_writeSealedEmployeeId).
   const setupKeyAlive = () => setupGeneration === __keyGeneration && masterKey === mkForSetup;
@@ -1899,6 +1908,7 @@ async function validatePin() {
       _setKeypadDisabled(false);
       return;
     }
+    const myUnlockAttempt = ++__unlockAttemptSeq;
     const pinForMigration = currentPin;
     // Máy legacy chưa migrate vẫn còn plaintext; máy đã migrate trả "" (migration
     // legacy khi đó là no-op nên không cần mã NV).
@@ -1912,6 +1922,11 @@ async function validatePin() {
     // masterKey=null — vào được dashboard mà không qua PIN. Mất phiên thì giữ
     // nguyên màn khóa, người dùng nhập PIN lại.
     if (!isAppUnlocked()) return;
+    // isAppUnlocked() thôi thì chưa đủ: sau auto-lock người dùng có thể nhập PIN lại
+    // ngay, và lượt CŨ tỉnh dậy sẽ thấy khóa của lượt MỚI. Ẩn màn khóa khi đó là mở
+    // dashboard giữa chừng pipeline của lượt mới, kèm cả prompt nâng cấp PIN dựa trên
+    // kết quả `res` đã cũ. Chỉ lượt đang sở hữu phiên mới được đổi UI.
+    if (myUnlockAttempt !== __unlockAttemptSeq) return;
     getEl("screen-lock").classList.add("hidden");
     // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới (masterKey giữ nguyên, dữ liệu không đổi).
     // HOÃN khi migration legacy chưa finalize: saveSecuritySetup sẽ niêm phong
@@ -1969,6 +1984,8 @@ async function checkRecovery() {
       return;
     }
     const recoveryGeneration = __keyGeneration;
+    // Khôi phục cũng mở một lượt phiên mới (xem __unlockAttemptSeq).
+    __unlockAttemptSeq++;
     const recoveredKey = res.masterKey;
     // Mã NV vừa xác thực đúng: seal trước (không persist plaintext), nạp RAM sau khi
     // chắc phiên còn sống — mã NV là secret khôi phục.
