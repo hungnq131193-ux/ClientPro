@@ -92,7 +92,7 @@ test('lượt validatePin cũ không được mở keypad hoặc xóa PIN của 
   assert.equal(api.getCurrentPin(), '', 'lượt hiện hành phải tự xóa PIN khỏi RAM');
 });
 
-test('lượt mới nhận vé trước PBKDF2: lượt cũ cài khóa xong không được xóa PIN migration', async () => {
+test('lượt mới nhận vé trước khi PBKDF2 unwrap: lượt cũ không được xóa PIN migration', async () => {
   const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
   const pin = '654321';
   const mk = api.generateMasterKey();
