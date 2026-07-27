@@ -347,6 +347,92 @@ return async (...args) => {
   assert.equal(dom.isHidden('screen-lock'), false);
 });
 
+
+test('migration legacy mất vé trong lúc seal stage không được cài hoặc finalize khóa', async () => {
+  const { api, localStorage, ctx } = loadSecurity({ dom: true });
+  api.setLegacyMasterKey('mk_legacy_ticket_guard');
+  api.setDb({});
+  const ticket = api.bumpUnlockAttempt();
+  const subtle = ctx.crypto.subtle;
+  const realEncrypt = subtle.encrypt.bind(subtle);
+  const sealEntered = deferred();
+  const releaseSeal = deferred();
+  let held = false;
+  ctx.crypto = {
+    getRandomValues: ctx.crypto.getRandomValues.bind(ctx.crypto),
+    subtle: new Proxy(subtle, {
+      get(target, prop) {
+        if (prop === 'encrypt') return async (...args) => {
+          const out = await realEncrypt(...args);
+          if (!held) {
+            held = true;
+            sealEntered.resolve();
+            await releaseSeal.promise;
+          }
+          return out;
+        };
+        const value = target[prop];
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }),
+  };
+  const oldMigration = api.runFieldCryptoMigrationIfNeeded('654321', 'NV001', ticket);
+  await waitFor(sealEntered.promise, 'migration cũ vào seal stage');
+  api.bumpUnlockAttempt();
+  api.clearMasterKeyMaterial();
+  releaseSeal.resolve();
+  await oldMigration;
+  assert.equal(api.isAppUnlocked(), false);
+  assert.equal(api.getState().hasGcmKey, false);
+  assert.equal(localStorage.getItem('app_pin_v2_stage'), null);
+  assert.equal(localStorage.getItem('app_sec_v2_stage'), null);
+  assert.equal(localStorage.getItem('app_crypto_schema_v'), null);
+});
+
+test('PIN sai sau khi tiếp quản pipeline phải nhả loader và trả keypad', async () => {
+  const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
+  const mk = api.generateMasterKey();
+  await api.setMasterKey(mk);
+  localStorage.setItem('app_pin', await api.sealMasterKey('654321', mk));
+  api.clearMasterKeyMaterial();
+  dom.getEl('screen-lock').classList.remove('hidden');
+  const entered = deferred();
+  const release = deferred();
+  ctx.window.__dbReady = { then(resolve, reject) {
+    entered.resolve();
+    release.promise.then(resolve, reject);
+  } };
+  api.setCurrentPin('654321');
+  const first = api.validatePin();
+  await waitFor(entered.promise, 'pipeline cũ hiện loader');
+  assert.equal(dom.isHidden('pin-unlock-loading'), false);
+  assert.equal(dom.isHidden('pin-keypad'), true);
+  api.setCurrentPin('111111');
+  await api.validatePin();
+  assert.equal(dom.isHidden('pin-unlock-loading'), true);
+  assert.equal(dom.isHidden('pin-keypad'), false);
+  assert.equal(dom.isHidden('pin-display'), false);
+  assert.equal(api.isAppUnlocked(), false);
+  release.resolve();
+  await first;
+});
+
+test('tripwire: migration legacy mang vé qua install, record và finalize', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'assets', '02_security.js'), 'utf8');
+  assert.match(source, /runFieldCryptoMigrationIfNeeded\(pinForMigration, empForMigration, unlockAttempt\)/);
+  const start = source.indexOf('async function runFieldCryptoMigrationIfNeeded(pin, employeeId, unlockAttempt)');
+  const end = source.indexOf('\n// ============================================================\n// PIN Envelope v2', start);
+  assert.ok(start >= 0 && end > start);
+  const body = source.slice(start, end);
+  const install = body.indexOf('await _installMasterKey(mkStr)');
+  const guardBeforeInstall = body.lastIndexOf('if (!attemptCurrent()) return;', install);
+  const finalize = body.indexOf('localStorage.setItem(PIN_KEY, pinStage)');
+  const finalGuard = body.lastIndexOf('_legacyMigrationAlive(migrationGen, unlockAttempt)', finalize);
+  assert.ok(guardBeforeInstall >= 0 && guardBeforeInstall < install);
+  assert.ok(finalGuard > install && finalGuard < finalize);
+  assert.match(source, /function _legacyMigrationAlive\(gen, unlockAttempt\)[\s\S]*?unlockAttempt === __unlockAttemptSeq/);
+});
+
 test('tripwire: validatePin nhận vé và chụp PIN trước unwrap, cleanup chỉ thuộc chủ vé', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'assets', '02_security.js'),

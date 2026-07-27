@@ -905,7 +905,7 @@ async function completeUnlockDataLoad(pinForMigration, empForMigration, unlockAt
     try { if (window.__dbReady) await window.__dbReady; } catch (e) {}
     if (!alive()) return;
     try {
-      await runFieldCryptoMigrationIfNeeded(pinForMigration, empForMigration);
+      await runFieldCryptoMigrationIfNeeded(pinForMigration, empForMigration, unlockAttempt);
     } catch (e) {
       try { ErrorHandler.logError("crypto-migration", e); } catch (_) {}
     }
@@ -968,8 +968,9 @@ const SCHEMA_KEY = "app_crypto_schema_v";   // '2' = đã migrate
 const PIN_STAGE = "app_pin_v2_stage";       // niêm phong MK2 tạm dưới PIN (resume không đúc lại key)
 const SEC_STAGE = "app_sec_v2_stage";       // niêm phong MK2 tạm dưới mã nhân viên
 
-function _legacyMigrationAlive(gen) {
-  return gen === __keyGeneration && !!masterKey && !!masterCryptoKey;
+function _legacyMigrationAlive(gen, unlockAttempt) {
+  const attemptCurrent = unlockAttempt === undefined || unlockAttempt === __unlockAttemptSeq;
+  return attemptCurrent && gen === __keyGeneration && !!masterKey && !!masterCryptoKey;
 }
 
 function _getAllCustomerKeys() {
@@ -983,10 +984,10 @@ function _getAllCustomerKeys() {
 }
 
 /** Re-encrypt mọi field CryptoJS-legacy của 1 record sang AES-GCM. */
-async function _reencryptRecord(c, legacyKey, migrationGen) {
+async function _reencryptRecord(c, legacyKey, migrationGen, unlockAttempt) {
   const decLegacy = (v) => {
     if (!(typeof v === "string" && v.startsWith("U2FsdGVk"))) return v;
-    if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+    if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
     // "" LÀ plaintext hợp lệ: encryptText() mã hóa cả chuỗi rỗng (chỉ bỏ qua
     // undefined/null), nên build cũ đã ghi U2FsdGVk…("") cho phone/cccd/notes để
     // trống. Coi "" là hỏng thì migration abort ở MỌI lần mở khóa trên phần lớn
@@ -1011,7 +1012,7 @@ async function _reencryptRecord(c, legacyKey, migrationGen) {
   const conv = async (v) => {
     if (!(typeof v === "string" && v.startsWith("U2FsdGVk"))) return v;
     const enc = await _gcmEncryptField(decLegacy(v));
-    if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+    if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
     return enc;
   };
   for (const k of ["name", "phone", "cccd", "notes", "creditLimit", "driveLink"]) {
@@ -1022,12 +1023,12 @@ async function _reencryptRecord(c, legacyKey, migrationGen) {
       if (a[k] !== undefined) a[k] = await conv(a[k]);
     }
   }
-  if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+  if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
   c.cryptoV = 2;
 }
 
 /** Re-encrypt token Drive (07_drive 'sealed.v1:') trong lúc còn legacyKey. */
-async function _migrateDriveToken(legacyKey, migrationGen) {
+async function _migrateDriveToken(legacyKey, migrationGen, unlockAttempt) {
   const tkKey = (typeof USER_TOKEN_KEY !== "undefined") ? USER_TOKEN_KEY : "app_user_script_token";
   const raw = (localStorage.getItem(tkKey) || "").trim();
   if (!raw.startsWith("sealed.v1:")) return true; // plaintext/empty -> getUserToken reseal sau
@@ -1046,7 +1047,7 @@ async function _migrateDriveToken(legacyKey, migrationGen) {
   // panel cấu hình Drive sẽ xin token mới và niêm phong lại đúng chuẩn GCM.
   if (!pt) return true;
   const enc = await _gcmEncryptField(pt);
-  if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+  if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
   const next = "sealed.v1:" + enc;
   localStorage.setItem(tkKey, next);
   if ((localStorage.getItem(tkKey) || "") !== next) throw new Error("DRIVE_TOKEN_MIGR_WRITE_FAILED");
@@ -1057,12 +1058,14 @@ async function _migrateDriveToken(legacyKey, migrationGen) {
  * Chạy migration legacy nếu cần. Mọi lỗi đọc IDB, token hoặc đổi generation đều
  * dừng trước bước swap PIN/SEC/schema; stage được giữ nguyên để lần unlock sau resume.
  */
-async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
+async function runFieldCryptoMigrationIfNeeded(pin, employeeId, unlockAttempt) {
   if (typeof db === "undefined" || !db) return;
   if (localStorage.getItem(SCHEMA_KEY) === "2") return;
+  const attemptCurrent = () => unlockAttempt === undefined || unlockAttempt === __unlockAttemptSeq;
+  if (!attemptCurrent()) return;
 
-  // Resume-after-swap: PIN đã mở được MK2 nhưng crash trước marker.
   if (!masterKeyLegacy && masterCryptoKey) {
+    if (!attemptCurrent()) return;
     if (parseV2Envelope(localStorage.getItem(PIN_KEY))) {
       localStorage.setItem(SCHEMA_KEY, "2");
       localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
@@ -1075,27 +1078,35 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
   const legacyKey = masterKeyLegacy;
   let mkStr = null;
   const staged = localStorage.getItem(PIN_STAGE);
-  if (staged) mkStr = await openMasterKeyV2(pin, staged);
+  if (staged) {
+    mkStr = await openMasterKeyV2(pin, staged);
+    if (!attemptCurrent()) return;
+  }
   if (!mkStr) {
     mkStr = generateMasterKey();
-    localStorage.setItem(PIN_STAGE, await sealMasterKey(pin, mkStr));
-    if (employeeId) localStorage.setItem(SEC_STAGE, await sealMasterKey(employeeId, mkStr));
+    const pinStage = await sealMasterKey(pin, mkStr);
+    if (!attemptCurrent()) return;
+    localStorage.setItem(PIN_STAGE, pinStage);
+    if (employeeId) {
+      const secStage = await sealMasterKey(employeeId, mkStr);
+      if (!attemptCurrent()) return;
+      localStorage.setItem(SEC_STAGE, secStage);
+    }
   }
 
-  // Dùng đúng đường cài key có generation guard; giữ legacyKey cục bộ để đọc dữ liệu cũ.
+  if (!attemptCurrent()) return;
   await _installMasterKey(mkStr);
   const migrationGen = __keyGeneration;
-  if (!_legacyMigrationAlive(migrationGen) || masterKey !== mkStr) {
+  if (!_legacyMigrationAlive(migrationGen, unlockAttempt) || masterKey !== mkStr) {
     throw new Error("LEGACY_MIGR_KEY_INSTALL_ABORTED");
   }
   masterKeyLegacy = legacyKey;
-  // Từ đây tới finalize: masterKey là MK2 nhưng PIN_KEY/SEC_KEY vẫn giữ khóa legacy.
-  // Chặn mọi đường re-seal cho tới khi swap xong (xem khai báo cờ ở đầu file).
   __legacyMigrationUnfinished = true;
 
-  const ids = await _getAllCustomerKeys(); // lỗi đọc phải reject, tuyệt đối không coi là []
+  const ids = await _getAllCustomerKeys();
+  if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
   for (const id of ids) {
-    if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+    if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
     const c = await new Promise((resolve, reject) => {
       try {
         const g = db.transaction(["customers"], "readonly").objectStore("customers").get(id);
@@ -1103,9 +1114,10 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
         g.onerror = () => reject(g.error || new Error("LEGACY_MIGR_RECORD_READ_ERROR"));
       } catch (e) { reject(e); }
     });
+    if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
     if (!c || c.cryptoV === 2) continue;
-    await _reencryptRecord(c, legacyKey, migrationGen);
-    if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+    await _reencryptRecord(c, legacyKey, migrationGen, unlockAttempt);
+    if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
     await new Promise((resolve, reject) => {
       const tx = db.transaction(["customers"], "readwrite");
       tx.objectStore("customers").put(c);
@@ -1113,21 +1125,21 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
       tx.onerror = () => reject(tx.error || new Error("LEGACY_MIGR_TX_ERROR"));
       tx.onabort = () => reject(tx.error || new Error("LEGACY_MIGR_TX_ABORT"));
     });
+    if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
   }
 
-  await _migrateDriveToken(legacyKey, migrationGen);
-  if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+  await _migrateDriveToken(legacyKey, migrationGen, unlockAttempt);
+  if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
 
-  // FINALIZE chỉ sau khi toàn bộ record + token đã hoàn tất.
   const pinStage = localStorage.getItem(PIN_STAGE);
   if (!pinStage || !parseV2Envelope(pinStage)) throw new Error("LEGACY_MIGR_PIN_STAGE_MISSING");
+  if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
   localStorage.setItem(PIN_KEY, pinStage);
   const secStage = localStorage.getItem(SEC_STAGE);
   if (secStage) localStorage.setItem(SEC_KEY, secStage);
   localStorage.setItem(SCHEMA_KEY, "2");
   localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
   masterKeyLegacy = null;
-  // Swap xong: PIN_KEY/SEC_KEY đã giữ MK2, re-seal lại an toàn.
   __legacyMigrationUnfinished = false;
 }
 
@@ -2005,6 +2017,7 @@ async function validatePin() {
     _shakePinDots();
     clearPin();
     updateLockoutUI();
+    _releaseUnlockLoading(myUnlockAttempt);
   }
 }
 
