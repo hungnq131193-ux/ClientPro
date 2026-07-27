@@ -596,3 +596,32 @@ test('completeUnlockDataLoad: chỉ nhận generation của migration khi vé l�
       `${fn} phải truyền vé lượt mở khóa xuống completeUnlockDataLoad`);
   }
 });
+
+test('UI loading/keypad dùng chung: chỉ chủ vé hiện hành được dọn', () => {
+  const src = read('assets/02_security.js');
+
+  // completeUnlockDataLoad: không được dọn vô điều kiện trong finally — lượt đã bị
+  // tiếp quản mà dọn là trả keypad về giữa pipeline của lượt mới.
+  const pipeline = fnBody(src, 'completeUnlockDataLoad');
+  assert.ok(!/_setUnlockLoading\(false\)/.test(pipeline),
+    'Pipeline phải nhả UI qua _releaseUnlockLoading (có kiểm vé), không gọi _setUnlockLoading(false) trần');
+  assert.ok(/_releaseUnlockLoading\(unlockAttempt\)/.test(pipeline),
+    'finally phải nhả UI theo vé của chính lượt này');
+
+  // Helper phải thực sự kiểm vé, nếu không nó chỉ là bí danh của _setUnlockLoading.
+  const release = fnBody(src, '_releaseUnlockLoading');
+  assert.ok(/unlockAttempt\s*===\s*__unlockAttemptSeq/.test(release),
+    '_releaseUnlockLoading phải so vé với __unlockAttemptSeq');
+
+  // Màn khóa luôn phải hiện ra ở trạng thái nhập được PIN: _setUnlockLoading(true)
+  // của một pipeline bị cắt ngang đã ẩn keypad và pipeline đó không còn quyền tự dọn.
+  const lockScreen = fnBody(src, 'showLockScreen');
+  assert.ok(/_setUnlockLoading\(false\)/.test(lockScreen),
+    'showLockScreen phải dọn UI loading — nếu không màn khóa hiện mà không có keypad');
+
+  // Mọi đường bỏ dở SAU khi đã nhận vé đều phải nhả UI dùng chung.
+  for (const fn of ['validatePin', 'checkRecovery', 'saveSecuritySetup']) {
+    assert.ok(/_releaseUnlockLoading\(/.test(fnBody(src, fn)),
+      `${fn} phải nhả UI loading trên đường bỏ dở sau khi đã nhận vé`);
+  }
+});

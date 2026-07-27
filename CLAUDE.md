@@ -364,6 +364,13 @@ Turn a valid PIN into an in-RAM master key and load data.
   exists yet. `__keyGeneration` cannot serve this role — the legacy migration
   inside the pipeline installs a key and bumps it by design, and the attempt must
   keep its ticket across that migration.
+- The unlock spinner and the keypad are **shared DOM** (`_setUnlockLoading` toggles
+  `#pin-unlock-loading` / `#pin-keypad` / `#pin-display`). Only the attempt holding
+  the current ticket may clear them — always through `_releaseUnlockLoading`, never
+  a bare `_setUnlockLoading(false)`. An attempt that abandons the unlock while it
+  still owns the ticket must release them, and `showLockScreen` clears them
+  unconditionally: the lock screen must always appear in a state where a PIN can be
+  entered, otherwise an interrupted pipeline leaves it with a spinner and no keypad.
 - `_installMasterKey` is **fail-closed**: if `__keyGeneration` changes while
   `crypto.subtle.importKey` is awaited (auto-lock, `lockApp`,
   `revokeUnlockedSession`, or a competing install), it throws

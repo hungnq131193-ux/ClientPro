@@ -634,3 +634,110 @@ test('completeUnlockDataLoad: pipeline cũ không "mượn" phiên của lượt
   assert.equal(dispatched, 0,
     'pipeline của lượt cũ KHÔNG được phát clientpro:unlocked cho phiên của lượt mới');
 });
+
+// ---------------------------------------------------------------------------
+// 7. UI loading/keypad là DOM DÙNG CHUNG
+//
+// _setUnlockLoading(true) ẩn #pin-keypad và hiện #pin-unlock-loading. Hai lượt mở
+// khóa chồng nhau dùng CHUNG các node đó, nên lượt đã bị tiếp quản không được dọn —
+// mà lượt đang giữ vé thì bắt buộc phải dọn, kể cả khi nó bỏ dở.
+// ---------------------------------------------------------------------------
+
+/** true nếu element từng bị bỏ class 'hidden' (tức được hiện ra) trong lịch sử. */
+function everUnhidden(dom, id) {
+  return dom.getEl(id)._log.some(([op, cls]) => op === 'remove' && cls === 'hidden');
+}
+
+test('completeUnlockDataLoad: lượt cũ KHÔNG dọn spinner/keypad của lượt đang chạy', async () => {
+  const { api, ctx, dom } = loadSecurity({ dom: true });
+
+  const gate1 = pipelineGate();
+  ctx.window.__dbReady = gate1.thenable;
+  const attempt1 = api.bumpUnlockAttempt();
+  await api.setMasterKey(api.generateMasterKey());
+  const pipeline1 = api.completeUnlockDataLoad('123456', 'NV001', attempt1);
+  await gate1.entered;
+
+  // Lượt 1 đã bật spinner (ẩn keypad) — trạng thái xuất phát.
+  assert.equal(dom.isHidden('pin-keypad'), true, 'tiền đề: pipeline đang chạy nên keypad ẩn');
+  assert.equal(dom.isHidden('pin-unlock-loading'), false, 'tiền đề: spinner đang hiện');
+
+  // Lượt 2 tiếp quản và cũng đang chạy pipeline của nó.
+  api.clearMasterKeyMaterial();
+  const gate2 = pipelineGate();
+  ctx.window.__dbReady = gate2.thenable;
+  const attempt2 = api.bumpUnlockAttempt();
+  await api.setMasterKey(api.generateMasterKey());
+  const pipeline2 = api.completeUnlockDataLoad('123456', 'NV001', attempt2);
+  await gate2.entered;
+
+  // Lượt 1 tỉnh dậy và kết thúc: KHÔNG được đụng UI của lượt 2.
+  gate1.release.resolve();
+  await pipeline1;
+
+  assert.equal(dom.isHidden('pin-keypad'), true,
+    'lượt cũ không được trả keypad về khi pipeline của lượt mới còn chạy');
+  assert.equal(dom.isHidden('pin-unlock-loading'), false,
+    'spinner của lượt đang chạy phải còn nguyên');
+
+  // Lượt 2 xong -> nó mới là bên dọn UI.
+  gate2.release.resolve();
+  await pipeline2;
+  assert.equal(dom.isHidden('pin-keypad'), false, 'lượt sở hữu vé dọn UI khi xong');
+  assert.equal(dom.isHidden('pin-unlock-loading'), true);
+});
+
+test('validatePin: chủ vé bỏ dở vẫn trả keypad về (không kẹt spinner)', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  const mk = api.generateMasterKey();
+  await api.setMasterKey(mk);
+  localStorage.setItem('app_pin', await api.sealMasterKey('654321', mk));
+  api.clearMasterKeyMaterial();
+  dom.getEl('screen-lock').classList.remove('hidden');
+
+  // Lượt 1 vào pipeline -> spinner bật, keypad ẩn.
+  const gate1 = pipelineGate();
+  ctx.window.__dbReady = gate1.thenable;
+  const attempt1 = api.bumpUnlockAttempt();
+  await api.setMasterKey(mk);
+  const pipeline1 = api.completeUnlockDataLoad('654321', '', attempt1);
+  await gate1.entered;
+  assert.equal(dom.isHidden('pin-keypad'), true, 'tiền đề: keypad đang ẩn vì pipeline chạy');
+
+  // Auto-lock, người dùng nhập PIN lại, nhưng lượt 2 chết ngay trong _installMasterKey.
+  api.clearMasterKeyMaterial();
+  api.setCurrentPin('654321');
+  await runWithLockDuringImport(api, ctx, () => api.validatePin());
+
+  gate1.release.resolve();
+  await pipeline1;
+
+  // Người dùng phải nhập lại PIN được: keypad hiện, spinner tắt.
+  assert.equal(dom.isHidden('pin-keypad'), false,
+    'chủ vé bỏ dở phải trả keypad về — nếu không màn khóa kẹt, không nhập PIN được');
+  assert.equal(dom.isHidden('pin-unlock-loading'), true, 'spinner phải tắt');
+  assert.equal(api.isAppUnlocked(), false);
+});
+
+test('showLockScreen: luôn hiện màn khóa ở trạng thái nhập được PIN', async () => {
+  const { api, dom } = loadSecurity({ dom: true });
+
+  // Giả lập một pipeline unlock đang chạy dở rồi app bị khóa.
+  const gate = pipelineGate();
+  const attempt = api.bumpUnlockAttempt();
+  await api.setMasterKey(api.generateMasterKey());
+  const pipeline = api.completeUnlockDataLoad('123456', 'NV001', attempt);
+  await Promise.resolve();
+  api.setCurrentPin('12');
+
+  api.showLockScreen();
+
+  assert.equal(dom.isHidden('screen-lock'), false);
+  assert.equal(dom.isHidden('pin-keypad'), false, 'keypad phải hiện — không thì không nhập được PIN');
+  assert.equal(dom.isHidden('pin-unlock-loading'), true, 'spinner không được treo lại trên màn khóa');
+  assert.equal(api.getCurrentPin(), '', 'màn khóa reset PIN đang gõ dở');
+  assert.ok(everUnhidden(dom, 'pin-keypad'), 'keypad thực sự được hiện lại chứ không phải chưa từng ẩn');
+  gate.release.resolve();
+  await pipeline;
+});

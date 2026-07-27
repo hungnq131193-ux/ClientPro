@@ -861,6 +861,17 @@ async function runFieldEncryptMigrationV2IfNeeded() {
   }
 }
 
+/**
+ * Nhả UI loading/keypad DÙNG CHUNG khi một lượt mở khóa bỏ dở.
+ * Chỉ chủ vé hiện hành mới được dọn: lượt đã bị tiếp quản mà dọn spinner là bôi xóa
+ * trạng thái của lượt đang chạy (người dùng tưởng xong và mở thêm lượt chồng nữa).
+ */
+function _releaseUnlockLoading(unlockAttempt) {
+  if (unlockAttempt === undefined || unlockAttempt === __unlockAttemptSeq) {
+    _setUnlockLoading(false);
+  }
+}
+
 function _setUnlockLoading(on, msg) {
   const panel = getEl("pin-unlock-loading");
   const keypad = getEl("pin-keypad");
@@ -932,7 +943,11 @@ async function completeUnlockDataLoad(pinForMigration, empForMigration, unlockAt
       await loadCustomers((getEl("search-input") && getEl("search-input").value) || "");
     }
   } finally {
-    _setUnlockLoading(false);
+    // UI loading/keypad là DOM dùng chung. Lượt đã bị tiếp quản không được dọn nó:
+    // lượt mới có thể còn đang import khóa / chạy migration, dọn ở đây là trả keypad
+    // về giữa chừng và mở đường cho một lượt unlock chồng nữa. Chủ vé mới tự dọn
+    // (qua finally của chính nó, hoặc _releaseUnlockLoading khi nó bỏ dở).
+    _releaseUnlockLoading(unlockAttempt);
   }
   if (!alive()) return;
   try {
@@ -1791,6 +1806,7 @@ async function saveSecuritySetup() {
     } else {
       ErrorHandler.showError('STORAGE', "Không dựng được khóa bảo mật. Vui lòng thử lại.");
     }
+    _releaseUnlockLoading(myUnlockAttempt);
     return;
   }
   const setupGeneration = __keyGeneration;
@@ -1806,6 +1822,7 @@ async function saveSecuritySetup() {
   } catch (e) {}
   if (!setupKeyAlive()) {
     ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc thiết lập. Vui lòng mở khóa lại rồi lưu thiết lập.");
+    _releaseUnlockLoading(myUnlockAttempt);
     return;
   }
   __employeeIdPlain = ans;
@@ -1821,6 +1838,7 @@ async function saveSecuritySetup() {
     // PIN_KEY và SEC_KEY phải luôn niêm phong CÙNG một masterKey.
     if (!setupKeyAlive()) {
       ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc thiết lập. Vui lòng mở khóa lại rồi lưu thiết lập.");
+      _releaseUnlockLoading(myUnlockAttempt);
       return;
     }
     localStorage.setItem(PIN_KEY, pinEnvelope);
@@ -1848,6 +1866,12 @@ async function saveSecuritySetup() {
   ErrorHandler.showSuccess("Đã lưu thiết lập bảo mật");
 }
 function showLockScreen() {
+  // Màn khóa phải LUÔN hiện ra ở trạng thái nhập được PIN. _setUnlockLoading(true)
+  // của một pipeline unlock đã ẩn keypad; nếu pipeline đó bị khóa/thu hồi cắt ngang
+  // và không còn giữ vé, nó sẽ không tự dọn -> màn khóa hiện với spinner treo và
+  // không có bàn phím. Mọi đường gọi showLockScreen() đều đã xóa vật liệu khóa nên
+  // dọn ở đây không đụng vào lượt nào còn hợp lệ.
+  _setUnlockLoading(false);
   getEl("screen-lock").classList.remove("hidden");
   const pinLen = getPinLength();
   const display = getEl("pin-display");
@@ -1926,6 +1950,9 @@ async function validatePin() {
       currentPin = "";
       updatePinDots();
       _setKeypadDisabled(false);
+      // Lượt này đang giữ vé mà bỏ dở -> phải nhả UI dùng chung, nếu không màn khóa
+      // kẹt ở trạng thái spinner (pipeline cũ nay không còn quyền tự dọn).
+      _releaseUnlockLoading(myUnlockAttempt);
       return;
     }
     const pinForMigration = currentPin;
@@ -1992,7 +2019,7 @@ async function checkRecovery() {
   if (res && res.masterKey) {
     // Nhận vé TRƯỚC khi cài khóa (xem __unlockAttemptSeq): _installMasterKey gán
     // masterKey rồi mới await importKey, khe đó isAppUnlocked() đã true.
-    __unlockAttemptSeq++;
+    const myRecoveryAttempt = ++__unlockAttemptSeq;
     // Khôi phục masterKey (cài key GCM/legacy) và cho phép đặt lại PIN 6 số.
     // Migration (nếu dữ liệu còn CryptoJS) sẽ chạy trong saveSecuritySetup dưới PIN mới.
     try {
@@ -2003,6 +2030,7 @@ async function checkRecovery() {
       // — dữ liệu cũ mất vĩnh viễn. Giữ nguyên màn khóa + modal khôi phục để thử lại.
       try { ErrorHandler.logError("recovery-install-key", e); } catch (_) {}
       ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc khôi phục. Vui lòng thử lại.");
+      _releaseUnlockLoading(myRecoveryAttempt);
       return;
     }
     const recoveryGeneration = __keyGeneration;
@@ -2015,6 +2043,7 @@ async function checkRecovery() {
     // MỚI và niêm phong đè PIN_KEY/SEC_KEY.
     if (recoveryGeneration !== __keyGeneration || masterKey !== recoveredKey) {
       ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc khôi phục. Vui lòng thử lại.");
+      _releaseUnlockLoading(myRecoveryAttempt);
       return;
     }
     __employeeIdPlain = input;
