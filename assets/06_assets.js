@@ -504,7 +504,7 @@ async function saveAsset() {
 
 async function _doSaveAsset() {
   // Security gate: chưa có masterKey (chưa mở khóa / vừa bị auto-lock) thì không cho lưu
-  // — encryptText fail-open trả nguyên plaintext, thiếu gate này là ghi plaintext vào DB
+  // — encryptText trả nguyên plaintext khi chưa có masterKey, thiếu gate này là ghi plaintext vào DB
   // (mirror gate trong saveCustomer, 05_customers.js).
   if (typeof masterKey === 'undefined' || !masterKey) {
     return ErrorHandler.showError('AUTH', 'Chưa mở khóa dữ liệu. Vui lòng mở khóa trước khi lưu tài sản.');
@@ -533,9 +533,10 @@ async function _doSaveAsset() {
       return "";
     }
     const out = await encryptText(v);
-    // encryptText fail-open khi app bị khóa GIỮA chuỗi await (auto-lock 15s khi ẩn app):
-    // trả nguyên plaintext. Không được ghi plaintext xuống DB — throw để saveAsset()
-    // báo lỗi qua ErrorHandler và dừng (mirror _encryptCreditLimitForWrite, 05_customers.js).
+    // encryptText trả nguyên plaintext khi chưa có masterKey (và ở nhánh legacy CryptoJS
+    // khi mã hóa lỗi). Không được ghi plaintext xuống DB — throw để saveAsset() báo lỗi
+    // qua ErrorHandler và dừng (mirror _encryptCreditLimitForWrite, 05_customers.js).
+    // Auto-lock GIỮA chuỗi await ở nhánh AES-GCM thì _gcmEncryptField tự ném.
     if (typeof _looksEncrypted === 'function' && !_looksEncrypted(out)) {
       throw new Error('ENCRYPT_UNAVAILABLE');
     }

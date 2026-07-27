@@ -21,7 +21,12 @@
   const AUTH_LOCK_STRIKES_REQUIRED = 2;
 
   // Single-flight để tránh gọi GAS trùng trong cùng một phiên mở app.
+  // Chỉ hợp lệ TRONG CÙNG một thế hệ khóa: request phát lúc app còn khóa sẽ bị
+  // _checkByIssueKdata bỏ (requestStillCurrent -> stale) khi unlock đổi generation.
+  // Tái dùng nó cho lời gọi sau unlock đồng nghĩa await một kết quả rỗng và bỏ luôn
+  // lần check thật của cả phiên -> phải phát request mới khi generation đã đổi.
   let _inflight = null;
+  let _inflightGen = null;
 
   function _safeText(x) {
     try {
@@ -199,6 +204,20 @@
       employeeId = (typeof EMPLOYEE_KEY !== "undefined") ? (localStorage.getItem(EMPLOYEE_KEY) || "") : "";
     }
     if (!activated || !employeeId) return { ok: true, skipped: true };
+    const requestGeneration = (typeof __keyGeneration !== "undefined") ? __keyGeneration : null;
+    const requestWasUnlocked = (typeof isAppUnlocked === "function") ? isAppUnlocked() : false;
+    const requestStillCurrent = () => {
+      try {
+        if (!localStorage.getItem(ACTIVATED_KEY)) return false;
+        let currentEmployeeId = "";
+        if (typeof __employeeIdPlain !== "undefined" && __employeeIdPlain) currentEmployeeId = String(__employeeIdPlain).trim();
+        if (!currentEmployeeId) currentEmployeeId = (localStorage.getItem(EMPLOYEE_KEY) || "").trim();
+        if (currentEmployeeId !== employeeId) return false;
+        if (requestGeneration !== null && requestGeneration !== __keyGeneration) return false;
+        if (requestWasUnlocked && typeof isAppUnlocked === "function" && !isAppUnlocked()) return false;
+        return true;
+      } catch (e) { return false; }
+    };
 
     // Nếu không có GAS URL thì không thể check
     if (typeof ADMIN_SERVER_URL === "undefined" || !ADMIN_SERVER_URL) return { ok: true, skipped: true };
@@ -232,13 +251,19 @@
       const res = await fetch(url, { method: "GET", cache: "no-store" });
       txt = await res.text();
     } catch (e) {
-      // Lỗi mạng/timeout: không chặn UI nhưng đặt cooldown để không spam.
+      // Lỗi mạng của phiên CŨ không được đặt cooldown cho phiên mới: preflight sau
+      // unlock sẽ thấy cooldown và bỏ đúng lần check bắt buộc mà single-flight
+      // theo generation vừa mở đường cho.
+      if (!requestStillCurrent()) return { ok: true, skipped: true, stale: true };
+      // Lỗi mạng/timeout của phiên hiện tại: không chặn UI nhưng đặt cooldown để không spam.
       try {
         localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL, String(Date.now() + AUTH_COOLDOWN_MS));
       } catch (e2) {}
       return { ok: true, skipped: true, neterr: true };
     }
     const js = _parseMaybeJson(txt);
+    // Response của phiên/identity cũ không được ghi KDATA hoặc tạo strike cho phiên mới.
+    if (!requestStillCurrent()) return { ok: true, skipped: true, stale: true };
 
     // Contract ưu tiên JSON: {status:'success'|'error'|'locked', message, kdata_b64u}
     if (js && typeof js === "object") {
@@ -332,9 +357,11 @@
   }
 
   async function preflight() {
+    const curGen = (typeof __keyGeneration !== "undefined") ? __keyGeneration : null;
     try {
-      if (_inflight) return await _inflight;
-      _inflight = (async () => {
+      if (_inflight && _inflightGen === curGen) return await _inflight;
+      _inflightGen = curGen;
+      const run = (async () => {
         const r = await _checkByIssueKdata();
         if (!r || r.ok) {
           // CHỈ xóa strike khi server thật sự trả verdict OK. Kết quả `skipped`
@@ -376,11 +403,14 @@
         _resetLockStrikes();
         return true;
       })();
-      const ok = await _inflight;
-      _inflight = null;
+      _inflight = run;
+      const ok = await run;
+      // Chỉ dọn slot của CHÍNH mình: một preflight thế hệ mới có thể đã thay chỗ
+      // trong lúc await, xóa vô điều kiện là hủy single-flight của lời gọi đó.
+      if (_inflight === run) { _inflight = null; _inflightGen = null; }
       return ok;
     } catch (e) {
-      _inflight = null;
+      if (_inflightGen === curGen) { _inflight = null; _inflightGen = null; }
       // Lỗi mạng/parse: không chặn UI
       return true;
     }

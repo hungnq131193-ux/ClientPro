@@ -353,6 +353,51 @@ Turn a valid PIN into an in-RAM master key and load data.
   re-check `isAppUnlocked()` after the awaits: `completeUnlockDataLoad` skips the
   `clientpro:unlocked` dispatch, and `validatePin` must not hide `#screen-lock`.
   Hiding it unconditionally opens the dashboard with `masterKey === null`.
+- `isAppUnlocked()` alone is not enough for UI decisions: unlock attempts can
+  overlap (auto-lock mid-pipeline, user re-enters the PIN at once), and the older
+  attempt would see the newer attempt's key. Every unlock entry point
+  (`validatePin`, `checkRecovery`, `saveSecuritySetup`) claims a ticket from
+  `__unlockAttemptSeq` **before** awaiting `_installMasterKey` and must own the
+  current ticket before changing the UI. Claiming it before the await matters:
+  `_installMasterKey` assigns `masterKey` and only then awaits `importKey`, so
+  inside that window `isAppUnlocked()` already reports true while no derived key
+  exists yet. `__keyGeneration` cannot serve this role — the legacy migration
+  inside the pipeline installs a key and bumps it by design, and the attempt must
+  keep its ticket across that migration.
+- The unlock spinner and the keypad are **shared DOM** (`_setUnlockLoading` toggles
+  `#pin-unlock-loading` / `#pin-keypad` / `#pin-display`). Only the attempt holding
+  the current ticket may clear them — always through `_releaseUnlockLoading`, never
+  a bare `_setUnlockLoading(false)`. An attempt that abandons the unlock while it
+  still owns the ticket must release them, and `showLockScreen` clears them
+  unconditionally: the lock screen must always appear in a state where a PIN can be
+  entered, otherwise an interrupted pipeline leaves it with a spinner and no keypad.
+- `_installMasterKey` is **fail-closed**: if `__keyGeneration` changes while
+  `crypto.subtle.importKey` is awaited (auto-lock, `lockApp`,
+  `revokeUnlockedSession`, or a competing install), it throws
+  `STALE_KEY_GENERATION` and leaves `masterKey`/`masterCryptoKey` to whoever owns
+  them now. It must never return silently — a caller that thinks the key is
+  installed runs on with `masterKey === null`, and `sealMasterKey(pin, null)`
+  produces a *valid* envelope holding the string `"null"`.
+- Every caller must catch that error and stop **before** writing an envelope,
+  running the unlock pipeline, or changing the UI: `saveSecuritySetup`
+  (also re-checks `setupKeyAlive()` immediately before each
+  `PIN_KEY`/`SEC_KEY` write and seals the local `mkForSetup`, never the global),
+  `validatePin` (keeps `#screen-lock`, re-enables the keypad, does not count a
+  PIN failure), `checkRecovery` (does not open the new-PIN modal — that modal
+  would generate a *fresh* masterKey and overwrite both envelopes), `activateApp`
+  (does not re-seal `SEC_KEY`), and `runFieldCryptoMigrationIfNeeded` (rethrows;
+  `completeUnlockDataLoad` catches it and leaves PIN/SEC/schema staged).
+  Guarded by `tests/master-key-install-race.test.js` plus structural tripwires in
+  `tests/regressions.test.js`.
+- `saveSecuritySetup` refuses to run at all when the session has no `masterKey`
+  but `PIN_KEY`/`SEC_KEY` already exist: generating a fresh masterKey there would
+  seal it over the only envelopes that open the existing data. Every legitimate
+  entry (first-time setup, 4→6 digit upgrade, post-recovery, post-reactivation)
+  already has a key installed.
+- The same "re-check after every await" rule applies to the employee code: it is
+  the recovery secret, so `saveSecuritySetup` and `checkRecovery` seal it first
+  and only assign `__employeeIdPlain` once the session is confirmed alive —
+  otherwise a locked session gets its recovery secret back in RAM.
 
 ### Primary files
 `assets/02_security.js`.
@@ -393,8 +438,10 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
 - Never write an empty fallback on decrypt failure, never double-encrypt, never
   render ciphertext (use `_displayPlain` / `_displayPlainAsync`; show a
   placeholder for ciphertext). Do not hard-code the ciphertext prefix.
-- `encryptText` / `encryptImageData` are **fail-open**: with no `masterKey` they
-  return the plaintext input. Every migration must therefore (a) verify the
+- `encryptText` / `encryptImageData` are **fail-open with no `masterKey`**: they
+  return the plaintext input, and the legacy CryptoJS branch also returns the
+  input when encryption throws. Only the AES-GCM branch is fail-closed
+  (`_gcmEncryptField` throws — see below). Every migration must therefore (a) verify the
   result is ciphertext (`_looksEncrypted`) before writing, (b) treat an
   IndexedDB read error as "unknown", not "nothing to do", (c) set its completion
   marker only when zero records failed, and (d) decide per record from the
@@ -410,19 +457,46 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
   generation changed. Without it a locked or revoked session gets its key back
   (`_installMasterKey` assigns `masterCryptoKey` after `await importKey`) or its
   plaintext back (`decryptFieldAsync` repopulating `__fieldPlainCache`). Guarded
-  sites: `_installMasterKey`, `decryptFieldAsync`, `primeFieldCache`,
-  `runEmployeeIdSealMigrationIfNeeded`, and the batch loop in
-  `primeCustomerSummaryCache` (`05_customers.js`).
+  sites: `_installMasterKey`, `_gcmEncryptField`, `decryptFieldAsync`,
+  `decryptCustomerSummaryAsync`, KDATA/transfer-key acquisition,
+  `primeFieldCache`, `runEmployeeIdSealMigrationIfNeeded`, the legacy migration,
+  and customer summary/search/list caches in `05_customers.js`. Network responses
+  that can write secrets or revoke a session must also prove they still belong to
+  the same identity/generation before applying their result.
+- **Where the check goes: immediately before the write, after every `await`.** One
+  check at the top of a function is not a guard — it is a guard for the first
+  `await` only. Every later `await` reopens the window, so re-check right before
+  each statement that writes plaintext, key material, or a soft lock-out marker.
+  Prefer a local `alive()` closure over inline copies so the recheck is cheap to
+  repeat. Two real misses of this shape: `_ensureSummaryDecryptedAsync`
+  (`05_customers.js`) checked before `await decryptFieldAsync(c.creditLimit)` and
+  then still called `_storeSummaryCacheEntry`, repopulating `__custSummaryCache`
+  with plaintext after a lock; `_checkByIssueKdata` (`15_auth_gate.js`) wrote
+  `AUTH_GATE_COOLDOWN_UNTIL` from a stale request's network failure, which then
+  suppressed the post-unlock check for five minutes. Structural tripwires for both
+  live in `tests/regressions.test.js`.
 - On a stale generation `decryptFieldAsync` returns the **ciphertext**, not the
   plaintext: handing plaintext back to an old caller lets it repopulate
   `__custSummaryCache` / `__custSearchBlobCache` after they were cleared, and every
   render path already blocks ciphertext via `_looksEncrypted`. It also deletes only
   its **own** entry from `__fieldDecryptPending` (identity check), so a promise from
   a dead session cannot evict the one a newly unlocked session created.
-- These guards live in `02_security.js` and nowhere else. Do not install them by
-  overwriting `decryptFieldAsync` (or any crypto function) from another module: the
-  copy in `02_security.js` would become dead code, and a conditional patch can
-  silently fail to apply, leaving no guard and no test failure.
+- `_gcmEncryptField` must throw `STALE_KEY_GENERATION` if lock/revoke/change-key
+  happens during WebCrypto. Returning a ciphertext from a dead session is unsafe:
+  callers may persist it after lock and the helper would repopulate plaintext cache.
+- Legacy CryptoJS → GCM migration is fail-closed: IDB read/transaction errors, a
+  stale generation, or a failed Drive-token **write** leave PIN/SEC/schema
+  unswapped and retain stage keys for resume. Never treat an IDB error as an
+  empty database, and never assign `masterCryptoKey` directly outside
+  `_installMasterKey`. The one deliberate exception is a legacy Drive token that
+  will not decrypt under `masterKeyLegacy`: `_migrateDriveToken` leaves it
+  untouched and lets the migration finalize, because throwing there repeats on
+  every unlock and pins the device on the legacy `PIN_KEY` forever — the token is
+  re-enterable (`getUserToken` already returns `""` for an unreadable
+  `sealed.v1:` value), a stuck crypto migration is not.
+- These guards live in `02_security.js` and coordinated cache callers in
+  `05_customers.js`/`15_auth_gate.js`. Do not overwrite crypto functions from
+  another module; conditional monkey-patches create dead code and silent gaps.
 
 ### Primary files
 `assets/02_security.js`; the helpers `_looksEncrypted`, `_displayPlain`,
@@ -916,7 +990,9 @@ Open-Meteo response's `latitude`/`longitude`/`timezone`/`elevation`; write it
 through `_trimWeatherForCache` (`09_weather.js`). It stays unsealed on purpose
 because the pill renders before unlock. `ErrorHandler`'s
 `app_error_log` redacts sensitive keys and truncates long strings before
-writing. Tour state uses its own clearly named key. The app does not write
+writing. Tour state uses its own clearly named keys
+(`clientpro_onboarding_done`, plus the hand-set pre-release marker
+`clientpro_onboarding_prerelease`). The app does not write
 `sessionStorage`. Do not store sensitive plaintext.
 
 ## Tour / onboarding
@@ -926,8 +1002,10 @@ A short, mobile-first, first-run guided tour of the dashboard, plus a manual
 replay entry.
 
 ### Core invariants
-- Show automatically only to genuinely new users; never force existing users to
-  re-watch after an update.
+- `TOUR_VERSION = 5` describes the current Dashboard flow (privacy, weather,
+  overview/list, add/customer details, map, PDF+ĐVHC, backup, Drive, settings).
+  Version 5 is intentionally shown once to pre-release test accounts; future content
+  edits must not bump it unless product explicitly requires a one-time replay.
 - Never create sample customers/assets/backups; never touch business data,
   IndexedDB schema, or crypto.
 - Build UI with `el()`/`textContent`; no `innerHTML` with dynamic data, no native
@@ -950,12 +1028,22 @@ replay entry.
 ### Data and lifecycle
 - New-user detection: `localStorage` key `clientpro_onboarding_done` storing
   `{ version, completedAt }`. Auto-show when the key is absent or its stored
-  `version` is below the module's `TOUR_VERSION`; finishing/skipping writes the
-  key.
+  record is unreadable/has no numeric `version`; finishing/skipping writes the key.
+- **Bumping `TOUR_VERSION` does not force anyone to re-watch.** A user who
+  completed an older version only auto-replays when the device carries the
+  explicit pre-release marker `localStorage['clientpro_onboarding_prerelease'] === '1'`
+  (set by hand on internal test devices). Everyone else keeps the tour dismissed
+  and can still open it from the menu. Guarded by
+  `e2e/onboarding-tour.spec.js` and a tripwire in `tests/regressions.test.js`.
 - Auto-start waits for the dashboard (`#customer-list`), a set `masterKey`, and a
-  hidden lock/activation/setup screen before showing.
-- A `MutationObserver` on `#screen-lock` detects app-lock and tears the tour down
-  (without marking complete), and it does not reopen after unlock.
+  hidden lock/activation/setup screen before showing. The tour contains exactly 11
+  steps; update `e2e/onboarding-tour.spec.js` whenever count/version/selectors change.
+- One `MutationObserver` watches **every** blocking screen — `#screen-lock`,
+  `#activation-modal`, `#setup-lock-modal` — and tears the tour down (without
+  marking complete) as soon as `isTourBlocked()` turns true; it does not reopen
+  after unlock. The set must stay complete: a blocking screen can be raised on
+  its own (revocation raises only the activation gate), and the tour sits above
+  all of them in the z-index contract, so an unobserved screen stays covered.
 
 ### Read source code only when
 Editing tour steps/behavior, verifying a dashboard selector, or debugging tour
@@ -1023,7 +1111,11 @@ for CI tooling.
 `node --test 'tests/**/*.test.js'` (also `npm test`). Covers crypto, field
 migration, data integrity, schema, backup, KDATA cache, sealed employee id
 (`tests/employee-id-seal.test.js`), error-log redaction
-(`tests/error-detail.test.js`), PWA, SW routing, regressions, menu, repository
+(`tests/error-detail.test.js`), session/key-generation races
+(`tests/key-generation-race.test.js`, `tests/session-generation-hardening.test.js`,
+`tests/master-key-install-race.test.js` — the last one drives the real
+`saveSecuritySetup`/`checkRecovery`/`validatePin` through
+`loadSecurity({ dom: true })`), PWA, SW routing, regressions, menu, repository
 hygiene (screenshot policy), PDF Toolkit pure utils, and DVHC Lookup utils +
 data integrity. Add unit tests for pure logic you change.
 

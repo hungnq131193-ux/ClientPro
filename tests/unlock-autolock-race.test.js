@@ -62,7 +62,9 @@ test('validatePin không được ẩn màn hình khóa mà không kiểm lại 
     path.join(__dirname, '..', 'assets', '02_security.js'),
     'utf8'
   );
-  const start = src.indexOf('await completeUnlockDataLoad(pinForMigration, empForMigration);');
+  // Khớp theo TIỀN TỐ, không ghim nguyên chữ ký: pipeline có thể nhận thêm tham số
+  // (vd. vé lượt mở khóa) mà invariant ở đây không đổi.
+  const start = src.indexOf('await completeUnlockDataLoad(pinForMigration, empForMigration');
   assert.ok(start > 0, 'Không tìm thấy lời gọi completeUnlockDataLoad trong validatePin');
   const hideAt = src.indexOf('getEl("screen-lock").classList.add("hidden")', start);
   assert.ok(hideAt > start, 'Không tìm thấy lệnh ẩn screen-lock sau pipeline unlock');

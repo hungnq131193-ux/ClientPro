@@ -24,7 +24,7 @@ async function seedAndUnlock(page) {
     localStorage.setItem('app_crypto_schema_v', '2');
     // Tắt tour lần đầu: spec này không kiểm tour, để overlay tour không chắn
     // các thao tác trên Dashboard/Menu.
-    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 4, completedAt: Date.now() }));
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 5, completedAt: Date.now() }));
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);

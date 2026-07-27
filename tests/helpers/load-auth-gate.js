@@ -94,6 +94,10 @@ function loadAuthGate(opts) {
     ADMIN_SERVER_URL: options.adminUrl || 'https://example.invalid/gas',
     // Mã NV trong RAM sau unlock (nguồn thật: biến module của 02_security.js).
     __employeeIdPlain: null,
+    // Thế hệ khóa (nguồn thật: `let __keyGeneration` ở 02_security.js — binding
+    // lexical toàn cục nên 15_auth_gate.js đọc được). preflight() dùng nó để biết
+    // request đang bay có còn thuộc phiên hiện tại không.
+    __keyGeneration: 0,
     getDeviceId: () => 'DEVICE-TEST-1',
     fetch: async () => { throw new Error('fetch chưa được cấu hình trong test'); },
     setTimeout: (fn) => { if (typeof fn === 'function') fn(); return 0; },
@@ -117,6 +121,8 @@ function loadAuthGate(opts) {
     setFetch: (fn) => { ctx.fetch = fn; },
     /** Giả lập mã NV đã nạp RAM sau unlock (máy đã seal, không còn plaintext). */
     setEmployeeIdRam: (v) => { ctx.__employeeIdPlain = v; },
+    /** Giả lập unlock/lock đổi thế hệ khóa (_installMasterKey/clearMasterKeyMaterial). */
+    bumpKeyGeneration: () => { ctx.__keyGeneration += 1; },
   };
 }
 

@@ -342,3 +342,312 @@ test('privacy: users-cache cloud transfer (PII NV khác) không persist — RAM-
     'Phải dọn key persist cũ clientpro_ct_users_cache_v1');
   assert.ok(/_usersCacheRam/.test(src), 'Cache phải nằm trong RAM (_usersCacheRam)');
 });
+
+// ============================================================================
+// Codex PR #136: guard liveness phải là lệnh CUỐI trước khi ghi plaintext.
+//
+// Lớp lỗi lặp lại 3 vòng review: kiểm generation/unlock một lần rồi `await` tiếp,
+// sau đó vẫn ghi plaintext vào cache RAM — auto-lock/thu hồi lọt đúng vào khe đó và
+// clearMasterKeyMaterial() bị nạp lại plaintext ngay sau khi vừa dọn.
+//
+// _ensureSummaryDecryptedAsync là đường nóng nhất (chạy cho từng thẻ khách hàng khi
+// render danh sách) nên khoá cấu trúc ở đây. Không nạp 05_customers.js được ở tầng
+// unit (1814 dòng, phụ thuộc DOM) -> phân tích văn bản nguồn như các tripwire trên.
+// ============================================================================
+
+test('liveness guard phải nằm ngay trước mỗi lệnh ghi cache summary (không await xen giữa)', () => {
+  const body = fnBody(read('assets/05_customers.js'), '_ensureSummaryDecryptedAsync');
+
+  // Guard được gom thành closure alive() — nếu ai đó bỏ closure đi thì tripwire này
+  // phải đổ để buộc rà lại toàn bộ hàm chứ không im lặng bỏ qua.
+  assert.ok(/const\s+alive\s*=\s*\(\)\s*=>/.test(body),
+    '_ensureSummaryDecryptedAsync phải khai báo closure alive() dùng lại sau mỗi await');
+
+  const writes = ['_applySummaryCacheEntry(', '_storeSummaryCacheEntry('];
+  for (const w of writes) {
+    let from = 0;
+    let seen = 0;
+    for (;;) {
+      const at = body.indexOf(w, from);
+      if (at === -1) break;
+      seen++;
+      from = at + w.length;
+
+      const before = body.slice(0, at);
+      const lastGuard = before.lastIndexOf('alive()');
+      assert.ok(lastGuard !== -1, `Phải có alive() trước lệnh ghi ${w}`);
+      const between = before.slice(lastGuard);
+      assert.ok(!/\bawait\b/.test(between),
+        `Có await giữa alive() và ${w} — khe cho auto-lock nạp lại plaintext vào cache`);
+    }
+    assert.ok(seen > 0, `Không tìm thấy lệnh ghi ${w} trong _ensureSummaryDecryptedAsync`);
+  }
+});
+
+test('lỗi mạng của phiên cũ không được đặt cooldown cho phiên mới', () => {
+  const body = fnBody(read('assets/15_auth_gate.js'), '_checkByIssueKdata');
+  // Cooldown là "khoá mềm" 5 phút: đặt nó từ một request đã stale khiến preflight
+  // sau unlock trả {skipped:cooldown} và bỏ luôn verdict device/KDATA của cả phiên.
+  const WRITE = 'localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL';
+  let from = 0;
+  let seen = 0;
+  for (;;) {
+    const at = body.indexOf(WRITE, from);
+    if (at === -1) break;
+    seen++;
+    from = at + WRITE.length;
+    assert.ok(/requestStillCurrent\(\)/.test(body.slice(0, at)),
+      'Mọi lệnh ghi cooldown phải nằm SAU một kiểm tra requestStillCurrent()');
+  }
+  assert.ok(seen > 0, 'Phải còn cơ chế cooldown');
+});
+
+// ============================================================================
+// PR #136 (P1): _installMasterKey() phải FAIL-CLOSED.
+//
+// Hàm dựng AES-GCM key qua `await crypto.subtle.importKey`. Auto-lock/thu hồi rơi vào
+// khe await đó mà hàm chỉ `return` im lặng thì caller chạy tiếp với masterKey = null:
+// sealMasterKey(pin, null) tạo envelope hợp lệ chứa chuỗi "null" và GHI ĐÈ PIN_KEY/
+// SEC_KEY — bản duy nhất mở được dữ liệu trên máy. Hành vi được test thật ở
+// tests/master-key-install-race.test.js; ở đây khóa CẤU TRÚC để không ai lặng lẽ
+// gỡ throw hoặc thêm caller mới không bắt lỗi.
+// ============================================================================
+
+test('_installMasterKey phải throw (không return im lặng) khi thế hệ khóa đổi', () => {
+  const body = fnBody(read('assets/02_security.js'), '_installMasterKey');
+  const at = body.indexOf('gen !== __keyGeneration');
+  assert.ok(at !== -1, '_installMasterKey phải còn kiểm tra thế hệ khóa quanh await importKey');
+  const branch = body.slice(at, at + 400);
+  assert.ok(/throw\s+new\s+Error\(\s*["']STALE_KEY_GENERATION["']\s*\)/.test(branch),
+    'Nhánh stale phải THROW STALE_KEY_GENERATION');
+  assert.ok(!/\breturn\s*;/.test(branch.slice(0, branch.indexOf('throw'))),
+    'Không được return im lặng trước khi throw — caller sẽ tưởng khóa đã cài');
+});
+
+test('mọi caller của _installMasterKey phải bắt lỗi cài khóa', () => {
+  const src = read('assets/02_security.js');
+  const CALL = 'await _installMasterKey(';
+  let from = 0;
+  let seen = 0;
+  for (;;) {
+    const at = src.indexOf(CALL, from);
+    if (at === -1) break;
+    seen++;
+    from = at + CALL.length;
+    // Cửa sổ ngay trước lời gọi phải mở một khối try (kèm catch phía sau), hoặc lời
+    // gọi nằm trong một hàm migration tự throw tiếp (đường đó do
+    // completeUnlockDataLoad bắt) — nhận diện bằng kiểm tra generation ngay sau.
+    const before = src.slice(Math.max(0, at - 200), at);
+    const after = src.slice(at, at + 400);
+    const wrappedInTry = /\btry\s*\{[^}]*$/.test(before) && /\}\s*catch\s*\(/.test(after);
+    const rethrowsRightAfter = /_legacyMigrationAlive\([\s\S]{0,120}throw\s+new\s+Error/.test(after);
+    assert.ok(wrappedInTry || rethrowsRightAfter,
+      `Lời gọi _installMasterKey tại offset ${at} không được bảo vệ bằng try/catch`);
+  }
+  assert.ok(seen >= 4, `Phải còn đủ các caller _installMasterKey (thấy ${seen})`);
+});
+
+test('saveSecuritySetup: mọi lệnh ghi PIN_KEY/SEC_KEY phải sau một kiểm tra phiên còn sống', () => {
+  const body = fnBody(read('assets/02_security.js'), 'saveSecuritySetup');
+  for (const key of ['localStorage.setItem(PIN_KEY', 'localStorage.setItem(SEC_KEY']) {
+    let from = 0;
+    let seen = 0;
+    for (;;) {
+      const at = body.indexOf(key, from);
+      if (at === -1) break;
+      seen++;
+      from = at + key.length;
+      const before = body.slice(0, at);
+      const lastGuard = before.lastIndexOf('setupKeyAlive()');
+      assert.ok(lastGuard !== -1, `Phải kiểm tra setupKeyAlive() trước ${key}`);
+      assert.ok(!/\bawait\s+[A-Za-z_(]/.test(before.slice(lastGuard)),
+        `Có await giữa setupKeyAlive() và ${key} — khe cho auto-lock ghi đè envelope`);
+    }
+    assert.ok(seen > 0, `Không tìm thấy lệnh ghi ${key}`);
+  }
+  // Envelope phải niêm phong biến cục bộ đã chốt, không đọc lại global sau await.
+  assert.ok(/sealMasterKey\(pin,\s*mkForSetup\)/.test(body) && /sealMasterKey\(ans,\s*mkForSetup\)/.test(body),
+    'Phải seal bằng masterKey đã chốt (mkForSetup), không đọc lại biến global sau await');
+});
+
+// ============================================================================
+// PR #136 (P2): bump TOUR_VERSION KHÔNG được ép user đã hoàn tất xem lại tour.
+// ============================================================================
+
+test('shouldShowTour: user đã hoàn tất version cũ chỉ tự xem lại khi có marker pre-release', () => {
+  const src = read('assets/17_onboarding_tour.js');
+  const body = fnBody(src, 'shouldShowTour');
+  assert.ok(/isPrereleaseTester\(\)/.test(body),
+    'shouldShowTour phải gate việc phát lại sau khi bump version bằng marker pre-release');
+  assert.ok(/parsed\.version\s*>=\s*TOUR_VERSION[\s\S]{0,40}return\s+false/.test(body),
+    'Đã hoàn tất version hiện tại -> return false');
+  // Đường "version cũ" tuyệt đối không được trả true vô điều kiện.
+  assert.ok(!/return\s+parsed\.version\s*<\s*TOUR_VERSION/.test(body),
+    'Không được quay lại so sánh version trần (ép toàn bộ user v cũ xem lại)');
+  const marker = fnBody(src, 'isPrereleaseTester');
+  assert.ok(/TOUR_PRERELEASE_KEY/.test(marker) && /localStorage\.getItem/.test(marker),
+    'Marker pre-release phải đọc từ localStorage bằng khóa riêng, rõ ràng');
+});
+
+test('activateApp (gia hạn): ghi SEC_KEY và nạp mã NV vào RAM phải sau một kiểm tra phiên còn sống', () => {
+  const body = fnBody(read('assets/02_security.js'), 'activateApp');
+  // Kiểm tra stale ở đây phải DỪNG hẳn (return), không chỉ bỏ qua một lệnh ghi rồi
+  // chạy tiếp — chạy tiếp là nạp lại mã NV (secret khôi phục) vào RAM phiên đã khóa.
+  const targets = ['localStorage.setItem(SEC_KEY', '__employeeIdPlain = employeeId'];
+  for (const t of targets) {
+    const at = body.indexOf(t);
+    assert.ok(at !== -1, `Không tìm thấy ${t} trong activateApp`);
+    const before = body.slice(0, at);
+    const lastGuard = before.lastIndexOf('abortActivationIfStale()');
+    assert.ok(lastGuard !== -1, `Phải kiểm tra abortActivationIfStale() trước ${t}`);
+    const between = before.slice(lastGuard);
+    assert.ok(/\breturn\b/.test(between), `Kiểm tra stale trước ${t} phải return, không chỉ bỏ qua lệnh ghi`);
+    assert.ok(!/\bawait\s+[A-Za-z_(]/.test(between), `Có await giữa kiểm tra stale và ${t}`);
+  }
+});
+
+test('activateApp: đường bỏ dở không được ẩn cổng kích hoạt khi ACTIVATED_KEY đã bị thu hồi', () => {
+  const body = fnBody(read('assets/02_security.js'), 'activateApp');
+  // _revokeAndShowActivationGate() (thu hồi từ server) cũng đổi thế hệ khóa nhưng đã
+  // dựng ĐÚNG cổng kích hoạt. Ẩn cổng đó rồi showLockScreen() là hạ thu hồi xuống
+  // auto-lock thường — validatePin() không kiểm ACTIVATED_KEY nên PIN đúng vào thẳng.
+  const ui = body.slice(body.indexOf('const stopActivationUi'));
+  assert.ok(ui.startsWith('const stopActivationUi'), 'activateApp phải gom UI bỏ dở vào stopActivationUi()');
+  const hideAt = ui.indexOf('classList.add("hidden")');
+  assert.ok(hideAt !== -1, 'stopActivationUi phải có nhánh ẩn modal kích hoạt');
+  assert.ok(/localStorage\.getItem\(ACTIVATED_KEY\)[\s\S]{0,200}return;/.test(ui.slice(0, hideAt)),
+    'Phải kiểm ACTIVATED_KEY và return TRƯỚC khi ẩn modal kích hoạt / hiện màn khóa');
+});
+
+test('acceptKdata: chỉ được dọn KDATA của chính request (biến RAM dùng chung)', () => {
+  const body = fnBody(read('assets/02_security.js'), 'ensureBackupSecret');
+  const at = body.indexOf('APP_BACKUP_KDATA_B64U = ""');
+  assert.ok(at !== -1, 'ensureBackupSecret phải còn nhánh dọn KDATA khi phiên chết');
+  // Xóa trắng biến dùng chung sẽ cướp KDATA mà một ensureBackupSecret() MỚI vừa cài
+  // trong lúc _writeCachedKdata await WebCrypto — phiên mới trả ok:true còn
+  // backup/restore ngay sau đó thấy rỗng.
+  const line = body.slice(body.lastIndexOf('\n', at), at + 30);
+  assert.ok(/APP_BACKUP_KDATA_B64U === kdata/.test(line),
+    'Lệnh dọn phải có identity-check APP_BACKUP_KDATA_B64U === kdata');
+});
+
+test('tour: observer đóng tour phải nghe MỌI màn chặn, không chỉ #screen-lock', () => {
+  const body = fnBody(read('assets/17_onboarding_tour.js'), 'watchLock');
+  // Thu hồi quyền (_revokeAndShowActivationGate) giữ #screen-lock ẩn và chỉ hiện
+  // #activation-modal (z-index 305) — tour ở 1000+ sẽ đè lên cổng kích hoạt.
+  for (const id of ['screen-lock', 'activation-modal', 'setup-lock-modal']) {
+    assert.ok(body.includes(`'${id}'`), `Observer phải theo dõi #${id}`);
+  }
+  assert.ok(/isTourBlocked\(\)/.test(body),
+    'Điều kiện đóng tour phải dùng chung isTourBlocked(), không nhân bản danh sách màn chặn');
+});
+
+test('validatePin: ẩn màn khóa phải buộc đúng lượt mở khóa, không chỉ isAppUnlocked()', () => {
+  const body = fnBody(read('assets/02_security.js'), 'validatePin');
+  const hideAt = body.indexOf('getEl("screen-lock").classList.add("hidden")');
+  assert.ok(hideAt !== -1, 'validatePin phải còn lệnh ẩn màn khóa');
+  const before = body.slice(0, hideAt);
+  // isAppUnlocked() thôi thì chưa đủ: sau auto-lock, người dùng nhập PIN lại ngay và
+  // lượt CŨ tỉnh dậy sẽ thấy khóa của lượt MỚI -> ẩn màn khóa giữa chừng pipeline
+  // của lượt mới. Không dùng __keyGeneration được: migration legacy cố ý bump nó.
+  assert.ok(/myUnlockAttempt\s*!==\s*__unlockAttemptSeq[\s\S]{0,20}return/.test(before),
+    'Phải kiểm myUnlockAttempt === __unlockAttemptSeq (và return) trước khi ẩn màn khóa');
+  // Vé phải nhận TRƯỚC await cài khóa: _installMasterKey gán masterKey rồi mới await
+  // importKey, nên trong khe đó isAppUnlocked() đã true còn vé thì chưa đổi -> lượt cũ
+  // tưởng mình vẫn sở hữu phiên.
+  const claimAt = before.indexOf('++__unlockAttemptSeq');
+  const installAt = before.indexOf('await _installMasterKey(');
+  assert.ok(claimAt !== -1 && installAt !== -1, 'validatePin phải nhận vé và cài khóa');
+  assert.ok(claimAt < installAt, 'Vé phải được nhận TRƯỚC await _installMasterKey');
+  assert.ok(!/\bawait\s+[A-Za-z_(]/.test(before.slice(before.lastIndexOf('__unlockAttemptSeq'))),
+    'Không được có await giữa kiểm tra lượt và lệnh ẩn màn khóa');
+});
+
+test('checkRecovery / saveSecuritySetup: nhận vé lượt mở khóa trước await cài khóa', () => {
+  const src = read('assets/02_security.js');
+  for (const fn of ['checkRecovery', 'saveSecuritySetup']) {
+    const body = fnBody(src, fn);
+    const claimMatch = /(\+\+__unlockAttemptSeq|__unlockAttemptSeq\+\+)/.exec(body);
+    const claimAt = claimMatch ? claimMatch.index : -1;
+    const installAt = body.indexOf('await _installMasterKey(');
+    assert.ok(claimAt !== -1, `${fn} phải nhận vé lượt mở khóa`);
+    assert.ok(installAt !== -1, `${fn} phải cài khóa qua _installMasterKey`);
+    assert.ok(claimAt < installAt,
+      `${fn}: vé phải nhận TRƯỚC await _installMasterKey (khe gán masterKey chưa có khóa phái sinh)`);
+  }
+});
+
+test('completeUnlockDataLoad: chỉ nhận generation của migration khi vé lượt mở khóa còn hiệu lực', () => {
+  const src = read('assets/02_security.js');
+  const body = fnBody(src, 'completeUnlockDataLoad');
+  assert.ok(/attemptCurrent\(\)/.test(body),
+    'Pipeline phải biết vé lượt mở khóa (attemptCurrent)');
+  assert.ok(/const\s+alive\s*=\s*\(\)\s*=>[^;]*attemptCurrent\(\)/.test(body),
+    'alive() phải gồm cả kiểm vé: isAppUnlocked()+generation không phân biệt được lượt mới');
+  const adoptAt = body.indexOf('pipelineGeneration = __keyGeneration', body.indexOf('runFieldCryptoMigrationIfNeeded'));
+  assert.ok(adoptAt !== -1, 'Phải còn bước nhận generation mới sau migration legacy');
+  const before = body.slice(0, adoptAt);
+  const guardAt = before.lastIndexOf('attemptCurrent()');
+  assert.ok(guardAt !== -1 && /return/.test(before.slice(guardAt)),
+    'Phải kiểm vé (và return) TRƯỚC khi nhận generation của migration');
+  // Caller thật phải truyền vé xuống, nếu không guard thành vô nghĩa.
+  for (const fn of ['validatePin', 'saveSecuritySetup']) {
+    assert.ok(/completeUnlockDataLoad\([^)]*myUnlockAttempt\)/.test(fnBody(src, fn)),
+      `${fn} phải truyền vé lượt mở khóa xuống completeUnlockDataLoad`);
+  }
+});
+
+test('UI loading/keypad dùng chung: chỉ chủ vé hiện hành được dọn', () => {
+  const src = read('assets/02_security.js');
+
+  // completeUnlockDataLoad: không được dọn vô điều kiện trong finally — lượt đã bị
+  // tiếp quản mà dọn là trả keypad về giữa pipeline của lượt mới.
+  const pipeline = fnBody(src, 'completeUnlockDataLoad');
+  assert.ok(!/_setUnlockLoading\(false\)/.test(pipeline),
+    'Pipeline phải nhả UI qua _releaseUnlockLoading (có kiểm vé), không gọi _setUnlockLoading(false) trần');
+  assert.ok(/_releaseUnlockLoading\(unlockAttempt\)/.test(pipeline),
+    'finally phải nhả UI theo vé của chính lượt này');
+
+  // Helper phải thực sự kiểm vé, nếu không nó chỉ là bí danh của _setUnlockLoading.
+  const release = fnBody(src, '_releaseUnlockLoading');
+  assert.ok(/unlockAttempt\s*===\s*__unlockAttemptSeq/.test(release),
+    '_releaseUnlockLoading phải so vé với __unlockAttemptSeq');
+
+  // Màn khóa luôn phải hiện ra ở trạng thái nhập được PIN: _setUnlockLoading(true)
+  // của một pipeline bị cắt ngang đã ẩn keypad và pipeline đó không còn quyền tự dọn.
+  const lockScreen = fnBody(src, 'showLockScreen');
+  assert.ok(/_setUnlockLoading\(false\)/.test(lockScreen),
+    'showLockScreen phải dọn UI loading — nếu không màn khóa hiện mà không có keypad');
+
+  // Mọi đường bỏ dở SAU khi đã nhận vé đều phải nhả UI dùng chung.
+  for (const fn of ['validatePin', 'checkRecovery', 'saveSecuritySetup']) {
+    assert.ok(/_releaseUnlockLoading\(/.test(fnBody(src, fn)),
+      `${fn} phải nhả UI loading trên đường bỏ dở sau khi đã nhận vé`);
+  }
+});
+
+test('saveSecuritySetup: đóng modal / báo thành công phải sau chốt vé cuối pipeline', () => {
+  const body = fnBody(read('assets/02_security.js'), 'saveSecuritySetup');
+  // `finally` của phần niêm phong bật lại nút Lưu TRƯỚC pipeline dài, nên người dùng
+  // bấm Lưu lần nữa được: lượt sau nhận vé mới. Lượt cũ mà đóng modal + báo thành công
+  // là phơi UI nền trong lúc lượt mới còn cài khóa/migrate/tải dữ liệu.
+  const at = body.indexOf('getEl("setup-lock-modal").classList.add("hidden")');
+  assert.ok(at !== -1, 'saveSecuritySetup phải còn lệnh đóng modal thiết lập');
+  const before = body.slice(0, at);
+  const guardAt = before.lastIndexOf('myUnlockAttempt !== __unlockAttemptSeq');
+  assert.ok(guardAt !== -1, 'Phải kiểm vé trước khi đóng modal / báo thành công');
+  assert.ok(/return/.test(before.slice(guardAt, guardAt + 80)), 'Chốt vé phải return');
+  assert.ok(!/\bawait\s+[A-Za-z_(]/.test(before.slice(guardAt)),
+    'Không được có await giữa chốt vé và các lệnh đổi UI cuối');
+
+  // Chốt vé CHỈ được gác UI. Hệ quả đã ghi xuống đĩa phải xong ngay sau lệnh ghi
+  // envelope: PIN mới đã lưu mà enrollment sinh trắc học còn mở ra PIN CŨ thì mở khóa
+  // sinh trắc học hỏng im lặng dù đổi PIN đã thành công.
+  const bioAt = body.indexOf('onPinChanged()');
+  assert.ok(bioAt !== -1, 'saveSecuritySetup phải hủy enrollment sinh trắc học khi đổi PIN');
+  const secWriteAt = body.indexOf('localStorage.setItem(SEC_KEY');
+  assert.ok(secWriteAt !== -1 && bioAt > secWriteAt,
+    'onPinChanged phải nằm SAU lệnh ghi envelope');
+  assert.ok(bioAt < guardAt,
+    'onPinChanged phải nằm TRƯỚC chốt vé — nó gắn với lệnh ghi đĩa, không gắn với UI');
+});

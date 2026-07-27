@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 
 **Demo:** https://client-pro-beryl.vercel.app
@@ -89,15 +89,18 @@ lên bất kỳ đâu**:
   tay) và tự khóa khi ẩn app.
 
 ### Hướng dẫn cho người dùng mới
-- Tour giới thiệu nhanh Dashboard hiện tự động mở ở lần đầu sử dụng.
-- Có thể **mở lại thủ công** bất cứ lúc nào trong **Menu → Xem lại hướng dẫn**.
+- Tour 11 bước giới thiệu đúng Dashboard hiện tại: quyền riêng tư, thời tiết, tổng
+  quan/danh sách, tạo hồ sơ, bản đồ, PDF + ĐVHC, backup, Drive và bảo mật.
+- Tour không tạo dữ liệu mẫu, chỉ tự mở một lần sau khi unlock; có thể **mở lại thủ
+  công** bất cứ lúc nào trong **Menu → Xem lại hướng dẫn**.
 
 ## Bảo mật và quyền riêng tư
 
 - Dữ liệu nghiệp vụ lưu trong IndexedDB (`QLKH_Pro_V4`) trên thiết bị.
 - Field nhạy cảm và ảnh được mã hóa **AES-256-GCM** qua WebCrypto.
 - Master key được niêm phong bằng PIN với **PBKDF2-SHA256**, chỉ tồn tại trong
-  RAM khi mở khóa.
+  RAM khi mở khóa. Mọi tác vụ WebCrypto, cache plaintext và phản hồi xác thực mạng
+  đều bị ràng buộc với đúng thế hệ phiên để không hồi sinh dữ liệu sau auto-lock/thu hồi.
 - KDATA phục vụ backup chỉ lưu ở dạng niêm phong; không lưu plaintext master key
   hay KDATA.
 - Thư viện và font đều **self-host**; CSP giới hạn script về cùng nguồn
@@ -208,10 +211,10 @@ command**. Header bảo mật và CSP nằm trong `vercel.json`.
 
 - **Tên phát hành** — **Genesis** (tên phát hành công khai, không hiển thị trong
   UI app).
-- **Phiên bản app (semver)** — hiện tại **`1.4.1`**. Số kỹ thuật nội bộ giữ cho
+- **Phiên bản app (semver)** — hiện tại **`1.4.2`**. Số kỹ thuật nội bộ giữ cho
   tooling đồng bộ và tương thích, không hiển thị cho người dùng. Nguồn duy nhất:
   `package.json`.
-- **cache-buster asset** — hiện tại **`SECURITY_FIX_20260726`**. Nguồn: `ASSET_V`
+- **cache-buster asset** — hiện tại **`SECURITY_HARDEN_20260727`**. Nguồn: `ASSET_V`
   trong `sw.js`.
 
 Sau khi thay đổi phiên bản, đồng bộ ra mọi nơi (manifest, SW, PWA, README):

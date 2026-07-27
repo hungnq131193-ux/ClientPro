@@ -53,9 +53,11 @@
       }
     }
     if (!t.trim()) return '';
-    // FAIL-CLOSED: encryptText() fail-open trả NGUYÊN plaintext khi masterKey mất
-    // (vd auto-lock ẩn app >15s giữa lúc normalize backup lớn). Nếu để nguyên,
-    // record sẽ được ghi plaintext nhưng gắn cryptoV=2 -> reader tưởng đã mã hóa.
+    // FAIL-CLOSED: encryptText() trả NGUYÊN plaintext khi CHƯA có masterKey, và ở
+    // nhánh legacy CryptoJS còn nuốt lỗi trả lại input (nhánh AES-GCM thì ném
+    // STALE_KEY_GENERATION). Auto-lock ẩn app >15s giữa lúc normalize backup lớn rơi
+    // đúng vào đó. Nếu để nguyên, record sẽ được ghi plaintext nhưng gắn cryptoV=2
+    // -> reader tưởng đã mã hóa.
     // Bắt buộc kết quả PHẢI là ciphertext; nếu không -> throw để HỦY TOÀN BỘ restore
     // (normalize chạy trước khi mở transaction nên chưa record nào bị ghi).
     const enc = await encryptText(t);
