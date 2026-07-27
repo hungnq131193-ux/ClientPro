@@ -1351,8 +1351,10 @@ async function _encryptCreditLimitForWrite(v) {
     if (!s) return '';
     if (typeof _looksEncrypted === 'function' && _looksEncrypted(s)) return s;
     const out = await encryptText(s);
-    // encryptText fail-open khi app bị khóa giữa chừng (trả nguyên plaintext) —
-    // không được ghi plaintext xuống DB; throw để caller báo lỗi và dừng.
+    // encryptText trả nguyên plaintext khi chưa có masterKey (và ở nhánh legacy
+    // CryptoJS khi mã hóa lỗi) — không được ghi plaintext xuống DB; throw để caller
+    // báo lỗi và dừng. Nhánh AES-GCM tự ném STALE_KEY_GENERATION khi phiên chết
+    // giữa await, caller đã bắt sẵn.
     if (typeof _looksEncrypted === 'function' && !_looksEncrypted(out)) {
         throw new Error('ENCRYPT_UNAVAILABLE');
     }
@@ -1769,8 +1771,9 @@ async function saveCustomerNotes() {
         ErrorHandler.showError('STORAGE', 'Không thể lưu ghi chú (dữ liệu không hợp lệ). Vui lòng thử lại.', e);
         return;
     }
-    // encryptText fail-open khi app bị khóa giữa chừng (trả nguyên plaintext) — notes thuộc
-    // danh sách mã hóa at rest, không được ghi plaintext xuống DB. Ghi chú rỗng cho qua
+    // encryptText trả nguyên plaintext khi chưa có masterKey (nhánh AES-GCM thì ném và đã
+    // được bắt ở trên) — notes thuộc danh sách mã hóa at rest, không được ghi plaintext
+    // xuống DB. Ghi chú rỗng cho qua
     // (mirror _encryptCreditLimitForWrite); giữ edit mode để user không mất text vừa gõ.
     if (notesText && typeof _looksEncrypted === 'function' && !_looksEncrypted(encNotes)) {
         ErrorHandler.showError('AUTH', 'Chưa mở khóa dữ liệu — ghi chú CHƯA được lưu. Vui lòng mở khóa rồi thử lại.');

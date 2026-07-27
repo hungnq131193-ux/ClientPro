@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadSecurity, makeFakeDb } = require('./helpers/load-security');
+const { loadSecurity, makeFakeDb, CryptoJS } = require('./helpers/load-security');
 
 function deferred() {
   let resolve;
@@ -171,7 +171,10 @@ test('legacy migration: lỗi getAllKeys không swap PIN/schema và giữ stage 
   assert.ok(localStorage.getItem('app_pin_v2_stage'), 'stage phải còn để retry');
 });
 
-test('legacy migration: token Drive hỏng không finalize và không ghi đè token', async () => {
+// Token Drive hỏng là recoverable (user nhập lại) — không được chặn vĩnh viễn việc
+// hoàn tất migration mã hoá: ném ở đây thì mọi lần mở khoá đều ném lại, SCHEMA_KEY
+// không bao giờ thành "2" và PIN_KEY kẹt ở envelope legacy.
+test('legacy migration: token Drive hỏng không chặn finalize và không ghi đè token', async () => {
   const { api, localStorage } = loadSecurity();
   api.setLegacyMasterKey('mk_legacy_test');
   api.setDb(makeFakeDb([], []));
@@ -179,8 +182,31 @@ test('legacy migration: token Drive hỏng không finalize và không ghi đè t
   const broken = 'sealed.v1:U2FsdGVkBROKEN';
   localStorage.setItem('app_user_script_token', broken);
 
-  await assert.rejects(() => api.runFieldCryptoMigrationIfNeeded('1234', 'NV001'), /DRIVE_TOKEN_LEGACY_DECRYPT_FAILED/);
+  await api.runFieldCryptoMigrationIfNeeded('1234', 'NV001');
+  assert.equal(localStorage.getItem('app_crypto_schema_v'), '2');
+  assert.notEqual(localStorage.getItem('app_pin'), 'legacy-pin-envelope');
+  assert.ok(localStorage.getItem('app_pin'), 'PIN_KEY phải được swap sang envelope MK2');
+  assert.equal(localStorage.getItem('app_pin_v2_stage'), null, 'stage phải được dọn sau finalize');
+  assert.equal(localStorage.getItem('app_user_script_token'), broken, 'token hỏng giữ nguyên, không ghi đè/xoá');
+});
+
+// Ghi token thất bại (quota/storage lỗi) VẪN phải fail-closed: khác hẳn ca token không
+// giải mã được ở trên — ở đây migration đã tạo được ciphertext mới nhưng không persist nổi.
+test('legacy migration: ghi token Drive thất bại vẫn chặn finalize', async () => {
+  const { api, localStorage } = loadSecurity();
+  api.setLegacyMasterKey('mk_legacy_test');
+  api.setDb(makeFakeDb([], []));
+  localStorage.setItem('app_pin', 'legacy-pin-envelope');
+  localStorage.setItem('app_user_script_token', 'sealed.v1:' + CryptoJS.AES.encrypt('tok-secret', 'mk_legacy_test').toString());
+
+  const realSet = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = (k, v) => { if (k === 'app_user_script_token') return; return realSet(k, v); };
+  try {
+    await assert.rejects(() => api.runFieldCryptoMigrationIfNeeded('1234', 'NV001'), /DRIVE_TOKEN_MIGR_WRITE_FAILED/);
+  } finally {
+    localStorage.setItem = realSet;
+  }
   assert.equal(localStorage.getItem('app_pin'), 'legacy-pin-envelope');
   assert.equal(localStorage.getItem('app_crypto_schema_v'), null);
-  assert.equal(localStorage.getItem('app_user_script_token'), broken);
+  assert.ok(localStorage.getItem('app_pin_v2_stage'), 'stage phải còn để retry');
 });

@@ -393,8 +393,10 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
 - Never write an empty fallback on decrypt failure, never double-encrypt, never
   render ciphertext (use `_displayPlain` / `_displayPlainAsync`; show a
   placeholder for ciphertext). Do not hard-code the ciphertext prefix.
-- `encryptText` / `encryptImageData` are **fail-open**: with no `masterKey` they
-  return the plaintext input. Every migration must therefore (a) verify the
+- `encryptText` / `encryptImageData` are **fail-open with no `masterKey`**: they
+  return the plaintext input, and the legacy CryptoJS branch also returns the
+  input when encryption throws. Only the AES-GCM branch is fail-closed
+  (`_gcmEncryptField` throws — see below). Every migration must therefore (a) verify the
   result is ciphertext (`_looksEncrypted`) before writing, (b) treat an
   IndexedDB read error as "unknown", not "nothing to do", (c) set its completion
   marker only when zero records failed, and (d) decide per record from the
@@ -425,10 +427,16 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
 - `_gcmEncryptField` must throw `STALE_KEY_GENERATION` if lock/revoke/change-key
   happens during WebCrypto. Returning a ciphertext from a dead session is unsafe:
   callers may persist it after lock and the helper would repopulate plaintext cache.
-- Legacy CryptoJS → GCM migration is fail-closed: IDB read/transaction/token errors
-  leave PIN/SEC/schema unswapped and retain stage keys for resume. Never treat an
-  IDB error as an empty database, never finalize if Drive token migration failed,
-  and never assign `masterCryptoKey` directly outside `_installMasterKey`.
+- Legacy CryptoJS → GCM migration is fail-closed: IDB read/transaction errors, a
+  stale generation, or a failed Drive-token **write** leave PIN/SEC/schema
+  unswapped and retain stage keys for resume. Never treat an IDB error as an
+  empty database, and never assign `masterCryptoKey` directly outside
+  `_installMasterKey`. The one deliberate exception is a legacy Drive token that
+  will not decrypt under `masterKeyLegacy`: `_migrateDriveToken` leaves it
+  untouched and lets the migration finalize, because throwing there repeats on
+  every unlock and pins the device on the legacy `PIN_KEY` forever — the token is
+  re-enterable (`getUserToken` already returns `""` for an unreadable
+  `sealed.v1:` value), a stuck crypto migration is not.
 - These guards live in `02_security.js` and coordinated cache callers in
   `05_customers.js`/`15_auth_gate.js`. Do not overwrite crypto functions from
   another module; conditional monkey-patches create dead code and silent gaps.

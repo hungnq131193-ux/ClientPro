@@ -957,8 +957,17 @@ async function _migrateDriveToken(legacyKey, migrationGen) {
   const inner = raw.slice("sealed.v1:".length);
   if (inner.startsWith(GCM_PREFIX)) return true;
   if (!inner.startsWith("U2FsdGVk")) return true;
-  const pt = CryptoJS.AES.decrypt(inner, legacyKey).toString(CryptoJS.enc.Utf8);
-  if (!pt) throw new Error("DRIVE_TOKEN_LEGACY_DECRYPT_FAILED");
+  // CryptoJS ném khi ciphertext hỏng (không chỉ trả rỗng) -> bắt cả hai kiểu thất bại.
+  let pt = "";
+  try { pt = CryptoJS.AES.decrypt(inner, legacyKey).toString(CryptoJS.enc.Utf8); } catch (e) { pt = ""; }
+  // Token legacy không mở được bằng legacyKey thì sau này cũng không mở được (finalize
+  // xoá masterKeyLegacy). Chặn cứng migration vì nó là đánh đổi sai: token là thứ user
+  // nhập lại được, còn migration mã hoá bị treo vĩnh viễn thì không — mọi lần mở khoá
+  // sẽ ném lại ở đây, SCHEMA_KEY không bao giờ thành "2" và PIN_KEY kẹt ở envelope
+  // legacy. Bỏ qua token (KHÔNG ghi đè, KHÔNG xoá) và cho migration đi tiếp:
+  // getUserToken() (07_drive.js) đã trả "" cho 'sealed.v1:' không giải mã được, nên
+  // panel cấu hình Drive sẽ xin token mới và niêm phong lại đúng chuẩn GCM.
+  if (!pt) return true;
   const enc = await _gcmEncryptField(pt);
   if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
   const next = "sealed.v1:" + enc;
