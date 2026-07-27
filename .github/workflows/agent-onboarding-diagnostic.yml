@@ -1,0 +1,70 @@
+name: Agent finalize onboarding fixtures
+
+on:
+  push:
+    branches:
+      - agent/security-hardening-tour-v1-5-0
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - name: Synchronize non-tour E2E fixtures with tour v5
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          changed = []
+          for path in sorted(Path('e2e').glob('*.js')):
+              text = path.read_text(encoding='utf-8')
+              lines = []
+              touched = False
+              for line in text.splitlines(keepends=True):
+                  if 'clientpro_onboarding_done' in line:
+                      updated = re.sub(r'(version\s*:\s*)4\b', r'\g<1>5', line)
+                      updated = re.sub(r'("version"\s*:\s*)4\b', r'\g<1>5', updated)
+                      if updated != line:
+                          touched = True
+                      line = updated
+                  lines.append(line)
+              if touched:
+                  path.write_text(''.join(lines), encoding='utf-8')
+                  changed.append(str(path))
+
+          if not changed:
+              raise SystemExit('Không tìm thấy fixture tour v4 cần đồng bộ')
+          print('Đã cập nhật:', ', '.join(changed))
+          PY
+          if grep -RInE 'clientpro_onboarding_done.*version[" ]*:[[:space:]]*4' e2e; then
+            echo 'Vẫn còn fixture onboarding version 4' >&2
+            exit 1
+          fi
+      - name: Validate unit, version, policy and syntax
+        run: |
+          npm test
+          npm run check:version
+          node scripts/check-policy.mjs
+          node --check sw.js
+          find assets scripts e2e -name '*.js' -o -name '*.mjs' | xargs -n1 node --check
+      - name: Commit final fixture fix
+        run: |
+          rm -rf .diagnostics
+          rm -f .github/workflows/agent-onboarding-diagnostic.yml
+          git config user.name "ClientPro Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "test(e2e): align fixtures with onboarding tour v5"
+          git push origin HEAD
