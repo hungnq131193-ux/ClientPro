@@ -20,8 +20,13 @@
 
 (function () {
     const TOUR_KEY = 'clientpro_onboarding_done';
-    // Giữ nguyên version để KHÔNG ép user đã hoàn tất phải xem lại sau cập nhật.
+    // Version của NỘI DUNG tour. Bump version KHÔNG ép user đã hoàn tất xem lại:
+    // shouldShowTour() chỉ tự phát lại cho máy pre-release có marker bên dưới.
     const TOUR_VERSION = 5;
+    // Marker pre-release đặt TAY (devtools) trên đúng máy/tài khoản kiểm thử nội bộ.
+    // Chỉ những máy đó mới tự xem lại tour sau khi nội dung đổi.
+    const TOUR_PRERELEASE_KEY = 'clientpro_onboarding_prerelease';
+    const TOUR_PRERELEASE_ON = '1';
 
     // Cấu hình các bước. `target === null` => bước center (chào mừng / kết thúc /
     // nhắc mở lại). Bước có `target`:
@@ -123,12 +128,29 @@
     let autoStartTimer = null;    // một chuỗi retry duy nhất cho auto-tour của user mới
 
     // --- Trạng thái user mới / đã hoàn tất --------------------------------------
+    /** Máy kiểm thử nội bộ (marker đặt tay) — chỉ nơi này mới tự xem lại tour mới. */
+    function isPrereleaseTester() {
+        try {
+            return localStorage.getItem(TOUR_PRERELEASE_KEY) === TOUR_PRERELEASE_ON;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
+     * Chỉ tự mở tour cho user THẬT SỰ mới. User đã hoàn tất một version trước KHÔNG bị
+     * ép xem lại khi nội dung tour đổi (bump TOUR_VERSION) — họ vẫn mở lại được thủ công
+     * từ Menu. Riêng máy pre-release có marker thì tự phát lại để kiểm thử nội dung mới.
+     */
     function shouldShowTour() {
         try {
             const done = localStorage.getItem(TOUR_KEY);
             if (!done) return true;
             const parsed = JSON.parse(done);
-            return parsed.version < TOUR_VERSION;
+            // Record hỏng / thiếu version -> coi như chưa từng xem.
+            if (!parsed || typeof parsed.version !== 'number') return true;
+            if (parsed.version >= TOUR_VERSION) return false;
+            return isPrereleaseTester();
         } catch (e) {
             return true;
         }

@@ -7,6 +7,11 @@ const { loadSecurity } = require('../tests/helpers/load-security');
 
 const PIN = '123456';
 const TOUR_KEY = 'clientpro_onboarding_done';
+const TOUR_PRERELEASE_KEY = 'clientpro_onboarding_prerelease';
+// Version nội dung tour hiện tại (assets/17_onboarding_tour.js) và một version CŨ
+// để mô phỏng user đã hoàn tất trước khi nội dung được cập nhật.
+const TOUR_VERSION = 5;
+const TOUR_VERSION_OLD = 4;
 let PIN_ENVELOPE;
 
 test.beforeAll(async () => {
@@ -16,17 +21,22 @@ test.beforeAll(async () => {
 });
 
 // Seed trạng thái đã kích hoạt + PIN; tùy chọn đánh dấu tour đã hoàn tất (user cũ).
-async function seedAndUnlock(page, { markDone = false, errors = null } = {}) {
+// `doneVersion` cho phép mô phỏng user hoàn tất một version tour CŨ, `prerelease`
+// bật marker máy kiểm thử nội bộ.
+async function seedAndUnlock(page, {
+  markDone = false, doneVersion = TOUR_VERSION, prerelease = false, errors = null,
+} = {}) {
   if (errors) page.on('pageerror', (e) => errors.push(String(e)));
-  await page.addInitScript(([env, done, key]) => {
+  await page.addInitScript(([env, done, key, version, preKey, pre]) => {
     localStorage.setItem('app_activated', 'true');
     localStorage.setItem('app_employee_id', 'TEST');
     localStorage.setItem('app_pin', env);
     localStorage.setItem('app_crypto_schema_v', '2');
-    if (done) localStorage.setItem(key, JSON.stringify({ version: 5, completedAt: Date.now() }));
+    if (done) localStorage.setItem(key, JSON.stringify({ version, completedAt: Date.now() }));
+    if (pre) localStorage.setItem(preKey, '1');
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
-  }, [PIN_ENVELOPE, markDone, TOUR_KEY]);
+  }, [PIN_ENVELOPE, markDone, TOUR_KEY, doneVersion, TOUR_PRERELEASE_KEY, prerelease]);
 
   await page.goto('/index.html', { waitUntil: 'networkidle' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
@@ -101,6 +111,31 @@ test('user CŨ (đã hoàn tất) không bị tự động hiện tour', async (
   await page.waitForTimeout(4_500);
   await expect(page.locator(OVERLAY)).toHaveCount(0);
   await expect(page.locator(TOOLTIP)).toHaveCount(0);
+});
+
+test('user đã hoàn tất version CŨ không bị ép xem lại sau khi tour đổi nội dung', async ({ page }) => {
+  await seedAndUnlock(page, { markDone: true, doneVersion: TOUR_VERSION_OLD });
+  await page.waitForTimeout(4_500); // quá cửa sổ auto-start
+  await expect(page.locator(OVERLAY)).toHaveCount(0);
+  await expect(page.locator(TOOLTIP)).toHaveCount(0);
+
+  // Nhưng vẫn xem lại được thủ công từ Menu (nội dung mới không bị chặn).
+  await page.click('#btn-open-menu');
+  await page.click('[data-action="OnboardingTour.replay"]');
+  await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 8_000 });
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/11');
+});
+
+test('máy pre-release (có marker) TỰ xem lại tour khi nội dung lên version mới', async ({ page }) => {
+  await seedAndUnlock(page, { markDone: true, doneVersion: TOUR_VERSION_OLD, prerelease: true });
+  await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 15_000 });
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/11');
+
+  // Hoàn tất -> ghi version mới, lần sau không tự hiện nữa.
+  await page.click('#tour-skip');
+  await expect(page.locator(OVERLAY)).toHaveCount(0, { timeout: 4_000 });
+  const done = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), TOUR_KEY);
+  expect(done && done.version).toBe(TOUR_VERSION);
 });
 
 test('Mở lại tour thủ công từ Menu; không phá trạng thái user cũ', async ({ page }) => {
