@@ -93,8 +93,7 @@ jobs:
           security = Path('assets/02_security.js')
           text = security.read_text(encoding='utf-8')
           old = """    if (myUnlockAttempt !== __unlockAttemptSeq) return;
-              const pinForMigration = pinAttempt;"""
-          old = old.replace('          ', '')
+              const pinForMigration = pinAttempt;""".replace('          ', '')
           new = """    const installedGeneration = __keyGeneration;
               const installedCryptoKey = masterCryptoKey;
               if (myUnlockAttempt !== __unlockAttemptSeq) {
@@ -105,8 +104,7 @@ jobs:
                 }
                 return;
               }
-              const pinForMigration = pinAttempt;"""
-          new = new.replace('          ', '')
+              const pinForMigration = pinAttempt;""".replace('          ', '')
           if text.count(old) != 1:
               raise SystemExit(f'validatePin target count={text.count(old)}')
           security.write_text(text.replace(old, new), encoding='utf-8')
@@ -239,13 +237,12 @@ jobs:
           node --test 'tests/**/*.test.js'
           git diff --check
 
-      - name: Commit fix and restore canonical CI
+      - name: Commit verified code and tests
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git show HEAD^:.github/workflows/ci.yml > .github/workflows/ci.yml
-          git add assets/02_security.js tests/unlock-keypad-ownership.test.js .github/workflows/ci.yml
+          git add assets/02_security.js tests/unlock-keypad-ownership.test.js
           git commit -m "fix: invalidate stale unlock installs"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
