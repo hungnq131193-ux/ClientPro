@@ -19,7 +19,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadSecurity } = require('./helpers/load-security');
+const { loadSecurity, CryptoJS } = require('./helpers/load-security');
 
 function deferred() {
   let resolve;
@@ -248,7 +248,85 @@ test('checkRecovery: khóa app SAU khi cài khóa (lúc seal mã NV) -> vẫn kh
 });
 
 // ---------------------------------------------------------------------------
-// 4. validatePin — PIN ĐÚNG nhưng phiên chết giữa chừng
+// 4. activateApp — gia hạn trên máy đã có dữ liệu
+// ---------------------------------------------------------------------------
+
+test('activateApp (gia hạn): khóa app giữa importKey -> không re-seal SEC_KEY, không mở setup', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  const existingMk = api.generateMasterKey();
+  await api.setMasterKey(existingMk);
+  // SEC_KEY định dạng legacy -> kích hoạt lại sẽ muốn nâng cấp lên v2 (đường ghi đè).
+  // Envelope legacy niêm phong bằng SHA-256(secret), không phải secret trần.
+  const secLegacyBefore = CryptoJS.AES.encrypt(existingMk, await api.hashString('NV555')).toString();
+  localStorage.setItem('app_sec_qa', secLegacyBefore);
+  localStorage.setItem('app_pin', await api.sealMasterKey('111111', existingMk));
+  api.clearMasterKeyMaterial();
+
+  ctx.ADMIN_SERVER_URL = 'https://gas.test';
+  ctx.fetch = async () => ({ text: async () => JSON.stringify({ status: 'success' }) });
+  dom.getEl('activation-key').value = 'KEY-123';
+  dom.getEl('activation-employee').value = 'NV555';
+
+  await runWithLockDuringImport(api, ctx, () => api.activateApp());
+
+  assert.equal(localStorage.getItem('app_sec_qa'), secLegacyBefore,
+    'SEC_KEY legacy phải giữ nguyên — ghi đè bằng khóa rỗng là mất đường khôi phục');
+  assert.equal(localStorage.getItem('app_employee_id_sealed_v1'), null);
+  assert.equal(api.getEmployeeIdRam(), null,
+    'mã NV không được nạp lại vào RAM của phiên đã chết');
+  assert.equal(dom.isHidden('setup-lock-modal'), false, 'không mở modal đặt PIN mới');
+  assert.equal(api.isAppUnlocked(), false);
+});
+
+test('activateApp (gia hạn): khóa app lúc seal SEC_KEY v2 -> dừng, không nạp mã NV vào RAM', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  const existingMk = api.generateMasterKey();
+  await api.setMasterKey(existingMk);
+  // Envelope legacy niêm phong bằng SHA-256(secret), không phải secret trần.
+  const secLegacyBefore = CryptoJS.AES.encrypt(existingMk, await api.hashString('NV555')).toString();
+  localStorage.setItem('app_sec_qa', secLegacyBefore);
+  localStorage.setItem('app_pin', await api.sealMasterKey('111111', existingMk));
+  api.clearMasterKeyMaterial();
+
+  ctx.ADMIN_SERVER_URL = 'https://gas.test';
+  ctx.fetch = async () => ({ text: async () => JSON.stringify({ status: 'success' }) });
+  dom.getEl('activation-key').value = 'KEY-123';
+  dom.getEl('activation-employee').value = 'NV555';
+
+  // Chặn ở deriveBits (PBKDF2 bên trong sealMasterKey) — tức SAU khi _installMasterKey
+  // đã thành công. Trước bản vá, nhánh này chỉ bỏ lệnh ghi envelope rồi vẫn chạy tiếp
+  // gán __employeeIdPlain cho một phiên đã bị dọn.
+  const subtle = ctx.crypto.subtle;
+  const realDeriveBits = subtle.deriveBits ? subtle.deriveBits.bind(subtle) : null;
+  const realDeriveKey = subtle.deriveKey ? subtle.deriveKey.bind(subtle) : null;
+  let fired = false;
+  const trip = () => { if (!fired) { fired = true; api.clearMasterKeyMaterial(); } };
+  ctx.crypto = {
+    getRandomValues: ctx.crypto.getRandomValues.bind(ctx.crypto),
+    subtle: {
+      importKey: subtle.importKey.bind(subtle),
+      encrypt: subtle.encrypt.bind(subtle),
+      decrypt: subtle.decrypt.bind(subtle),
+      digest: subtle.digest.bind(subtle),
+      deriveBits: realDeriveBits && (async (...a) => { const o = await realDeriveBits(...a); trip(); return o; }),
+      deriveKey: realDeriveKey && (async (...a) => { const o = await realDeriveKey(...a); trip(); return o; }),
+    },
+  };
+
+  await api.activateApp();
+
+  assert.equal(fired, true, 'test phải chen được vào khe seal SEC_KEY');
+  assert.equal(localStorage.getItem('app_sec_qa'), secLegacyBefore, 'SEC_KEY giữ nguyên');
+  assert.equal(api.getEmployeeIdRam(), null,
+    'mã NV (secret khôi phục) không được sống qua phiên đã khóa');
+  assert.equal(dom.isHidden('setup-lock-modal'), false);
+  assert.equal(api.isAppUnlocked(), false);
+});
+
+// ---------------------------------------------------------------------------
+// 5. validatePin — PIN ĐÚNG nhưng phiên chết giữa chừng
 // ---------------------------------------------------------------------------
 
 test('validatePin: PIN đúng + khóa app giữa importKey -> không mở khóa, keypad dùng lại được', async () => {

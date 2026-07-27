@@ -2061,23 +2061,39 @@ async function activateApp() {
             return;
           }
           const activationGeneration = __keyGeneration;
+          // Phiên còn đúng khóa vừa cài? Gọi lại sau MỖI await bên dưới.
+          const activationKeyAlive = () =>
+            activationGeneration === __keyGeneration && masterKey === mkForActivation;
+          // Dừng gia hạn khi phiên chết giữa chừng: mã NV là secret khôi phục, gán
+          // __employeeIdPlain sau khi clearMasterKeyMaterial() vừa dọn là để nó sống
+          // suốt phiên đã khóa (lockApp() sau đó return sớm vì app đã khóa rồi).
+          const abortActivationIfStale = () => {
+            if (activationKeyAlive()) return false;
+            const modalStale = getEl("activation-modal");
+            if (modalStale) modalStale.classList.add("hidden");
+            ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc gia hạn. Vui lòng mở lại ứng dụng.");
+            showLockScreen();
+            return true;
+          };
           // Nhân tiện nâng cấp SEC_KEY lên v2 nếu còn định dạng cũ
           if (recovered.legacy) {
-            try {
-              const secEnvelope = await sealMasterKey(employeeId, mkForActivation);
-              // Kiểm sau await: chỉ ghi khi vẫn đúng phiên/khóa vừa cài.
-              if (activationGeneration === __keyGeneration && masterKey === mkForActivation) {
-                localStorage.setItem(SEC_KEY, secEnvelope);
-              }
-            } catch (e) { }
+            let secEnvelope = null;
+            try { secEnvelope = await sealMasterKey(employeeId, mkForActivation); } catch (e) { }
+            // Kiểm sau await: chỉ ghi khi vẫn đúng phiên/khóa vừa cài.
+            if (abortActivationIfStale()) return;
+            if (secEnvelope) {
+              try { localStorage.setItem(SEC_KEY, secEnvelope); } catch (e) { }
+            }
           }
           localStorage.setItem(ACTIVATED_KEY, "true");
           // masterKey đã cài -> không persist plaintext: giữ RAM + seal, dọn bản cũ.
+          let sealedEmp = false;
+          try { sealedEmp = await _writeSealedEmployeeId(employeeId); } catch (e) {}
+          if (abortActivationIfStale()) return;
           __employeeIdPlain = employeeId;
-          try {
-            if (await _writeSealedEmployeeId(employeeId)) localStorage.removeItem(EMPLOYEE_KEY);
-          } catch (e) {}
+          if (sealedEmp) { try { localStorage.removeItem(EMPLOYEE_KEY); } catch (e) {} }
           try { await ensureBackupSecret(); } catch (e) { }
+          if (abortActivationIfStale()) return;
           const modal = getEl("activation-modal");
           if (modal) modal.classList.add("hidden");
           // Nếu đã có PIN, yêu cầu nhập PIN cũ để vào

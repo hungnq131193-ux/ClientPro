@@ -488,3 +488,20 @@ test('shouldShowTour: user đã hoàn tất version cũ chỉ tự xem lại khi
   assert.ok(/TOUR_PRERELEASE_KEY/.test(marker) && /localStorage\.getItem/.test(marker),
     'Marker pre-release phải đọc từ localStorage bằng khóa riêng, rõ ràng');
 });
+
+test('activateApp (gia hạn): ghi SEC_KEY và nạp mã NV vào RAM phải sau một kiểm tra phiên còn sống', () => {
+  const body = fnBody(read('assets/02_security.js'), 'activateApp');
+  // Kiểm tra stale ở đây phải DỪNG hẳn (return), không chỉ bỏ qua một lệnh ghi rồi
+  // chạy tiếp — chạy tiếp là nạp lại mã NV (secret khôi phục) vào RAM phiên đã khóa.
+  const targets = ['localStorage.setItem(SEC_KEY', '__employeeIdPlain = employeeId'];
+  for (const t of targets) {
+    const at = body.indexOf(t);
+    assert.ok(at !== -1, `Không tìm thấy ${t} trong activateApp`);
+    const before = body.slice(0, at);
+    const lastGuard = before.lastIndexOf('abortActivationIfStale()');
+    assert.ok(lastGuard !== -1, `Phải kiểm tra abortActivationIfStale() trước ${t}`);
+    const between = before.slice(lastGuard);
+    assert.ok(/\breturn\b/.test(between), `Kiểm tra stale trước ${t} phải return, không chỉ bỏ qua lệnh ghi`);
+    assert.ok(!/\bawait\s+[A-Za-z_(]/.test(between), `Có await giữa kiểm tra stale và ${t}`);
+  }
+});

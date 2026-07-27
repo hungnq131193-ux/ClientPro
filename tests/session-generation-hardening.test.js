@@ -35,6 +35,24 @@ function wrapCrypto(ctx, overrides) {
   };
 }
 
+/**
+ * Dựng một ciphertext legacy của KHÓA KHÁC, chọn đúng mẫu mà giải bằng khóa sai sẽ
+ * trả "" mà KHÔNG ném — tức ca nguy hiểm nhất mà guard sigBytes sinh ra để bắt.
+ *
+ * Giải sai khóa cho ra rác ngẫu nhiên nên kết quả KHÔNG tất định (đo thực tế: ~87%
+ * ra "", ~12% ném "Malformed UTF-8 data", ~0.6% ra chuỗi rác khác rỗng). Chốt cứng
+ * một mẫu sinh ngẫu nhiên làm test flaky theo salt/IV; ở đây ta LỌC lấy đúng mẫu cần.
+ */
+function foreignCiphertextDecodingToEmpty(wrongKey) {
+  for (let i = 0; i < 500; i++) {
+    const ct = CryptoJS.AES.encrypt('dữ liệu của khóa khác', 'mk_khac_hoan_toan').toString();
+    try {
+      if (CryptoJS.AES.decrypt(ct, wrongKey).toString(CryptoJS.enc.Utf8) === '') return ct;
+    } catch (e) { /* rác là UTF-8 hỏng -> lấy mẫu khác */ }
+  }
+  throw new Error('Không dựng được ciphertext ngoại lai giải ra rỗng');
+}
+
 test('auto-lock giữa encrypt: không trả ciphertext và không hồi sinh plaintext cache', async () => {
   const { api, ctx } = loadSecurity();
   await api.setMasterKey(api.generateMasterKey());
@@ -179,7 +197,11 @@ test('legacy migration: token Drive hỏng không chặn finalize và không ghi
   api.setLegacyMasterKey('mk_legacy_test');
   api.setDb(makeFakeDb([], []));
   localStorage.setItem('app_pin', 'legacy-pin-envelope');
-  const broken = 'sealed.v1:U2FsdGVkBROKEN';
+  // Ciphertext ĐÚNG ĐỊNH DẠNG nhưng của khóa khác. Không dùng chuỗi base64 cụt kiểu
+  // 'U2FsdGVkBROKEN': block không căn hàng khiến CryptoJS đọc quá mảng words và nhặt
+  // phải residue của các thao tác trước trong cùng tiến trình -> kết quả đổi theo thứ
+  // tự test (đo được ~4% ra khác rỗng) và làm CI đỏ ngẫu nhiên.
+  const broken = 'sealed.v1:' + foreignCiphertextDecodingToEmpty('mk_legacy_test');
   localStorage.setItem('app_user_script_token', broken);
 
   await api.runFieldCryptoMigrationIfNeeded('1234', 'NV001');
@@ -302,12 +324,11 @@ test('migration legacy: field mã hóa chuỗi rỗng không làm hỏng migrati
 // CryptoJS KHÔNG ném khi sai khóa/ciphertext hỏng — nó trả WordArray sigBytes ÂM và
 // toString(Utf8) ra "" y hệt plaintext rỗng thật. Nhận "" ở đây là ghi rỗng ĐÈ lên dữ
 // liệu thật, nên chốt chặn phải dựa vào sigBytes chứ không dựa vào exception.
+
 test('migration legacy: ciphertext hỏng thật vẫn fail-closed', async () => {
   const { api, localStorage } = loadSecurity();
   const LK = 'mk_legacy_test';
-  const foreign = CryptoJS.AES.encrypt('dữ liệu của khóa khác', 'mk_khac_hoan_toan').toString();
-  assert.equal(CryptoJS.AES.decrypt(foreign, LK).toString(CryptoJS.enc.Utf8), '',
-    'tiền đề: sai khóa ra "" chứ không ném');
+  const foreign = foreignCiphertextDecodingToEmpty(LK);
   const db = makeFakeDb([{ id: 'c1', name: foreign, assets: [] }], []);
   api.setLegacyMasterKey(LK);
   api.setDb(db);
