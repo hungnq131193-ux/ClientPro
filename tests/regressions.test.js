@@ -625,3 +625,18 @@ test('UI loading/keypad dùng chung: chỉ chủ vé hiện hành được dọn
       `${fn} phải nhả UI loading trên đường bỏ dở sau khi đã nhận vé`);
   }
 });
+
+test('saveSecuritySetup: đóng modal / báo thành công phải sau chốt vé cuối pipeline', () => {
+  const body = fnBody(read('assets/02_security.js'), 'saveSecuritySetup');
+  // `finally` của phần niêm phong bật lại nút Lưu TRƯỚC pipeline dài, nên người dùng
+  // bấm Lưu lần nữa được: lượt sau nhận vé mới. Lượt cũ mà đóng modal + báo thành công
+  // là phơi UI nền trong lúc lượt mới còn cài khóa/migrate/tải dữ liệu.
+  const at = body.indexOf('getEl("setup-lock-modal").classList.add("hidden")');
+  assert.ok(at !== -1, 'saveSecuritySetup phải còn lệnh đóng modal thiết lập');
+  const before = body.slice(0, at);
+  const guardAt = before.lastIndexOf('myUnlockAttempt !== __unlockAttemptSeq');
+  assert.ok(guardAt !== -1, 'Phải kiểm vé trước khi đóng modal / báo thành công');
+  assert.ok(/return/.test(before.slice(guardAt, guardAt + 80)), 'Chốt vé phải return');
+  assert.ok(!/\bawait\s+[A-Za-z_(]/.test(before.slice(guardAt)),
+    'Không được có await giữa chốt vé và các lệnh đổi UI cuối');
+});

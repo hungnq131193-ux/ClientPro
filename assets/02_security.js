@@ -1857,6 +1857,12 @@ async function saveSecuritySetup() {
   } catch (e) {
     try { ErrorHandler.logError("setup-unlock-pipeline", e); } catch (_) {}
   }
+  // Khối `finally` của phần niêm phong đã bật lại nút Lưu TRƯỚC pipeline dài này, nên
+  // người dùng có thể bấm Lưu lần nữa: lượt sau nhận vé mới, lượt này thành cũ. Đóng
+  // modal + báo thành công ở đây là phơi UI nền ra trong lúc lượt mới còn đang cài
+  // khóa / migrate / tải dữ liệu — và onPinChanged() sẽ hủy enrollment sinh trắc học
+  // theo PIN của một lượt không còn là lượt hiện hành.
+  if (!isAppUnlocked() || myUnlockAttempt !== __unlockAttemptSeq) return;
   // PIN vừa đổi: enrollment sinh trắc học cũ (nếu có) mã hóa PIN cũ nên không còn hợp lệ.
   try { if (window.BiometricUnlock) window.BiometricUnlock.onPinChanged(); } catch (e) { }
   // Ẩn hộp thoại và thông báo

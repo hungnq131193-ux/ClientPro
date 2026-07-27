@@ -741,3 +741,50 @@ test('showLockScreen: luôn hiện màn khóa ở trạng thái nhập được 
   gate.release.resolve();
   await pipeline;
 });
+
+test('saveSecuritySetup: lượt Lưu cũ không đóng modal/báo thành công thay lượt mới', async () => {
+  const { api, ctx, dom } = loadSecurity({ dom: true });
+
+  let onPinChanged = 0;
+  ctx.window.BiometricUnlock = { onPinChanged: () => { onPinChanged++; } };
+  let successToasts = 0;
+  ctx.ErrorHandler.showSuccess = () => { successToasts++; };
+  ctx.window.ErrorHandler = ctx.ErrorHandler;
+
+  dom.getEl('setup-pin').value = '123456';
+  dom.getEl('setup-answer').value = 'NV001';
+  dom.getEl('setup-lock-modal').classList.remove('hidden');
+
+  // Lần bấm Lưu thứ nhất: chạy tới pipeline rồi dừng ở đó.
+  const gate1 = pipelineGate();
+  ctx.window.__dbReady = gate1.thenable;
+  const save1 = api.saveSecuritySetup();
+  await gate1.entered;
+
+  // Nút Lưu đã được bật lại trong `finally` của phần niêm phong -> người dùng bấm lần 2.
+  assert.equal(dom.getEl('setup-save-btn').disabled, false,
+    'tiền đề: nút Lưu đã bật lại nên bấm lần 2 là có thật');
+  const gate2 = pipelineGate();
+  ctx.window.__dbReady = gate2.thenable;
+  dom.getEl('setup-pin').value = '123456';
+  dom.getEl('setup-answer').value = 'NV001';
+  const save2 = api.saveSecuritySetup();
+  await gate2.entered;
+
+  // Lượt 1 tỉnh dậy: đã là lượt cũ, không được đụng UI.
+  gate1.release.resolve();
+  await save1;
+
+  assert.equal(dom.isHidden('setup-lock-modal'), false,
+    'lượt cũ không được đóng modal thiết lập khi lượt mới còn đang chạy');
+  assert.equal(successToasts, 0, 'lượt cũ không được báo thành công');
+  assert.equal(onPinChanged, 0,
+    'lượt cũ không được hủy enrollment sinh trắc học theo PIN của mình');
+
+  // Lượt 2 hoàn tất -> nó mới là bên đóng modal và báo thành công.
+  gate2.release.resolve();
+  await save2;
+  assert.equal(dom.isHidden('setup-lock-modal'), true, 'lượt hiện hành đóng modal khi xong');
+  assert.equal(successToasts, 1);
+  assert.equal(onPinChanged, 1);
+});
