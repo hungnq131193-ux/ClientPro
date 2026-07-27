@@ -1,0 +1,145 @@
+name: Agent address Codex revocation review
+
+on:
+  push:
+    branches:
+      - agent/security-hardening-tour-v1-5-0
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - name: Route backup revocation through blocking AuthGate UI
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          sec_path = Path('assets/02_security.js')
+          sec = sec_path.read_text(encoding='utf-8')
+          anchor = '''async function ensureBackupSecret() {
+'''
+          helper = '''/**
+ * Sau unlock, denial "locked" từ issue_kdata phải vừa xóa secret RAM vừa chặn UI.
+ * AuthGate dùng overlay z-index cao, an toàn cả khi Backup Manager đang mở. Fallback
+ * activation-modal chỉ dành cho harness / trường hợp module gate chưa sẵn sàng.
+ */
+function _blockRevokedAccess(message) {
+  const msg = String(message || "Tài khoản đã bị thu hồi.");
+  try {
+    if (typeof window !== "undefined" && window.AuthGate && typeof window.AuthGate.block === "function") {
+      window.AuthGate.block(msg);
+      return;
+    }
+  } catch (e) {}
+  try {
+    const lock = getEl("screen-lock");
+    const setup = getEl("setup-lock-modal");
+    const modal = getEl("activation-modal");
+    if (lock && lock.classList) lock.classList.add("hidden");
+    if (setup && setup.classList) setup.classList.add("hidden");
+    if (modal && modal.classList) modal.classList.remove("hidden");
+    const titleEl = getEl("activation-title");
+    if (titleEl) titleEl.textContent = msg;
+  } catch (e) {}
+}
+
+async function ensureBackupSecret() {
+'''
+          if helper not in sec:
+              if anchor not in sec:
+                  raise SystemExit('Không tìm thấy ensureBackupSecret anchor')
+              sec = sec.replace(anchor, helper, 1)
+
+          old = '''    if (backupAccessRevoked) {
+      try { revokeUnlockedSession(); } catch (e) {}
+      try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
+      return { ok: false, message: kdMsg || "Tài khoản đã bị thu hồi." };
+    }
+'''
+          new = '''    if (backupAccessRevoked) {
+      const revokeMessage = kdMsg || "Tài khoản đã bị thu hồi.";
+      try { revokeUnlockedSession(); } catch (e) {}
+      try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
+      _blockRevokedAccess(revokeMessage);
+      return { ok: false, message: revokeMessage };
+    }
+'''
+          if old not in sec:
+              raise SystemExit('Không tìm thấy block backupAccessRevoked hiện tại')
+          sec = sec.replace(old, new, 1)
+          sec_path.write_text(sec, encoding='utf-8')
+
+          test_path = Path('tests/security-hardening-regressions.test.js')
+          test = test_path.read_text(encoding='utf-8')
+          old_test = '''  ctx.ADMIN_SERVER_URL = 'https://example.invalid/gas';
+  ctx.fetch = async () => ({
+    text: async () => JSON.stringify({ status: 'error', message: 'ISSUE_KDATA FAIL: tai khoan bi khoa' }),
+  });
+
+  const result = await api.ensureBackupSecret();
+  assert.equal(result.ok, false);
+  assert.equal(api.isAppUnlocked(), false);
+  assert.equal(api.getKdataRam(), '');
+  assert.equal(localStorage.getItem('app_activated'), null);
+'''
+          new_test = '''  ctx.ADMIN_SERVER_URL = 'https://example.invalid/gas';
+  let blockedMessage = '';
+  ctx.window.AuthGate = { block: (message) => { blockedMessage = String(message || ''); } };
+  ctx.fetch = async () => ({
+    text: async () => JSON.stringify({ status: 'error', message: 'ISSUE_KDATA FAIL: tai khoan bi khoa' }),
+  });
+
+  const result = await api.ensureBackupSecret();
+  assert.equal(result.ok, false);
+  assert.equal(api.isAppUnlocked(), false);
+  assert.equal(api.getKdataRam(), '');
+  assert.equal(localStorage.getItem('app_activated'), null);
+  assert.match(blockedMessage, /bi khoa/i, 'Revocation phải dựng UI chặn qua AuthGate');
+'''
+          if old_test not in test:
+              raise SystemExit('Không tìm thấy regression test issue_kdata hiện tại')
+          test_path.write_text(test.replace(old_test, new_test, 1), encoding='utf-8')
+
+          claude_path = Path('CLAUDE.md')
+          claude = claude_path.read_text(encoding='utf-8')
+          old_doc = '''  `masterKey`, KDATA, the employee id, and the plaintext caches. Do not use
+  `lockApp()` for this: revocation removes `PIN_KEY`, and `lockApp()` returns
+  early when `PIN_KEY` is absent, so calling it afterwards does nothing.
+'''
+          new_doc = '''  `masterKey`, KDATA, the employee id, and the plaintext caches. It must then
+  present a blocking transition (`AuthGate.block()` or the activation gate), so
+  decrypted Dashboard DOM cannot remain interactable with `masterKey === null`.
+  Do not use `lockApp()` for this: revocation removes `PIN_KEY`, and `lockApp()`
+  returns early when `PIN_KEY` is absent, so calling it afterwards does nothing.
+'''
+          if old_doc not in claude:
+              raise SystemExit('Không tìm thấy Activation invariant trong CLAUDE.md')
+          claude_path.write_text(claude.replace(old_doc, new_doc, 1), encoding='utf-8')
+          PY
+      - name: Validate regression suite and policy
+        run: |
+          npm test
+          npm run check:version
+          node scripts/check-policy.mjs
+          node --check assets/02_security.js
+          node --check tests/security-hardening-regressions.test.js
+      - name: Commit reviewed fix
+        run: |
+          rm -f .github/workflows/agent-address-codex-revocation.yml
+          git config user.name "ClientPro Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(auth): block UI immediately on backup revocation"
+          git push origin HEAD
