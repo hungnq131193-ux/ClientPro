@@ -15,7 +15,7 @@ function deferred() {
 async function waitFor(promise, label) {
   await Promise.race([
     promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`Hết thời gian chờ: ${label}`)), 3000)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Hết thời gian chờ: ${label}`)), 5000)),
   ]);
 }
 
