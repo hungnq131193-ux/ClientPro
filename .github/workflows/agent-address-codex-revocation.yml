@@ -19,10 +19,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-      - name: Apply revocation UI patch robustly
+      - name: Apply revocation UI patch and always preserve diagnostics
         shell: bash
         run: |
           mkdir -p .diagnostics
+          set +e
           python3 - <<'PY' > .diagnostics/revocation-patch.log 2>&1
           from pathlib import Path
           import re
@@ -62,14 +63,13 @@ function _blockRevokedAccess(message) {
               sec = sec.replace(marker, helper + marker, 1)
               print('inserted _blockRevokedAccess')
 
-          pattern = re.compile(
-              r'    if \(backupAccessRevoked\) \{\n'
-              r'      try \{ revokeUnlockedSession\(\); \} catch \(e\) \{\}\n'
-              r'      try \{ localStorage\.removeItem\(ACTIVATED_KEY\); \} catch \(e\) \{\}\n'
-              r'      return \{ ok: false, message: kdMsg \|\| "Tài khoản đã bị thu hồi\." \};\n'
-              r'    \}\n'
-          )
-          replacement = '''    if (backupAccessRevoked) {
+          old = '''    if (backupAccessRevoked) {
+      try { revokeUnlockedSession(); } catch (e) {}
+      try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
+      return { ok: false, message: kdMsg || "Tài khoản đã bị thu hồi." };
+    }
+'''
+          new = '''    if (backupAccessRevoked) {
       const revokeMessage = kdMsg || "Tài khoản đã bị thu hồi.";
       try { revokeUnlockedSession(); } catch (e) {}
       try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
@@ -77,10 +77,11 @@ function _blockRevokedAccess(message) {
       return { ok: false, message: revokeMessage };
     }
 '''
-          sec, count = pattern.subn(replacement, sec, count=1)
-          if count == 0 and '_blockRevokedAccess(revokeMessage);' not in sec:
+          if old in sec:
+              sec = sec.replace(old, new, 1)
+              print('updated backupAccessRevoked')
+          elif '_blockRevokedAccess(revokeMessage);' not in sec:
               raise SystemExit('MISSING backupAccessRevoked block')
-          print('updated backupAccessRevoked:', count)
           sec_path.write_text(sec, encoding='utf-8')
 
           test_path = Path('tests/security-hardening-regressions.test.js')
@@ -99,22 +100,24 @@ function _blockRevokedAccess(message) {
           claude_path = Path('CLAUDE.md')
           claude = claude_path.read_text(encoding='utf-8')
           if 'decrypted Dashboard DOM cannot remain interactable' not in claude:
-              old = '''  `masterKey`, KDATA, the employee id, and the plaintext caches. Do not use
+              old_doc = '''  `masterKey`, KDATA, the employee id, and the plaintext caches. Do not use
   `lockApp()` for this: revocation removes `PIN_KEY`, and `lockApp()` returns
   early when `PIN_KEY` is absent, so calling it afterwards does nothing.
 '''
-              new = '''  `masterKey`, KDATA, the employee id, and the plaintext caches. It must then
+              new_doc = '''  `masterKey`, KDATA, the employee id, and the plaintext caches. It must then
   present a blocking transition (`AuthGate.block()` or the activation gate), so
   decrypted Dashboard DOM cannot remain interactable with `masterKey === null`.
   Do not use `lockApp()` for this: revocation removes `PIN_KEY`, and `lockApp()`
   returns early when `PIN_KEY` is absent, so calling it afterwards does nothing.
 '''
-              if old not in claude:
+              if old_doc not in claude:
                   raise SystemExit('MISSING CLAUDE activation invariant')
-              claude = claude.replace(old, new, 1)
+              claude = claude.replace(old_doc, new_doc, 1)
               print('updated CLAUDE invariant')
           claude_path.write_text(claude, encoding='utf-8')
           PY
+          echo "patch_exit=$?" >> .diagnostics/revocation-patch.log
+          exit 0
       - name: Run regression checks and preserve output
         shell: bash
         run: |
