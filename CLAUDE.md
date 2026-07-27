@@ -357,9 +357,13 @@ Turn a valid PIN into an in-RAM master key and load data.
   overlap (auto-lock mid-pipeline, user re-enters the PIN at once), and the older
   attempt would see the newer attempt's key. Every unlock entry point
   (`validatePin`, `checkRecovery`, `saveSecuritySetup`) claims a ticket from
-  `__unlockAttemptSeq` after installing its key and must own the current ticket
-  before changing the UI. `__keyGeneration` cannot serve this role — the legacy
-  migration inside the pipeline installs a key and bumps it by design.
+  `__unlockAttemptSeq` **before** awaiting `_installMasterKey` and must own the
+  current ticket before changing the UI. Claiming it before the await matters:
+  `_installMasterKey` assigns `masterKey` and only then awaits `importKey`, so
+  inside that window `isAppUnlocked()` already reports true while no derived key
+  exists yet. `__keyGeneration` cannot serve this role — the legacy migration
+  inside the pipeline installs a key and bumps it by design, and the attempt must
+  keep its ticket across that migration.
 - `_installMasterKey` is **fail-closed**: if `__keyGeneration` changes while
   `crypto.subtle.importKey` is awaited (auto-lock, `lockApp`,
   `revokeUnlockedSession`, or a competing install), it throws

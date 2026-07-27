@@ -1762,6 +1762,10 @@ async function saveSecuritySetup() {
   // bộ này, không đọc lại global sau await: auto-lock có thể đã đặt masterKey=null và
   // sealMasterKey(pin, null) ghi đè PIN_KEY bằng envelope chứa chuỗi "null".
   const mkForSetup = masterKey;
+  // Thiết lập/đặt lại PIN cũng mở một lượt phiên mới: nhận vé TRƯỚC khi cài khóa
+  // (xem __unlockAttemptSeq) để lượt validatePin cũ còn treo trong pipeline rút lui
+  // ngay, kể cả trong khe await của importKey.
+  __unlockAttemptSeq++;
   // Dựng key GCM cho phiên (fresh install), hoặc giữ nguyên nếu đã cài từ unlock/recovery.
   try {
     await _installMasterKey(mkForSetup);
@@ -1777,9 +1781,6 @@ async function saveSecuritySetup() {
     return;
   }
   const setupGeneration = __keyGeneration;
-  // Thiết lập/đặt lại PIN cũng mở một lượt phiên mới: lượt validatePin cũ còn treo
-  // trong pipeline phải rút lui thay vì đổi UI của lượt này.
-  __unlockAttemptSeq++;
   // Phiên còn đúng khóa vừa cài? PHẢI kiểm lại ngay trước MỖI lệnh ghi envelope —
   // giữa _installMasterKey và hai lệnh seal còn một await (_writeSealedEmployeeId).
   const setupKeyAlive = () => setupGeneration === __keyGeneration && masterKey === mkForSetup;
@@ -1895,6 +1896,12 @@ async function validatePin() {
     _pinChecking = false;
   }
   if (res && res.masterKey) {
+    // Nhận vé TRƯỚC khi cài khóa: _installMasterKey gán masterKey rồi mới await
+    // importKey, nên giữa khe đó isAppUnlocked() đã true trong khi masterCryptoKey
+    // còn rỗng. Nhận vé sau await sẽ để lượt CŨ thấy "còn giữ vé + app đã mở" và ẩn
+    // màn khóa đúng lúc lượt mới chưa có khóa phái sinh, chưa vào pipeline.
+    // Migration legacy bên trong pipeline KHÔNG chạm vé nên lượt này giữ nguyên vé.
+    const myUnlockAttempt = ++__unlockAttemptSeq;
     // Giải mã thành công: cài masterKey (dựng key GCM) — giữ lock đến khi load xong dữ liệu
     try {
       await _installMasterKey(res.masterKey);
@@ -1908,7 +1915,6 @@ async function validatePin() {
       _setKeypadDisabled(false);
       return;
     }
-    const myUnlockAttempt = ++__unlockAttemptSeq;
     const pinForMigration = currentPin;
     // Máy legacy chưa migrate vẫn còn plaintext; máy đã migrate trả "" (migration
     // legacy khi đó là no-op nên không cần mã NV).
@@ -1971,6 +1977,9 @@ async function checkRecovery() {
   // Chấp nhận cả SEC_KEY legacy lẫn v2; input untrimmed cũ vẫn khớp vì setup luôn trim
   const res = await unwrapMasterKeyAny(input, encMaster);
   if (res && res.masterKey) {
+    // Nhận vé TRƯỚC khi cài khóa (xem __unlockAttemptSeq): _installMasterKey gán
+    // masterKey rồi mới await importKey, khe đó isAppUnlocked() đã true.
+    __unlockAttemptSeq++;
     // Khôi phục masterKey (cài key GCM/legacy) và cho phép đặt lại PIN 6 số.
     // Migration (nếu dữ liệu còn CryptoJS) sẽ chạy trong saveSecuritySetup dưới PIN mới.
     try {
@@ -1984,8 +1993,6 @@ async function checkRecovery() {
       return;
     }
     const recoveryGeneration = __keyGeneration;
-    // Khôi phục cũng mở một lượt phiên mới (xem __unlockAttemptSeq).
-    __unlockAttemptSeq++;
     const recoveredKey = res.masterKey;
     // Mã NV vừa xác thực đúng: seal trước (không persist plaintext), nạp RAM sau khi
     // chắc phiên còn sống — mã NV là secret khôi phục.

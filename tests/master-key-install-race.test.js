@@ -471,3 +471,69 @@ test('validatePin: lượt cũ tỉnh dậy sau lượt mới -> KHÔNG ẩn mà
   await secondUnlock;
   assert.equal(dom.isHidden('screen-lock'), true, 'lượt sở hữu phiên mở khóa bình thường');
 });
+
+test('validatePin: lượt cũ không ẩn màn khóa trong KHE await importKey của lượt mới', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  const mk = api.generateMasterKey();
+  await api.setMasterKey(mk);
+  localStorage.setItem('app_pin', await api.sealMasterKey('654321', mk));
+  api.clearMasterKeyMaterial();
+  dom.getEl('screen-lock').classList.remove('hidden');
+
+  const gate1 = pipelineGate();
+  ctx.window.__dbReady = gate1.thenable;
+  api.setCurrentPin('654321');
+  const firstUnlock = api.validatePin();
+  await gate1.entered;
+
+  api.clearMasterKeyMaterial();   // auto-lock giữa pipeline lượt 1
+
+  // Lượt 2: dừng ĐÚNG BÊN TRONG _installMasterKey — masterKey đã được gán (nên
+  // isAppUnlocked() true) nhưng masterCryptoKey còn rỗng và pipeline chưa khởi động.
+  // Đây là khe mà vé phải được nhận TRƯỚC await, nếu không lượt 1 sẽ tưởng mình
+  // vẫn đang giữ vé của một phiên "đã mở khóa".
+  const subtle = ctx.crypto.subtle;
+  const realImportKey = subtle.importKey.bind(subtle);
+  const inInstall = deferred();
+  const holdInstall = deferred();
+  let held = false;
+  ctx.crypto = {
+    getRandomValues: ctx.crypto.getRandomValues.bind(ctx.crypto),
+    subtle: {
+      encrypt: subtle.encrypt.bind(subtle),
+      decrypt: subtle.decrypt.bind(subtle),
+      digest: subtle.digest.bind(subtle),
+      deriveKey: subtle.deriveKey ? subtle.deriveKey.bind(subtle) : undefined,
+      deriveBits: subtle.deriveBits ? subtle.deriveBits.bind(subtle) : undefined,
+      importKey: async (fmt, data, algo, ...rest) => {
+        const name = (algo && (algo.name || algo)) || '';
+        if (!held && String(name) === 'AES-GCM') {
+          held = true;
+          inInstall.resolve();
+          await holdInstall.promise;
+        }
+        return realImportKey(fmt, data, algo, ...rest);
+      },
+    },
+  };
+
+  api.setCurrentPin('654321');
+  const secondUnlock = api.validatePin();
+  await inInstall.promise;
+
+  assert.equal(api.isAppUnlocked(), true, 'tiền đề: masterKey đã gán, khóa phái sinh chưa dựng');
+  assert.equal(api.getState().hasGcmKey, false, 'tiền đề: masterCryptoKey còn rỗng');
+
+  // Lượt 1 tỉnh dậy ĐÚNG trong khe này.
+  gate1.release.resolve();
+  await firstUnlock;
+
+  assert.equal(dom.isHidden('screen-lock'), false,
+    'lượt cũ không được ẩn màn khóa khi lượt mới còn đang dựng khóa');
+
+  holdInstall.resolve();
+  ctx.window.__dbReady = null;
+  await secondUnlock;
+  assert.equal(dom.isHidden('screen-lock'), true, 'lượt mới hoàn tất thì mới ẩn màn khóa');
+});

@@ -552,6 +552,26 @@ test('validatePin: ẩn màn khóa phải buộc đúng lượt mở khóa, khô
   // của lượt mới. Không dùng __keyGeneration được: migration legacy cố ý bump nó.
   assert.ok(/myUnlockAttempt\s*!==\s*__unlockAttemptSeq[\s\S]{0,20}return/.test(before),
     'Phải kiểm myUnlockAttempt === __unlockAttemptSeq (và return) trước khi ẩn màn khóa');
+  // Vé phải nhận TRƯỚC await cài khóa: _installMasterKey gán masterKey rồi mới await
+  // importKey, nên trong khe đó isAppUnlocked() đã true còn vé thì chưa đổi -> lượt cũ
+  // tưởng mình vẫn sở hữu phiên.
+  const claimAt = before.indexOf('++__unlockAttemptSeq');
+  const installAt = before.indexOf('await _installMasterKey(');
+  assert.ok(claimAt !== -1 && installAt !== -1, 'validatePin phải nhận vé và cài khóa');
+  assert.ok(claimAt < installAt, 'Vé phải được nhận TRƯỚC await _installMasterKey');
   assert.ok(!/\bawait\s+[A-Za-z_(]/.test(before.slice(before.lastIndexOf('__unlockAttemptSeq'))),
     'Không được có await giữa kiểm tra lượt và lệnh ẩn màn khóa');
+});
+
+test('checkRecovery / saveSecuritySetup: nhận vé lượt mở khóa trước await cài khóa', () => {
+  const src = read('assets/02_security.js');
+  for (const fn of ['checkRecovery', 'saveSecuritySetup']) {
+    const body = fnBody(src, fn);
+    const claimAt = body.indexOf('__unlockAttemptSeq++');
+    const installAt = body.indexOf('await _installMasterKey(');
+    assert.ok(claimAt !== -1, `${fn} phải nhận vé lượt mở khóa`);
+    assert.ok(installAt !== -1, `${fn} phải cài khóa qua _installMasterKey`);
+    assert.ok(claimAt < installAt,
+      `${fn}: vé phải nhận TRƯỚC await _installMasterKey (khe gán masterKey chưa có khóa phái sinh)`);
+  }
 });
