@@ -353,6 +353,33 @@ Turn a valid PIN into an in-RAM master key and load data.
   re-check `isAppUnlocked()` after the awaits: `completeUnlockDataLoad` skips the
   `clientpro:unlocked` dispatch, and `validatePin` must not hide `#screen-lock`.
   Hiding it unconditionally opens the dashboard with `masterKey === null`.
+- `_installMasterKey` is **fail-closed**: if `__keyGeneration` changes while
+  `crypto.subtle.importKey` is awaited (auto-lock, `lockApp`,
+  `revokeUnlockedSession`, or a competing install), it throws
+  `STALE_KEY_GENERATION` and leaves `masterKey`/`masterCryptoKey` to whoever owns
+  them now. It must never return silently — a caller that thinks the key is
+  installed runs on with `masterKey === null`, and `sealMasterKey(pin, null)`
+  produces a *valid* envelope holding the string `"null"`.
+- Every caller must catch that error and stop **before** writing an envelope,
+  running the unlock pipeline, or changing the UI: `saveSecuritySetup`
+  (also re-checks `setupKeyAlive()` immediately before each
+  `PIN_KEY`/`SEC_KEY` write and seals the local `mkForSetup`, never the global),
+  `validatePin` (keeps `#screen-lock`, re-enables the keypad, does not count a
+  PIN failure), `checkRecovery` (does not open the new-PIN modal — that modal
+  would generate a *fresh* masterKey and overwrite both envelopes), `activateApp`
+  (does not re-seal `SEC_KEY`), and `runFieldCryptoMigrationIfNeeded` (rethrows;
+  `completeUnlockDataLoad` catches it and leaves PIN/SEC/schema staged).
+  Guarded by `tests/master-key-install-race.test.js` plus structural tripwires in
+  `tests/regressions.test.js`.
+- `saveSecuritySetup` refuses to run at all when the session has no `masterKey`
+  but `PIN_KEY`/`SEC_KEY` already exist: generating a fresh masterKey there would
+  seal it over the only envelopes that open the existing data. Every legitimate
+  entry (first-time setup, 4→6 digit upgrade, post-recovery, post-reactivation)
+  already has a key installed.
+- The same "re-check after every await" rule applies to the employee code: it is
+  the recovery secret, so `saveSecuritySetup` and `checkRecovery` seal it first
+  and only assign `__employeeIdPlain` once the session is confirmed alive —
+  otherwise a locked session gets its recovery secret back in RAM.
 
 ### Primary files
 `assets/02_security.js`.
@@ -945,7 +972,9 @@ Open-Meteo response's `latitude`/`longitude`/`timezone`/`elevation`; write it
 through `_trimWeatherForCache` (`09_weather.js`). It stays unsealed on purpose
 because the pill renders before unlock. `ErrorHandler`'s
 `app_error_log` redacts sensitive keys and truncates long strings before
-writing. Tour state uses its own clearly named key. The app does not write
+writing. Tour state uses its own clearly named keys
+(`clientpro_onboarding_done`, plus the hand-set pre-release marker
+`clientpro_onboarding_prerelease`). The app does not write
 `sessionStorage`. Do not store sensitive plaintext.
 
 ## Tour / onboarding
@@ -981,8 +1010,13 @@ replay entry.
 ### Data and lifecycle
 - New-user detection: `localStorage` key `clientpro_onboarding_done` storing
   `{ version, completedAt }`. Auto-show when the key is absent or its stored
-  `version` is below the module's `TOUR_VERSION`; finishing/skipping writes the
-  key.
+  record is unreadable/has no numeric `version`; finishing/skipping writes the key.
+- **Bumping `TOUR_VERSION` does not force anyone to re-watch.** A user who
+  completed an older version only auto-replays when the device carries the
+  explicit pre-release marker `localStorage['clientpro_onboarding_prerelease'] === '1'`
+  (set by hand on internal test devices). Everyone else keeps the tour dismissed
+  and can still open it from the menu. Guarded by
+  `e2e/onboarding-tour.spec.js` and a tripwire in `tests/regressions.test.js`.
 - Auto-start waits for the dashboard (`#customer-list`), a set `masterKey`, and a
   hidden lock/activation/setup screen before showing. The tour contains exactly 11
   steps; update `e2e/onboarding-tour.spec.js` whenever count/version/selectors change.
@@ -1055,7 +1089,11 @@ for CI tooling.
 `node --test 'tests/**/*.test.js'` (also `npm test`). Covers crypto, field
 migration, data integrity, schema, backup, KDATA cache, sealed employee id
 (`tests/employee-id-seal.test.js`), error-log redaction
-(`tests/error-detail.test.js`), PWA, SW routing, regressions, menu, repository
+(`tests/error-detail.test.js`), session/key-generation races
+(`tests/key-generation-race.test.js`, `tests/session-generation-hardening.test.js`,
+`tests/master-key-install-race.test.js` — the last one drives the real
+`saveSecuritySetup`/`checkRecovery`/`validatePin` through
+`loadSecurity({ dom: true })`), PWA, SW routing, regressions, menu, repository
 hygiene (screenshot policy), PDF Toolkit pure utils, and DVHC Lookup utils +
 data integrity. Add unit tests for pure logic you change.
 

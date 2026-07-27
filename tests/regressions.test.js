@@ -401,3 +401,90 @@ test('lỗi mạng của phiên cũ không được đặt cooldown cho phiên m
   }
   assert.ok(seen > 0, 'Phải còn cơ chế cooldown');
 });
+
+// ============================================================================
+// PR #136 (P1): _installMasterKey() phải FAIL-CLOSED.
+//
+// Hàm dựng AES-GCM key qua `await crypto.subtle.importKey`. Auto-lock/thu hồi rơi vào
+// khe await đó mà hàm chỉ `return` im lặng thì caller chạy tiếp với masterKey = null:
+// sealMasterKey(pin, null) tạo envelope hợp lệ chứa chuỗi "null" và GHI ĐÈ PIN_KEY/
+// SEC_KEY — bản duy nhất mở được dữ liệu trên máy. Hành vi được test thật ở
+// tests/master-key-install-race.test.js; ở đây khóa CẤU TRÚC để không ai lặng lẽ
+// gỡ throw hoặc thêm caller mới không bắt lỗi.
+// ============================================================================
+
+test('_installMasterKey phải throw (không return im lặng) khi thế hệ khóa đổi', () => {
+  const body = fnBody(read('assets/02_security.js'), '_installMasterKey');
+  const at = body.indexOf('gen !== __keyGeneration');
+  assert.ok(at !== -1, '_installMasterKey phải còn kiểm tra thế hệ khóa quanh await importKey');
+  const branch = body.slice(at, at + 400);
+  assert.ok(/throw\s+new\s+Error\(\s*["']STALE_KEY_GENERATION["']\s*\)/.test(branch),
+    'Nhánh stale phải THROW STALE_KEY_GENERATION');
+  assert.ok(!/\breturn\s*;/.test(branch.slice(0, branch.indexOf('throw'))),
+    'Không được return im lặng trước khi throw — caller sẽ tưởng khóa đã cài');
+});
+
+test('mọi caller của _installMasterKey phải bắt lỗi cài khóa', () => {
+  const src = read('assets/02_security.js');
+  const CALL = 'await _installMasterKey(';
+  let from = 0;
+  let seen = 0;
+  for (;;) {
+    const at = src.indexOf(CALL, from);
+    if (at === -1) break;
+    seen++;
+    from = at + CALL.length;
+    // Cửa sổ ngay trước lời gọi phải mở một khối try (kèm catch phía sau), hoặc lời
+    // gọi nằm trong một hàm migration tự throw tiếp (đường đó do
+    // completeUnlockDataLoad bắt) — nhận diện bằng kiểm tra generation ngay sau.
+    const before = src.slice(Math.max(0, at - 200), at);
+    const after = src.slice(at, at + 400);
+    const wrappedInTry = /\btry\s*\{[^}]*$/.test(before) && /\}\s*catch\s*\(/.test(after);
+    const rethrowsRightAfter = /_legacyMigrationAlive\([\s\S]{0,120}throw\s+new\s+Error/.test(after);
+    assert.ok(wrappedInTry || rethrowsRightAfter,
+      `Lời gọi _installMasterKey tại offset ${at} không được bảo vệ bằng try/catch`);
+  }
+  assert.ok(seen >= 4, `Phải còn đủ các caller _installMasterKey (thấy ${seen})`);
+});
+
+test('saveSecuritySetup: mọi lệnh ghi PIN_KEY/SEC_KEY phải sau một kiểm tra phiên còn sống', () => {
+  const body = fnBody(read('assets/02_security.js'), 'saveSecuritySetup');
+  for (const key of ['localStorage.setItem(PIN_KEY', 'localStorage.setItem(SEC_KEY']) {
+    let from = 0;
+    let seen = 0;
+    for (;;) {
+      const at = body.indexOf(key, from);
+      if (at === -1) break;
+      seen++;
+      from = at + key.length;
+      const before = body.slice(0, at);
+      const lastGuard = before.lastIndexOf('setupKeyAlive()');
+      assert.ok(lastGuard !== -1, `Phải kiểm tra setupKeyAlive() trước ${key}`);
+      assert.ok(!/\bawait\s+[A-Za-z_(]/.test(before.slice(lastGuard)),
+        `Có await giữa setupKeyAlive() và ${key} — khe cho auto-lock ghi đè envelope`);
+    }
+    assert.ok(seen > 0, `Không tìm thấy lệnh ghi ${key}`);
+  }
+  // Envelope phải niêm phong biến cục bộ đã chốt, không đọc lại global sau await.
+  assert.ok(/sealMasterKey\(pin,\s*mkForSetup\)/.test(body) && /sealMasterKey\(ans,\s*mkForSetup\)/.test(body),
+    'Phải seal bằng masterKey đã chốt (mkForSetup), không đọc lại biến global sau await');
+});
+
+// ============================================================================
+// PR #136 (P2): bump TOUR_VERSION KHÔNG được ép user đã hoàn tất xem lại tour.
+// ============================================================================
+
+test('shouldShowTour: user đã hoàn tất version cũ chỉ tự xem lại khi có marker pre-release', () => {
+  const src = read('assets/17_onboarding_tour.js');
+  const body = fnBody(src, 'shouldShowTour');
+  assert.ok(/isPrereleaseTester\(\)/.test(body),
+    'shouldShowTour phải gate việc phát lại sau khi bump version bằng marker pre-release');
+  assert.ok(/parsed\.version\s*>=\s*TOUR_VERSION[\s\S]{0,40}return\s+false/.test(body),
+    'Đã hoàn tất version hiện tại -> return false');
+  // Đường "version cũ" tuyệt đối không được trả true vô điều kiện.
+  assert.ok(!/return\s+parsed\.version\s*<\s*TOUR_VERSION/.test(body),
+    'Không được quay lại so sánh version trần (ép toàn bộ user v cũ xem lại)');
+  const marker = fnBody(src, 'isPrereleaseTester');
+  assert.ok(/TOUR_PRERELEASE_KEY/.test(marker) && /localStorage\.getItem/.test(marker),
+    'Marker pre-release phải đọc từ localStorage bằng khóa riêng, rõ ràng');
+});
