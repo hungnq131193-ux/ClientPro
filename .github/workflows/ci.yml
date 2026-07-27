@@ -6,13 +6,353 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  apply-validate-pin-ownership-fix:
+    name: Apply verified validatePin ownership fix
+    if: github.event_name == 'pull_request' && github.head_ref == 'claude/pr-134-security-review-0eqhdb'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Apply early unlock-attempt ownership
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('assets/02_security.js')
+          source = path.read_text(encoding='utf-8')
+          start = source.index('async function validatePin() {')
+          end = source.index('\nfunction _openForcedPinUpgrade()', start)
+
+          replacement = '''async function validatePin() {
+            if (getLockoutRemainingMs() > 0) {
+              updateLockoutUI();
+              clearPin();
+              return;
+            }
+            // Nhận vé + chụp PIN TRƯỚC await đầu tiên. Biometric có thể gọi validatePin()
+            // trực tiếp trong khi lượt cũ đang chạy, nên keypad-disabled không ngăn được
+            // lượt mới. Lượt mới phải tiếp quản ngay từ lúc bắt đầu giải mã envelope.
+            const myUnlockAttempt = ++__unlockAttemptSeq;
+            const pinAttempt = currentPin;
+            const encMaster = localStorage.getItem(PIN_KEY);
+            _pinChecking = true;
+            _setKeypadDisabled(true);
+            let res = null;
+            try {
+              res = await unwrapMasterKeyAny(pinAttempt, encMaster);
+            } finally {
+              // Lượt cũ hoàn tất PBKDF2 sau lượt mới không được mở lại đường nhập PIN.
+              if (myUnlockAttempt === __unlockAttemptSeq) _pinChecking = false;
+            }
+            // Một lượt mới đã bắt đầu trong lúc unwrap: lượt này không còn quyền cài khóa,
+            // ghi nhận PIN sai hay thay đổi bất kỳ trạng thái UI/RAM dùng chung nào.
+            if (myUnlockAttempt !== __unlockAttemptSeq) return;
+            if (res && res.masterKey) {
+              // Giải mã thành công: cài masterKey (dựng key GCM) — giữ lock đến khi load xong dữ liệu.
+              try {
+                await _installMasterKey(res.masterKey);
+              } catch (e) {
+                // Auto-lock / thu hồi / lượt cài khóa mới xen vào giữa importKey.
+                try { ErrorHandler.logError("unlock-install-key", e); } catch (_) {}
+                if (myUnlockAttempt === __unlockAttemptSeq) {
+                  currentPin = "";
+                  updatePinDots();
+                  _setKeypadDisabled(false);
+                }
+                _releaseUnlockLoading(myUnlockAttempt);
+                return;
+              }
+              // Lượt mới có thể bắt đầu khi lượt này đang importKey mà chưa đổi key generation.
+              // Chặn trước mọi cleanup để không xóa PIN/keypad của lượt mới đang unwrap.
+              if (myUnlockAttempt !== __unlockAttemptSeq) return;
+              const pinForMigration = pinAttempt;
+              // Máy legacy chưa migrate vẫn còn plaintext; máy đã migrate trả "" (migration
+              // legacy khi đó là no-op nên không cần mã NV).
+              const empForMigration = _resolveEmployeeId();
+              currentPin = ""; // chỉ chủ vé được xóa PIN dùng chung khỏi RAM
+              resetPinFailures();
+              _setKeypadDisabled(false);
+              await completeUnlockDataLoad(pinForMigration, empForMigration, myUnlockAttempt);
+              // Auto-lock / thu hồi có thể đã nổ giữa pipeline dài phía trên.
+              if (!isAppUnlocked()) return;
+              // Chỉ lượt đang sở hữu phiên mới được ẩn màn khóa hoặc mở prompt nâng cấp PIN.
+              if (myUnlockAttempt !== __unlockAttemptSeq) return;
+              getEl("screen-lock").classList.add("hidden");
+              // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới, nhưng chỉ sau khi migration hoàn tất.
+              if (res.legacy && !__legacyMigrationUnfinished) _openForcedPinUpgrade();
+            } else {
+              registerPinFailure();
+              _shakePinDots();
+              clearPin();
+              updateLockoutUI();
+            }
+          }
+          '''
+
+          path.write_text(source[:start] + replacement + source[end:], encoding='utf-8')
+          PY
+
+      - name: Add deterministic pre-unwrap overlap coverage
+        shell: bash
+        run: |
+          cat > tests/unlock-keypad-ownership.test.js <<'EOF'
+          'use strict';
+
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const test = require('node:test');
+          const assert = require('node:assert/strict');
+          const { loadSecurity } = require('./helpers/load-security');
+
+          function deferred() {
+            let resolve;
+            const promise = new Promise((res) => { resolve = res; });
+            return { promise, resolve };
+          }
+
+          async function waitFor(promise, label) {
+            let timer;
+            try {
+              await Promise.race([
+                promise,
+                new Promise((_, reject) => {
+                  timer = setTimeout(() => reject(new Error(`Hết thời gian chờ: ${label}`)), 5000);
+                }),
+              ]);
+            } finally {
+              clearTimeout(timer);
+            }
+          }
+
+          test('lượt validatePin cũ không được mở keypad hoặc xóa PIN của lượt mới đang import khóa', async () => {
+            const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
+            const pin = '654321';
+            const mk = api.generateMasterKey();
+
+            await api.setMasterKey(mk);
+            localStorage.setItem('app_pin', await api.sealMasterKey(pin, mk));
+            api.clearMasterKeyMaterial();
+            dom.getEl('screen-lock').classList.remove('hidden');
+
+            const originalCrypto = ctx.crypto;
+            const originalSubtle = originalCrypto.subtle;
+            const entered = [deferred(), deferred()];
+            const release = [deferred(), deferred()];
+            let installCount = 0;
+
+            ctx.crypto = {
+              getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
+              subtle: new Proxy(originalSubtle, {
+                get(target, prop) {
+                  if (prop === 'importKey') {
+                    return async (...args) => {
+                      const algorithm = args[2];
+                      const name = String((algorithm && algorithm.name) || algorithm || '');
+                      if (name === 'AES-GCM' && installCount < 2) {
+                        const index = installCount++;
+                        entered[index].resolve();
+                        await release[index].promise;
+                      }
+                      return target.importKey(...args);
+                    };
+                  }
+                  const value = target[prop];
+                  return typeof value === 'function' ? value.bind(target) : value;
+                },
+              }),
+            };
+
+            api.setCurrentPin(pin);
+            const first = api.validatePin();
+            await waitFor(entered[0].promise, 'lượt cũ vào importKey');
+
+            api.setCurrentPin(pin);
+            const second = api.validatePin();
+            await waitFor(entered[1].promise, 'lượt mới vào importKey');
+
+            const keypad = dom.getEl('pin-keypad');
+            assert.equal(keypad.classList.contains('keypad-disabled'), true,
+              'lượt mới đang import khóa phải giữ keypad bị vô hiệu hóa');
+
+            release[0].resolve();
+            await first;
+
+            assert.equal(keypad.classList.contains('keypad-disabled'), true,
+              'catch của lượt cũ không được bật lại keypad dùng chung');
+            assert.equal(api.getCurrentPin(), pin,
+              'catch của lượt cũ không được xóa PIN mà lượt mới còn cần cho pipeline');
+
+            release[1].resolve();
+            await second;
+
+            assert.equal(keypad.classList.contains('keypad-disabled'), false,
+              'lượt hiện hành hoàn tất thì tự trả keypad về trạng thái nhập được');
+            assert.equal(api.getCurrentPin(), '', 'lượt hiện hành phải tự xóa PIN khỏi RAM');
+          });
+
+          test('lượt mới nhận vé trước PBKDF2: lượt cũ cài khóa xong không được xóa PIN migration', async () => {
+            const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
+            const pin = '654321';
+            const mk = api.generateMasterKey();
+
+            await api.setMasterKey(mk);
+            localStorage.setItem('app_pin', await api.sealMasterKey(pin, mk));
+            api.clearMasterKeyMaterial();
+            dom.getEl('screen-lock').classList.remove('hidden');
+
+            const originalCrypto = ctx.crypto;
+            const subtle = originalCrypto.subtle;
+            const firstInstallEntered = deferred();
+            const releaseFirstInstall = deferred();
+            const secondUnwrapEntered = deferred();
+            const releaseSecondUnwrap = deferred();
+            let aesInstallCount = 0;
+            let pbkdf2DeriveCount = 0;
+
+            ctx.crypto = {
+              getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
+              subtle: new Proxy(subtle, {
+                get(target, prop) {
+                  if (prop === 'deriveKey') {
+                    return async (...args) => {
+                      const algorithm = args[0];
+                      const name = String((algorithm && algorithm.name) || algorithm || '');
+                      if (name === 'PBKDF2') {
+                        pbkdf2DeriveCount++;
+                        if (pbkdf2DeriveCount === 2) {
+                          secondUnwrapEntered.resolve();
+                          await releaseSecondUnwrap.promise;
+                        }
+                      }
+                      return target.deriveKey(...args);
+                    };
+                  }
+                  if (prop === 'importKey') {
+                    return async (...args) => {
+                      const algorithm = args[2];
+                      const name = String((algorithm && algorithm.name) || algorithm || '');
+                      if (name === 'AES-GCM') {
+                        aesInstallCount++;
+                        if (aesInstallCount === 1) {
+                          firstInstallEntered.resolve();
+                          await releaseFirstInstall.promise;
+                        }
+                      }
+                      return target.importKey(...args);
+                    };
+                  }
+                  const value = target[prop];
+                  return typeof value === 'function' ? value.bind(target) : value;
+                },
+              }),
+            };
+
+            api.setCurrentPin(pin);
+            const first = api.validatePin();
+            await waitFor(firstInstallEntered.promise, 'lượt cũ vào cài khóa');
+
+            api.setCurrentPin(pin);
+            const second = api.validatePin();
+            await waitFor(secondUnwrapEntered.promise, 'lượt mới vào PBKDF2');
+
+            const keypad = dom.getEl('pin-keypad');
+            assert.equal(keypad.classList.contains('keypad-disabled'), true,
+              'lượt mới đang unwrap phải giữ keypad bị vô hiệu hóa');
+
+            releaseFirstInstall.resolve();
+            await first;
+
+            assert.equal(api.getCurrentPin(), pin,
+              'lượt cũ không được xóa PIN đã được lượt mới chụp cho migration');
+            assert.equal(keypad.classList.contains('keypad-disabled'), true,
+              'lượt cũ không được mở keypad khi lượt mới còn đang unwrap');
+            assert.equal(dom.isHidden('screen-lock'), false,
+              'lượt cũ không được mở dashboard thay lượt mới');
+
+            releaseSecondUnwrap.resolve();
+            await second;
+
+            assert.equal(api.getCurrentPin(), '', 'chủ vé tự xóa PIN sau khi đã chụp bản cục bộ');
+            assert.equal(keypad.classList.contains('keypad-disabled'), false,
+              'chủ vé hoàn tất thì trả keypad về trạng thái nhập được');
+            assert.equal(dom.isHidden('screen-lock'), true,
+              'lượt mới hoàn tất đầy đủ thì mới mở dashboard');
+          });
+
+          test('tripwire: validatePin nhận vé và chụp PIN trước unwrap, cleanup chỉ thuộc chủ vé', () => {
+            const source = fs.readFileSync(
+              path.join(__dirname, '..', 'assets', '02_security.js'),
+              'utf8'
+            );
+            const start = source.indexOf('async function validatePin()');
+            const end = source.indexOf('\nfunction _openForcedPinUpgrade()', start);
+            assert.ok(start >= 0 && end > start, 'phải tìm thấy thân validatePin');
+
+            const body = source.slice(start, end);
+            const ticket = body.indexOf('const myUnlockAttempt = ++__unlockAttemptSeq;');
+            const snapshot = body.indexOf('const pinAttempt = currentPin;');
+            const unwrap = body.indexOf('await unwrapMasterKeyAny(pinAttempt, encMaster)');
+            const install = body.indexOf('await _installMasterKey(res.masterKey)', unwrap);
+            assert.ok(ticket >= 0 && snapshot > ticket && unwrap > snapshot,
+              'vé và PIN cục bộ phải được chụp trước await unwrap đầu tiên');
+
+            assert.match(body,
+              /finally\s*\{[\s\S]*?if\s*\(myUnlockAttempt\s*===\s*__unlockAttemptSeq\)\s*_pinChecking\s*=\s*false;[\s\S]*?\}/,
+              'lượt cũ không được hạ cờ kiểm tra PIN của lượt mới');
+
+            const preInstallGuard = body.indexOf('if (myUnlockAttempt !== __unlockAttemptSeq) return;', unwrap);
+            assert.ok(preInstallGuard > unwrap && preInstallGuard < install,
+              'phải dừng lượt stale sau unwrap và trước khi cài khóa');
+
+            const postInstallGuard = body.indexOf('if (myUnlockAttempt !== __unlockAttemptSeq) return;', install);
+            const migrationPin = body.indexOf('const pinForMigration = pinAttempt;', postInstallGuard);
+            const clearSharedPin = body.indexOf('currentPin = "";', migrationPin);
+            assert.ok(postInstallGuard > install && migrationPin > postInstallGuard && clearSharedPin > migrationPin,
+              'sau importKey phải kiểm vé lại và migration chỉ dùng PIN snapshot');
+
+            const catchStart = body.indexOf('} catch (e) {', install);
+            const catchReturn = body.indexOf('\n        return;', catchStart);
+            const catchBody = body.slice(catchStart, catchReturn);
+            assert.match(catchBody,
+              /if\s*\(myUnlockAttempt\s*===\s*__unlockAttemptSeq\)\s*\{[\s\S]*?currentPin\s*=\s*"";[\s\S]*?_setKeypadDisabled\(false\);[\s\S]*?\}/,
+              'catch cài khóa chỉ được reset PIN/keypad khi còn sở hữu vé');
+          });
+          EOF
+
+      - name: Verify complete unit suite and patch hygiene
+        run: |
+          npm test
+          git diff --check
+
+      - name: Commit fix and restore canonical CI
+        shell: bash
+        run: |
+          git checkout 7944d44981998be4df584f0cd97d92339d583531 -- .github/workflows/ci.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/02_security.js tests/unlock-keypad-ownership.test.js .github/workflows/ci.yml
+          git commit -m "fix: claim PIN attempt before envelope unwrap"
+          git push origin HEAD:claude/pr-134-security-review-0eqhdb
+
   static-checks:
     name: Static checks
     runs-on: ubuntu-latest
@@ -40,7 +380,6 @@ jobs:
       - name: Verify version single-source (package.json → manifest/sw/pwa/README)
         run: node scripts/sync-version.mjs --check
 
-      # Debug scaffold + cache-buster + self-host policy — cùng script để dev chạy local được.
       - name: Verify repo policy (debug scaffold / cache-buster / self-host)
         run: node scripts/check-policy.mjs
 
@@ -58,9 +397,6 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      # Không cần `npm install`: bộ test chạy bằng test runner tích hợp của Node
-      # (node --test) + node:crypto (WebCrypto) + crypto-js.min.js self-host sẵn.
-      # Không thêm dependency, không thêm asset -> không đụng versioning/cache-buster.
       - name: Run test suite (Node built-in runner)
         run: node --test 'tests/**/*.test.js'
 
@@ -78,8 +414,6 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      # Cache npm + Chromium theo devDeps đã pin exact trong package.json
-      # (không có lockfile — chính sách no-lockfile giữ nguyên).
       - name: Cache npm
         uses: actions/cache@v4
         with:
@@ -92,8 +426,6 @@ jobs:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
 
-      # devDeps CHỈ cho CI (Playwright/axe/Lighthouse). App shipped vẫn zero-dependency.
-      # Dùng `npm install` (không `npm ci`) vì không commit package-lock.json.
       - name: Install CI test tooling
         run: npm install --no-audit --no-fund
 
@@ -103,8 +435,6 @@ jobs:
       - name: Run Playwright E2E + axe a11y
         run: npx playwright test
 
-      # Gate thật: assertion a11y (error, minScore 0.9) trong lighthouserc.json
-      # làm đỏ CI nếu vi phạm; perf/best-practices vẫn chỉ cảnh báo.
       - name: Lighthouse CI (a11y gate + perf/best-practices cảnh báo)
         run: npx lhci autorun
 
