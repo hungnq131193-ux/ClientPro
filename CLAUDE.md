@@ -413,6 +413,16 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
   sites: `_installMasterKey`, `decryptFieldAsync`, `primeFieldCache`,
   `runEmployeeIdSealMigrationIfNeeded`, and the batch loop in
   `primeCustomerSummaryCache` (`05_customers.js`).
+- On a stale generation `decryptFieldAsync` returns the **ciphertext**, not the
+  plaintext: handing plaintext back to an old caller lets it repopulate
+  `__custSummaryCache` / `__custSearchBlobCache` after they were cleared, and every
+  render path already blocks ciphertext via `_looksEncrypted`. It also deletes only
+  its **own** entry from `__fieldDecryptPending` (identity check), so a promise from
+  a dead session cannot evict the one a newly unlocked session created.
+- These guards live in `02_security.js` and nowhere else. Do not install them by
+  overwriting `decryptFieldAsync` (or any crypto function) from another module: the
+  copy in `02_security.js` would become dead code, and a conditional patch can
+  silently fail to apply, leaving no guard and no test failure.
 
 ### Primary files
 `assets/02_security.js`; the helpers `_looksEncrypted`, `_displayPlain`,

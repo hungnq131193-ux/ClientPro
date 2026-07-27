@@ -456,16 +456,24 @@ async function decryptFieldAsync(cipher) {
   let pending = __fieldDecryptPending.get(s);
   if (!pending) {
     const gen = __keyGeneration;
-    pending = _gcmDecryptField(s).then((pt) => {
-      // Khóa/thu hồi xảy ra giữa lúc giải mã: không nạp plaintext trở lại cache
-      // của phiên vừa bị xóa (clearMasterKeyMaterial đã clear cache trước đó).
-      if (gen === __keyGeneration) __fieldPlainCache.set(s, pt);
-      __fieldDecryptPending.delete(s);
+    let ownPromise;
+    ownPromise = _gcmDecryptField(s).then((pt) => {
+      // Khóa/thu hồi xảy ra giữa lúc giải mã: KHÔNG nạp plaintext trở lại cache
+      // của phiên vừa bị xóa, và cũng không trả plaintext cho caller — caller cũ
+      // (vd _ensureSummaryDecryptedAsync, 05_customers.js) sẽ ghi tiếp giá trị đó
+      // vào __custSummaryCache/__custSearchBlobCache mà clearMasterKeyMaterial()
+      // vừa dọn sạch. Trả nguyên ciphertext: mọi đường render đã chặn ciphertext
+      // bằng _looksEncrypted và hiện placeholder.
+      if (gen !== __keyGeneration) return s;
+      __fieldPlainCache.set(s, pt);
       return pt;
-    }).catch(() => {
-      __fieldDecryptPending.delete(s);
-      return s;
+    }).catch(() => s).finally(() => {
+      // Chỉ dọn entry pending CỦA CHÍNH MÌNH: phiên mở khóa mới có thể đã tạo
+      // pending khác cho cùng ciphertext, xóa nhầm nó là bỏ dedupe và để lại một
+      // promise không ai theo dõi.
+      if (__fieldDecryptPending.get(s) === ownPromise) __fieldDecryptPending.delete(s);
     });
+    pending = ownPromise;
     __fieldDecryptPending.set(s, pending);
   }
   return pending;

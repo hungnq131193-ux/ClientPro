@@ -132,6 +132,10 @@ function loadSecurity() {
       _gcmDecryptField,
       primeFieldCache,
       resetFieldCache: () => __fieldPlainCache.clear(),
+      fieldCacheSize: () => __fieldPlainCache.size,
+      // Map dedupe decrypt: test race thế hệ khóa cần so khớp ĐÚNG promise entry.
+      getPendingDecrypt: (s) => __fieldDecryptPending.get(s),
+      hasPendingDecrypt: (s) => __fieldDecryptPending.has(s),
       runFieldCryptoMigrationIfNeeded,
       _reencryptRecord,
       encryptBackupPayload,

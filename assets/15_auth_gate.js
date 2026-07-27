@@ -8,52 +8,6 @@
 (function () {
   "use strict";
 
-  // Guard kết quả giải mã theo thế hệ khóa. Promise thuộc phiên cũ không được trả
-  // plaintext cho caller (caller có thể ghi tiếp vào cache KH/tìm kiếm sau khi
-  // clearMasterKeyMaterial() vừa xóa sạch RAM). Đồng thời Promise cũ chỉ được xóa
-  // chính entry pending của nó, không xóa nhầm Promise của phiên mở khóa mới.
-  try {
-    if (typeof decryptFieldAsync === "function"
-      && typeof __keyGeneration !== "undefined"
-      && typeof __fieldPlainCache !== "undefined"
-      && typeof __fieldDecryptPending !== "undefined"
-      && !window.__decryptFieldGenerationGuardV2) {
-      decryptFieldAsync = async function decryptFieldAsyncGuarded(cipher) {
-        if (cipher === undefined || cipher === null) return cipher;
-        const s = String(cipher);
-        if (!s.startsWith(GCM_PREFIX)) return decryptText(s);
-        const hit = __fieldPlainCache.get(s);
-        if (hit !== undefined) return hit;
-
-        let pending = __fieldDecryptPending.get(s);
-        if (!pending) {
-          const gen = __keyGeneration;
-          let ownPromise;
-          ownPromise = _gcmDecryptField(s)
-            .then((pt) => {
-              // Khóa/thu hồi xảy ra giữa await: tuyệt đối không trả plaintext cho
-              // caller cũ, vì caller có thể repopulate cache khác sau khi lock.
-              if (gen !== __keyGeneration) return s;
-              __fieldPlainCache.set(s, pt);
-              return pt;
-            })
-            .catch(() => s)
-            .finally(() => {
-              // Phiên mới có thể đã tạo pending khác cho cùng ciphertext. Promise
-              // cũ không được xóa entry mới đó.
-              if (__fieldDecryptPending.get(s) === ownPromise) {
-                __fieldDecryptPending.delete(s);
-              }
-            });
-          pending = ownPromise;
-          __fieldDecryptPending.set(s, pending);
-        }
-        return pending;
-      };
-      window.__decryptFieldGenerationGuardV2 = true;
-    }
-  } catch (e) {}
-
   const AUTH_GATE_LAST_OK_TS = "app_auth_gate_last_ok_ts";
   const AUTH_GATE_LAST_MSG = "app_auth_gate_last_msg";
   const AUTH_GATE_COOLDOWN_UNTIL = "app_auth_gate_cooldown_until";
