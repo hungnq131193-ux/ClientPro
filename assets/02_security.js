@@ -91,6 +91,13 @@ async function _readSealedEmployeeIdAsync() {
  */
 async function runEmployeeIdSealMigrationIfNeeded() {
   if (!masterCryptoKey) return;
+  // Khi legacy migration chưa commit xong, plaintext mã NV là nguồn recovery
+  // DUY NHẤT để dựng/kiểm SEC_STAGE ở lần retry. Không được seal+xóa nó sớm.
+  const migrationSchemaDone = localStorage.getItem(SCHEMA_KEY) === "2";
+  const legacyPinStillActive = isLegacyEnvelope(localStorage.getItem(PIN_KEY));
+  const migrationStagePending = !!(localStorage.getItem(PIN_STAGE) || localStorage.getItem(SEC_STAGE));
+  if (!migrationSchemaDone
+    && (legacyPinStillActive || migrationStagePending || __legacyMigrationUnfinished)) return;
   // Mã NV là secret khôi phục masterKey -> cũng phải theo thế hệ khóa: khóa/thu hồi
   // xen giữa các await dưới đây thì không được nạp lại nó vào RAM.
   const gen = __keyGeneration;

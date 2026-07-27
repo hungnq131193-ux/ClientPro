@@ -17,6 +17,29 @@ const SEALED_KEY = 'app_employee_id_sealed_v1';
 const SEC_KEY = 'app_sec_qa';
 const EMP = 'NV001';
 
+test('legacy migration chưa finalize phải giữ plaintext recovery identity để retry', async () => {
+  const { api, localStorage } = loadSecurity();
+  localStorage.setItem(PLAIN_KEY, EMP);
+  localStorage.setItem('app_pin', 'legacy-pin-envelope');
+  localStorage.setItem('app_pin_v2_stage', '{"v":2,"pending":true}');
+  await api.setMasterKey(api.generateMasterKey());
+
+  await api.runEmployeeIdSealMigrationIfNeeded();
+
+  assert.equal(localStorage.getItem(PLAIN_KEY), EMP,
+    'PIN còn legacy/stage còn pending thì phải giữ identity plaintext cho lần retry');
+  assert.equal(localStorage.getItem(SEALED_KEY), null,
+    'không được seal dưới MK2 chưa được PIN_KEY commit');
+
+  localStorage.setItem('app_crypto_schema_v', '2');
+  localStorage.removeItem('app_pin_v2_stage');
+  await api.runEmployeeIdSealMigrationIfNeeded();
+
+  assert.equal(localStorage.getItem(PLAIN_KEY), null,
+    'sau finalize schema mới được xóa plaintext');
+  assert.ok(localStorage.getItem(SEALED_KEY));
+});
+
 test('migration: seal plaintext -> xóa plaintext, RAM + sealed đọc lại đúng', async () => {
   const { api, localStorage } = loadSecurity();
   localStorage.setItem(PLAIN_KEY, EMP);
