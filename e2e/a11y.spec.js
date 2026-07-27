@@ -43,7 +43,7 @@ test('axe: màn hình chính + modal thêm khách hàng không có vi phạm CRI
     localStorage.setItem('app_employee_id', 'TEST');
     localStorage.setItem('app_pin', env);
     localStorage.setItem('app_crypto_schema_v', '2');
-    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 4, completedAt: Date.now() }));
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 5, completedAt: Date.now() }));
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
@@ -74,7 +74,7 @@ test('axe: danh sách KH + hồ sơ + PDF Toolkit + Tra cứu ĐVHC không có v
     localStorage.setItem('app_employee_id', 'TEST');
     localStorage.setItem('app_pin', env);
     localStorage.setItem('app_crypto_schema_v', '2');
-    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 4, completedAt: Date.now() }));
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 5, completedAt: Date.now() }));
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
