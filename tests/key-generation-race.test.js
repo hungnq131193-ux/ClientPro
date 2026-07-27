@@ -82,7 +82,14 @@ test('khóa xen giữa importKey: KHÔNG hồi sinh masterCryptoKey', async () =
     getRandomValues: ctx.crypto.getRandomValues.bind(ctx.crypto),
   };
 
-  await api.setMasterKey(api.generateMasterKey());
+  // FAIL-CLOSED: cài khóa cho một phiên đã chết phải BÁO LỖI, không im lặng trả về —
+  // caller (saveSecuritySetup/checkRecovery) không được phép tưởng khóa đã cài rồi
+  // niêm phong PIN_KEY/SEC_KEY bằng masterKey rỗng.
+  await assert.rejects(
+    api.setMasterKey(api.generateMasterKey()),
+    /STALE_KEY_GENERATION/,
+    '_installMasterKey phải throw khi thế hệ khóa đổi giữa lúc importKey'
+  );
 
   const st = api.getState();
   assert.equal(st.mk, null, 'masterKey phải ở trạng thái đã xóa');

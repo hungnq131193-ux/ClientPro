@@ -542,6 +542,14 @@ function generateMasterKey() {
  * Cài masterKey vào phiên: set sentinel + dựng key phái sinh. Thay cho `masterKey = ...` trực tiếp.
  * - "MK2:..." -> import AES-GCM CryptoKey (non-extractable) sẵn cho encrypt/decrypt field.
  * - "mk_..."  -> giữ làm masterKeyLegacy để đọc dữ liệu cũ + kích hoạt migration.
+ *
+ * FAIL-CLOSED: nếu thế hệ khóa đổi giữa lúc importKey đang await (auto-lock 60s,
+ * lockApp, revokeUnlockedSession, hoặc một _installMasterKey khác), hàm THROW
+ * STALE_KEY_GENERATION thay vì return im lặng. Trả về bình thường sẽ khiến caller
+ * tưởng khóa đã cài và chạy tiếp với masterKey=null — đường nguy hiểm nhất là
+ * saveSecuritySetup/checkRecovery seal PIN_KEY/SEC_KEY bằng "null", ghi đè envelope
+ * DUY NHẤT mở được dữ liệu. Mọi caller phải bắt lỗi và dừng TRƯỚC khi ghi envelope,
+ * chạy pipeline unlock hoặc đổi UI (xem CLAUDE.md · Unlock lifecycle).
  */
 async function _installMasterKey(mkStr) {
   // Mở một "thế hệ khóa" mới: mọi công việc bất đồng bộ bắt đầu từ thế hệ trước
@@ -555,9 +563,11 @@ async function _installMasterKey(mkStr) {
     const key = await crypto.subtle.importKey("raw", bytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
     // lockApp()/revokeUnlockedSession() xảy ra GIỮA await importKey: gán tiếp là
     // hồi sinh khóa cho một phiên đã bị khóa/thu hồi. Bỏ kết quả, xóa bytes vừa dựng.
+    // KHÔNG chạm masterKey/masterCryptoKey: phiên mới (hoặc clearMasterKeyMaterial)
+    // đã sở hữu chúng, ghi đè ở đây là phá đúng phiên đang hợp lệ.
     if (gen !== __keyGeneration) {
       try { bytes.fill(0); } catch (e) {}
-      return;
+      throw new Error("STALE_KEY_GENERATION");
     }
     masterKeyBytes = bytes;
     masterCryptoKey = key;
@@ -567,6 +577,11 @@ async function _installMasterKey(mkStr) {
     masterKeyBytes = null;
     masterCryptoKey = null;
   }
+}
+
+/** Nhận diện lỗi "thế hệ khóa đã đổi giữa chừng" ở phía caller. */
+function _isStaleKeyInstall(e) {
+  return !!e && String((e && e.message) || e) === "STALE_KEY_GENERATION";
 }
 
 /** Xóa mọi vết khóa + plaintext khỏi RAM khi khóa app / ẩn tab (giới hạn tuổi thọ). */
@@ -1717,23 +1732,70 @@ async function saveSecuritySetup() {
     }
   }
   /* * Thiết lập bảo mật v2: * - Sinh masterKey nếu chưa tồn tại * - Niêm phong masterKey bằng PBKDF2 + AES-GCM với 2 secret: PIN 6 số (mở khóa hằng ngày) và mã nhân viên (khôi phục) */
+  // CHỐT CHẶN CUỐI chống mất dữ liệu: sinh masterKey MỚI chỉ hợp lệ khi máy chưa có
+  // envelope nào. Nếu PIN_KEY/SEC_KEY đã tồn tại mà phiên lại không có masterKey thì
+  // đường vào đây là sai (auto-lock rơi giữa unlock/khôi phục, hoặc modal thiết lập
+  // mở trên phiên đã chết) — seal khóa mới sẽ đè envelope duy nhất mở được dữ liệu.
+  // Mọi đường hợp lệ (thiết lập lần đầu, nâng cấp PIN 4->6, sau checkRecovery, sau
+  // tái kích hoạt) đều đã có masterKey trong phiên.
+  if (!masterKey && (localStorage.getItem(PIN_KEY) || localStorage.getItem(SEC_KEY))) {
+    ErrorHandler.showError('AUTH', "Phiên đã kết thúc. Vui lòng mở khóa bằng PIN (hoặc dùng Quên PIN) rồi đặt lại mã PIN.");
+    return;
+  }
   // Nếu masterKey chưa sinh (lần đầu thiết lập), tạo mới bằng CSPRNG (MK2)
   if (!masterKey) {
     masterKey = generateMasterKey();
   }
+  // Chốt khóa sẽ được niêm phong NGAY BÂY GIỜ. Mọi lệnh seal bên dưới dùng biến cục
+  // bộ này, không đọc lại global sau await: auto-lock có thể đã đặt masterKey=null và
+  // sealMasterKey(pin, null) ghi đè PIN_KEY bằng envelope chứa chuỗi "null".
+  const mkForSetup = masterKey;
   // Dựng key GCM cho phiên (fresh install), hoặc giữ nguyên nếu đã cài từ unlock/recovery.
-  await _installMasterKey(masterKey);
-  // Mã NV: giữ RAM + seal dưới masterKey; xóa bản plaintext tạm của cửa sổ kích hoạt.
-  __employeeIdPlain = ans;
   try {
-    if (await _writeSealedEmployeeId(ans)) localStorage.removeItem(EMPLOYEE_KEY);
+    await _installMasterKey(mkForSetup);
+  } catch (e) {
+    // Phiên đã bị khóa/thu hồi giữa lúc dựng khóa: DỪNG trước mọi lệnh ghi envelope.
+    // Modal thiết lập giữ nguyên để người dùng mở khóa lại rồi thử lại.
+    try { ErrorHandler.logError("setup-install-key", e); } catch (_) {}
+    if (_isStaleKeyInstall(e)) {
+      ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc thiết lập. Vui lòng mở khóa lại rồi lưu thiết lập.");
+    } else {
+      ErrorHandler.showError('STORAGE', "Không dựng được khóa bảo mật. Vui lòng thử lại.");
+    }
+    return;
+  }
+  const setupGeneration = __keyGeneration;
+  // Phiên còn đúng khóa vừa cài? PHẢI kiểm lại ngay trước MỖI lệnh ghi envelope —
+  // giữa _installMasterKey và hai lệnh seal còn một await (_writeSealedEmployeeId).
+  const setupKeyAlive = () => setupGeneration === __keyGeneration && masterKey === mkForSetup;
+  // Mã NV: seal dưới masterKey TRƯỚC, chỉ nạp lại vào RAM sau khi chắc phiên còn sống —
+  // mã NV là secret khôi phục, gán nó sau khi clearMasterKeyMaterial() vừa dọn RAM là
+  // hồi sinh secret cho một phiên đã khóa/thu hồi.
+  let sealedEmp = false;
+  try {
+    sealedEmp = await _writeSealedEmployeeId(ans);
   } catch (e) {}
+  if (!setupKeyAlive()) {
+    ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc thiết lập. Vui lòng mở khóa lại rồi lưu thiết lập.");
+    return;
+  }
+  __employeeIdPlain = ans;
+  if (sealedEmp) localStorage.removeItem(EMPLOYEE_KEY);
   const btn = getEl("setup-save-btn");
   const btnLabel = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Đang mã hóa..."; }
   try {
-    localStorage.setItem(PIN_KEY, await sealMasterKey(pin, masterKey));
-    localStorage.setItem(SEC_KEY, await sealMasterKey(ans, masterKey));
+    const pinEnvelope = await sealMasterKey(pin, mkForSetup);
+    const secEnvelope = await sealMasterKey(ans, mkForSetup);
+    // Kiểm LẦN CUỐI sau await sealMasterKey: hai envelope đã dựng xong trong RAM,
+    // chỉ ghi khi phiên vẫn là phiên đã sinh ra chúng. Ghi một nửa cũng không được:
+    // PIN_KEY và SEC_KEY phải luôn niêm phong CÙNG một masterKey.
+    if (!setupKeyAlive()) {
+      ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc thiết lập. Vui lòng mở khóa lại rồi lưu thiết lập.");
+      return;
+    }
+    localStorage.setItem(PIN_KEY, pinEnvelope);
+    localStorage.setItem(SEC_KEY, secEnvelope);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
   }
@@ -1819,7 +1881,18 @@ async function validatePin() {
   }
   if (res && res.masterKey) {
     // Giải mã thành công: cài masterKey (dựng key GCM) — giữ lock đến khi load xong dữ liệu
-    await _installMasterKey(res.masterKey);
+    try {
+      await _installMasterKey(res.masterKey);
+    } catch (e) {
+      // Auto-lock (60s ẩn) / thu hồi xen vào GIỮA importKey: phiên này không có khóa.
+      // Không mở khóa, không chạy pipeline, GIỮ NGUYÊN màn khóa; PIN nhập đúng nên
+      // không tính là lần sai. Trả bàn phím lại để người dùng nhập lại ngay.
+      try { ErrorHandler.logError("unlock-install-key", e); } catch (_) {}
+      currentPin = "";
+      updatePinDots();
+      _setKeypadDisabled(false);
+      return;
+    }
     const pinForMigration = currentPin;
     // Máy legacy chưa migrate vẫn còn plaintext; máy đã migrate trả "" (migration
     // legacy khi đó là no-op nên không cần mã NV).
@@ -1879,10 +1952,29 @@ async function checkRecovery() {
   if (res && res.masterKey) {
     // Khôi phục masterKey (cài key GCM/legacy) và cho phép đặt lại PIN 6 số.
     // Migration (nếu dữ liệu còn CryptoJS) sẽ chạy trong saveSecuritySetup dưới PIN mới.
-    await _installMasterKey(res.masterKey);
-    // Mã NV vừa xác thực đúng: giữ RAM + seal (không persist plaintext).
-    __employeeIdPlain = input;
+    try {
+      await _installMasterKey(res.masterKey);
+    } catch (e) {
+      // Phiên chết giữa importKey: KHÔNG mở modal đặt PIN mới. saveSecuritySetup khi
+      // đó thấy masterKey rỗng sẽ sinh masterKey MỚI và niêm phong đè PIN_KEY/SEC_KEY
+      // — dữ liệu cũ mất vĩnh viễn. Giữ nguyên màn khóa + modal khôi phục để thử lại.
+      try { ErrorHandler.logError("recovery-install-key", e); } catch (_) {}
+      ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc khôi phục. Vui lòng thử lại.");
+      return;
+    }
+    const recoveryGeneration = __keyGeneration;
+    const recoveredKey = res.masterKey;
+    // Mã NV vừa xác thực đúng: seal trước (không persist plaintext), nạp RAM sau khi
+    // chắc phiên còn sống — mã NV là secret khôi phục.
     try { await _writeSealedEmployeeId(input); } catch (e) {}
+    // Auto-lock có thể rơi vào khe await ngay trên. Mở modal đặt PIN mới cho một phiên
+    // đã chết là đường mất dữ liệu: saveSecuritySetup thấy masterKey rỗng sẽ sinh khóa
+    // MỚI và niêm phong đè PIN_KEY/SEC_KEY.
+    if (recoveryGeneration !== __keyGeneration || masterKey !== recoveredKey) {
+      ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc khôi phục. Vui lòng thử lại.");
+      return;
+    }
+    __employeeIdPlain = input;
     resetPinFailures();
     ErrorHandler.showSuccess("Xác thực thành công. Vui lòng tạo PIN mới.");
     closeForgotModal();
@@ -1954,10 +2046,30 @@ async function activateApp() {
         const recovered = await unwrapMasterKeyAny(employeeId, encMaster);
         if (recovered && recovered.masterKey) {
           // Đúng nhân viên cũ: cài masterKey (key GCM/legacy), giữ nguyên dữ liệu
-          await _installMasterKey(recovered.masterKey);
+          const mkForActivation = recovered.masterKey;
+          try {
+            await _installMasterKey(mkForActivation);
+          } catch (e) {
+            // Phiên chết giữa importKey: KHÔNG re-seal SEC_KEY (sealMasterKey với
+            // masterKey rỗng ghi đè envelope khôi phục duy nhất) và KHÔNG mở modal đặt
+            // PIN mới. Dữ liệu + envelope giữ nguyên; người dùng mở lại app để vào bằng PIN.
+            try { ErrorHandler.logError("activate-install-key", e); } catch (_) {}
+            const modalStale = getEl("activation-modal");
+            if (modalStale) modalStale.classList.add("hidden");
+            ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc gia hạn. Vui lòng mở lại ứng dụng.");
+            showLockScreen();
+            return;
+          }
+          const activationGeneration = __keyGeneration;
           // Nhân tiện nâng cấp SEC_KEY lên v2 nếu còn định dạng cũ
           if (recovered.legacy) {
-            try { localStorage.setItem(SEC_KEY, await sealMasterKey(employeeId, masterKey)); } catch (e) { }
+            try {
+              const secEnvelope = await sealMasterKey(employeeId, mkForActivation);
+              // Kiểm sau await: chỉ ghi khi vẫn đúng phiên/khóa vừa cài.
+              if (activationGeneration === __keyGeneration && masterKey === mkForActivation) {
+                localStorage.setItem(SEC_KEY, secEnvelope);
+              }
+            } catch (e) { }
           }
           localStorage.setItem(ACTIVATED_KEY, "true");
           // masterKey đã cài -> không persist plaintext: giữ RAM + seal, dọn bản cũ.

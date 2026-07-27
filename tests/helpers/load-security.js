@@ -36,10 +36,70 @@ function makeLocalStorage() {
 }
 
 /**
- * Nạp 02_security.js và trả về API test.
- * @returns {{ api: object, localStorage: object, ctx: object }}
+ * DOM giả tối thiểu cho các hàm UI của 02_security.js (validatePin, checkRecovery,
+ * saveSecuritySetup): element chỉ cần classList / value / textContent / disabled.
+ * Element được tạo LAZY theo id nên test không phải khai báo trước danh sách id.
  */
-function loadSecurity() {
+function makeFakeDom() {
+  const els = new Map();
+  function makeEl(id) {
+    const classes = new Set();
+    // Lịch sử đổi class: test cần chứng minh một bước UI KHÔNG BAO GIỜ chạy
+    // (vd. panel "Đang tải dữ liệu..." của pipeline unlock), không chỉ trạng thái cuối.
+    const log = [];
+    return {
+      id,
+      value: '',
+      textContent: '',
+      disabled: false,
+      offsetWidth: 0,
+      classList: {
+        add: (...c) => c.forEach((x) => { classes.add(x); log.push(['add', x]); }),
+        remove: (...c) => c.forEach((x) => { classes.delete(x); log.push(['remove', x]); }),
+        contains: (c) => classes.has(c),
+        toggle: (c, force) => {
+          const on = (force === undefined) ? !classes.has(c) : !!force;
+          if (on) classes.add(c); else classes.delete(c);
+          log.push([on ? 'add' : 'remove', c]);
+          return on;
+        },
+      },
+      _classes: classes,
+      _log: log,
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      focus: () => {},
+    };
+  }
+  const getEl = (id) => {
+    if (!els.has(id)) els.set(id, makeEl(id));
+    return els.get(id);
+  };
+  /** true nếu element đang mang class 'hidden' (contract ẩn/hiện của app). */
+  const isHidden = (id) => getEl(id).classList.contains('hidden');
+  const document = {
+    getElementById: getEl,
+    body: {},
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => true,
+  };
+  return { els, getEl, isHidden, document };
+}
+
+/**
+ * Nạp 02_security.js và trả về API test.
+ * @param {{dom?: boolean}} [opts] - `dom: true` cấp DOM giả (mặc định giữ nguyên
+ *   hành vi cũ: getEl() trả null) để không đổi hành vi của các test đã có.
+ * @returns {{ api: object, localStorage: object, ctx: object, dom: object|null }}
+ */
+function loadSecurity(opts) {
+  const useDom = !!(opts && opts.dom);
+  const dom = useDom ? makeFakeDom() : null;
   const localStorage = makeLocalStorage();
 
   // Stub tối thiểu cho các global chỉ được dùng KHI GỌI (không phải lúc load).
@@ -84,8 +144,8 @@ function loadSecurity() {
     DB_NAME: 'QLKH_Pro_V4',
     db: null,                 // gán qua api.setDb(makeFakeDb(...)) khi test migration/prime
     queueMicrotask: (fn) => Promise.resolve().then(fn),
-    getEl: () => null,
-    document: { getElementById: () => null, body: {}, querySelector: () => null, querySelectorAll: () => [] },
+    getEl: dom ? dom.getEl : () => null,
+    document: dom ? dom.document : { getElementById: () => null, body: {}, querySelector: () => null, querySelectorAll: () => [] },
     ErrorHandler: errorHandlerStub,
     window: { ErrorHandler: errorHandlerStub },
     setInterval: () => 0,
@@ -176,11 +236,21 @@ function loadSecurity() {
       isLegacyMigrationUnfinished: () => __legacyMigrationUnfinished,
       saveSecuritySetup,
       completeUnlockDataLoad,
+      // Đường UI mở khóa/khôi phục/kích hoạt — test race cần loadSecurity({dom:true}).
+      validatePin,
+      checkRecovery,
+      activateApp,
+      showLockScreen,
+      _setKeypadDisabled,
+      _isStaleKeyInstall,
+      setCurrentPin: (v) => { currentPin = String(v); },
+      getCurrentPin: () => currentPin,
+      getPinFailures: () => _readLockout(),
     };
   `;
 
   vm.runInContext(src + '\n' + epilogue, ctx, { filename: 'assets/02_security.js' });
-  return { api: ctx.__api, localStorage, ctx };
+  return { api: ctx.__api, localStorage, ctx, dom };
 }
 
 /**
