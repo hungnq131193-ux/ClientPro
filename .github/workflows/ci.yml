@@ -17,229 +17,98 @@ jobs:
     name: Static checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
+
       - name: Validate JSON files
         run: |
           python3 -m json.tool manifest.json > /dev/null
-          python3 -m json.tool vercel.json > /dev/null
+          python3 -m json.tool vercel.json  > /dev/null
+
       - name: Check JavaScript syntax
         run: |
           node --check sw.js
           find assets scripts -name '*.js' -o -name '*.mjs' | xargs -n1 node --check
-      - name: Verify version single-source
+
+      - name: Verify version single-source (package.json → manifest/sw/pwa/README)
         run: node scripts/sync-version.mjs --check
-      - name: Verify repo policy
+
+      # Debug scaffold + cache-buster + self-host policy — cùng script để dev chạy local được.
+      - name: Verify repo policy (debug scaffold / cache-buster / self-host)
         run: node scripts/check-policy.mjs
 
   tests:
     name: Automated tests (crypto & data integrity)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-      - name: Run test suite
+
+      # Không cần `npm install`: bộ test chạy bằng test runner tích hợp của Node
+      # (node --test) + node:crypto (WebCrypto) + crypto-js.min.js self-host sẵn.
+      # Không thêm dependency, không thêm asset -> không đụng versioning/cache-buster.
+      - name: Run test suite (Node built-in runner)
         run: node --test 'tests/**/*.test.js'
-
-  apply-pipeline-takeover-fix:
-    name: Apply verified pipeline takeover fix
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-      - name: Apply inherited-key invalidation and regression test
-        shell: bash
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          security = Path('assets/02_security.js')
-          text = security.read_text(encoding='utf-8')
-          old = '''  const myUnlockAttempt = ++__unlockAttemptSeq;
-            const pinAttempt = currentPin;
-            const encMaster = localStorage.getItem(PIN_KEY);'''.replace('          ', '')
-          new = '''  const myUnlockAttempt = ++__unlockAttemptSeq;
-            const pinAttempt = currentPin;
-            // Lượt mới tiếp quản cổng PIN: mọi vật liệu khóa đang sống thuộc lượt/phiên
-            // trước. Vô hiệu hóa đồng bộ trước await unwrap để pipeline cũ dừng ngay và
-            // PIN sai của lượt mới không thể để khóa cũ sống phía sau màn hình khóa.
-            if (masterKey || masterCryptoKey || masterKeyLegacy || masterKeyBytes) {
-              clearMasterKeyMaterial();
-            }
-            const encMaster = localStorage.getItem(PIN_KEY);'''.replace('          ', '')
-          if text.count(old) != 1:
-              raise SystemExit(f'validatePin takeover target count={text.count(old)}')
-          security.write_text(text.replace(old, new), encoding='utf-8')
-
-          tests = Path('tests/unlock-keypad-ownership.test.js')
-          t = tests.read_text(encoding='utf-8')
-          marker = "test('tripwire: validatePin nhận vé và chụp PIN trước unwrap, cleanup chỉ thuộc chủ vé', () => {"
-          if t.count(marker) != 1:
-              raise SystemExit(f'tripwire marker count={t.count(marker)}')
-          added = r'''test('lượt mới phải xóa khóa của pipeline cũ ngay khi tiếp quản dù PIN mới sai', async () => {
-            const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
-            const correctPin = '654321';
-            const wrongPin = '111111';
-            const mk = api.generateMasterKey();
-
-            await api.setMasterKey(mk);
-            localStorage.setItem('app_pin', await api.sealMasterKey(correctPin, mk));
-            api.clearMasterKeyMaterial();
-            dom.getEl('screen-lock').classList.remove('hidden');
-            const failuresBefore = api.getPinFailures().fails;
-
-            const pipelineEntered = deferred();
-            const releasePipeline = deferred();
-            ctx.window.__dbReady = {
-              then(resolve, reject) {
-                pipelineEntered.resolve();
-                releasePipeline.promise.then(resolve, reject);
-              },
-            };
-
-            api.setCurrentPin(correctPin);
-            const first = api.validatePin();
-            await waitFor(pipelineEntered.promise, 'pipeline lượt đúng PIN bắt đầu');
-            assert.equal(api.isAppUnlocked(), true, 'tiền đề: lượt cũ đã cài khóa và đang ở pipeline');
-            assert.equal(api.getState().hasGcmKey, true);
-
-            const originalCrypto = ctx.crypto;
-            const subtle = originalCrypto.subtle;
-            const wrongUnwrapEntered = deferred();
-            const releaseWrongUnwrap = deferred();
-            let held = false;
-            ctx.crypto = {
-              getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
-              subtle: new Proxy(subtle, {
-                get(target, prop) {
-                  if (prop === 'deriveKey') {
-                    return async (...args) => {
-                      const algorithm = args[0];
-                      const name = String((algorithm && algorithm.name) || algorithm || '');
-                      if (!held && name === 'PBKDF2') {
-                        held = true;
-                        wrongUnwrapEntered.resolve();
-                        await releaseWrongUnwrap.promise;
-                      }
-                      return target.deriveKey(...args);
-                    };
-                  }
-                  const value = target[prop];
-                  return typeof value === 'function' ? value.bind(target) : value;
-                },
-              }),
-            };
-
-            api.setCurrentPin(wrongPin);
-            const second = api.validatePin();
-            await waitFor(wrongUnwrapEntered.promise, 'lượt sai PIN vào unwrap');
-
-            assert.equal(api.isAppUnlocked(), false,
-              'ngay khi lượt mới tiếp quản, khóa của pipeline cũ phải bị xóa trước await');
-            assert.equal(api.getState().hasGcmKey, false);
-            assert.equal(dom.isHidden('screen-lock'), false);
-
-            releasePipeline.resolve();
-            await first;
-            assert.equal(api.isAppUnlocked(), false,
-              'pipeline cũ tỉnh dậy không được hồi sinh hoặc giữ lại khóa');
-
-            releaseWrongUnwrap.resolve();
-            await second;
-            assert.equal(api.getPinFailures().fails, failuresBefore + 1);
-            assert.equal(api.isAppUnlocked(), false);
-            assert.equal(api.getState().hasGcmKey, false);
-            assert.equal(dom.isHidden('screen-lock'), false);
-          });
-
-          '''.replace('          ', '')
-          t = t.replace(marker, added + marker)
-
-          old_assert = '''  const ticket = body.indexOf('const myUnlockAttempt = ++__unlockAttemptSeq;');
-            const snapshot = body.indexOf('const pinAttempt = currentPin;');
-            const unwrap = body.indexOf('await unwrapMasterKeyAny(pinAttempt, encMaster)');
-            const install = body.indexOf('await _installMasterKey(res.masterKey)', unwrap);
-            assert.ok(ticket >= 0 && snapshot > ticket && unwrap > snapshot,
-              'vé và PIN cục bộ phải được chụp trước await unwrap đầu tiên');'''.replace('          ', '')
-          new_assert = '''  const ticket = body.indexOf('const myUnlockAttempt = ++__unlockAttemptSeq;');
-            const snapshot = body.indexOf('const pinAttempt = currentPin;');
-            const clearInherited = body.indexOf('if (masterKey || masterCryptoKey || masterKeyLegacy || masterKeyBytes)', snapshot);
-            const unwrap = body.indexOf('await unwrapMasterKeyAny(pinAttempt, encMaster)');
-            const install = body.indexOf('await _installMasterKey(res.masterKey)', unwrap);
-            assert.ok(ticket >= 0 && snapshot > ticket && clearInherited > snapshot && unwrap > clearInherited,
-              'vé + PIN phải được chụp và khóa kế thừa phải bị xóa trước await unwrap đầu tiên');
-            const takeoverBlock = body.slice(clearInherited, unwrap);
-            assert.match(takeoverBlock, /clearMasterKeyMaterial\(\);/,
-              'lượt mới phải vô hiệu hóa vật liệu khóa của pipeline cũ ngay khi tiếp quản');'''.replace('          ', '')
-          if t.count(old_assert) != 1:
-              raise SystemExit(f'early tripwire target count={t.count(old_assert)}')
-          tests.write_text(t.replace(old_assert, new_assert), encoding='utf-8')
-          PY
-      - name: Verify full unit suite and patch hygiene
-        run: |
-          node --check assets/02_security.js
-          node --test 'tests/**/*.test.js'
-          git diff --check
-      - name: Commit verified code and tests
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/02_security.js tests/unlock-keypad-ownership.test.js
-          git commit -m "fix: invalidate superseded unlock pipeline"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
   e2e:
     name: E2E + a11y + Lighthouse (Playwright/axe/LHCI)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
+
+      # Cache npm + Chromium theo devDeps đã pin exact trong package.json
+      # (không có lockfile — chính sách no-lockfile giữ nguyên).
       - name: Cache npm
         uses: actions/cache@v4
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('package.json') }}
+
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      # devDeps CHỈ cho CI (Playwright/axe/Lighthouse). App shipped vẫn zero-dependency.
+      # Dùng `npm install` (không `npm ci`) vì không commit package-lock.json.
       - name: Install CI test tooling
         run: npm install --no-audit --no-fund
+
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+
       - name: Run Playwright E2E + axe a11y
         run: npx playwright test
-      - name: Lighthouse CI
+
+      # Gate thật: assertion a11y (error, minScore 0.9) trong lighthouserc.json
+      # làm đỏ CI nếu vi phạm; perf/best-practices vẫn chỉ cảnh báo.
+      - name: Lighthouse CI (a11y gate + perf/best-practices cảnh báo)
         run: npx lhci autorun
-      - name: Upload reports
+
+      - name: Upload E2E & Lighthouse reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
