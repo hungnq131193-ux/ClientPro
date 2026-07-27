@@ -13,10 +13,17 @@ function deferred() {
 }
 
 async function waitFor(promise, label) {
-  await Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`Hết thời gian chờ: ${label}`)), 5000)),
-  ]);
+  let timer;
+  try {
+    await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Hết thời gian chờ: ${label}`)), 5000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 test('lượt validatePin cũ không được mở keypad hoặc xóa PIN của lượt mới đang import khóa', async () => {
