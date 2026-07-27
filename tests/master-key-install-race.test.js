@@ -537,3 +537,100 @@ test('validatePin: lượt cũ không ẩn màn khóa trong KHE await importKey 
   await secondUnlock;
   assert.equal(dom.isHidden('screen-lock'), true, 'lượt mới hoàn tất thì mới ẩn màn khóa');
 });
+
+/**
+ * DB giả cho migration legacy, CHẶN đúng ở lần getAllKeys đầu tiên.
+ * Đây là điểm duy nhất đặt được auto-lock vào GIỮA runFieldCryptoMigrationIfNeeded —
+ * sau khi migration đã cố ý cài MK2 (bump generation) nhưng trước khi nó xong.
+ */
+function gatedLegacyDb() {
+  const entered = deferred();
+  const release = deferred();
+  let gated = false;
+  const store = new Map();
+  const db = {
+    objectStoreNames: { contains: () => true },
+    transaction() {
+      const tx = { oncomplete: null, onerror: null, onabort: null, error: null };
+      tx.objectStore = () => ({
+        getAllKeys() {
+          const r = { onsuccess: null, onerror: null, result: undefined, error: null };
+          if (!gated) {
+            gated = true;
+            entered.resolve();
+            release.promise.then(() => {
+              r.result = [];
+              if (r.onsuccess) r.onsuccess({ target: r });
+              if (tx.oncomplete) tx.oncomplete({ target: tx });
+            });
+          } else {
+            Promise.resolve().then(() => {
+              r.result = [];
+              if (r.onsuccess) r.onsuccess({ target: r });
+              if (tx.oncomplete) tx.oncomplete({ target: tx });
+            });
+          }
+          return r;
+        },
+        getAll() {
+          const r = { onsuccess: null, onerror: null, result: [], error: null };
+          Promise.resolve().then(() => {
+            if (r.onsuccess) r.onsuccess({ target: r });
+            if (tx.oncomplete) tx.oncomplete({ target: tx });
+          });
+          return r;
+        },
+        get: (k) => {
+          const r = { onsuccess: null, onerror: null, result: store.get(k), error: null };
+          Promise.resolve().then(() => { if (r.onsuccess) r.onsuccess({ target: r }); if (tx.oncomplete) tx.oncomplete({ target: tx }); });
+          return r;
+        },
+        put: (v) => {
+          const r = { onsuccess: null, onerror: null, result: v && v.id, error: null };
+          store.set(v && v.id, v);
+          Promise.resolve().then(() => { if (r.onsuccess) r.onsuccess({ target: r }); if (tx.oncomplete) tx.oncomplete({ target: tx }); });
+          return r;
+        },
+        delete: () => {
+          const r = { onsuccess: null, onerror: null, result: undefined, error: null };
+          Promise.resolve().then(() => { if (r.onsuccess) r.onsuccess({ target: r }); if (tx.oncomplete) tx.oncomplete({ target: tx }); });
+          return r;
+        },
+      });
+      return tx;
+    },
+  };
+  return { db, entered: entered.promise, release };
+}
+
+test('completeUnlockDataLoad: pipeline cũ không "mượn" phiên của lượt mới sau migration legacy', async () => {
+  const { api, ctx, localStorage } = loadSecurity({ dom: true });
+
+  let dispatched = 0;
+  ctx.document.dispatchEvent = (ev) => { if (ev && ev.type === 'clientpro:unlocked') dispatched++; return true; };
+  ctx.CustomEvent = class { constructor(type) { this.type = type; } };
+
+  // Máy LEGACY: migration sẽ cố ý cài MK2 và bump generation — đúng lý do pipeline
+  // phải NHẬN generation mới ngay sau migration, và cũng là khe mà một lượt mở khóa
+  // mới có thể bị "mượn" phiên.
+  const gate = gatedLegacyDb();
+  api.setDb(gate.db);
+  api.setLegacyMasterKey('mk_legacy_test');
+  localStorage.setItem('app_pin', 'legacy-pin-envelope');
+
+  const attempt1 = api.bumpUnlockAttempt();
+  const pipeline1 = api.completeUnlockDataLoad('123456', 'NV001', attempt1);
+  await gate.entered;   // đang ở GIỮA runFieldCryptoMigrationIfNeeded
+
+  // Auto-lock, rồi một lượt mở khóa MỚI lấy vé và cài khóa của nó.
+  api.clearMasterKeyMaterial();
+  api.bumpUnlockAttempt();
+  await api.setMasterKey(api.generateMasterKey());
+
+  gate.release.resolve();
+  await pipeline1;
+
+  assert.equal(api.isAppUnlocked(), true, 'tiền đề: phiên của lượt MỚI đang sống');
+  assert.equal(dispatched, 0,
+    'pipeline của lượt cũ KHÔNG được phát clientpro:unlocked cho phiên của lượt mới');
+});

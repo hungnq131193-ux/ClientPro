@@ -246,6 +246,10 @@ function loadSecurity(opts) {
       setCurrentPin: (v) => { currentPin = String(v); },
       getCurrentPin: () => currentPin,
       getPinFailures: () => _readLockout(),
+      // Vé lượt mở khóa (__unlockAttemptSeq): test race cần mô phỏng một lượt mới
+      // tiếp quản mà không phải chạy trọn validatePin.
+      bumpUnlockAttempt: () => ++__unlockAttemptSeq,
+      getUnlockAttempt: () => __unlockAttemptSeq,
     };
   `;
 

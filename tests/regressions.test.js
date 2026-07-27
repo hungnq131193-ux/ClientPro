@@ -567,11 +567,32 @@ test('checkRecovery / saveSecuritySetup: nhận vé lượt mở khóa trước 
   const src = read('assets/02_security.js');
   for (const fn of ['checkRecovery', 'saveSecuritySetup']) {
     const body = fnBody(src, fn);
-    const claimAt = body.indexOf('__unlockAttemptSeq++');
+    const claimMatch = /(\+\+__unlockAttemptSeq|__unlockAttemptSeq\+\+)/.exec(body);
+    const claimAt = claimMatch ? claimMatch.index : -1;
     const installAt = body.indexOf('await _installMasterKey(');
     assert.ok(claimAt !== -1, `${fn} phải nhận vé lượt mở khóa`);
     assert.ok(installAt !== -1, `${fn} phải cài khóa qua _installMasterKey`);
     assert.ok(claimAt < installAt,
       `${fn}: vé phải nhận TRƯỚC await _installMasterKey (khe gán masterKey chưa có khóa phái sinh)`);
+  }
+});
+
+test('completeUnlockDataLoad: chỉ nhận generation của migration khi vé lượt mở khóa còn hiệu lực', () => {
+  const src = read('assets/02_security.js');
+  const body = fnBody(src, 'completeUnlockDataLoad');
+  assert.ok(/attemptCurrent\(\)/.test(body),
+    'Pipeline phải biết vé lượt mở khóa (attemptCurrent)');
+  assert.ok(/const\s+alive\s*=\s*\(\)\s*=>[^;]*attemptCurrent\(\)/.test(body),
+    'alive() phải gồm cả kiểm vé: isAppUnlocked()+generation không phân biệt được lượt mới');
+  const adoptAt = body.indexOf('pipelineGeneration = __keyGeneration', body.indexOf('runFieldCryptoMigrationIfNeeded'));
+  assert.ok(adoptAt !== -1, 'Phải còn bước nhận generation mới sau migration legacy');
+  const before = body.slice(0, adoptAt);
+  const guardAt = before.lastIndexOf('attemptCurrent()');
+  assert.ok(guardAt !== -1 && /return/.test(before.slice(guardAt)),
+    'Phải kiểm vé (và return) TRƯỚC khi nhận generation của migration');
+  // Caller thật phải truyền vé xuống, nếu không guard thành vô nghĩa.
+  for (const fn of ['validatePin', 'saveSecuritySetup']) {
+    assert.ok(/completeUnlockDataLoad\([^)]*myUnlockAttempt\)/.test(fnBody(src, fn)),
+      `${fn} phải truyền vé lượt mở khóa xuống completeUnlockDataLoad`);
   }
 });

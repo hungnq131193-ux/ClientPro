@@ -876,11 +876,20 @@ function _setUnlockLoading(on, msg) {
   }
 }
 
-/** Sau khi xác thực PIN: migration + lazy prime + loadCustomers — giữ lock đến khi xong. */
-async function completeUnlockDataLoad(pinForMigration, empForMigration) {
+/**
+ * Sau khi xác thực PIN: migration + lazy prime + loadCustomers — giữ lock đến khi xong.
+ * @param {number} [unlockAttempt] vé lượt mở khóa của caller (__unlockAttemptSeq).
+ *   Bắt buộc trên mọi đường unlock thật: pipeline chỉ được chạy tiếp khi lượt của nó
+ *   vẫn là lượt hiện hành. Thiếu vé (test/gọi nội bộ) thì chỉ còn kiểm generation.
+ */
+async function completeUnlockDataLoad(pinForMigration, empForMigration, unlockAttempt) {
   _setUnlockLoading(true, "Đang tải dữ liệu...");
   let pipelineGeneration = __keyGeneration;
-  const alive = () => isAppUnlocked() && pipelineGeneration === __keyGeneration;
+  // Vé còn hiệu lực? isAppUnlocked() + generation KHÔNG đủ: một lượt mở khóa mới có
+  // thể vừa gán masterKey nhưng chưa dựng xong khóa phái sinh, và pipeline cũ sẽ
+  // "mượn" đúng phiên đó để chạy tiếp rồi phát clientpro:unlocked thay cho nó.
+  const attemptCurrent = () => unlockAttempt === undefined || unlockAttempt === __unlockAttemptSeq;
+  const alive = () => isAppUnlocked() && pipelineGeneration === __keyGeneration && attemptCurrent();
   try {
     try { if (window.__dbReady) await window.__dbReady; } catch (e) {}
     if (!alive()) return;
@@ -890,7 +899,11 @@ async function completeUnlockDataLoad(pinForMigration, empForMigration) {
       try { ErrorHandler.logError("crypto-migration", e); } catch (_) {}
     }
     if (!isAppUnlocked()) return;
-    // Legacy -> MK2 migration cài một key generation mới có chủ đích.
+    // Legacy -> MK2 migration cài một key generation mới có chủ đích, nên ở đây phải
+    // NHẬN generation mới. Chỉ nhận khi vé còn của lượt này: nếu một lượt mở khóa mới
+    // đã tiếp quản, generation hiện tại là của NÓ — nhận vào là pipeline cũ chiếm
+    // phiên mới, tải dữ liệu và phát clientpro:unlocked trước khi lượt mới sẵn sàng.
+    if (!attemptCurrent()) return;
     pipelineGeneration = __keyGeneration;
     try {
       await runImageCryptoMigrationIfNeeded();
@@ -1765,7 +1778,7 @@ async function saveSecuritySetup() {
   // Thiết lập/đặt lại PIN cũng mở một lượt phiên mới: nhận vé TRƯỚC khi cài khóa
   // (xem __unlockAttemptSeq) để lượt validatePin cũ còn treo trong pipeline rút lui
   // ngay, kể cả trong khe await của importKey.
-  __unlockAttemptSeq++;
+  const myUnlockAttempt = ++__unlockAttemptSeq;
   // Dựng key GCM cho phiên (fresh install), hoặc giữ nguyên nếu đã cài từ unlock/recovery.
   try {
     await _installMasterKey(mkForSetup);
@@ -1822,7 +1835,7 @@ async function saveSecuritySetup() {
   // (vá B2: auto-backup nghe được ngay trong phiên thiết lập/khôi phục đầu tiên).
   // Trước đây đoạn này tự làm thủ công và bỏ sót v2-migration/flush-KDATA/dispatch.
   try {
-    await completeUnlockDataLoad(pin, ans);
+    await completeUnlockDataLoad(pin, ans, myUnlockAttempt);
   } catch (e) {
     try { ErrorHandler.logError("setup-unlock-pipeline", e); } catch (_) {}
   }
@@ -1922,7 +1935,7 @@ async function validatePin() {
     currentPin = ""; // không giữ PIN trong bộ nhớ lâu hơn cần thiết
     resetPinFailures();
     _setKeypadDisabled(false);
-    await completeUnlockDataLoad(pinForMigration, empForMigration);
+    await completeUnlockDataLoad(pinForMigration, empForMigration, myUnlockAttempt);
     // Auto-lock (60s ẩn) có thể đã nổ GIỮA pipeline dài phía trên và xóa key +
     // hiện lại màn khóa. Ẩn màn khóa vô điều kiện ở đây là mở app với
     // masterKey=null — vào được dashboard mà không qua PIN. Mất phiên thì giữ
