@@ -1023,9 +1023,9 @@ replay entry.
 - One `MutationObserver` watches **every** blocking screen — `#screen-lock`,
   `#activation-modal`, `#setup-lock-modal` — and tears the tour down (without
   marking complete) as soon as `isTourBlocked()` turns true; it does not reopen
-  after unlock. Watching only `#screen-lock` is not enough: server revocation
-  (`_revokeAndShowActivationGate`) keeps the lock screen hidden and raises only
-  the activation gate, which sits at z-index 305 under the tour's 1000+.
+  after unlock. The set must stay complete: a blocking screen can be raised on
+  its own (revocation raises only the activation gate), and the tour sits above
+  all of them in the z-index contract, so an unobserved screen stays covered.
 
 ### Read source code only when
 Editing tour steps/behavior, verifying a dashboard selector, or debugging tour
