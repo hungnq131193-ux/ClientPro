@@ -23,7 +23,7 @@ async function seedAndUnlock(page, { markDone = false, errors = null } = {}) {
     localStorage.setItem('app_employee_id', 'TEST');
     localStorage.setItem('app_pin', env);
     localStorage.setItem('app_crypto_schema_v', '2');
-    if (done) localStorage.setItem(key, JSON.stringify({ version: 4, completedAt: Date.now() }));
+    if (done) localStorage.setItem(key, JSON.stringify({ version: 5, completedAt: Date.now() }));
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, [PIN_ENVELOPE, markDone, TOUR_KEY]);
@@ -43,16 +43,16 @@ test('user MỚI thấy tour sau khi mở khóa; điều hướng Next/Back đú
 
   // Tour tự hiện (auto-start có delay ~2.8s).
   await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 15_000 });
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/13');
   await expect(page.locator('#tour-prev')).toHaveCount(0); // bước đầu không có nút Trước
 
   // Next -> bước 2.
   await page.click('#tour-next');
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/13');
 
   // Back -> bước 1.
   await page.click('#tour-prev');
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/13');
 
   expect(errors, 'Tour không được ném uncaught exception').toEqual([]);
 });
@@ -68,7 +68,7 @@ test('Skip đóng tour, dọn overlay và lưu trạng thái hoàn tất', async
   // Trạng thái hoàn tất được lưu.
   const done = await page.evaluate((k) => localStorage.getItem(k), TOUR_KEY);
   expect(done).toBeTruthy();
-  expect(JSON.parse(done).version).toBe(4);
+  expect(JSON.parse(done).version).toBe(5);
 });
 
 test('Finish đóng tour, lưu hoàn tất; reload KHÔNG tự hiện lại', async ({ page }) => {
@@ -84,7 +84,7 @@ test('Finish đóng tour, lưu hoàn tất; reload KHÔNG tự hiện lại', as
   }
   await expect(page.locator(OVERLAY)).toHaveCount(0, { timeout: 4_000 });
   const done = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), TOUR_KEY);
-  expect(done && done.version).toBe(4);
+  expect(done && done.version).toBe(5);
 
   // Reload: user đã hoàn tất -> không tự hiện lại.
   await page.reload({ waitUntil: 'networkidle' });
@@ -112,13 +112,13 @@ test('Mở lại tour thủ công từ Menu; không phá trạng thái user cũ'
   await page.click('#btn-open-menu');
   await page.click('[data-action="OnboardingTour.replay"]');
   await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 8_000 });
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/13');
 
   // Đóng lại -> trạng thái hoàn tất vẫn còn (không biến user cũ thành user mới).
   await page.click('#tour-skip');
   await expect(page.locator(OVERLAY)).toHaveCount(0, { timeout: 4_000 });
   const done = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), TOUR_KEY);
-  expect(done && done.version).toBe(4);
+  expect(done && done.version).toBe(5);
 });
 
 test('Thiếu selector: tour bỏ qua an toàn, không crash, không rò overlay', async ({ page }) => {
@@ -206,7 +206,7 @@ test('Offline: mở lại tour vẫn hoạt động sau khi asset đã cache', a
   await page.click('#btn-open-menu');
   await page.click('[data-action="OnboardingTour.replay"]');
   await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 8_000 });
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/13');
   await page.click('#tour-skip');
   await expect(page.locator(OVERLAY)).toHaveCount(0, { timeout: 4_000 });
   await context.setOffline(false);
@@ -219,7 +219,7 @@ test('Offline: mở lại tour vẫn hoạt động sau khi asset đã cache', a
 const SPOTLIGHT = '#tour-spotlight';
 
 // A/D — Off-screen dashboard steps must NOT be skipped on short viewports.
-test('Viewport thấp 320×568: đi ĐỦ 11 bước, không bỏ qua bước dưới fold (PDF/Backup/Drive)', async ({ page }) => {
+test('Viewport thấp 320×568: đi ĐỦ 13 bước, không bỏ qua bước dưới fold (PDF/Backup/Drive)', async ({ page }) => {
   const errors = [];
   await page.setViewportSize({ width: 320, height: 568 });
   await seedAndUnlock(page, { errors });
@@ -227,7 +227,7 @@ test('Viewport thấp 320×568: đi ĐỦ 11 bước, không bỏ qua bước d�
 
   const chips = [];
   const titles = [];
-  for (let i = 0; i < 11; i++) {
+  for (let i = 0; i < 13; i++) {
     chips.push((await page.locator('.tour-step-chip').innerText()).trim());
     titles.push((await page.locator('.tour-title').innerText()).trim());
     const label = await page.locator('#tour-next').innerText();
@@ -236,12 +236,14 @@ test('Viewport thấp 320×568: đi ĐỦ 11 bước, không bỏ qua bước d�
     await page.waitForTimeout(140);
   }
 
-  // Thứ tự chip liên tục 1/11 → 11/11, không nhảy bước.
-  expect(chips).toEqual(Array.from({ length: 11 }, (_, i) => `Bước ${i + 1}/11`));
+  // Thứ tự chip liên tục 1/13 → 11/13, không nhảy bước.
+  expect(chips).toEqual(Array.from({ length: 13 }, (_, i) => `Bước ${i + 1}/13`));
   // Các bước quan trọng nằm dưới fold vẫn được giới thiệu.
   const joined = titles.join(' | ');
+  expect(joined).toContain('Thời tiết tại vị trí hiện tại');
   expect(joined).toContain('Bộ công cụ PDF');
-  expect(joined).toContain('Sao lưu & khôi phục');
+  expect(joined).toContain('Tra cứu đơn vị hành chính');
+  expect(joined).toContain('Sao lưu và khôi phục');
   expect(joined).toContain('Kết nối Google Drive');
   expect(errors, 'Không exception khi đi hết tour trên viewport thấp').toEqual([]);
 });
@@ -341,10 +343,10 @@ test('Double replay nhanh: đúng 1 overlay/spotlight/tooltip, bắt đầu bư�
   await expect(page.locator(OVERLAY)).toHaveCount(1);
   await expect(page.locator(SPOTLIGHT)).toHaveCount(1);
   await expect(page.locator(TOOLTIP)).toHaveCount(1);
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/13');
 
   await page.click('#tour-next');
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/13');
   // Vẫn đúng 1 bộ node sau khi Next.
   await expect(page.locator(TOOLTIP)).toHaveCount(1);
 });
@@ -355,18 +357,18 @@ test('Replay trong teardown window: 1 node/ID, không stale, Next đúng 1 bư�
   await seedAndUnlock(page, { errors });
   await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 15_000 });
 
-  // Sang bước 2 để chip của phiên cũ (2/11) khác phiên mới (1/11) khi teardown.
+  // Sang bước 2 để chip của phiên cũ (2/13) khác phiên mới (1/13) khi teardown.
   await page.click('#tour-next');
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/13');
 
   // Skip -> teardown 350ms; replay ngay trong cửa sổ đó.
   await page.click('#tour-skip');
   await page.evaluate(() => window.OnboardingTour.replay());
 
-  // Chờ phiên MỚI (chip 1/11) dựng xong VÀ chỉ có đúng 1 overlay.
+  // Chờ phiên MỚI (chip 1/13) dựng xong VÀ chỉ có đúng 1 overlay.
   await page.waitForFunction(() => {
     const chip = document.querySelector('.tour-step-chip');
-    return !!chip && chip.textContent.trim() === 'Bước 1/11'
+    return !!chip && chip.textContent.trim() === 'Bước 1/13'
       && document.querySelectorAll('#tour-overlay').length === 1;
   }, null, { timeout: 8_000 });
 
@@ -376,7 +378,7 @@ test('Replay trong teardown window: 1 node/ID, không stale, Next đúng 1 bư�
 
   // Next đi đúng 1 bước (không chồng handler -> không nhảy nhiều bước).
   await page.click('#tour-next');
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 2/13');
 
   // Cleanup cuối -> 0 node.
   await page.click('#tour-skip');

@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 
 **Demo:** https://client-pro-beryl.vercel.app
@@ -34,7 +34,7 @@ hàng nào.
 ### Quản lý khách hàng
 - Tạo, xem, sửa, xóa hồ sơ khách hàng.
 - Trạng thái hồ sơ (đã vay / đang thẩm định), ghi chú, hạn mức tín dụng.
-- Tìm kiếm nhanh theo tên, số điện thoại, CCCD ngay đầu danh sách.
+- Tìm kiếm sâu theo tên, số điện thoại, CCCD, hạn mức, ghi chú và tài sản; sắp xếp A–Z/Z–A.
 
 ### Quản lý tài sản bảo đảm
 - Định giá, mức vay, diện tích, chiều rộng, hiện trạng, năm, tọa độ.
@@ -89,7 +89,9 @@ lên bất kỳ đâu**:
   tay) và tự khóa khi ẩn app.
 
 ### Hướng dẫn cho người dùng mới
-- Tour giới thiệu nhanh Dashboard hiện tự động mở ở lần đầu sử dụng.
+- Tour 13 bước bám đúng Dashboard hiện tại: quyền riêng tư, thời tiết, tổng quan,
+  danh sách, thêm khách hàng, bản đồ, PDF, ĐVHC, backup, Drive và Menu.
+- Bản tour v5 được phát lại một lần cho các tài khoản thử nghiệm trước phát hành.
 - Có thể **mở lại thủ công** bất cứ lúc nào trong **Menu → Xem lại hướng dẫn**.
 
 ## Bảo mật và quyền riêng tư
@@ -97,7 +99,7 @@ lên bất kỳ đâu**:
 - Dữ liệu nghiệp vụ lưu trong IndexedDB (`QLKH_Pro_V4`) trên thiết bị.
 - Field nhạy cảm và ảnh được mã hóa **AES-256-GCM** qua WebCrypto.
 - Master key được niêm phong bằng PIN với **PBKDF2-SHA256**, chỉ tồn tại trong
-  RAM khi mở khóa.
+  RAM khi mở khóa; generation guard loại bỏ mọi kết quả crypto bất đồng bộ cũ sau lock/revoke.
 - KDATA phục vụ backup chỉ lưu ở dạng niêm phong; không lưu plaintext master key
   hay KDATA.
 - Thư viện và font đều **self-host**; CSP giới hạn script về cùng nguồn
@@ -139,15 +141,14 @@ assets/dvhc-lookup/       Tra cứu sáp nhập ĐVHC (utils/data/ui)
 assets/data/dvhc/         Dữ liệu ĐVHC offline (dvhc.v1.json + README nguồn)
 assets/ui/modals/         HTML fragment của modal (nạp qua ui/load_modals.js)
 assets/vendor/            Dependency self-host
-assets/fonts/             Font self-host (Be Vietnam Pro, Inter)
+assets/fonts/             Font self-host (Be Vietnam Pro)
 assets/styles.css, css/   CSS ứng dụng
 gas/                      Admin GAS + User Drive GAS
 tests/                    Unit test (node --test)
 e2e/                      Playwright + axe
-docs/                     terminology.md + ảnh chụp màn hình review
+docs/                     Tài liệu dự án và nguồn dữ liệu
 .github/workflows/ci.yml  CI
 CLAUDE.md                 Sổ tay kỹ thuật & quy tắc an toàn cho agent
-AGENTS.md                 Chỉ dẫn agent đọc CLAUDE.md trước
 ```
 
 ## Yêu cầu môi trường
@@ -208,10 +209,10 @@ command**. Header bảo mật và CSP nằm trong `vercel.json`.
 
 - **Tên phát hành** — **Genesis** (tên phát hành công khai, không hiển thị trong
   UI app).
-- **Phiên bản app (semver)** — hiện tại **`1.4.1`**. Số kỹ thuật nội bộ giữ cho
+- **Phiên bản app (semver)** — hiện tại **`1.5.0`**. Số kỹ thuật nội bộ giữ cho
   tooling đồng bộ và tương thích, không hiển thị cho người dùng. Nguồn duy nhất:
   `package.json`.
-- **cache-buster asset** — hiện tại **`SECURITY_FIX_20260726`**. Nguồn: `ASSET_V`
+- **cache-buster asset** — hiện tại **`SECURITY_HARDEN_20260727`**. Nguồn: `ASSET_V`
   trong `sw.js`.
 
 Sau khi thay đổi phiên bản, đồng bộ ra mọi nơi (manifest, SW, PWA, README):

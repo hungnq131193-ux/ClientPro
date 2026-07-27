@@ -398,10 +398,20 @@ function _b64uEncodeBytes(bytes) {
   return _b64EncodeBytes(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** Mã hóa 1 field bằng AES-GCM (async). Seed luôn cache để đọc lại đồng bộ ngay trong phiên. */
+/**
+ * Mã hóa 1 field bằng AES-GCM (async). Seed cache chỉ khi phiên khóa vẫn còn hiệu lực.
+ * WebCrypto promise không thể hủy: auto-lock/thu hồi giữa await phải làm kết quả cũ
+ * bị loại bỏ, tuyệt đối không được nạp plaintext trở lại RAM sau khi cache đã dọn.
+ */
 async function _gcmEncryptField(plain) {
+  const gen = __keyGeneration;
+  const key = masterCryptoKey;
+  if (!masterKey || !key) throw new Error("GCM_KEY_UNAVAILABLE");
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ctBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, masterCryptoKey, new TextEncoder().encode(String(plain)));
+  const ctBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(String(plain)));
+  if (gen !== __keyGeneration || key !== masterCryptoKey || !masterKey) {
+    throw new Error("STALE_KEY_GENERATION");
+  }
   const ct = new Uint8Array(ctBuf);
   const buf = new Uint8Array(iv.length + ct.length);
   buf.set(iv, 0); buf.set(ct, iv.length);
@@ -410,10 +420,19 @@ async function _gcmEncryptField(plain) {
   return out;
 }
 
-/** Giải mã 1 field AES-GCM (async). Ném lỗi nếu bị giả mạo/sai khóa (GCM tag). */
+/**
+ * Giải mã 1 field AES-GCM (async). Ném lỗi nếu giả mạo/sai khóa hoặc phiên đã đổi
+ * trong lúc WebCrypto chạy; caller cũ không được nhận plaintext sau lock/revoke.
+ */
 async function _gcmDecryptField(s) {
+  const gen = __keyGeneration;
+  const key = masterCryptoKey;
+  if (!masterKey || !key) throw new Error("GCM_KEY_UNAVAILABLE");
   const raw = _b64uDecodeToBytes(String(s).slice(GCM_PREFIX.length));
-  const ptBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.subarray(0, 12) }, masterCryptoKey, raw.subarray(12));
+  const ptBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.subarray(0, 12) }, key, raw.subarray(12));
+  if (gen !== __keyGeneration || key !== masterCryptoKey || !masterKey) {
+    throw new Error("STALE_KEY_GENERATION");
+  }
   return new TextDecoder().decode(ptBuf);
 }
 
@@ -557,6 +576,9 @@ function clearMasterKeyMaterial() {
   // cũng là secret trong RAM -> xóa cùng lúc với __fieldPlainCache khi khóa.
   try { if (window.__custSummaryCache) window.__custSummaryCache.clear(); } catch (e) {}
   try { if (window.__custSearchBlobCache) window.__custSearchBlobCache.clear(); } catch (e) {}
+  // Khóa chuyển Cloud Transfer là secret RAM ngắn hạn; lock/revoke phải xóa ngay,
+  // không để phiên mới tái sử dụng key lấy từ phiên quyền truy cập đã kết thúc.
+  try { Object.keys(_transferKeyCache).forEach((k) => delete _transferKeyCache[k]); } catch (e) {}
 }
 
 /**
@@ -885,12 +907,14 @@ const PIN_STAGE = "app_pin_v2_stage";       // niêm phong MK2 tạm dưới PIN
 const SEC_STAGE = "app_sec_v2_stage";       // niêm phong MK2 tạm dưới mã nhân viên
 
 function _getAllCustomerKeys() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     try {
       const req = db.transaction(["customers"], "readonly").objectStore("customers").getAllKeys();
       req.onsuccess = (e) => resolve(e.target.result || []);
-      req.onerror = () => resolve([]);
-    } catch (e) { resolve([]); }
+      // Lỗi đọc KHÔNG đồng nghĩa store rỗng. Resolve([]) ở đây làm migration swap
+      // envelope sang MK2 dù record legacy chưa được quét -> mất khả năng giải mã.
+      req.onerror = () => reject(req.error || new Error("FIELD_CRYPTO_KEYS_READ_ERROR"));
+    } catch (e) { reject(e); }
   });
 }
 
@@ -906,18 +930,26 @@ async function _reencryptRecord(c) {
   c.cryptoV = 2;
 }
 
-/** Re-encrypt token Drive (07_drive 'sealed.v1:') trong lúc còn masterKeyLegacy. */
+/**
+ * Re-encrypt token Drive (07_drive 'sealed.v1:') trong lúc còn masterKeyLegacy.
+ * Nếu token legacy tồn tại mà không chuyển + đọc lại xác minh được, phải dừng toàn
+ * bộ migration trước bước swap envelope; nuốt lỗi ở đây sẽ làm token cũ mất khóa.
+ */
 async function _migrateDriveToken() {
-  try {
-    const tkKey = (typeof USER_TOKEN_KEY !== "undefined") ? USER_TOKEN_KEY : "app_user_script_token";
-    const raw = (localStorage.getItem(tkKey) || "").trim();
-    if (!raw.startsWith("sealed.v1:")) return;         // plaintext/empty -> getUserToken reseal sau
-    const inner = raw.slice("sealed.v1:".length);
-    if (inner.startsWith(GCM_PREFIX)) return;           // đã GCM
-    if (!inner.startsWith("U2FsdGVk")) return;
-    const pt = CryptoJS.AES.decrypt(inner, masterKeyLegacy).toString(CryptoJS.enc.Utf8);
-    if (pt) localStorage.setItem(tkKey, "sealed.v1:" + await _gcmEncryptField(pt));
-  } catch (e) {}
+  const tkKey = (typeof USER_TOKEN_KEY !== "undefined") ? USER_TOKEN_KEY : "app_user_script_token";
+  const raw = (localStorage.getItem(tkKey) || "").trim();
+  if (!raw.startsWith("sealed.v1:")) return true;       // plaintext/empty -> getUserToken reseal sau
+  const inner = raw.slice("sealed.v1:".length);
+  if (inner.startsWith(GCM_PREFIX)) return true;         // đã GCM
+  if (!inner.startsWith("U2FsdGVk")) throw new Error("DRIVE_TOKEN_LEGACY_FORMAT_INVALID");
+  const pt = CryptoJS.AES.decrypt(inner, masterKeyLegacy).toString(CryptoJS.enc.Utf8);
+  if (!pt) throw new Error("DRIVE_TOKEN_LEGACY_DECRYPT_FAILED");
+  const migrated = "sealed.v1:" + await _gcmEncryptField(pt);
+  localStorage.setItem(tkKey, migrated);
+  if ((localStorage.getItem(tkKey) || "") !== migrated) throw new Error("DRIVE_TOKEN_MIGRATION_WRITE_FAILED");
+  const verify = await _gcmDecryptField(migrated.slice("sealed.v1:".length));
+  if (verify !== pt) throw new Error("DRIVE_TOKEN_MIGRATION_VERIFY_FAILED");
+  return true;
 }
 
 /**
@@ -936,6 +968,9 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
     return;
   }
   if (!masterKeyLegacy) return; // cài mới hoàn toàn v2, không có gì để migrate
+  // Chụp thế hệ NGAY trước await đầu tiên. Legacy migration từng tự gán
+  // masterCryptoKey/masterKey nên có thể hồi sinh một phiên đã auto-lock/thu hồi.
+  const gen = __keyGeneration;
 
   // 1) Đúc/khôi phục newMk (resume tái dùng staged key -> không orphan dữ liệu GCM đã ghi).
   let mkStr = null;
@@ -948,19 +983,35 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
   }
 
   // 2) Cài GCM key để GHI; GIỮ masterKeyLegacy để ĐỌC dữ liệu cũ.
-  masterKeyBytes = _b64DecodeToBytes(mkStr.slice(4));
-  masterCryptoKey = await crypto.subtle.importKey("raw", masterKeyBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  // Dựng vào biến local trước: lock/revoke giữa await importKey không được gán key
+  // trở lại RAM. Bytes tạm được zero nếu phiên đã đổi.
+  const nextBytes = _b64DecodeToBytes(mkStr.slice(4));
+  const nextKey = await crypto.subtle.importKey("raw", nextBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  if (gen !== __keyGeneration || !masterKey || !masterKeyLegacy) {
+    try { nextBytes.fill(0); } catch (e) {}
+    throw new Error("FIELD_CRYPTO_MIGRATION_STALE_SESSION");
+  }
+  if (masterKeyBytes) { try { masterKeyBytes.fill(0); } catch (e) {} }
+  masterKeyBytes = nextBytes;
+  masterCryptoKey = nextKey;
 
   // 3) Từng record: ĐỌC (tx1) -> re-encrypt (await crypto NGOÀI transaction) -> GHI (tx2, thuần sync).
   //    Không await WebCrypto giữa 1 transaction (IDB tự commit/close). Mỗi record 1 tx ghi -> atomic + resume-safe.
   for (const id of await _getAllCustomerKeys()) {
+    if (gen !== __keyGeneration || !masterKey || !masterKeyLegacy || !masterCryptoKey) {
+      throw new Error("FIELD_CRYPTO_MIGRATION_STALE_SESSION");
+    }
     const c = await new Promise((resolve, reject) => {
       const g = db.transaction(["customers"], "readonly").objectStore("customers").get(id);
       g.onsuccess = () => resolve(g.result);
-      g.onerror = () => reject(g.error);
+      g.onerror = () => reject(g.error || new Error("FIELD_CRYPTO_RECORD_READ_ERROR"));
     });
     if (!c || c.cryptoV === 2) continue;   // idempotent: đã GCM thì bỏ qua (resume sau crash)
     await _reencryptRecord(c);
+    // Không ghi record nếu phiên mất ngay sau khi mã hóa xong.
+    if (gen !== __keyGeneration || !masterKey || !masterKeyLegacy || !masterCryptoKey) {
+      throw new Error("FIELD_CRYPTO_MIGRATION_STALE_SESSION");
+    }
     await new Promise((resolve, reject) => {
       // Resolve trên oncomplete + reject cả onabort: tx có thể abort KHÔNG kèm
       // request error — thiếu onabort là promise treo vĩnh viễn giữa migration.
@@ -971,10 +1022,18 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
       tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
     });
   }
+  if (gen !== __keyGeneration || !masterKey || !masterKeyLegacy || !masterCryptoKey) {
+    throw new Error("FIELD_CRYPTO_MIGRATION_STALE_SESSION");
+  }
   await _migrateDriveToken();
+  if (gen !== __keyGeneration || !masterKey || !masterKeyLegacy || !masterCryptoKey) {
+    throw new Error("FIELD_CRYPTO_MIGRATION_STALE_SESSION");
+  }
 
-  // 4) FINALIZE — swap envelope TRƯỚC (loop đã 100%), set cờ SAU CÙNG.
-  localStorage.setItem(PIN_KEY, localStorage.getItem(PIN_STAGE));
+  // 4) FINALIZE — swap envelope TRƯỚC (loop + token đã 100%), set cờ SAU CÙNG.
+  const nextPinEnvelope = localStorage.getItem(PIN_STAGE);
+  if (!nextPinEnvelope) throw new Error("FIELD_CRYPTO_PIN_STAGE_MISSING");
+  localStorage.setItem(PIN_KEY, nextPinEnvelope);
   if (localStorage.getItem(SEC_STAGE)) localStorage.setItem(SEC_KEY, localStorage.getItem(SEC_STAGE));
   localStorage.setItem(SCHEMA_KEY, "2");
   localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
@@ -1490,7 +1549,11 @@ async function ensureBackupSecret() {
     }
 
     // Trường hợp server trả về denial rõ ràng thì KHÔNG dùng cache để vượt quyền.
-    if (kdStatus === "locked") {
+    // GAS các đời có thể trả status "locked" hoặc status "error" + thông báo
+    // không dấu. Đây là đường revocation sau unlock nên phải xóa key/KDATA RAM.
+    const backupAccessRevoked = kdStatus === "locked" || /locked|bi khoa|bị khóa/i.test(kdMsg);
+    if (backupAccessRevoked) {
+      try { revokeUnlockedSession(); } catch (e) {}
       try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
       return { ok: false, message: kdMsg || "Tài khoản đã bị thu hồi." };
     }
@@ -1616,17 +1679,23 @@ async function saveSecuritySetup() {
   }
   // Dựng key GCM cho phiên (fresh install), hoặc giữ nguyên nếu đã cài từ unlock/recovery.
   await _installMasterKey(masterKey);
+  if (!isAppUnlocked()) return;
+  const setupGen = __keyGeneration;
   // Mã NV: giữ RAM + seal dưới masterKey; xóa bản plaintext tạm của cửa sổ kích hoạt.
   __employeeIdPlain = ans;
   try {
     if (await _writeSealedEmployeeId(ans)) localStorage.removeItem(EMPLOYEE_KEY);
   } catch (e) {}
+  if (setupGen !== __keyGeneration || !isAppUnlocked()) return;
   const btn = getEl("setup-save-btn");
   const btnLabel = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Đang mã hóa..."; }
   try {
-    localStorage.setItem(PIN_KEY, await sealMasterKey(pin, masterKey));
-    localStorage.setItem(SEC_KEY, await sealMasterKey(ans, masterKey));
+    const pinEnvelope = await sealMasterKey(pin, masterKey);
+    const secEnvelope = await sealMasterKey(ans, masterKey);
+    if (setupGen !== __keyGeneration || !isAppUnlocked()) return;
+    localStorage.setItem(PIN_KEY, pinEnvelope);
+    localStorage.setItem(SEC_KEY, secEnvelope);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
   }
@@ -1641,6 +1710,7 @@ async function saveSecuritySetup() {
   } catch (e) {
     try { ErrorHandler.logError("setup-unlock-pipeline", e); } catch (_) {}
   }
+  if (setupGen !== __keyGeneration || !isAppUnlocked()) return;
   // PIN vừa đổi: enrollment sinh trắc học cũ (nếu có) mã hóa PIN cũ nên không còn hợp lệ.
   try { if (window.BiometricUnlock) window.BiometricUnlock.onPinChanged(); } catch (e) { }
   // Ẩn hộp thoại và thông báo
@@ -1769,9 +1839,12 @@ async function checkRecovery() {
     // Khôi phục masterKey (cài key GCM/legacy) và cho phép đặt lại PIN 6 số.
     // Migration (nếu dữ liệu còn CryptoJS) sẽ chạy trong saveSecuritySetup dưới PIN mới.
     await _installMasterKey(res.masterKey);
+    if (!isAppUnlocked()) return;
+    const recoveryGen = __keyGeneration;
     // Mã NV vừa xác thực đúng: giữ RAM + seal (không persist plaintext).
     __employeeIdPlain = input;
     try { await _writeSealedEmployeeId(input); } catch (e) {}
+    if (recoveryGen !== __keyGeneration || !isAppUnlocked()) return;
     resetPinFailures();
     ErrorHandler.showSuccess("Xác thực thành công. Vui lòng tạo PIN mới.");
     closeForgotModal();

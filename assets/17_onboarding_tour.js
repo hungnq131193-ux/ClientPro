@@ -20,90 +20,100 @@
 
 (function () {
     const TOUR_KEY = 'clientpro_onboarding_done';
-    // Giữ nguyên version để KHÔNG ép user đã hoàn tất phải xem lại sau cập nhật.
-    const TOUR_VERSION = 4;
+    const TOUR_VERSION = 5;
 
-    // Cấu hình các bước. `target === null` => bước center (chào mừng / kết thúc /
-    // nhắc mở lại). Bước có `target`:
-    //   - selector KHÔNG tồn tại / element ẩn (không layout) -> BỎ QUA.
-    //   - element THẬT nhưng ngoài viewport -> hiển thị card center (không spotlight).
-    //   - element THẬT & trong viewport -> spotlight + card cạnh target.
+    // Tour v5 (pre-release): 13 bước bám đúng Dashboard hiện tại. Chỉ dùng selector
+    // ổn định (id/data-action); target dưới fold vẫn hiện card center thay vì bị bỏ.
     const tourSteps = [
         {
             target: null,
             icon: '👋',
-            title: 'Chào mừng đến ClientPro!',
-            content: 'Ứng dụng quản lý khách hàng và tài sản bảo đảm ngay trên điện thoại. Cùng xem nhanh các khu vực chính.',
+            title: 'Chào mừng đến ClientPro',
+            content: 'Tour ngắn này giới thiệu đúng các khu vực đang có trên Dashboard. Bạn có thể bỏ qua và mở lại bất cứ lúc nào trong Menu.',
             position: 'center'
         },
         {
             target: null,
-            icon: '🔒',
-            title: 'Dữ liệu nằm trên máy bạn',
-            content: 'Toàn bộ dữ liệu lưu cục bộ và được mã hóa trên thiết bị. App chạy được cả khi không có mạng; chỉ kết nối Drive khi bạn chủ động sao lưu.',
+            icon: '🔐',
+            title: 'Riêng tư và dùng được offline',
+            content: 'Dữ liệu nghiệp vụ nằm trên thiết bị và được mã hóa. PIN hoặc sinh trắc học mở khóa phiên; Drive và Google Apps Script chỉ dùng cho tác vụ bạn chủ động thực hiện.',
             position: 'center'
+        },
+        {
+            target: 'button[data-action="refreshWeather"]',
+            icon: '🌤️',
+            title: 'Thời tiết tại vị trí hiện tại',
+            content: 'Chạm vào pill thời tiết để cập nhật. App chỉ lưu nhiệt độ và trạng thái hiển thị, không lưu tọa độ vào cache thời tiết.',
+            position: 'bottom-left'
         },
         {
             target: 'button[data-action="openCustomerList"][data-arg="approved"]',
             icon: '📊',
-            title: 'Số liệu tổng quan',
-            content: 'Dashboard hiển thị nhanh tổng khách hàng, tài sản bảo đảm và số hồ sơ theo trạng thái. Chạm vào một ô để mở đúng danh sách đó.',
+            title: 'Tổng quan hồ sơ',
+            content: 'Các ô tổng quan cho biết tổng khách hàng, số tài sản và hồ sơ theo trạng thái. Chạm ô có nút để mở đúng danh sách.',
             position: 'bottom'
         },
         {
             target: 'button[data-action="openCustomerList"][data-arg="pending"]',
-            icon: '🔍',
-            title: 'Danh sách & tìm kiếm',
-            content: 'Mở danh sách khách hàng rồi dùng ô tìm kiếm ở đầu danh sách để tìm theo tên, SĐT hoặc CCCD.',
+            icon: '🔎',
+            title: 'Danh sách, tìm kiếm và chọn nhiều',
+            content: 'Trong danh sách, bạn có thể tìm theo tên, SĐT, CCCD, hạn mức, ghi chú hoặc tài sản. Nhấn giữ một khách hàng để vào chế độ chọn nhiều.',
             position: 'bottom'
         },
         {
             target: '#btn-quick-add',
             icon: '➕',
             title: 'Thêm khách hàng',
-            content: 'Tạo hồ sơ khách hàng mới. Trong hồ sơ, bạn thêm được tài sản bảo đảm, ảnh và ghi chú.',
+            content: 'Tạo hồ sơ mới, sau đó bổ sung ghi chú, ảnh hồ sơ và tài sản bảo đảm ngay trong màn hình chi tiết khách hàng.',
             position: 'top'
         },
         {
             target: '#btn-quick-map',
             icon: '🗺️',
-            title: 'Bản đồ & khoảng cách',
-            content: 'Xem vị trí khách hàng trên bản đồ và tính khoảng cách tuyến đường tới tài sản.',
+            title: 'Bản đồ và khoảng cách đường bộ',
+            content: 'Xem các tài sản có tọa độ trên MapLibre và tính khoảng cách tuyến đường qua OSRM; app không dùng khoảng cách đường chim bay làm kết quả nghiệp vụ.',
             position: 'top'
         },
         {
             target: '#btn-quick-pdf',
             icon: '📄',
             title: 'Bộ công cụ PDF',
-            content: 'Ghép, tách, sắp xếp trang, chuyển ảnh↔PDF và nén PDF — xử lý hoàn toàn trên máy, không tải file lên đâu.',
+            content: 'Ghép, tách, sắp xếp trang, đổi ảnh ↔ PDF và nén PDF hoàn toàn trên thiết bị. Module chỉ tải khi bạn mở lần đầu và vẫn dùng được offline.',
+            position: 'top'
+        },
+        {
+            target: '#btn-quick-dvhc',
+            icon: '🏛️',
+            title: 'Tra cứu đơn vị hành chính',
+            content: 'Đối chiếu địa chỉ cũ và mới bằng bộ dữ liệu lưu sẵn trong app. Công cụ chạy trên thiết bị, không gửi nội dung tra cứu ra ngoài.',
             position: 'top'
         },
         {
             target: 'button[data-action="openBackupManager"]',
             icon: '💾',
-            title: 'Sao lưu & khôi phục',
-            content: 'Sao lưu dữ liệu ra file hoặc lên Drive, và khôi phục khi cần. Hãy sao lưu định kỳ.',
+            title: 'Sao lưu và khôi phục',
+            content: 'Tạo file backup mã hóa hoặc sao lưu lên Drive. Hãy duy trì bản sao định kỳ trước khi xóa dữ liệu trình duyệt hay đổi thiết bị.',
             position: 'top'
         },
         {
             target: 'button[data-action="toggleDashboardDriveConfig"]',
             icon: '☁️',
-            title: 'Kết nối Google Drive',
-            content: 'Cấu hình Drive cá nhân (tùy chọn) để lưu ảnh hồ sơ và bản backup của bạn.',
+            title: 'Kết nối Google Drive cá nhân',
+            content: 'Nhập link Google Apps Script và mã bảo mật được cấp để lưu ảnh và backup vào Drive cá nhân. Đây là cấu hình tùy chọn.',
             position: 'top-left'
         },
         {
             target: '#btn-open-menu',
             icon: '⚙️',
-            title: 'Cài đặt & giao diện',
-            content: 'Đổi giao diện, thiết lập bảo mật PIN / sinh trắc học và các mục khác nằm trong Menu.',
+            title: 'Bảo mật, sinh trắc học và giao diện',
+            content: 'Menu chứa đổi giao diện, thiết lập bảo mật, mở khóa sinh trắc học, ủng hộ tác giả và nút mở lại tour này.',
             position: 'bottom-left'
         },
         {
             target: null,
-            icon: '🎉',
-            title: 'Sẵn sàng!',
-            content: 'Bạn đã sẵn sàng dùng ClientPro. Muốn xem lại hướng dẫn này, vào Menu ⚙️ → “Xem lại hướng dẫn”.',
+            icon: '✅',
+            title: 'Sẵn sàng sử dụng',
+            content: 'Bắt đầu bằng việc thêm khách hàng hoặc mở một danh sách. Khi cần xem lại, vào Menu → “Xem lại hướng dẫn”.',
             position: 'center'
         }
     ];

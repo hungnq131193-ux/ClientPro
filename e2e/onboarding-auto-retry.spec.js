@@ -77,7 +77,7 @@ test('auto-tour retries after app locks during the final 800ms delay', async ({ 
   }
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
   await page.waitForSelector('#tour-tooltip', { state: 'visible', timeout: 6_000 });
-  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/11');
+  await expect(page.locator('.tour-step-chip')).toHaveText('Bước 1/13');
   expect(errors, 'Auto-tour retry must not throw an uncaught exception').toEqual([]);
 
   await page.click('#tour-skip');

@@ -168,6 +168,8 @@ function loadSecurity() {
       setKdataRam: (v) => { APP_BACKUP_KDATA_B64U = v; },
       getPendingKdata: () => __pendingKdataCache,
       ensureBackupSecret,
+      ensureTransferKey,
+      transferKeyCacheSize: () => Object.keys(_transferKeyCache).length,
       completeUnlockDataLoad,
     };
   `;
