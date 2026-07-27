@@ -251,7 +251,11 @@
       const res = await fetch(url, { method: "GET", cache: "no-store" });
       txt = await res.text();
     } catch (e) {
-      // Lỗi mạng/timeout: không chặn UI nhưng đặt cooldown để không spam.
+      // Lỗi mạng của phiên CŨ không được đặt cooldown cho phiên mới: preflight sau
+      // unlock sẽ thấy cooldown và bỏ đúng lần check bắt buộc mà single-flight
+      // theo generation vừa mở đường cho.
+      if (!requestStillCurrent()) return { ok: true, skipped: true, stale: true };
+      // Lỗi mạng/timeout của phiên hiện tại: không chặn UI nhưng đặt cooldown để không spam.
       try {
         localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL, String(Date.now() + AUTH_COOLDOWN_MS));
       } catch (e2) {}

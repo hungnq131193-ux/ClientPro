@@ -419,6 +419,10 @@ function _ensureSummaryDecrypted(c) {
 async function _ensureSummaryDecryptedAsync(c) {
     if (!c) return c;
     const gen = (typeof __keyGeneration !== 'undefined') ? __keyGeneration : null;
+    // Phiên còn sống? PHẢI gọi lại sau MỌI await, ngay trước mỗi lệnh ghi plaintext —
+    // kiểm một lần rồi await tiếp là để auto-lock/thu hồi lọt vào khe giữa hai lệnh.
+    const alive = () => gen === null
+        || (gen === __keyGeneration && (typeof isAppUnlocked !== 'function' || isAppUnlocked()));
     if (!c.assets) c.assets = [];
     if (!c.status) c.status = 'pending';
 
@@ -429,12 +433,14 @@ async function _ensureSummaryDecryptedAsync(c) {
         if (cached.limit === undefined && c.creditLimit && typeof decryptFieldAsync === 'function') {
             try {
                 const lim = await decryptFieldAsync(c.creditLimit);
+                if (!alive()) return c;
                 if (lim !== undefined && lim !== null && !_looksEncrypted(String(lim))) {
                     cached.limit = String(lim);
                     cached.nLimit = _stripSpaces(cached.limit);
                 }
             } catch (e) { }
         }
+        if (!alive()) return c;
         _applySummaryCacheEntry(c, cached);
         return c;
     }
@@ -449,7 +455,7 @@ async function _ensureSummaryDecryptedAsync(c) {
         return c;
     }
 
-    if (gen !== null && (gen !== __keyGeneration || (typeof isAppUnlocked === 'function' && !isAppUnlocked()))) {
+    if (!alive()) {
         __custSummaryCache.delete(c.id);
         return c;
     }
@@ -463,6 +469,12 @@ async function _ensureSummaryDecryptedAsync(c) {
                 limitPlain = (lim !== undefined && lim !== null && !_looksEncrypted(String(lim))) ? String(lim) : undefined;
             } catch (e) { limitPlain = undefined; }
         } else limitPlain = _limitPlainSync(c.creditLimit);
+        // Kiểm LẠI: await creditLimit ở trên là khe cho auto-lock, mà lệnh dưới nạp
+        // name/phone/cccd plaintext vào cache mà clearMasterKeyMaterial() vừa dọn.
+        if (!alive()) {
+            __custSummaryCache.delete(c.id);
+            return c;
+        }
         _storeSummaryCacheEntry(c, sig, limitPlain);
     } else {
         __custSummaryCache.delete(c.id);

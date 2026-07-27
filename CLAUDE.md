@@ -418,6 +418,18 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
   and customer summary/search/list caches in `05_customers.js`. Network responses
   that can write secrets or revoke a session must also prove they still belong to
   the same identity/generation before applying their result.
+- **Where the check goes: immediately before the write, after every `await`.** One
+  check at the top of a function is not a guard — it is a guard for the first
+  `await` only. Every later `await` reopens the window, so re-check right before
+  each statement that writes plaintext, key material, or a soft lock-out marker.
+  Prefer a local `alive()` closure over inline copies so the recheck is cheap to
+  repeat. Two real misses of this shape: `_ensureSummaryDecryptedAsync`
+  (`05_customers.js`) checked before `await decryptFieldAsync(c.creditLimit)` and
+  then still called `_storeSummaryCacheEntry`, repopulating `__custSummaryCache`
+  with plaintext after a lock; `_checkByIssueKdata` (`15_auth_gate.js`) wrote
+  `AUTH_GATE_COOLDOWN_UNTIL` from a stale request's network failure, which then
+  suppressed the post-unlock check for five minutes. Structural tripwires for both
+  live in `tests/regressions.test.js`.
 - On a stale generation `decryptFieldAsync` returns the **ciphertext**, not the
   plaintext: handing plaintext back to an old caller lets it repopulate
   `__custSummaryCache` / `__custSearchBlobCache` after they were cleared, and every

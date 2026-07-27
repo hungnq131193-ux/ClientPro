@@ -179,3 +179,53 @@ test('preflight trong cùng thế hệ khóa vẫn single-flight (không spam GA
   await Promise.all([a, b]);
   assert.equal(calls, 1, 'hai lời gọi cùng thế hệ chỉ được đi 1 request');
 });
+
+// Cooldown là "khóa mềm" 5 phút. Nếu request của phiên CŨ (phát lúc còn khóa) reject
+// sau khi unlock rồi vẫn ghi cooldown, thì preflight sau unlock — dù đã phát request
+// mới đúng generation — lại trả {skipped: cooldown} và verdict device/KDATA bị bỏ suốt
+// phiên. Tức là cooldown vô hiệu hóa chính fix single-flight theo generation.
+test('lỗi mạng của request stale không đặt cooldown chặn check sau unlock', async () => {
+  const { AuthGate, localStorage, setFetch, setEmployeeIdRam, bumpKeyGeneration } = loadAuthGate();
+  localStorage.setItem(ACTIVATED_KEY, 'true');
+  localStorage.setItem('app_employee_id', 'NV001'); // máy legacy: mã NV còn plaintext
+
+  let calls = 0;
+  let failBoot;
+  const bootFails = new Promise((_, rej) => { failBoot = rej; });
+  setFetch(async () => {
+    calls += 1;
+    if (calls === 1) {
+      await bootFails; // request boot chỉ reject SAU khi unlock đã xảy ra
+      return null;
+    }
+    return { text: async () => JSON.stringify({ status: 'success', kdata_b64u: 'B'.repeat(43) }) };
+  });
+
+  const boot = AuthGate.preflight();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(calls, 1);
+
+  bumpKeyGeneration();                 // unlock
+  setEmployeeIdRam('NV001');
+  failBoot(new Error('network down')); // request cũ mới reject
+  await boot;
+
+  assert.equal(localStorage.getItem('app_auth_gate_cooldown_until'), null,
+    'request stale không được ghi cooldown cho phiên mới');
+
+  // Và lần check thật sau unlock vẫn phải đi được (không bị cooldown chặn).
+  assert.equal(await AuthGate.preflight(), true);
+  assert.equal(calls, 2, 'preflight sau unlock phải phát được request thật');
+});
+
+// Đối chứng: lỗi mạng của CHÍNH phiên hiện tại vẫn phải đặt cooldown (chống spam GAS).
+test('lỗi mạng của phiên hiện tại vẫn đặt cooldown', async () => {
+  const { AuthGate, localStorage, setFetch } = loadAuthGate();
+  localStorage.setItem(ACTIVATED_KEY, 'true');
+  localStorage.setItem('app_employee_id', 'NV001');
+  setFetch(async () => { throw new Error('network down'); });
+
+  assert.equal(await AuthGate.preflight(), true, 'lỗi mạng không được chặn UI');
+  assert.ok(localStorage.getItem('app_auth_gate_cooldown_until'),
+    'lỗi mạng của phiên hiện tại phải đặt cooldown');
+});

@@ -342,3 +342,62 @@ test('privacy: users-cache cloud transfer (PII NV khác) không persist — RAM-
     'Phải dọn key persist cũ clientpro_ct_users_cache_v1');
   assert.ok(/_usersCacheRam/.test(src), 'Cache phải nằm trong RAM (_usersCacheRam)');
 });
+
+// ============================================================================
+// Codex PR #136: guard liveness phải là lệnh CUỐI trước khi ghi plaintext.
+//
+// Lớp lỗi lặp lại 3 vòng review: kiểm generation/unlock một lần rồi `await` tiếp,
+// sau đó vẫn ghi plaintext vào cache RAM — auto-lock/thu hồi lọt đúng vào khe đó và
+// clearMasterKeyMaterial() bị nạp lại plaintext ngay sau khi vừa dọn.
+//
+// _ensureSummaryDecryptedAsync là đường nóng nhất (chạy cho từng thẻ khách hàng khi
+// render danh sách) nên khoá cấu trúc ở đây. Không nạp 05_customers.js được ở tầng
+// unit (1814 dòng, phụ thuộc DOM) -> phân tích văn bản nguồn như các tripwire trên.
+// ============================================================================
+
+test('liveness guard phải nằm ngay trước mỗi lệnh ghi cache summary (không await xen giữa)', () => {
+  const body = fnBody(read('assets/05_customers.js'), '_ensureSummaryDecryptedAsync');
+
+  // Guard được gom thành closure alive() — nếu ai đó bỏ closure đi thì tripwire này
+  // phải đổ để buộc rà lại toàn bộ hàm chứ không im lặng bỏ qua.
+  assert.ok(/const\s+alive\s*=\s*\(\)\s*=>/.test(body),
+    '_ensureSummaryDecryptedAsync phải khai báo closure alive() dùng lại sau mỗi await');
+
+  const writes = ['_applySummaryCacheEntry(', '_storeSummaryCacheEntry('];
+  for (const w of writes) {
+    let from = 0;
+    let seen = 0;
+    for (;;) {
+      const at = body.indexOf(w, from);
+      if (at === -1) break;
+      seen++;
+      from = at + w.length;
+
+      const before = body.slice(0, at);
+      const lastGuard = before.lastIndexOf('alive()');
+      assert.ok(lastGuard !== -1, `Phải có alive() trước lệnh ghi ${w}`);
+      const between = before.slice(lastGuard);
+      assert.ok(!/\bawait\b/.test(between),
+        `Có await giữa alive() và ${w} — khe cho auto-lock nạp lại plaintext vào cache`);
+    }
+    assert.ok(seen > 0, `Không tìm thấy lệnh ghi ${w} trong _ensureSummaryDecryptedAsync`);
+  }
+});
+
+test('lỗi mạng của phiên cũ không được đặt cooldown cho phiên mới', () => {
+  const body = fnBody(read('assets/15_auth_gate.js'), '_checkByIssueKdata');
+  // Cooldown là "khoá mềm" 5 phút: đặt nó từ một request đã stale khiến preflight
+  // sau unlock trả {skipped:cooldown} và bỏ luôn verdict device/KDATA của cả phiên.
+  const WRITE = 'localStorage.setItem(AUTH_GATE_COOLDOWN_UNTIL';
+  let from = 0;
+  let seen = 0;
+  for (;;) {
+    const at = body.indexOf(WRITE, from);
+    if (at === -1) break;
+    seen++;
+    from = at + WRITE.length;
+    assert.ok(/requestStillCurrent\(\)/.test(body.slice(0, at)),
+      'Mọi lệnh ghi cooldown phải nằm SAU một kiểm tra requestStillCurrent()');
+  }
+  assert.ok(seen > 0, 'Phải còn cơ chế cooldown');
+});
