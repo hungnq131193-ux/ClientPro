@@ -1,0 +1,108 @@
+'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { loadSecurity } = require('./helpers/load-security');
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((res) => { resolve = res; });
+  return { promise, resolve };
+}
+
+async function waitFor(promise, label) {
+  await Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Hết thời gian chờ: ${label}`)), 3000)),
+  ]);
+}
+
+test('lượt validatePin cũ không được mở keypad hoặc xóa PIN của lượt mới đang import khóa', async () => {
+  const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
+  const pin = '654321';
+  const mk = api.generateMasterKey();
+
+  await api.setMasterKey(mk);
+  localStorage.setItem('app_pin', await api.sealMasterKey(pin, mk));
+  api.clearMasterKeyMaterial();
+  dom.getEl('screen-lock').classList.remove('hidden');
+
+  const originalCrypto = ctx.crypto;
+  const originalSubtle = originalCrypto.subtle;
+  const entered = [deferred(), deferred()];
+  const release = [deferred(), deferred()];
+  let installCount = 0;
+
+  ctx.crypto = {
+    getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
+    subtle: new Proxy(originalSubtle, {
+      get(target, prop) {
+        if (prop === 'importKey') {
+          return async (...args) => {
+            const algorithm = args[2];
+            const name = String((algorithm && algorithm.name) || algorithm || '');
+            if (name === 'AES-GCM' && installCount < 2) {
+              const index = installCount++;
+              entered[index].resolve();
+              await release[index].promise;
+            }
+            return target.importKey(...args);
+          };
+        }
+        const value = target[prop];
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }),
+  };
+
+  api.setCurrentPin(pin);
+  const first = api.validatePin();
+  await waitFor(entered[0].promise, 'lượt cũ vào importKey');
+
+  api.setCurrentPin(pin);
+  const second = api.validatePin();
+  await waitFor(entered[1].promise, 'lượt mới vào importKey');
+
+  const keypad = dom.getEl('pin-keypad');
+  assert.equal(keypad.classList.contains('keypad-disabled'), true,
+    'lượt mới đang import khóa phải giữ keypad bị vô hiệu hóa');
+
+  release[0].resolve();
+  await first;
+
+  assert.equal(keypad.classList.contains('keypad-disabled'), true,
+    'catch của lượt cũ không được bật lại keypad dùng chung');
+  assert.equal(api.getCurrentPin(), pin,
+    'catch của lượt cũ không được xóa PIN mà lượt mới còn cần cho pipeline');
+
+  release[1].resolve();
+  await second;
+
+  assert.equal(keypad.classList.contains('keypad-disabled'), false,
+    'lượt hiện hành hoàn tất thì tự trả keypad về trạng thái nhập được');
+  assert.equal(api.getCurrentPin(), '', 'lượt hiện hành phải tự xóa PIN khỏi RAM');
+});
+
+test('tripwire: catch cài khóa của validatePin chỉ reset PIN/keypad khi còn sở hữu vé', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'assets', '02_security.js'),
+    'utf8'
+  );
+  const start = source.indexOf('async function validatePin()');
+  const end = source.indexOf('\nfunction _openForcedPinUpgrade()', start);
+  assert.ok(start >= 0 && end > start, 'phải tìm thấy thân validatePin');
+
+  const body = source.slice(start, end);
+  const install = body.indexOf('await _installMasterKey(res.masterKey)');
+  const catchStart = body.indexOf('} catch (e) {', install);
+  const catchReturn = body.indexOf('\n      return;', catchStart);
+  assert.ok(install >= 0 && catchStart > install && catchReturn > catchStart,
+    'phải tìm thấy catch của bước cài master key');
+
+  const catchBody = body.slice(catchStart, catchReturn);
+  assert.match(catchBody,
+    /if\s*\(myUnlockAttempt\s*===\s*__unlockAttemptSeq\)\s*\{[\s\S]*?currentPin\s*=\s*"";[\s\S]*?updatePinDots\(\);[\s\S]*?_setKeypadDisabled\(false\);[\s\S]*?\}/,
+    'reset PIN/keypad dùng chung phải nằm trong guard sở hữu vé');
+});

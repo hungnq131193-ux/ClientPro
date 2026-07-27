@@ -1958,9 +1958,11 @@ async function validatePin() {
       // Không mở khóa, không chạy pipeline, GIỮ NGUYÊN màn khóa; PIN nhập đúng nên
       // không tính là lần sai. Trả bàn phím lại để người dùng nhập lại ngay.
       try { ErrorHandler.logError("unlock-install-key", e); } catch (_) {}
-      currentPin = "";
-      updatePinDots();
-      _setKeypadDisabled(false);
+      if (myUnlockAttempt === __unlockAttemptSeq) {
+        currentPin = "";
+        updatePinDots();
+        _setKeypadDisabled(false);
+      }
       // Lượt này đang giữ vé mà bỏ dở -> phải nhả UI dùng chung, nếu không màn khóa
       // kẹt ở trạng thái spinner (pipeline cũ nay không còn quyền tự dọn).
       _releaseUnlockLoading(myUnlockAttempt);
