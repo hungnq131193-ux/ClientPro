@@ -1,11 +1,42 @@
 // ================== WEATHER (OPEN-METEO, NO KEY) ==================
 
+/**
+ * Chỉ giữ đúng phần pill thời tiết cần. Response Open-Meteo có latitude/longitude
+ * top-level (tâm ô lưới dự báo, cách vị trí thật vài km) cộng timezone/elevation —
+ * cache nguyên response là ghi vị trí gần đúng của người dùng dạng plaintext vào
+ * localStorage, tồn tại cả khi app đã khóa. Không seal vì pill phải render TRƯỚC
+ * lúc mở khóa; cách đúng là không lưu toạ độ ngay từ đầu.
+ * @param {object} data - response thô của Open-Meteo
+ * @returns {{current_weather: {temperature: number, weathercode: number}}|null}
+ */
+function _trimWeatherForCache(data) {
+  const cw = data && data.current_weather;
+  if (!cw) return null;
+  return {
+    current_weather: {
+      temperature: cw.temperature,
+      weathercode: cw.weathercode,
+    },
+  };
+}
+
 function initWeather() {
   // hiển thị nhanh từ cache nếu có
   const cacheRaw = localStorage.getItem(WEATHER_STORAGE_KEY);
   if (cacheRaw) {
     try {
       const cache = JSON.parse(cacheRaw);
+      // Cache của bản cũ chứa nguyên response (có toạ độ) -> dọn ngay khi gặp,
+      // không chờ lần fetch sau ghi đè.
+      if (cache && cache.data && cache.data.latitude !== undefined) {
+        const trimmed = _trimWeatherForCache(cache.data);
+        cache.data = trimmed;
+        if (trimmed) {
+          localStorage.setItem(WEATHER_STORAGE_KEY, JSON.stringify({ time: cache.time, data: trimmed }));
+        } else {
+          localStorage.removeItem(WEATHER_STORAGE_KEY);
+        }
+      }
       if (Date.now() - cache.time < WEATHER_CACHE_TTL) {
         renderWeather(cache.data);
       }
@@ -83,10 +114,14 @@ function fetchWeather(lat, lon) {
     })
     .then((data) => {
       try {
-        localStorage.setItem(
-          WEATHER_STORAGE_KEY,
-          JSON.stringify({ time: Date.now(), data })
-        );
+        // Chỉ cache phần hiển thị — KHÔNG lưu toạ độ/timezone/elevation.
+        const cacheable = _trimWeatherForCache(data);
+        if (cacheable) {
+          localStorage.setItem(
+            WEATHER_STORAGE_KEY,
+            JSON.stringify({ time: Date.now(), data: cacheable })
+          );
+        }
       } catch (e) {
         console.warn("Weather cache save error", e);
       }

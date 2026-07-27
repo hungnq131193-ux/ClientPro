@@ -20,6 +20,11 @@ const BACKUP_KDATA_CACHE_TTL_MS = 30 * 60 * 1000; // 30 phút
 // KDATA nhận được khi app còn khóa (vd AuthGate preflight) chờ seal trong RAM;
 // _flushPendingKdataCache() ghi xuống sau khi unlock. Bị xóa khi lockApp().
 let __pendingKdataCache = null;
+// "Thế hệ khóa": tăng mỗi lần cài (_installMasterKey) hoặc xóa
+// (clearMasterKeyMaterial) masterKey. Công việc crypto bất đồng bộ phải chụp lại
+// thế hệ lúc bắt đầu và chỉ ghi kết quả vào RAM nếu thế hệ chưa đổi — nếu không,
+// một phiên vừa bị khóa/thu hồi sẽ nhận lại key hoặc plaintext ngay sau khi xóa.
+let __keyGeneration = 0;
 // Mã nhân viên là secret khôi phục masterKey (SEC_KEY được niêm phong dưới nó)
 // nên KHÔNG được persist plaintext lâu dài — plaintext nằm cạnh envelope là
 // bypass PIN cho bất kỳ ai đọc được localStorage. Bản plaintext EMPLOYEE_KEY
@@ -72,16 +77,24 @@ async function _readSealedEmployeeIdAsync() {
  */
 async function runEmployeeIdSealMigrationIfNeeded() {
   if (!masterCryptoKey) return;
+  // Mã NV là secret khôi phục masterKey -> cũng phải theo thế hệ khóa: khóa/thu hồi
+  // xen giữa các await dưới đây thì không được nạp lại nó vào RAM.
+  const gen = __keyGeneration;
   let plain = "";
   try { plain = (localStorage.getItem(EMPLOYEE_KEY) || "").trim(); } catch (e) {}
   if (plain) {
     if (await _writeSealedEmployeeId(plain)) {
       try { localStorage.removeItem(EMPLOYEE_KEY); } catch (e) {}
     }
+    if (gen !== __keyGeneration) return;
     __employeeIdPlain = plain;
     return;
   }
-  if (!__employeeIdPlain) __employeeIdPlain = await _readSealedEmployeeIdAsync();
+  if (!__employeeIdPlain) {
+    const sealedPlain = await _readSealedEmployeeIdAsync();
+    if (gen !== __keyGeneration) return;
+    __employeeIdPlain = sealedPlain;
+  }
   // RAM có (vừa nhập tay ở setup/recovery dưới key legacy) mà sealed chưa ghi
   // được trước đó -> ghi bù ngay khi đã có key GCM.
   if (__employeeIdPlain && !localStorage.getItem(EMPLOYEE_SEALED_KEY)) {
@@ -442,14 +455,25 @@ async function decryptFieldAsync(cipher) {
   if (hit !== undefined) return hit;
   let pending = __fieldDecryptPending.get(s);
   if (!pending) {
-    pending = _gcmDecryptField(s).then((pt) => {
+    const gen = __keyGeneration;
+    let ownPromise;
+    ownPromise = _gcmDecryptField(s).then((pt) => {
+      // Khóa/thu hồi xảy ra giữa lúc giải mã: KHÔNG nạp plaintext trở lại cache
+      // của phiên vừa bị xóa, và cũng không trả plaintext cho caller — caller cũ
+      // (vd _ensureSummaryDecryptedAsync, 05_customers.js) sẽ ghi tiếp giá trị đó
+      // vào __custSummaryCache/__custSearchBlobCache mà clearMasterKeyMaterial()
+      // vừa dọn sạch. Trả nguyên ciphertext: mọi đường render đã chặn ciphertext
+      // bằng _looksEncrypted và hiện placeholder.
+      if (gen !== __keyGeneration) return s;
       __fieldPlainCache.set(s, pt);
-      __fieldDecryptPending.delete(s);
       return pt;
-    }).catch(() => {
-      __fieldDecryptPending.delete(s);
-      return s;
+    }).catch(() => s).finally(() => {
+      // Chỉ dọn entry pending CỦA CHÍNH MÌNH: phiên mở khóa mới có thể đã tạo
+      // pending khác cho cùng ciphertext, xóa nhầm nó là bỏ dedupe và để lại một
+      // promise không ai theo dõi.
+      if (__fieldDecryptPending.get(s) === ownPromise) __fieldDecryptPending.delete(s);
     });
+    pending = ownPromise;
     __fieldDecryptPending.set(s, pending);
   }
   return pending;
@@ -488,12 +512,23 @@ function generateMasterKey() {
  * - "mk_..."  -> giữ làm masterKeyLegacy để đọc dữ liệu cũ + kích hoạt migration.
  */
 async function _installMasterKey(mkStr) {
+  // Mở một "thế hệ khóa" mới: mọi công việc bất đồng bộ bắt đầu từ thế hệ trước
+  // (import key, giải mã field, prime cache) không được ghi kết quả vào RAM nữa.
+  const gen = ++__keyGeneration;
   // Đổi khóa -> cache plaintext của khóa cũ không còn hợp lệ (chống rò rỉ chéo khóa).
   __fieldPlainCache.clear();
   masterKey = mkStr;
   if (mkStr && mkStr.startsWith("MK2:")) {
-    masterKeyBytes = _b64DecodeToBytes(mkStr.slice(4));
-    masterCryptoKey = await crypto.subtle.importKey("raw", masterKeyBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+    const bytes = _b64DecodeToBytes(mkStr.slice(4));
+    const key = await crypto.subtle.importKey("raw", bytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+    // lockApp()/revokeUnlockedSession() xảy ra GIỮA await importKey: gán tiếp là
+    // hồi sinh khóa cho một phiên đã bị khóa/thu hồi. Bỏ kết quả, xóa bytes vừa dựng.
+    if (gen !== __keyGeneration) {
+      try { bytes.fill(0); } catch (e) {}
+      return;
+    }
+    masterKeyBytes = bytes;
+    masterCryptoKey = key;
     masterKeyLegacy = null;
   } else {
     masterKeyLegacy = mkStr || null;
@@ -504,6 +539,10 @@ async function _installMasterKey(mkStr) {
 
 /** Xóa mọi vết khóa + plaintext khỏi RAM khi khóa app / ẩn tab (giới hạn tuổi thọ). */
 function clearMasterKeyMaterial() {
+  // Đóng thế hệ khóa hiện tại TRƯỚC khi xóa: mọi promise crypto đang bay (import
+  // key, giải mã field, prime cache) thấy thế hệ đã đổi và bỏ kết quả thay vì ghi
+  // ngược key/plaintext vào RAM của phiên vừa bị khóa/thu hồi.
+  __keyGeneration++;
   if (masterKeyBytes) { try { masterKeyBytes.fill(0); } catch (e) {} }
   masterKey = null; masterKeyBytes = null; masterCryptoKey = null; masterKeyLegacy = null;
   // KDATA plaintext cũng là secret trong RAM -> xóa khi khóa (sealed v2 trong
@@ -534,6 +573,20 @@ function lockApp() {
 }
 
 /**
+ * Thu hồi phiên đang mở khóa: xóa NGAY toàn bộ vật liệu khóa trong RAM
+ * (masterKey, KDATA, mã NV, cache plaintext) khi server báo tài khoản bị khóa /
+ * sai thiết bị.
+ *
+ * KHÔNG dùng lockApp() cho việc này: các đường thu hồi xóa PIN_KEY, mà lockApp()
+ * return sớm khi không còn PIN_KEY -> gọi sau đó là vô tác dụng. Vì vậy phải gọi
+ * hàm này TRƯỚC khi xóa ACTIVATED_KEY/PIN_KEY.
+ */
+function revokeUnlockedSession() {
+  try { clearMasterKeyMaterial(); } catch (e) {}
+  currentPin = "";
+}
+
+/**
  * Prime tối thiểu sau unlock: chỉ token Drive (getUserToken đồng bộ).
  * Field KH/TSBĐ giải mã lazy qua decryptFieldAsync khi render.
  */
@@ -545,7 +598,12 @@ async function primeFieldCache() {
     if (rawTk.startsWith("sealed.v1:")) {
       const inner = rawTk.slice("sealed.v1:".length);
       if (inner.startsWith(GCM_PREFIX) && !__fieldPlainCache.has(inner)) {
-        try { __fieldPlainCache.set(inner, await _gcmDecryptField(inner)); } catch (e) {}
+        const gen = __keyGeneration;
+        // Khóa xen giữa await -> không nạp token plaintext vào cache đã bị xóa.
+        try {
+          const pt = await _gcmDecryptField(inner);
+          if (gen === __keyGeneration) __fieldPlainCache.set(inner, pt);
+        } catch (e) {}
       }
     }
   } catch (e) {}
@@ -555,6 +613,11 @@ async function primeFieldCache() {
 // Image at-rest encryption (field `data` trong store images)
 // ============================================================
 const IMG_SCHEMA_KEY = "app_image_crypto_schema_v";
+// Giá trị marker "hoàn tất". "1" là của bản cũ và KHÔNG còn tin được: bản đó set
+// marker kể cả khi auto-lock làm ảnh bị ghi plaintext kèm imgCryptoV=1. Máy đang
+// dừng ở "1" phải được quét lại đúng một lượt để cứu số ảnh đó -> mốc hoàn tất
+// mới là "2". Đừng hạ ngưỡng này về "1".
+const IMG_SCHEMA_DONE = "2";
 
 function _isPlainImageDataUrl(s) {
   return typeof s === "string" && /^data:image\/[a-z0-9.+-]+;base64,/i.test(s);
@@ -576,33 +639,76 @@ async function decryptImageData(cipher) {
 }
 
 async function runImageCryptoMigrationIfNeeded() {
-  if (localStorage.getItem(IMG_SCHEMA_KEY) === "1") return;
+  if (localStorage.getItem(IMG_SCHEMA_KEY) === IMG_SCHEMA_DONE) return;
   if (!masterCryptoKey || typeof db === "undefined" || !db) return;
-  const all = await new Promise((resolve) => {
-    try {
-      const req = db.transaction(["images"], "readonly").objectStore("images").getAll();
-      req.onsuccess = (e) => resolve(e.target.result || []);
-      req.onerror = () => resolve([]);
-    } catch (e) { resolve([]); }
-  });
-  for (const img of all) {
-    if (!img || img.imgCryptoV === 1) continue;
-    if (!_isPlainImageDataUrl(img.data)) continue;
-    const enc = await encryptImageData(img.data);
-    await new Promise((resolve, reject) => {
-      img.data = enc;
-      img.imgCryptoV = 1;
-      // Resolve trên oncomplete (không phải put onsuccess) + reject cả onabort:
-      // tx có thể abort KHÔNG kèm request error — thiếu onabort là promise treo
-      // vĩnh viễn giữa unlock flow (mirror __imgTxDone, 08_images_camera.js).
-      const tx = db.transaction(["images"], "readwrite");
-      tx.objectStore("images").put(img);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error || new Error("Transaction error"));
-      tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
+
+  const looksEnc = (v) => (typeof _looksEncrypted === "function")
+    ? _looksEncrypted(v)
+    : (typeof v === "string" && (v.startsWith("U2FsdGVk") || v.startsWith(GCM_PREFIX)));
+
+  // Quét theo KEY rồi đọc từng bản ghi thay vì getAll(): ảnh là data URL nặng,
+  // getAll() nạp cả store vào RAM một lúc — lượt quét lại này chạy trên MỌI máy
+  // (kể cả máy đã ở marker "1") nên không được phình bộ nhớ trên máy nhiều ảnh.
+  //
+  // Đọc lỗi KHÔNG được coi là "không có ảnh nào": coi rỗng thì failures=0 và
+  // marker set sai -> ảnh plaintext không bao giờ được migrate nữa (cùng lý do
+  // đã xử lý ở runFieldEncryptMigrationV2IfNeeded).
+  let keys;
+  try {
+    keys = await new Promise((resolve, reject) => {
+      try {
+        const req = db.transaction(["images"], "readonly").objectStore("images").getAllKeys();
+        req.onsuccess = (e) => resolve(e.target.result || []);
+        req.onerror = () => reject(req.error || new Error("IMG_MIGR_READ_ERROR"));
+      } catch (e) { reject(e); }
     });
+  } catch (e) {
+    return; // không set marker -> lần mở khóa sau tự thử lại
   }
-  localStorage.setItem(IMG_SCHEMA_KEY, "1");
+
+  let failures = 0;
+  for (const key of keys) {
+    try {
+      const img = await new Promise((resolve, reject) => {
+        try {
+          const req = db.transaction(["images"], "readonly").objectStore("images").get(key);
+          req.onsuccess = (e) => resolve(e.target.result);
+          req.onerror = () => reject(req.error || new Error("IMG_MIGR_GET_ERROR"));
+        } catch (e) { reject(e); }
+      });
+      // KHÔNG tin cờ imgCryptoV: bản cũ có thể đã đóng dấu 1 lên ảnh vẫn còn
+      // plaintext (race auto-lock). Quyết định theo DỮ LIỆU THẬT.
+      if (!img || !_isPlainImageDataUrl(img.data)) continue;
+      const enc = await encryptImageData(img.data);
+      // Race lockApp giữa migration: masterKey bị xóa -> encryptImageData trả
+      // NGUYÊN data URL plaintext (fail-open). Không chốt chặn thì ảnh plaintext
+      // bị ghi kèm imgCryptoV=1 và marker toàn cục set sai -> ảnh nằm plaintext
+      // trong IndexedDB vĩnh viễn. Bắt buộc kết quả phải là ciphertext.
+      if (!looksEnc(enc)) throw new Error("IMG_MIGR_NOT_ENCRYPTED");
+      await new Promise((resolve, reject) => {
+        img.data = enc;
+        img.imgCryptoV = 1;
+        // Resolve trên oncomplete (không phải put onsuccess) + reject cả onabort:
+        // tx có thể abort KHÔNG kèm request error — thiếu onabort là promise treo
+        // vĩnh viễn giữa unlock flow (mirror __imgTxDone, 08_images_camera.js).
+        const tx = db.transaction(["images"], "readwrite");
+        tx.objectStore("images").put(img);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error("Transaction error"));
+        tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
+      });
+    } catch (e) {
+      failures++;
+    }
+  }
+
+  if (failures === 0) {
+    localStorage.setItem(IMG_SCHEMA_KEY, IMG_SCHEMA_DONE);
+  } else {
+    try {
+      ErrorHandler.showWarning(`Mã hóa ảnh chưa hoàn tất cho ${failures} ảnh — sẽ tự thử lại ở lần mở khóa sau.`);
+    } catch (e) {}
+  }
 }
 
 // ============================================================
@@ -752,6 +858,11 @@ async function completeUnlockDataLoad(pinForMigration, empForMigration) {
   } finally {
     _setUnlockLoading(false);
   }
+  // Auto-lock có thể nổ GIỮA pipeline này (key cài trước khi chạy, nên
+  // isAppUnlocked() đã true và _onAppHiddenForAutoLock đủ điều kiện khóa).
+  // Phiên đã mất thì không được đánh thức auto-backup/preflight bằng sự kiện
+  // của một unlock không còn hiệu lực.
+  if (!isAppUnlocked()) return;
   // B2: báo cho các module (auto-backup Drive...) biết app vừa mở khóa xong.
   // Guard đầy đủ vì test harness (tests/helpers/load-security.js) stub document
   // không có dispatchEvent/CustomEvent. Dispatch lặp lại vô hại (listener idempotent).
@@ -1237,6 +1348,11 @@ async function runServerStatusCheck() {
         ? result.message
         : "";
     if (status === "locked") {
+      // Check này giờ chạy cả SAU khi mở khóa (máy đã seal mã NV không có
+      // identity lúc boot) -> phải xóa key khỏi RAM trước khi dựng UI chặn,
+      // nếu không phiên vừa bị thu hồi vẫn còn masterKey/KDATA sống tới khi
+      // đóng tab và tác vụ nền vẫn dùng được.
+      revokeUnlockedSession();
       getEl("screen-lock").classList.add("hidden");
       getEl("setup-lock-modal").classList.add("hidden");
       const modal = getEl("activation-modal");
@@ -1605,6 +1721,11 @@ async function validatePin() {
     resetPinFailures();
     _setKeypadDisabled(false);
     await completeUnlockDataLoad(pinForMigration, empForMigration);
+    // Auto-lock (60s ẩn) có thể đã nổ GIỮA pipeline dài phía trên và xóa key +
+    // hiện lại màn khóa. Ẩn màn khóa vô điều kiện ở đây là mở app với
+    // masterKey=null — vào được dashboard mà không qua PIN. Mất phiên thì giữ
+    // nguyên màn khóa, người dùng nhập PIN lại.
+    if (!isAppUnlocked()) return;
     getEl("screen-lock").classList.add("hidden");
     // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới (masterKey giữ nguyên, dữ liệu không đổi)
     if (res.legacy) _openForcedPinUpgrade();
