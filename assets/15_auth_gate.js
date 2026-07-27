@@ -199,6 +199,20 @@
       employeeId = (typeof EMPLOYEE_KEY !== "undefined") ? (localStorage.getItem(EMPLOYEE_KEY) || "") : "";
     }
     if (!activated || !employeeId) return { ok: true, skipped: true };
+    const requestGeneration = (typeof __keyGeneration !== "undefined") ? __keyGeneration : null;
+    const requestWasUnlocked = (typeof isAppUnlocked === "function") ? isAppUnlocked() : false;
+    const requestStillCurrent = () => {
+      try {
+        if (!localStorage.getItem(ACTIVATED_KEY)) return false;
+        let currentEmployeeId = "";
+        if (typeof __employeeIdPlain !== "undefined" && __employeeIdPlain) currentEmployeeId = String(__employeeIdPlain).trim();
+        if (!currentEmployeeId) currentEmployeeId = (localStorage.getItem(EMPLOYEE_KEY) || "").trim();
+        if (currentEmployeeId !== employeeId) return false;
+        if (requestGeneration !== null && requestGeneration !== __keyGeneration) return false;
+        if (requestWasUnlocked && typeof isAppUnlocked === "function" && !isAppUnlocked()) return false;
+        return true;
+      } catch (e) { return false; }
+    };
 
     // Nếu không có GAS URL thì không thể check
     if (typeof ADMIN_SERVER_URL === "undefined" || !ADMIN_SERVER_URL) return { ok: true, skipped: true };
@@ -239,6 +253,8 @@
       return { ok: true, skipped: true, neterr: true };
     }
     const js = _parseMaybeJson(txt);
+    // Response của phiên/identity cũ không được ghi KDATA hoặc tạo strike cho phiên mới.
+    if (!requestStillCurrent()) return { ok: true, skipped: true, stale: true };
 
     // Contract ưu tiên JSON: {status:'success'|'error'|'locked', message, kdata_b64u}
     if (js && typeof js === "object") {

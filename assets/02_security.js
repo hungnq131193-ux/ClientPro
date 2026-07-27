@@ -145,7 +145,12 @@ async function _readCachedKdataAsync(employeeId, deviceId) {
       } else if (fresh) {
         if (masterCryptoKey && sealed.startsWith(GCM_PREFIX)) {
           try {
+            const gen = __keyGeneration;
+            const key = masterCryptoKey;
             const kdata = await _gcmDecryptField(sealed);
+            // Auto-lock/thu hồi xen giữa await: bỏ kết quả, nhưng KHÔNG xóa cache tốt
+            // chỉ vì phiên hiện tại đã mất khóa trước khi Promise hoàn tất.
+            if (gen !== __keyGeneration || key !== masterCryptoKey || !masterKey) return null;
             if (kdata) {
               // Đã có v2 sealed dùng được -> v1 plaintext legacy (nếu còn) là rủi ro
               // thuần, dọn NGAY (độc lập với việc migrate v1). Vá B3: v1 không được
@@ -220,8 +225,11 @@ async function _writeCachedKdata(employeeId, deviceId, kdata_b64u, tsOverride) {
     return false;
   }
 
+  const gen = __keyGeneration;
+  const key = masterCryptoKey;
   try {
     const sealed = await _gcmEncryptField(kdata);
+    if (gen !== __keyGeneration || key !== masterCryptoKey || !masterKey) return false;
     localStorage.setItem(
       BACKUP_KDATA_CACHE_KEY_V2,
       JSON.stringify({ ts, identity, sealed })
@@ -230,6 +238,7 @@ async function _writeCachedKdata(employeeId, deviceId, kdata_b64u, tsOverride) {
     const back = _parseKdataEnvelope(localStorage.getItem(BACKUP_KDATA_CACHE_KEY_V2) || "");
     if (!back || String(back.sealed || "") !== sealed) return false;
     const verify = await _gcmDecryptField(String(back.sealed));
+    if (gen !== __keyGeneration || key !== masterCryptoKey || !masterKey) return false;
     return verify === kdata;
   } catch (e) {
     return false;
@@ -240,19 +249,21 @@ async function _writeCachedKdata(employeeId, deviceId, kdata_b64u, tsOverride) {
 async function _flushPendingKdataCache() {
   if (!__pendingKdataCache || !masterCryptoKey) return;
   const pending = __pendingKdataCache;
+  const gen = __keyGeneration;
+  const key = masterCryptoKey;
   if (Date.now() - pending.ts > BACKUP_KDATA_CACHE_TTL_MS) {
-    __pendingKdataCache = null;
+    if (__pendingKdataCache === pending) __pendingKdataCache = null;
     return;
   }
   try {
     const sealed = await _gcmEncryptField(pending.kdata_b64u);
+    if (gen !== __keyGeneration || key !== masterCryptoKey || !masterKey) return;
     localStorage.setItem(
       BACKUP_KDATA_CACHE_KEY_V2,
       JSON.stringify({ ts: pending.ts, identity: pending.identity, sealed })
     );
-    // Chỉ nhả pending khi ĐÃ persist thành công. Nếu setItem throw (vd quota),
-    // giữ pending trong RAM để lần flush/unlock sau thử lại — không mất KDATA.
-    __pendingKdataCache = null;
+    // Chỉ nhả ĐÚNG pending đã persist; request mới có thể đã thay thế trong lúc await.
+    if (__pendingKdataCache === pending) __pendingKdataCache = null;
   } catch (e) {}
 }
 
@@ -398,10 +409,23 @@ function _b64uEncodeBytes(bytes) {
   return _b64EncodeBytes(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** Mã hóa 1 field bằng AES-GCM (async). Seed luôn cache để đọc lại đồng bộ ngay trong phiên. */
+/**
+ * Mã hóa 1 field bằng AES-GCM (async). Seed cache chỉ khi phiên khóa vẫn còn hiệu lực.
+ *
+ * WebCrypto không thể bị hủy sau khi đã bắt đầu. Vì vậy phải chụp cả generation và
+ * CryptoKey trước await; nếu auto-lock/thu hồi/đổi khóa xảy ra giữa chừng thì ném
+ * STALE_KEY_GENERATION, không trả ciphertext cho caller và tuyệt đối không nạp lại
+ * plaintext vào cache của phiên đã chết.
+ */
 async function _gcmEncryptField(plain) {
+  const gen = __keyGeneration;
+  const key = masterCryptoKey;
+  if (!key) throw new Error("MASTER_KEY_UNAVAILABLE");
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ctBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, masterCryptoKey, new TextEncoder().encode(String(plain)));
+  const ctBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(String(plain)));
+  if (gen !== __keyGeneration || key !== masterCryptoKey || !masterKey) {
+    throw new Error("STALE_KEY_GENERATION");
+  }
   const ct = new Uint8Array(ctBuf);
   const buf = new Uint8Array(iv.length + ct.length);
   buf.set(iv, 0); buf.set(ct, iv.length);
@@ -547,8 +571,11 @@ function clearMasterKeyMaterial() {
   masterKey = null; masterKeyBytes = null; masterCryptoKey = null; masterKeyLegacy = null;
   // KDATA plaintext cũng là secret trong RAM -> xóa khi khóa (sealed v2 trong
   // localStorage giữ nguyên vì đã là ciphertext).
+  APP_BACKUP_SECRET = "";
   APP_BACKUP_KDATA_B64U = "";
   __pendingKdataCache = null;
+  // Transfer key là secret RAM gắn với đúng phiên/identity — không được sống qua lock/revoke.
+  try { Object.keys(_transferKeyCache).forEach((k) => { delete _transferKeyCache[k]; }); } catch (e) {}
   // Mã NV plaintext trong RAM cũng là secret khôi phục -> xóa cùng lúc với khóa.
   __employeeIdPlain = null;
   __fieldPlainCache.clear();
@@ -820,52 +847,49 @@ function _setUnlockLoading(on, msg) {
 /** Sau khi xác thực PIN: migration + lazy prime + loadCustomers — giữ lock đến khi xong. */
 async function completeUnlockDataLoad(pinForMigration, empForMigration) {
   _setUnlockLoading(true, "Đang tải dữ liệu...");
+  let pipelineGeneration = __keyGeneration;
+  const alive = () => isAppUnlocked() && pipelineGeneration === __keyGeneration;
   try {
     try { if (window.__dbReady) await window.__dbReady; } catch (e) {}
+    if (!alive()) return;
     try {
       await runFieldCryptoMigrationIfNeeded(pinForMigration, empForMigration);
     } catch (e) {
       try { ErrorHandler.logError("crypto-migration", e); } catch (_) {}
     }
+    if (!isAppUnlocked()) return;
+    // Legacy -> MK2 migration cài một key generation mới có chủ đích.
+    pipelineGeneration = __keyGeneration;
     try {
       await runImageCryptoMigrationIfNeeded();
     } catch (e) {
       try { ErrorHandler.logError("image-crypto-migration", e); } catch (_) {}
     }
+    if (!alive()) return;
     try {
       await runFieldEncryptMigrationV2IfNeeded();
     } catch (e) {
       try { ErrorHandler.logError("field-encrypt-migration-v2", e); } catch (_) {}
     }
+    if (!alive()) return;
     // Mã NV: seal bản plaintext còn sót (máy legacy / vừa kích hoạt) rồi nạp RAM.
-    // Chạy SAU field-migration (migration legacy còn cần đọc plaintext) và TRƯỚC
-    // flush KDATA/backup (các luồng đó resolve mã NV từ RAM).
     try { await runEmployeeIdSealMigrationIfNeeded(); } catch (e) {}
+    if (!alive()) return;
     await primeFieldCache();
-    // Prime summary list (name/phone/cccd/creditLimit) TRƯỚC loadCustomers đầu tiên:
-    // list render plaintext ngay sau unlock, không flash "Đang tải..."/"•••".
-    // Chỉ nạp RAM cache (05_customers.js) — bị xóa lại trong clearMasterKeyMaterial.
+    if (!alive()) return;
     try {
       if (typeof primeCustomerSummaryCache === "function") await primeCustomerSummaryCache();
     } catch (e) {}
-    // Seal KDATA nhận được lúc còn khóa (AuthGate preflight) TRƯỚC khi phát
-    // sự kiện unlocked — auto-backup nghe sự kiện sẽ thấy cache sẵn, không
-    // phải xin lại KDATA từ GAS.
+    if (!alive()) return;
     try { await _flushPendingKdataCache(); } catch (e) {}
+    if (!alive()) return;
     if (typeof loadCustomers === "function") {
       await loadCustomers((getEl("search-input") && getEl("search-input").value) || "");
     }
   } finally {
     _setUnlockLoading(false);
   }
-  // Auto-lock có thể nổ GIỮA pipeline này (key cài trước khi chạy, nên
-  // isAppUnlocked() đã true và _onAppHiddenForAutoLock đủ điều kiện khóa).
-  // Phiên đã mất thì không được đánh thức auto-backup/preflight bằng sự kiện
-  // của một unlock không còn hiệu lực.
-  if (!isAppUnlocked()) return;
-  // B2: báo cho các module (auto-backup Drive...) biết app vừa mở khóa xong.
-  // Guard đầy đủ vì test harness (tests/helpers/load-security.js) stub document
-  // không có dispatchEvent/CustomEvent. Dispatch lặp lại vô hại (listener idempotent).
+  if (!alive()) return;
   try {
     if (typeof document !== "undefined"
       && typeof document.dispatchEvent === "function"
@@ -884,60 +908,84 @@ const SCHEMA_KEY = "app_crypto_schema_v";   // '2' = đã migrate
 const PIN_STAGE = "app_pin_v2_stage";       // niêm phong MK2 tạm dưới PIN (resume không đúc lại key)
 const SEC_STAGE = "app_sec_v2_stage";       // niêm phong MK2 tạm dưới mã nhân viên
 
+function _legacyMigrationAlive(gen) {
+  return gen === __keyGeneration && !!masterKey && !!masterCryptoKey;
+}
+
 function _getAllCustomerKeys() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     try {
       const req = db.transaction(["customers"], "readonly").objectStore("customers").getAllKeys();
       req.onsuccess = (e) => resolve(e.target.result || []);
-      req.onerror = () => resolve([]);
-    } catch (e) { resolve([]); }
+      req.onerror = () => reject(req.error || new Error("LEGACY_MIGR_KEYS_READ_ERROR"));
+    } catch (e) { reject(e); }
   });
 }
 
-/** Re-encrypt mọi field CryptoJS-legacy của 1 record sang AES-GCM (masterCryptoKey mới). */
-async function _reencryptRecord(c) {
-  const decLegacy = (v) => (typeof v === "string" && v.startsWith("U2FsdGVk"))
-    ? (CryptoJS.AES.decrypt(v, masterKeyLegacy).toString(CryptoJS.enc.Utf8) || "") : v;
-  const conv = async (v) => (typeof v === "string" && v.startsWith("U2FsdGVk")) ? await _gcmEncryptField(decLegacy(v)) : v;
-  for (const k of ["name", "phone", "cccd", "notes", "creditLimit", "driveLink"]) if (c[k] !== undefined) c[k] = await conv(c[k]);
-  if (Array.isArray(c.assets)) for (const a of c.assets) {
-    for (const k of ["name", "link", "valuation", "loanValue", "area", "width", "onland", "year", "driveLink"]) if (a[k] !== undefined) a[k] = await conv(a[k]);
+/** Re-encrypt mọi field CryptoJS-legacy của 1 record sang AES-GCM. */
+async function _reencryptRecord(c, legacyKey, migrationGen) {
+  const decLegacy = (v) => {
+    if (!(typeof v === "string" && v.startsWith("U2FsdGVk"))) return v;
+    if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+    const pt = CryptoJS.AES.decrypt(v, legacyKey).toString(CryptoJS.enc.Utf8);
+    if (!pt) throw new Error("LEGACY_FIELD_DECRYPT_FAILED");
+    return pt;
+  };
+  const conv = async (v) => {
+    if (!(typeof v === "string" && v.startsWith("U2FsdGVk"))) return v;
+    const enc = await _gcmEncryptField(decLegacy(v));
+    if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+    return enc;
+  };
+  for (const k of ["name", "phone", "cccd", "notes", "creditLimit", "driveLink"]) {
+    if (c[k] !== undefined) c[k] = await conv(c[k]);
   }
+  if (Array.isArray(c.assets)) for (const a of c.assets) {
+    for (const k of ["name", "link", "valuation", "loanValue", "area", "width", "onland", "year", "driveLink"]) {
+      if (a[k] !== undefined) a[k] = await conv(a[k]);
+    }
+  }
+  if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
   c.cryptoV = 2;
 }
 
-/** Re-encrypt token Drive (07_drive 'sealed.v1:') trong lúc còn masterKeyLegacy. */
-async function _migrateDriveToken() {
-  try {
-    const tkKey = (typeof USER_TOKEN_KEY !== "undefined") ? USER_TOKEN_KEY : "app_user_script_token";
-    const raw = (localStorage.getItem(tkKey) || "").trim();
-    if (!raw.startsWith("sealed.v1:")) return;         // plaintext/empty -> getUserToken reseal sau
-    const inner = raw.slice("sealed.v1:".length);
-    if (inner.startsWith(GCM_PREFIX)) return;           // đã GCM
-    if (!inner.startsWith("U2FsdGVk")) return;
-    const pt = CryptoJS.AES.decrypt(inner, masterKeyLegacy).toString(CryptoJS.enc.Utf8);
-    if (pt) localStorage.setItem(tkKey, "sealed.v1:" + await _gcmEncryptField(pt));
-  } catch (e) {}
+/** Re-encrypt token Drive (07_drive 'sealed.v1:') trong lúc còn legacyKey. */
+async function _migrateDriveToken(legacyKey, migrationGen) {
+  const tkKey = (typeof USER_TOKEN_KEY !== "undefined") ? USER_TOKEN_KEY : "app_user_script_token";
+  const raw = (localStorage.getItem(tkKey) || "").trim();
+  if (!raw.startsWith("sealed.v1:")) return true; // plaintext/empty -> getUserToken reseal sau
+  const inner = raw.slice("sealed.v1:".length);
+  if (inner.startsWith(GCM_PREFIX)) return true;
+  if (!inner.startsWith("U2FsdGVk")) return true;
+  const pt = CryptoJS.AES.decrypt(inner, legacyKey).toString(CryptoJS.enc.Utf8);
+  if (!pt) throw new Error("DRIVE_TOKEN_LEGACY_DECRYPT_FAILED");
+  const enc = await _gcmEncryptField(pt);
+  if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+  const next = "sealed.v1:" + enc;
+  localStorage.setItem(tkKey, next);
+  if ((localStorage.getItem(tkKey) || "") !== next) throw new Error("DRIVE_TOKEN_MIGR_WRITE_FAILED");
+  return true;
 }
 
 /**
- * Chạy migration nếu cần (gọi sau _installMasterKey, TRƯỚC primeFieldCache).
- * @param {string} pin secret mở khóa hằng ngày (để niêm phong MK2 mới)
- * @param {string} employeeId mã nhân viên (để niêm phong MK2 dưới SEC_KEY)
+ * Chạy migration legacy nếu cần. Mọi lỗi đọc IDB, token hoặc đổi generation đều
+ * dừng trước bước swap PIN/SEC/schema; stage được giữ nguyên để lần unlock sau resume.
  */
 async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
   if (typeof db === "undefined" || !db) return;
   if (localStorage.getItem(SCHEMA_KEY) === "2") return;
 
-  // Resume-after-swap: envelope đã MK2 (crash trước khi set cờ) -> chỉ finalize.
+  // Resume-after-swap: PIN đã mở được MK2 nhưng crash trước marker.
   if (!masterKeyLegacy && masterCryptoKey) {
-    localStorage.setItem(SCHEMA_KEY, "2");
-    localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
+    if (parseV2Envelope(localStorage.getItem(PIN_KEY))) {
+      localStorage.setItem(SCHEMA_KEY, "2");
+      localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
+    }
     return;
   }
-  if (!masterKeyLegacy) return; // cài mới hoàn toàn v2, không có gì để migrate
+  if (!masterKeyLegacy) return;
 
-  // 1) Đúc/khôi phục newMk (resume tái dùng staged key -> không orphan dữ liệu GCM đã ghi).
+  const legacyKey = masterKeyLegacy;
   let mkStr = null;
   const staged = localStorage.getItem(PIN_STAGE);
   if (staged) mkStr = await openMasterKeyV2(pin, staged);
@@ -947,38 +995,48 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
     if (employeeId) localStorage.setItem(SEC_STAGE, await sealMasterKey(employeeId, mkStr));
   }
 
-  // 2) Cài GCM key để GHI; GIỮ masterKeyLegacy để ĐỌC dữ liệu cũ.
-  masterKeyBytes = _b64DecodeToBytes(mkStr.slice(4));
-  masterCryptoKey = await crypto.subtle.importKey("raw", masterKeyBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  // Dùng đúng đường cài key có generation guard; giữ legacyKey cục bộ để đọc dữ liệu cũ.
+  await _installMasterKey(mkStr);
+  const migrationGen = __keyGeneration;
+  if (!_legacyMigrationAlive(migrationGen) || masterKey !== mkStr) {
+    throw new Error("LEGACY_MIGR_KEY_INSTALL_ABORTED");
+  }
+  masterKeyLegacy = legacyKey;
 
-  // 3) Từng record: ĐỌC (tx1) -> re-encrypt (await crypto NGOÀI transaction) -> GHI (tx2, thuần sync).
-  //    Không await WebCrypto giữa 1 transaction (IDB tự commit/close). Mỗi record 1 tx ghi -> atomic + resume-safe.
-  for (const id of await _getAllCustomerKeys()) {
+  const ids = await _getAllCustomerKeys(); // lỗi đọc phải reject, tuyệt đối không coi là []
+  for (const id of ids) {
+    if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
     const c = await new Promise((resolve, reject) => {
-      const g = db.transaction(["customers"], "readonly").objectStore("customers").get(id);
-      g.onsuccess = () => resolve(g.result);
-      g.onerror = () => reject(g.error);
+      try {
+        const g = db.transaction(["customers"], "readonly").objectStore("customers").get(id);
+        g.onsuccess = () => resolve(g.result);
+        g.onerror = () => reject(g.error || new Error("LEGACY_MIGR_RECORD_READ_ERROR"));
+      } catch (e) { reject(e); }
     });
-    if (!c || c.cryptoV === 2) continue;   // idempotent: đã GCM thì bỏ qua (resume sau crash)
-    await _reencryptRecord(c);
+    if (!c || c.cryptoV === 2) continue;
+    await _reencryptRecord(c, legacyKey, migrationGen);
+    if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
     await new Promise((resolve, reject) => {
-      // Resolve trên oncomplete + reject cả onabort: tx có thể abort KHÔNG kèm
-      // request error — thiếu onabort là promise treo vĩnh viễn giữa migration.
       const tx = db.transaction(["customers"], "readwrite");
       tx.objectStore("customers").put(c);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error || new Error("Transaction error"));
-      tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
+      tx.onerror = () => reject(tx.error || new Error("LEGACY_MIGR_TX_ERROR"));
+      tx.onabort = () => reject(tx.error || new Error("LEGACY_MIGR_TX_ABORT"));
     });
   }
-  await _migrateDriveToken();
 
-  // 4) FINALIZE — swap envelope TRƯỚC (loop đã 100%), set cờ SAU CÙNG.
-  localStorage.setItem(PIN_KEY, localStorage.getItem(PIN_STAGE));
-  if (localStorage.getItem(SEC_STAGE)) localStorage.setItem(SEC_KEY, localStorage.getItem(SEC_STAGE));
+  await _migrateDriveToken(legacyKey, migrationGen);
+  if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
+
+  // FINALIZE chỉ sau khi toàn bộ record + token đã hoàn tất.
+  const pinStage = localStorage.getItem(PIN_STAGE);
+  if (!pinStage || !parseV2Envelope(pinStage)) throw new Error("LEGACY_MIGR_PIN_STAGE_MISSING");
+  localStorage.setItem(PIN_KEY, pinStage);
+  const secStage = localStorage.getItem(SEC_STAGE);
+  if (secStage) localStorage.setItem(SEC_KEY, secStage);
   localStorage.setItem(SCHEMA_KEY, "2");
   localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
-  masterKey = mkStr; masterKeyLegacy = null;
+  masterKeyLegacy = null;
 }
 
 // ============================================================
@@ -1221,11 +1279,16 @@ function decryptCustomerSummary(cust) {
 /** Giải mã summary async (lazy) — dùng khi render danh sách / tìm kiếm. */
 async function decryptCustomerSummaryAsync(cust) {
   if (!cust) return cust;
+  const gen = __keyGeneration;
+  const original = { name: cust.name, phone: cust.phone, cccd: cust.cccd };
   const [name, phone, cccd] = await Promise.all([
-    decryptFieldAsync(cust.name),
-    decryptFieldAsync(cust.phone),
-    decryptFieldAsync(cust.cccd),
+    decryptFieldAsync(original.name),
+    decryptFieldAsync(original.phone),
+    decryptFieldAsync(original.cccd),
   ]);
+  // Một field có thể hoàn tất ngay trước auto-lock còn field khác hoàn tất sau đó.
+  // Chỉ gán kết quả theo nhóm khi TOÀN BỘ Promise.all vẫn thuộc cùng phiên khóa.
+  if (gen !== __keyGeneration || !isAppUnlocked()) return cust;
   cust.name = name;
   cust.phone = phone;
   cust.cccd = cccd;
@@ -1322,41 +1385,31 @@ async function runServerStatusCheck() {
   try {
     const savedEmp = _resolveEmployeeId();
     if (!savedEmp) return;
-    // Theo bản index trước đó chạy ổn: check_status chỉ cần employeeId + deviceInfo
+    const requestGeneration = __keyGeneration;
+    const requestWasUnlocked = isAppUnlocked();
     const query = `?action=check_status&employeeId=${encodeURIComponent(savedEmp)}&deviceInfo=${encodeURIComponent(navigator.userAgent)}`;
 
     const res = await fetch(ADMIN_SERVER_URL + query);
     const txt = await res.text();
     let result;
-    try {
-      result = JSON.parse(txt);
-    } catch (e) {
-      result = txt;
-    }
-    // Đã nhận được phản hồi -> không cần hỏi lại trong phiên này.
+    try { result = JSON.parse(txt); } catch (e) { result = txt; }
+
+    // Response của identity/phiên cũ không được thu hồi một lần kích hoạt mới.
+    if (!localStorage.getItem(ACTIVATED_KEY)) return;
+    if (_resolveEmployeeId() !== savedEmp) return;
+    if (requestGeneration !== __keyGeneration) return;
+    if (requestWasUnlocked && !isAppUnlocked()) return;
     __serverStatusChecked = true;
 
-    const status =
-      result && typeof result === "object" && result.status
-        ? String(result.status).toLowerCase()
-        : typeof result === "string" &&
-          result.toLowerCase().includes("locked")
-          ? "locked"
-          : "";
-    const msg =
-      result && typeof result === "object" && result.message
-        ? result.message
-        : "";
+    const status = result && typeof result === "object" && result.status
+      ? String(result.status).toLowerCase()
+      : typeof result === "string" && result.toLowerCase().includes("locked") ? "locked" : "";
+    const msg = result && typeof result === "object" && result.message ? result.message : "";
     if (status === "locked") {
-      // Check này giờ chạy cả SAU khi mở khóa (máy đã seal mã NV không có
-      // identity lúc boot) -> phải xóa key khỏi RAM trước khi dựng UI chặn,
-      // nếu không phiên vừa bị thu hồi vẫn còn masterKey/KDATA sống tới khi
-      // đóng tab và tác vụ nền vẫn dùng được.
       revokeUnlockedSession();
-      getEl("screen-lock").classList.add("hidden");
-      getEl("setup-lock-modal").classList.add("hidden");
-      const modal = getEl("activation-modal");
-      modal.classList.remove("hidden");
+      const lock = getEl("screen-lock"); if (lock) lock.classList.add("hidden");
+      const setup = getEl("setup-lock-modal"); if (setup) setup.classList.add("hidden");
+      const modal = getEl("activation-modal"); if (modal) modal.classList.remove("hidden");
       const titleEl = document.getElementById("activation-title");
       if (titleEl) titleEl.textContent = msg || "Tài khoản đã bị thu hồi!";
       localStorage.removeItem(ACTIVATED_KEY);
@@ -1426,28 +1479,38 @@ async function requireBackupSecretOrAlert() {
 }
 
 async function ensureBackupSecret() {
+  if (!isAppUnlocked()) return { ok: false, message: "Vui lòng mở khóa dữ liệu trước khi sao lưu/khôi phục." };
+  const requestGeneration = __keyGeneration;
   const employeeId = _resolveEmployeeId();
   if (!employeeId) return { ok: false, message: "Chưa có mã nhân viên." };
+  const sessionAlive = () => requestGeneration === __keyGeneration
+    && isAppUnlocked() && _resolveEmployeeId() === employeeId;
 
   const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
   const cached = await _readCachedKdataAsync(employeeId, deviceId);
+  if (!sessionAlive()) return { ok: false, message: "Phiên đã khóa hoặc thay đổi. Vui lòng mở khóa và thử lại." };
   if (cached && cached.kdata_b64u) APP_BACKUP_KDATA_B64U = cached.kdata_b64u;
 
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    if (APP_BACKUP_KDATA_B64U) {
-      return { ok: true, source: "cache", message: "Đang offline, dùng khóa KDATA đã lưu tạm." };
-    }
+    if (APP_BACKUP_KDATA_B64U) return { ok: true, source: "cache", message: "Đang offline, dùng khóa KDATA đã lưu tạm." };
     return { ok: false, message: "Thiết bị đang Offline và chưa có khóa KDATA tạm." };
   }
 
+  const acceptKdata = async (value) => {
+    if (!sessionAlive()) return false;
+    APP_BACKUP_KDATA_B64U = String(value || "");
+    if (!APP_BACKUP_KDATA_B64U) return false;
+    await _writeCachedKdata(employeeId, deviceId, APP_BACKUP_KDATA_B64U);
+    if (!sessionAlive()) {
+      APP_BACKUP_KDATA_B64U = "";
+      return false;
+    }
+    return true;
+  };
+
   try {
-    // issue_kdata: Ưu tiên POST (nếu GAS cho phép), fallback sang GET.
-    // Không check_status định kỳ ở client để tránh chặn app khi mạng/GAS dao động.
-    // Lưu ý: nhiều WebApp GAS có thể gặp redirect/CORS với POST JSON trên một số trình duyệt/PWA.
     let kdTxt = "";
     let kd = null;
-
-    // 2a) Try POST JSON
     try {
       const kdRes = await fetch(ADMIN_SERVER_URL, {
         method: "POST",
@@ -1455,65 +1518,45 @@ async function ensureBackupSecret() {
         body: JSON.stringify({ action: "issue_kdata", employeeId, deviceId }),
       });
       kdTxt = await kdRes.text();
+      if (!sessionAlive()) return { ok: false, message: "Phiên đã khóa hoặc thay đổi. Vui lòng thử lại." };
       try { kd = JSON.parse(kdTxt); } catch (e) { kd = null; }
       if (kd && kd.status === "success" && kd.kdata_b64u) {
-        APP_BACKUP_KDATA_B64U = String(kd.kdata_b64u);
-        _writeCachedKdata(employeeId, deviceId, APP_BACKUP_KDATA_B64U);
-        return { ok: true };
+        return (await acceptKdata(kd.kdata_b64u)) ? { ok: true } : { ok: false, message: "Phiên đã thay đổi." };
       }
-    } catch (e) {
-      // ignore -> fallback GET
-    }
+    } catch (e) { /* fallback GET */ }
 
-    // 2b) Fallback GET querystring
     try {
       const kdUrl = `${ADMIN_SERVER_URL}?action=issue_kdata&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}`;
       const kdRes2 = await fetch(kdUrl);
       kdTxt = await kdRes2.text();
+      if (!sessionAlive()) return { ok: false, message: "Phiên đã khóa hoặc thay đổi. Vui lòng thử lại." };
       try { kd = JSON.parse(kdTxt); } catch (e) { kd = null; }
       if (kd && kd.status === "success" && kd.kdata_b64u) {
-        APP_BACKUP_KDATA_B64U = String(kd.kdata_b64u);
-        _writeCachedKdata(employeeId, deviceId, APP_BACKUP_KDATA_B64U);
-        return { ok: true };
+        return (await acceptKdata(kd.kdata_b64u)) ? { ok: true } : { ok: false, message: "Phiên đã thay đổi." };
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { /* ignore */ }
 
+    if (!sessionAlive()) return { ok: false, message: "Phiên đã khóa hoặc thay đổi. Vui lòng thử lại." };
     const kdStatus = (kd && typeof kd === "object" && kd.status) ? String(kd.status).toLowerCase() : "";
     const kdMsg = (kd && typeof kd === "object" && kd.message) ? String(kd.message) : "";
-
-    // Rate-limit của issue_kdata (GAS giới hạn 30s/lần) là giới hạn tần suất, KHÔNG phải
-    // từ chối quyền -> dùng khóa đã cache (vd AuthGate.preflight vừa lấy lúc mở app).
     if (/rate.?limited/i.test(kdMsg) && APP_BACKUP_KDATA_B64U) {
       return { ok: true, source: "cache", message: "Server đang giới hạn tần suất, dùng khóa KDATA đã lưu tạm." };
     }
-
-    // Trường hợp server trả về denial rõ ràng thì KHÔNG dùng cache để vượt quyền.
     if (kdStatus === "locked") {
+      revokeUnlockedSession();
       try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
       return { ok: false, message: kdMsg || "Tài khoản đã bị thu hồi." };
     }
     if (kdStatus === "error" || kdMsg) {
-      if (/device|thiết bị|không khớp/i.test(kdMsg)) {
-        return { ok: false, message: "Thiết bị chưa được cấp quyền backup (Device ID không khớp)." };
-      }
-      if (/kích hoạt|activate|inactive|chưa/i.test(kdMsg)) {
-        return { ok: false, message: "Tài khoản chưa được kích hoạt quyền backup." };
-      }
+      if (/device|thiết bị|không khớp/i.test(kdMsg)) return { ok: false, message: "Thiết bị chưa được cấp quyền backup (Device ID không khớp)." };
+      if (/kích hoạt|activate|inactive|chưa/i.test(kdMsg)) return { ok: false, message: "Tài khoản chưa được kích hoạt quyền backup." };
       if (kdStatus === "error") return { ok: false, message: kdMsg || "Không đủ quyền lấy khóa KDATA." };
       if (kdMsg) return { ok: false, message: kdMsg };
     }
-
-    // Chỉ fallback cache khi lỗi mơ hồ (network/CORS/parse/HTML lỗi), không phải denial rõ ràng.
-    if (APP_BACKUP_KDATA_B64U) {
-      return { ok: true, source: "cache", message: "Không lấy được KDATA mới, đang dùng khóa tạm đã lưu." };
-    }
+    if (APP_BACKUP_KDATA_B64U) return { ok: true, source: "cache", message: "Không lấy được KDATA mới, đang dùng khóa tạm đã lưu." };
     return { ok: false, message: "Không lấy được khóa KDATA từ server." };
   } catch (e) {
-    if (APP_BACKUP_KDATA_B64U) {
-      return { ok: true, source: "cache", message: "Lỗi kết nối tạm thời, đang dùng khóa KDATA đã lưu." };
-    }
+    if (sessionAlive() && APP_BACKUP_KDATA_B64U) return { ok: true, source: "cache", message: "Lỗi kết nối tạm thời, đang dùng khóa KDATA đã lưu." };
     return { ok: false, message: "Không thể kết nối server để lấy khóa KDATA." };
   }
 }
@@ -1531,16 +1574,18 @@ const TRANSFER_KEY_TTL_MS = 10 * 60 * 1000;
  * @returns {Promise<string>} base64url 32 byte
  */
 async function ensureTransferKey(targetEmployeeId) {
+  if (!isAppUnlocked()) throw new Error("Vui lòng mở khóa dữ liệu trước khi gửi/nhận.");
+  const requestGeneration = __keyGeneration;
   const employeeId = _resolveEmployeeId();
   if (!employeeId) throw new Error("Chưa có mã nhân viên.");
+  const sessionAlive = () => requestGeneration === __keyGeneration
+    && isAppUnlocked() && _resolveEmployeeId() === employeeId;
   const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : (localStorage.getItem("app_device_unique_id") || "");
   const target = String(targetEmployeeId || "").trim();
   const cacheKey = target || "_self";
 
   const cached = _transferKeyCache[cacheKey];
-  if (cached && cached.key && (Date.now() - cached.ts) < TRANSFER_KEY_TTL_MS) {
-    return cached.key;
-  }
+  if (cached && cached.key && (Date.now() - cached.ts) < TRANSFER_KEY_TTL_MS) return cached.key;
 
   const parseKey = (txt) => {
     let js = null;
@@ -1549,7 +1594,6 @@ async function ensureTransferKey(targetEmployeeId) {
     return null;
   };
 
-  // Ưu tiên POST JSON, fallback GET querystring (giống ensureBackupSecret).
   let key = null;
   try {
     const body = { action: "issue_transfer_key", employeeId, deviceId };
@@ -1561,6 +1605,7 @@ async function ensureTransferKey(targetEmployeeId) {
     });
     key = parseKey(await res.text());
   } catch (e) { /* fallback GET */ }
+  if (!sessionAlive()) throw new Error("Phiên đã khóa hoặc thay đổi. Vui lòng thử lại.");
 
   if (!key) {
     let url = `${ADMIN_SERVER_URL}?action=issue_transfer_key&employeeId=${encodeURIComponent(employeeId)}&deviceId=${encodeURIComponent(deviceId)}`;
@@ -1570,7 +1615,7 @@ async function ensureTransferKey(targetEmployeeId) {
       key = parseKey(await res2.text());
     } catch (e) { /* ignore */ }
   }
-
+  if (!sessionAlive()) throw new Error("Phiên đã khóa hoặc thay đổi. Vui lòng thử lại.");
   if (!key) throw new Error("Không lấy được khóa chuyển (transfer key) từ server.");
   _transferKeyCache[cacheKey] = { key, ts: Date.now() };
   return key;

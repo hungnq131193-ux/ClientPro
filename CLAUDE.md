@@ -410,19 +410,28 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
   generation changed. Without it a locked or revoked session gets its key back
   (`_installMasterKey` assigns `masterCryptoKey` after `await importKey`) or its
   plaintext back (`decryptFieldAsync` repopulating `__fieldPlainCache`). Guarded
-  sites: `_installMasterKey`, `decryptFieldAsync`, `primeFieldCache`,
-  `runEmployeeIdSealMigrationIfNeeded`, and the batch loop in
-  `primeCustomerSummaryCache` (`05_customers.js`).
+  sites: `_installMasterKey`, `_gcmEncryptField`, `decryptFieldAsync`,
+  `decryptCustomerSummaryAsync`, KDATA/transfer-key acquisition,
+  `primeFieldCache`, `runEmployeeIdSealMigrationIfNeeded`, the legacy migration,
+  and customer summary/search/list caches in `05_customers.js`. Network responses
+  that can write secrets or revoke a session must also prove they still belong to
+  the same identity/generation before applying their result.
 - On a stale generation `decryptFieldAsync` returns the **ciphertext**, not the
   plaintext: handing plaintext back to an old caller lets it repopulate
   `__custSummaryCache` / `__custSearchBlobCache` after they were cleared, and every
   render path already blocks ciphertext via `_looksEncrypted`. It also deletes only
   its **own** entry from `__fieldDecryptPending` (identity check), so a promise from
   a dead session cannot evict the one a newly unlocked session created.
-- These guards live in `02_security.js` and nowhere else. Do not install them by
-  overwriting `decryptFieldAsync` (or any crypto function) from another module: the
-  copy in `02_security.js` would become dead code, and a conditional patch can
-  silently fail to apply, leaving no guard and no test failure.
+- `_gcmEncryptField` must throw `STALE_KEY_GENERATION` if lock/revoke/change-key
+  happens during WebCrypto. Returning a ciphertext from a dead session is unsafe:
+  callers may persist it after lock and the helper would repopulate plaintext cache.
+- Legacy CryptoJS → GCM migration is fail-closed: IDB read/transaction/token errors
+  leave PIN/SEC/schema unswapped and retain stage keys for resume. Never treat an
+  IDB error as an empty database, never finalize if Drive token migration failed,
+  and never assign `masterCryptoKey` directly outside `_installMasterKey`.
+- These guards live in `02_security.js` and coordinated cache callers in
+  `05_customers.js`/`15_auth_gate.js`. Do not overwrite crypto functions from
+  another module; conditional monkey-patches create dead code and silent gaps.
 
 ### Primary files
 `assets/02_security.js`; the helpers `_looksEncrypted`, `_displayPlain`,
@@ -926,8 +935,10 @@ A short, mobile-first, first-run guided tour of the dashboard, plus a manual
 replay entry.
 
 ### Core invariants
-- Show automatically only to genuinely new users; never force existing users to
-  re-watch after an update.
+- `TOUR_VERSION = 5` describes the current Dashboard flow (privacy, weather,
+  overview/list, add/customer details, map, PDF+ĐVHC, backup, Drive, settings).
+  Version 5 is intentionally shown once to pre-release test accounts; future content
+  edits must not bump it unless product explicitly requires a one-time replay.
 - Never create sample customers/assets/backups; never touch business data,
   IndexedDB schema, or crypto.
 - Build UI with `el()`/`textContent`; no `innerHTML` with dynamic data, no native
@@ -953,7 +964,8 @@ replay entry.
   `version` is below the module's `TOUR_VERSION`; finishing/skipping writes the
   key.
 - Auto-start waits for the dashboard (`#customer-list`), a set `masterKey`, and a
-  hidden lock/activation/setup screen before showing.
+  hidden lock/activation/setup screen before showing. The tour contains exactly 11
+  steps; update `e2e/onboarding-tour.spec.js` whenever count/version/selectors change.
 - A `MutationObserver` on `#screen-lock` detects app-lock and tears the tour down
   (without marking complete), and it does not reopen after unlock.
 

@@ -21,7 +21,7 @@
 (function () {
     const TOUR_KEY = 'clientpro_onboarding_done';
     // Giữ nguyên version để KHÔNG ép user đã hoàn tất phải xem lại sau cập nhật.
-    const TOUR_VERSION = 4;
+    const TOUR_VERSION = 5;
 
     // Cấu hình các bước. `target === null` => bước center (chào mừng / kết thúc /
     // nhắc mở lại). Bước có `target`:
@@ -32,78 +32,78 @@
         {
             target: null,
             icon: '👋',
-            title: 'Chào mừng đến ClientPro!',
-            content: 'Ứng dụng quản lý khách hàng và tài sản bảo đảm ngay trên điện thoại. Cùng xem nhanh các khu vực chính.',
+            title: 'Chào mừng đến ClientPro',
+            content: 'Quản lý khách hàng, tài sản bảo đảm và hồ sơ ngay trên điện thoại. Tour này chỉ giới thiệu giao diện, không tạo hay thay đổi dữ liệu.',
             position: 'center'
         },
         {
             target: null,
-            icon: '🔒',
-            title: 'Dữ liệu nằm trên máy bạn',
-            content: 'Toàn bộ dữ liệu lưu cục bộ và được mã hóa trên thiết bị. App chạy được cả khi không có mạng; chỉ kết nối Drive khi bạn chủ động sao lưu.',
+            icon: '🔐',
+            title: 'Riêng tư, cục bộ và có mã hóa',
+            content: 'Dữ liệu nghiệp vụ nằm trên thiết bị và được mã hóa khi lưu. Hãy nhớ PIN, bảo vệ mã nhân viên và duy trì bản sao lưu định kỳ.',
             position: 'center'
+        },
+        {
+            target: 'button[data-action="refreshWeather"]',
+            icon: '🌤️',
+            title: 'Thời tiết trên Dashboard',
+            content: 'Chạm vào thẻ thời tiết để cập nhật. ClientPro chỉ lưu nhiệt độ và trạng thái hiển thị, không lưu tọa độ GPS trong cache thời tiết.',
+            position: 'bottom-left'
         },
         {
             target: 'button[data-action="openCustomerList"][data-arg="approved"]',
             icon: '📊',
-            title: 'Số liệu tổng quan',
-            content: 'Dashboard hiển thị nhanh tổng khách hàng, tài sản bảo đảm và số hồ sơ theo trạng thái. Chạm vào một ô để mở đúng danh sách đó.',
-            position: 'bottom'
-        },
-        {
-            target: 'button[data-action="openCustomerList"][data-arg="pending"]',
-            icon: '🔍',
-            title: 'Danh sách & tìm kiếm',
-            content: 'Mở danh sách khách hàng rồi dùng ô tìm kiếm ở đầu danh sách để tìm theo tên, SĐT hoặc CCCD.',
+            title: 'Tổng quan và danh sách khách hàng',
+            content: 'Các ô tổng quan cho biết số khách hàng, tài sản và trạng thái hồ sơ. Chạm ô trạng thái để mở danh sách, tìm kiếm và sắp xếp.',
             position: 'bottom'
         },
         {
             target: '#btn-quick-add',
             icon: '➕',
-            title: 'Thêm khách hàng',
-            content: 'Tạo hồ sơ khách hàng mới. Trong hồ sơ, bạn thêm được tài sản bảo đảm, ảnh và ghi chú.',
+            title: 'Tạo và quản lý hồ sơ',
+            content: 'Thêm khách hàng tại đây. Trong hồ sơ có thông tin liên hệ, ghi chú, ảnh và tài sản bảo đảm; nhấn giữ thẻ khách hàng hoặc ảnh để chọn nhiều.',
             position: 'top'
         },
         {
             target: '#btn-quick-map',
             icon: '🗺️',
-            title: 'Bản đồ & khoảng cách',
-            content: 'Xem vị trí khách hàng trên bản đồ và tính khoảng cách tuyến đường tới tài sản.',
+            title: 'Bản đồ và khoảng cách đường bộ',
+            content: 'Xem vị trí tài sản trên MapLibre và tính quãng đường thực tế bằng OSRM. Kết quả được kiểm tra điểm bám để hạn chế khoảng cách bất hợp lý.',
             position: 'top'
         },
         {
             target: '#btn-quick-pdf',
             icon: '📄',
-            title: 'Bộ công cụ PDF',
-            content: 'Ghép, tách, sắp xếp trang, chuyển ảnh↔PDF và nén PDF — xử lý hoàn toàn trên máy, không tải file lên đâu.',
+            title: 'Bộ công cụ PDF & ĐVHC',
+            content: 'PDF Toolkit xử lý file ngay trên thiết bị; nút bên cạnh dùng để tra cứu đơn vị hành chính cũ và mới. Cả hai được nạp khi mở và dùng được offline sau khi đã cache.',
             position: 'top'
         },
         {
             target: 'button[data-action="openBackupManager"]',
             icon: '💾',
             title: 'Sao lưu & khôi phục',
-            content: 'Sao lưu dữ liệu ra file hoặc lên Drive, và khôi phục khi cần. Hãy sao lưu định kỳ.',
+            content: 'Tạo file backup mã hóa, lưu lên Drive hoặc khôi phục khi cần. Chỉ thực hiện khi app đang mở khóa và đã xác thực quyền với máy chủ.',
             position: 'top'
         },
         {
             target: 'button[data-action="toggleDashboardDriveConfig"]',
             icon: '☁️',
             title: 'Kết nối Google Drive',
-            content: 'Cấu hình Drive cá nhân (tùy chọn) để lưu ảnh hồ sơ và bản backup của bạn.',
+            content: 'Nhập link Google Apps Script cá nhân và mã bảo mật để lưu ảnh, backup và dùng tự động sao lưu. Token được niêm phong bằng khóa của app.',
             position: 'top-left'
         },
         {
             target: '#btn-open-menu',
             icon: '⚙️',
-            title: 'Cài đặt & giao diện',
-            content: 'Đổi giao diện, thiết lập bảo mật PIN / sinh trắc học và các mục khác nằm trong Menu.',
+            title: 'Giao diện và bảo mật',
+            content: 'Menu cho phép đổi chủ đề, thiết lập PIN hoặc sinh trắc học, xem lại hướng dẫn và mở mục ủng hộ. Các thao tác backup/Drive chính nằm ngay trên Dashboard.',
             position: 'bottom-left'
         },
         {
             target: null,
-            icon: '🎉',
-            title: 'Sẵn sàng!',
-            content: 'Bạn đã sẵn sàng dùng ClientPro. Muốn xem lại hướng dẫn này, vào Menu ⚙️ → “Xem lại hướng dẫn”.',
+            icon: '✅',
+            title: 'Quy trình dùng an toàn',
+            content: 'Bắt đầu bằng việc tạo khách hàng, bổ sung tài sản và ảnh, sau đó cấu hình Drive và tạo một bản backup thử. Có thể xem lại tour tại Menu → Xem lại hướng dẫn.',
             position: 'center'
         }
     ];

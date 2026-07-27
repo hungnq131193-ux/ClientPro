@@ -146,6 +146,7 @@ function loadSecurity() {
       unwrapMasterKeyAny,
       decryptCustomerObject,
       decryptCustomerSummary,
+      decryptCustomerSummaryAsync,
       hashString,
       escapeHTML,
       isSafeImageUrl,
@@ -168,6 +169,8 @@ function loadSecurity() {
       setKdataRam: (v) => { APP_BACKUP_KDATA_B64U = v; },
       getPendingKdata: () => __pendingKdataCache,
       ensureBackupSecret,
+      ensureTransferKey,
+      getKeyGeneration: () => __keyGeneration,
       completeUnlockDataLoad,
     };
   `;

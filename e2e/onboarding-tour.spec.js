@@ -23,7 +23,7 @@ async function seedAndUnlock(page, { markDone = false, errors = null } = {}) {
     localStorage.setItem('app_employee_id', 'TEST');
     localStorage.setItem('app_pin', env);
     localStorage.setItem('app_crypto_schema_v', '2');
-    if (done) localStorage.setItem(key, JSON.stringify({ version: 4, completedAt: Date.now() }));
+    if (done) localStorage.setItem(key, JSON.stringify({ version: 5, completedAt: Date.now() }));
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, [PIN_ENVELOPE, markDone, TOUR_KEY]);
@@ -68,7 +68,7 @@ test('Skip đóng tour, dọn overlay và lưu trạng thái hoàn tất', async
   // Trạng thái hoàn tất được lưu.
   const done = await page.evaluate((k) => localStorage.getItem(k), TOUR_KEY);
   expect(done).toBeTruthy();
-  expect(JSON.parse(done).version).toBe(4);
+  expect(JSON.parse(done).version).toBe(5);
 });
 
 test('Finish đóng tour, lưu hoàn tất; reload KHÔNG tự hiện lại', async ({ page }) => {
@@ -84,7 +84,7 @@ test('Finish đóng tour, lưu hoàn tất; reload KHÔNG tự hiện lại', as
   }
   await expect(page.locator(OVERLAY)).toHaveCount(0, { timeout: 4_000 });
   const done = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), TOUR_KEY);
-  expect(done && done.version).toBe(4);
+  expect(done && done.version).toBe(5);
 
   // Reload: user đã hoàn tất -> không tự hiện lại.
   await page.reload({ waitUntil: 'networkidle' });
@@ -118,7 +118,7 @@ test('Mở lại tour thủ công từ Menu; không phá trạng thái user cũ'
   await page.click('#tour-skip');
   await expect(page.locator(OVERLAY)).toHaveCount(0, { timeout: 4_000 });
   const done = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), TOUR_KEY);
-  expect(done && done.version).toBe(4);
+  expect(done && done.version).toBe(5);
 });
 
 test('Thiếu selector: tour bỏ qua an toàn, không crash, không rò overlay', async ({ page }) => {

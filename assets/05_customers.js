@@ -314,6 +314,7 @@ function _custDeepSig(c) {
 
 async function _ensureSearchBlobAsync(c) {
     if (!c) return c;
+    const gen = (typeof __keyGeneration !== 'undefined') ? __keyGeneration : null;
     const dsig = _custDeepSig(c);
     const cached = __custSearchBlobCache.get(c.id);
     if (cached && cached.dsig === dsig) {
@@ -341,6 +342,7 @@ async function _ensureSearchBlobAsync(c) {
     }
     const nNotes = _normVi(notesPlain);
     const nAssetsBlob = parts.join('\n');
+    if (gen !== null && (gen !== __keyGeneration || (typeof isAppUnlocked === 'function' && !isAppUnlocked()))) return c;
     __custSearchBlobCache.set(c.id, { dsig, nNotes, nAssetsBlob });
     c._nNotes = nNotes;
     c._nAssetsBlob = nAssetsBlob;
@@ -416,6 +418,7 @@ function _ensureSummaryDecrypted(c) {
 
 async function _ensureSummaryDecryptedAsync(c) {
     if (!c) return c;
+    const gen = (typeof __keyGeneration !== 'undefined') ? __keyGeneration : null;
     if (!c.assets) c.assets = [];
     if (!c.status) c.status = 'pending';
 
@@ -446,6 +449,10 @@ async function _ensureSummaryDecryptedAsync(c) {
         return c;
     }
 
+    if (gen !== null && (gen !== __keyGeneration || (typeof isAppUnlocked === 'function' && !isAppUnlocked()))) {
+        __custSummaryCache.delete(c.id);
+        return c;
+    }
     const ok = !_looksEncrypted(c.name) && !_looksEncrypted(c.phone) && !_looksEncrypted(c.cccd);
     if (ok) {
         let limitPlain;
@@ -473,6 +480,9 @@ async function _ensureSummaryDecryptedAsync(c) {
 async function primeCustomerSummaryCache() {
     if (!db) return;
     if (typeof masterKey === 'undefined' || !masterKey) return;
+    const gen = (typeof __keyGeneration !== 'undefined') ? __keyGeneration : null;
+    const alive = () => (gen === null || gen === __keyGeneration)
+        && (typeof masterKey !== 'undefined' && !!masterKey);
     const all = await new Promise((resolve) => {
         try {
             const tx = db.transaction(['customers'], 'readonly');
@@ -481,13 +491,12 @@ async function primeCustomerSummaryCache() {
             req.onerror = () => resolve([]);
         } catch (e) { resolve([]); }
     });
-    // Batch nhỏ để không chiếm main thread quá lâu (loader unlock vẫn đang hiện).
+    if (!alive()) return;
     const BATCH = 20;
     for (let i = 0; i < all.length; i += BATCH) {
-        // Auto-lock/thu hồi quyền có thể nổ giữa các batch: dừng ngay, không nạp
-        // tiếp plaintext KH vào __custSummaryCache của phiên vừa bị xóa.
-        if (typeof masterKey === 'undefined' || !masterKey) return;
+        if (!alive()) return;
         await Promise.all(all.slice(i, i + BATCH).map((c) => _ensureSummaryDecryptedAsync(c).catch(() => { })));
+        if (!alive()) return;
     }
 }
 window.primeCustomerSummaryCache = primeCustomerSummaryCache;
@@ -501,6 +510,10 @@ async function loadCustomers(query = '') {
     if (!db) return;
     const q = (query || '').trim();
     const loadToken = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const loadGeneration = (typeof __keyGeneration !== 'undefined') ? __keyGeneration : null;
+    const loadAlive = () => window.__customerListLoadToken === loadToken
+        && (loadGeneration === null || loadGeneration === __keyGeneration)
+        && (typeof isAppUnlocked !== 'function' || isAppUnlocked());
     window.__customerListLoadToken = loadToken;
 
     const listEl = getEl('customer-list');
@@ -535,7 +548,7 @@ async function loadCustomers(query = '') {
         req.onerror = () => resolve([]);
     });
 
-    if (window.__customerListLoadToken !== loadToken) return;
+    if (!loadAlive()) return;
 
     const list = [];
     for (let i = all.length - 1; i >= 0; i--) {
@@ -562,13 +575,13 @@ async function loadCustomers(query = '') {
         list.push(c);
     }
 
-    if (window.__customerListLoadToken !== loadToken) return;
+    if (!loadAlive()) return;
 
     // Sort áp SAU filter, TRƯỚC render. Sort theo tên cần plaintext của cả list —
     // decrypt summary trước (cache hit sau prime unlock nên thường rẻ).
     if (customerListSort === 'name-asc' || customerListSort === 'name-desc') {
         await _decryptSummariesBatch(list);
-        if (window.__customerListLoadToken !== loadToken) return;
+        if (!loadAlive()) return;
         const dir = customerListSort === 'name-desc' ? -1 : 1;
         list.sort((a, b) => dir * String(a._nName || '').localeCompare(String(b._nName || ''), 'vi'));
     }
@@ -588,22 +601,22 @@ async function loadCustomers(query = '') {
     const CHUNK_SIZE = 25;
     if (list.length <= CHUNK_SIZE) {
         await _decryptSummariesBatch(list);
-        if (window.__customerListLoadToken !== loadToken) return;
+        if (!loadAlive()) return;
         renderList(list, { append: false, done: true, summaryCounts, query: q, totalAll: all.length });
         return;
     }
 
     const firstChunk = list.slice(0, CHUNK_SIZE);
     await _decryptSummariesBatch(firstChunk);
-    if (window.__customerListLoadToken !== loadToken) return;
+    if (!loadAlive()) return;
     renderList(firstChunk, { append: false, done: false, summaryCounts, query: q, totalAll: all.length });
     let renderedCount = CHUNK_SIZE;
     const renderNextChunk = () => {
         // Có lượt load mới (search/đổi tab) -> bỏ các chunk còn lại của lượt cũ
-        if (window.__customerListLoadToken !== loadToken) return;
+        if (!loadAlive()) return;
         const chunk = list.slice(renderedCount, renderedCount + CHUNK_SIZE);
         _decryptSummariesBatch(chunk).then(() => {
-            if (window.__customerListLoadToken !== loadToken) return;
+            if (!loadAlive()) return;
             renderedCount += chunk.length;
             renderList(chunk, { append: true, done: renderedCount >= list.length, summaryCounts });
             if (renderedCount < list.length) requestAnimationFrame(renderNextChunk);
