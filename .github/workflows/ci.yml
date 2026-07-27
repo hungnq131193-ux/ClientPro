@@ -92,14 +92,10 @@ jobs:
 
           security = Path('assets/02_security.js')
           text = security.read_text(encoding='utf-8')
-          old = '''    // Lượt mới có thể bắt đầu khi lượt này đang importKey mà chưa đổi key generation.
-              // Chặn trước mọi cleanup để không xóa PIN/keypad của lượt mới đang unwrap.
-              if (myUnlockAttempt !== __unlockAttemptSeq) return;
-              const pinForMigration = pinAttempt;'''.replace('          ', '')
-          new = '''    // Lượt mới có thể bắt đầu khi lượt này đang importKey mà chưa đổi key generation.
-              // Nếu lượt này mất vé sau khi vừa cài khóa, phải dọn đúng generation/key
-              // của chính nó. Chỉ return sẽ để masterKey sống phía sau màn hình PIN.
-              const installedGeneration = __keyGeneration;
+          old = """    if (myUnlockAttempt !== __unlockAttemptSeq) return;
+              const pinForMigration = pinAttempt;"""
+          old = old.replace('          ', '')
+          new = """    const installedGeneration = __keyGeneration;
               const installedCryptoKey = masterCryptoKey;
               if (myUnlockAttempt !== __unlockAttemptSeq) {
                 if (__keyGeneration === installedGeneration
@@ -109,7 +105,8 @@ jobs:
                 }
                 return;
               }
-              const pinForMigration = pinAttempt;'''.replace('          ', '')
+              const pinForMigration = pinAttempt;"""
+          new = new.replace('          ', '')
           if text.count(old) != 1:
               raise SystemExit(f'validatePin target count={text.count(old)}')
           security.write_text(text.replace(old, new), encoding='utf-8')
@@ -119,7 +116,7 @@ jobs:
           marker = "test('tripwire: validatePin nhận vé và chụp PIN trước unwrap, cleanup chỉ thuộc chủ vé', () => {"
           if t.count(marker) != 1:
               raise SystemExit(f'tripwire marker count={t.count(marker)}')
-          added = r'''test('lượt cũ mất vé sau importKey phải xóa khóa của chính nó khi lượt mới nhập sai PIN', async () => {
+          added = """test('lượt cũ mất vé sau importKey phải xóa khóa của chính nó khi lượt mới nhập sai PIN', async () => {
             const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
             const correctPin = '654321';
             const wrongPin = '111111';
@@ -209,33 +206,31 @@ jobs:
             assert.equal(dom.isHidden('screen-lock'), false);
           });
 
-          '''.replace('          ', '')
+          """.replace('          ', '')
           t = t.replace(marker, added + marker)
 
-          needle = '''  const postInstallGuard = body.indexOf('if (myUnlockAttempt !== __unlockAttemptSeq) return;', install);
-            const migrationPin = body.indexOf('const pinForMigration = pinAttempt;', postInstallGuard);'''.replace('          ', '')
-          replacement = '''  const installedGeneration = body.indexOf('const installedGeneration = __keyGeneration;', install);
+          old_tripwire = """  const postInstallGuard = body.indexOf('if (myUnlockAttempt !== __unlockAttemptSeq) return;', install);
+            const migrationPin = body.indexOf('const pinForMigration = pinAttempt;', postInstallGuard);
+            const clearSharedPin = body.indexOf('currentPin = \"\";', migrationPin);
+            assert.ok(postInstallGuard > install && migrationPin > postInstallGuard && clearSharedPin > migrationPin,
+              'sau importKey phải kiểm vé lại và migration chỉ dùng PIN snapshot');""".replace('          ', '')
+          new_tripwire = """  const installedGeneration = body.indexOf('const installedGeneration = __keyGeneration;', install);
             const installedCryptoKey = body.indexOf('const installedCryptoKey = masterCryptoKey;', installedGeneration);
             const postInstallGuard = body.indexOf('if (myUnlockAttempt !== __unlockAttemptSeq) {', installedCryptoKey);
-            const migrationPin = body.indexOf('const pinForMigration = pinAttempt;', postInstallGuard);'''.replace('          ', '')
-          if t.count(needle) != 1:
-              raise SystemExit(f'tripwire guard target count={t.count(needle)}')
-          t = t.replace(needle, replacement)
-
-          needle2 = '''  assert.ok(postInstallGuard > install && migrationPin > postInstallGuard && clearSharedPin > migrationPin,
-            'sau importKey phải kiểm vé lại và migration chỉ dùng PIN snapshot');'''.replace('          ', '')
-          replacement2 = '''  assert.ok(installedGeneration > install && installedCryptoKey > installedGeneration
-              && postInstallGuard > installedCryptoKey && migrationPin > postInstallGuard
-              && clearSharedPin > migrationPin,
-            'sau importKey phải chụp identity khóa, kiểm vé lại và migration chỉ dùng PIN snapshot');
+            const migrationPin = body.indexOf('const pinForMigration = pinAttempt;', postInstallGuard);
+            const clearSharedPin = body.indexOf('currentPin = \"\";', migrationPin);
+            assert.ok(installedGeneration > install && installedCryptoKey > installedGeneration
+                && postInstallGuard > installedCryptoKey && migrationPin > postInstallGuard
+                && clearSharedPin > migrationPin,
+              'sau importKey phải chụp identity khóa, kiểm vé lại và migration chỉ dùng PIN snapshot');
 
             const staleInstallBlock = body.slice(postInstallGuard, migrationPin);
             assert.match(staleInstallBlock,
               /__keyGeneration === installedGeneration[\\s\\S]*?masterKey === res\\.masterKey[\\s\\S]*?masterCryptoKey === installedCryptoKey[\\s\\S]*?clearMasterKeyMaterial\\(\\);[\\s\\S]*?return;/,
-              'lượt mất vé phải chỉ xóa đúng generation/key mà chính nó vừa cài');'''.replace('          ', '')
-          if t.count(needle2) != 1:
-              raise SystemExit(f'tripwire assertion target count={t.count(needle2)}')
-          tests.write_text(t.replace(needle2, replacement2), encoding='utf-8')
+              'lượt mất vé phải chỉ xóa đúng generation/key mà chính nó vừa cài');""".replace('          ', '')
+          if t.count(old_tripwire) != 1:
+              raise SystemExit(f'tripwire target count={t.count(old_tripwire)}')
+          tests.write_text(t.replace(old_tripwire, new_tripwire), encoding='utf-8')
           PY
 
       - name: Verify full unit suite and patch hygiene
