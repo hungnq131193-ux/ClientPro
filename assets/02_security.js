@@ -2047,6 +2047,21 @@ async function activateApp() {
         if (recovered && recovered.masterKey) {
           // Đúng nhân viên cũ: cài masterKey (key GCM/legacy), giữ nguyên dữ liệu
           const mkForActivation = recovered.masterKey;
+          // UI khi phải bỏ dở gia hạn. KHÔNG được dùng khi ACTIVATED_KEY đã bị xóa:
+          // thu hồi từ server (_revokeAndShowActivationGate, gọi từ ensureBackupSecret /
+          // runServerStatusCheck) cũng làm thế hệ khóa đổi, nhưng nó đã dựng ĐÚNG cổng
+          // kích hoạt. Ẩn cổng đó rồi hiện màn khóa là hạ một lệnh thu hồi xuống thành
+          // auto-lock thường — validatePin() không kiểm ACTIVATED_KEY nên PIN đúng sẽ
+          // mở thẳng dashboard của một máy vừa bị thu hồi quyền.
+          const stopActivationUi = () => {
+            let stillActivated = false;
+            try { stillActivated = !!localStorage.getItem(ACTIVATED_KEY); } catch (e) {}
+            if (!stillActivated) return;   // giữ nguyên cổng kích hoạt do thu hồi dựng
+            const modalStale = getEl("activation-modal");
+            if (modalStale) modalStale.classList.add("hidden");
+            ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc gia hạn. Vui lòng mở lại ứng dụng.");
+            showLockScreen();
+          };
           try {
             await _installMasterKey(mkForActivation);
           } catch (e) {
@@ -2054,10 +2069,7 @@ async function activateApp() {
             // masterKey rỗng ghi đè envelope khôi phục duy nhất) và KHÔNG mở modal đặt
             // PIN mới. Dữ liệu + envelope giữ nguyên; người dùng mở lại app để vào bằng PIN.
             try { ErrorHandler.logError("activate-install-key", e); } catch (_) {}
-            const modalStale = getEl("activation-modal");
-            if (modalStale) modalStale.classList.add("hidden");
-            ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc gia hạn. Vui lòng mở lại ứng dụng.");
-            showLockScreen();
+            stopActivationUi();
             return;
           }
           const activationGeneration = __keyGeneration;
@@ -2069,10 +2081,7 @@ async function activateApp() {
           // suốt phiên đã khóa (lockApp() sau đó return sớm vì app đã khóa rồi).
           const abortActivationIfStale = () => {
             if (activationKeyAlive()) return false;
-            const modalStale = getEl("activation-modal");
-            if (modalStale) modalStale.classList.add("hidden");
-            ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc gia hạn. Vui lòng mở lại ứng dụng.");
-            showLockScreen();
+            stopActivationUi();
             return true;
           };
           // Nhân tiện nâng cấp SEC_KEY lên v2 nếu còn định dạng cũ

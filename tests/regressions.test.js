@@ -505,3 +505,16 @@ test('activateApp (gia hạn): ghi SEC_KEY và nạp mã NV vào RAM phải sau 
     assert.ok(!/\bawait\s+[A-Za-z_(]/.test(between), `Có await giữa kiểm tra stale và ${t}`);
   }
 });
+
+test('activateApp: đường bỏ dở không được ẩn cổng kích hoạt khi ACTIVATED_KEY đã bị thu hồi', () => {
+  const body = fnBody(read('assets/02_security.js'), 'activateApp');
+  // _revokeAndShowActivationGate() (thu hồi từ server) cũng đổi thế hệ khóa nhưng đã
+  // dựng ĐÚNG cổng kích hoạt. Ẩn cổng đó rồi showLockScreen() là hạ thu hồi xuống
+  // auto-lock thường — validatePin() không kiểm ACTIVATED_KEY nên PIN đúng vào thẳng.
+  const ui = body.slice(body.indexOf('const stopActivationUi'));
+  assert.ok(ui.startsWith('const stopActivationUi'), 'activateApp phải gom UI bỏ dở vào stopActivationUi()');
+  const hideAt = ui.indexOf('classList.add("hidden")');
+  assert.ok(hideAt !== -1, 'stopActivationUi phải có nhánh ẩn modal kích hoạt');
+  assert.ok(/localStorage\.getItem\(ACTIVATED_KEY\)[\s\S]{0,200}return;/.test(ui.slice(0, hideAt)),
+    'Phải kiểm ACTIVATED_KEY và return TRƯỚC khi ẩn modal kích hoạt / hiện màn khóa');
+});

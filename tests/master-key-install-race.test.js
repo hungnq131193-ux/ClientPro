@@ -325,6 +325,45 @@ test('activateApp (gia hạn): khóa app lúc seal SEC_KEY v2 -> dừng, không 
   assert.equal(api.isAppUnlocked(), false);
 });
 
+test('activateApp (gia hạn): server thu hồi giữa chừng -> GIỮ cổng kích hoạt, không hạ xuống màn khóa', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  const existingMk = api.generateMasterKey();
+  await api.setMasterKey(existingMk);
+  localStorage.setItem('app_sec_qa', await api.sealMasterKey('NV555', existingMk));
+  localStorage.setItem('app_pin', await api.sealMasterKey('111111', existingMk));
+  api.clearMasterKeyMaterial();
+
+  ctx.ADMIN_SERVER_URL = 'https://gas.test';
+  // activate -> success; issue_kdata (ensureBackupSecret) -> locked, tức server vừa
+  // thu hồi quyền. _revokeAndShowActivationGate() xóa app_activated và dựng cổng
+  // kích hoạt; đường bỏ dở của activateApp KHÔNG được ẩn cổng đó rồi hiện màn khóa —
+  // validatePin() không kiểm app_activated nên PIN đúng sẽ mở thẳng dashboard.
+  ctx.fetch = async (url, opts) => {
+    const body = (opts && opts.body) || '';
+    const isKdata = String(url).includes('issue_kdata') || String(body).includes('issue_kdata');
+    return {
+      text: async () => JSON.stringify(isKdata
+        ? { status: 'locked', message: 'Tài khoản đã bị thu hồi.' }
+        : { status: 'success' }),
+    };
+  };
+  dom.getEl('activation-key').value = 'KEY-123';
+  dom.getEl('activation-employee').value = 'NV555';
+  dom.getEl('activation-modal').classList.remove('hidden');
+
+  await api.activateApp();
+
+  assert.equal(localStorage.getItem('app_activated'), null,
+    'thu hồi phải xóa marker kích hoạt');
+  assert.equal(dom.isHidden('activation-modal'), false,
+    'cổng kích hoạt phải còn hiện — đây là lệnh thu hồi, không phải auto-lock');
+  assert.equal(dom.isHidden('screen-lock'), true,
+    'không được hạ thu hồi xuống thành màn khóa (PIN đúng sẽ vào thẳng dashboard)');
+  assert.equal(api.isAppUnlocked(), false);
+  assert.equal(api.getEmployeeIdRam(), null);
+});
+
 // ---------------------------------------------------------------------------
 // 5. validatePin — PIN ĐÚNG nhưng phiên chết giữa chừng
 // ---------------------------------------------------------------------------
