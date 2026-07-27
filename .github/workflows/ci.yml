@@ -17,318 +17,99 @@ jobs:
     name: Static checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-      - run: |
+
+      - name: Validate JSON files
+        run: |
           python3 -m json.tool manifest.json > /dev/null
-          python3 -m json.tool vercel.json > /dev/null
+          python3 -m json.tool vercel.json  > /dev/null
+
+      - name: Check JavaScript syntax
+        run: |
           node --check sw.js
           find assets scripts -name '*.js' -o -name '*.mjs' | xargs -n1 node --check
-          node scripts/sync-version.mjs --check
-          node scripts/check-policy.mjs
+
+      - name: Verify version single-source (package.json → manifest/sw/pwa/README)
+        run: node scripts/sync-version.mjs --check
+
+      # Debug scaffold + cache-buster + self-host policy — cùng script để dev chạy local được.
+      - name: Verify repo policy (debug scaffold / cache-buster / self-host)
+        run: node scripts/check-policy.mjs
 
   tests:
     name: Automated tests (crypto & data integrity)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-      - run: node --test 'tests/**/*.test.js'
 
-  apply-legacy-ticket-fix:
-    name: Apply verified legacy-ticket and loader fix
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-      - name: Apply fixes
-        shell: bash
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-          from textwrap import dedent
-          import re
-
-          p = Path('assets/02_security.js')
-          s = p.read_text(encoding='utf-8')
-
-          s, n = re.subn(
-              r'await runFieldCryptoMigrationIfNeeded\(pinForMigration, empForMigration\);',
-              'await runFieldCryptoMigrationIfNeeded(pinForMigration, empForMigration, unlockAttempt);',
-              s,
-              count=1,
-          )
-          if n != 1: raise SystemExit('completeUnlockDataLoad migration call not found')
-
-          s, n = re.subn(
-              r'function _legacyMigrationAlive\(gen\) \{\n\s*return gen === __keyGeneration && !!masterKey && !!masterCryptoKey;\n\}',
-              'function _legacyMigrationAlive(gen, unlockAttempt) {\n  const attemptCurrent = unlockAttempt === undefined || unlockAttempt === __unlockAttemptSeq;\n  return attemptCurrent && gen === __keyGeneration && !!masterKey && !!masterCryptoKey;\n}',
-              s,
-              count=1,
-          )
-          if n != 1: raise SystemExit('legacy liveness helper not found')
-
-          s = s.replace(
-              'async function _reencryptRecord(c, legacyKey, migrationGen) {',
-              'async function _reencryptRecord(c, legacyKey, migrationGen, unlockAttempt) {',
-              1,
-          )
-          s = s.replace(
-              'async function _migrateDriveToken(legacyKey, migrationGen) {',
-              'async function _migrateDriveToken(legacyKey, migrationGen, unlockAttempt) {',
-              1,
-          )
-          s = s.replace('_legacyMigrationAlive(migrationGen)', '_legacyMigrationAlive(migrationGen, unlockAttempt)')
-
-          start = s.find('async function runFieldCryptoMigrationIfNeeded(')
-          end_marker = '\n// ============================================================\n// PIN Envelope v2'
-          end = s.find(end_marker, start)
-          if start < 0 or end < 0: raise SystemExit('migration function boundaries not found')
-          new_migration = dedent('''
-          async function runFieldCryptoMigrationIfNeeded(pin, employeeId, unlockAttempt) {
-            if (typeof db === "undefined" || !db) return;
-            if (localStorage.getItem(SCHEMA_KEY) === "2") return;
-            const attemptCurrent = () => unlockAttempt === undefined || unlockAttempt === __unlockAttemptSeq;
-            if (!attemptCurrent()) return;
-
-            if (!masterKeyLegacy && masterCryptoKey) {
-              if (!attemptCurrent()) return;
-              if (parseV2Envelope(localStorage.getItem(PIN_KEY))) {
-                localStorage.setItem(SCHEMA_KEY, "2");
-                localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
-                __legacyMigrationUnfinished = false;
-              }
-              return;
-            }
-            if (!masterKeyLegacy) return;
-
-            const legacyKey = masterKeyLegacy;
-            let mkStr = null;
-            const staged = localStorage.getItem(PIN_STAGE);
-            if (staged) {
-              mkStr = await openMasterKeyV2(pin, staged);
-              if (!attemptCurrent()) return;
-            }
-            if (!mkStr) {
-              mkStr = generateMasterKey();
-              const pinStage = await sealMasterKey(pin, mkStr);
-              if (!attemptCurrent()) return;
-              localStorage.setItem(PIN_STAGE, pinStage);
-              if (employeeId) {
-                const secStage = await sealMasterKey(employeeId, mkStr);
-                if (!attemptCurrent()) return;
-                localStorage.setItem(SEC_STAGE, secStage);
-              }
-            }
-
-            if (!attemptCurrent()) return;
-            await _installMasterKey(mkStr);
-            const migrationGen = __keyGeneration;
-            if (!_legacyMigrationAlive(migrationGen, unlockAttempt) || masterKey !== mkStr) {
-              throw new Error("LEGACY_MIGR_KEY_INSTALL_ABORTED");
-            }
-            masterKeyLegacy = legacyKey;
-            __legacyMigrationUnfinished = true;
-
-            const ids = await _getAllCustomerKeys();
-            if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
-            for (const id of ids) {
-              if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
-              const c = await new Promise((resolve, reject) => {
-                try {
-                  const g = db.transaction(["customers"], "readonly").objectStore("customers").get(id);
-                  g.onsuccess = () => resolve(g.result);
-                  g.onerror = () => reject(g.error || new Error("LEGACY_MIGR_RECORD_READ_ERROR"));
-                } catch (e) { reject(e); }
-              });
-              if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
-              if (!c || c.cryptoV === 2) continue;
-              await _reencryptRecord(c, legacyKey, migrationGen, unlockAttempt);
-              if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
-              await new Promise((resolve, reject) => {
-                const tx = db.transaction(["customers"], "readwrite");
-                tx.objectStore("customers").put(c);
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => reject(tx.error || new Error("LEGACY_MIGR_TX_ERROR"));
-                tx.onabort = () => reject(tx.error || new Error("LEGACY_MIGR_TX_ABORT"));
-              });
-              if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
-            }
-
-            await _migrateDriveToken(legacyKey, migrationGen, unlockAttempt);
-            if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
-
-            const pinStage = localStorage.getItem(PIN_STAGE);
-            if (!pinStage || !parseV2Envelope(pinStage)) throw new Error("LEGACY_MIGR_PIN_STAGE_MISSING");
-            if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
-            localStorage.setItem(PIN_KEY, pinStage);
-            const secStage = localStorage.getItem(SEC_STAGE);
-            if (secStage) localStorage.setItem(SEC_KEY, secStage);
-            localStorage.setItem(SCHEMA_KEY, "2");
-            localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
-            masterKeyLegacy = null;
-            __legacyMigrationUnfinished = false;
-          }
-          ''').strip()
-          s = s[:start] + new_migration + '\n' + s[end:]
-
-          vstart = s.find('async function validatePin()')
-          vend = s.find('\nfunction _openForcedPinUpgrade()', vstart)
-          if vstart < 0 or vend < 0: raise SystemExit('validatePin boundaries not found')
-          v = s[vstart:vend]
-          target = '    updateLockoutUI();\n  }\n}'
-          pos = v.rfind(target)
-          if pos < 0: raise SystemExit('wrong PIN tail not found')
-          replacement = '    updateLockoutUI();\n    _releaseUnlockLoading(myUnlockAttempt);\n  }\n}'
-          v = v[:pos] + replacement + v[pos + len(target):]
-          s = s[:vstart] + v + s[vend:]
-          p.write_text(s, encoding='utf-8')
-
-          tp = Path('tests/unlock-keypad-ownership.test.js')
-          t = tp.read_text(encoding='utf-8')
-          marker = "test('tripwire: validatePin nhận vé và chụp PIN trước unwrap, cleanup chỉ thuộc chủ vé', () => {"
-          if marker not in t: raise SystemExit('test insertion marker not found')
-          added = dedent(r'''
-          test('migration legacy mất vé trong lúc seal stage không được cài hoặc finalize khóa', async () => {
-            const { api, localStorage, ctx } = loadSecurity({ dom: true });
-            api.setLegacyMasterKey('mk_legacy_ticket_guard');
-            api.setDb({});
-            const ticket = api.bumpUnlockAttempt();
-            const subtle = ctx.crypto.subtle;
-            const realEncrypt = subtle.encrypt.bind(subtle);
-            const sealEntered = deferred();
-            const releaseSeal = deferred();
-            let held = false;
-            ctx.crypto = {
-              getRandomValues: ctx.crypto.getRandomValues.bind(ctx.crypto),
-              subtle: new Proxy(subtle, {
-                get(target, prop) {
-                  if (prop === 'encrypt') return async (...args) => {
-                    const out = await realEncrypt(...args);
-                    if (!held) {
-                      held = true;
-                      sealEntered.resolve();
-                      await releaseSeal.promise;
-                    }
-                    return out;
-                  };
-                  const value = target[prop];
-                  return typeof value === 'function' ? value.bind(target) : value;
-                },
-              }),
-            };
-            const oldMigration = api.runFieldCryptoMigrationIfNeeded('654321', 'NV001', ticket);
-            await waitFor(sealEntered.promise, 'migration cũ vào seal stage');
-            api.bumpUnlockAttempt();
-            api.clearMasterKeyMaterial();
-            releaseSeal.resolve();
-            await oldMigration;
-            assert.equal(api.isAppUnlocked(), false);
-            assert.equal(api.getState().hasGcmKey, false);
-            assert.equal(localStorage.getItem('app_pin_v2_stage'), null);
-            assert.equal(localStorage.getItem('app_sec_v2_stage'), null);
-            assert.equal(localStorage.getItem('app_crypto_schema_v'), null);
-          });
-
-          test('PIN sai sau khi tiếp quản pipeline phải nhả loader và trả keypad', async () => {
-            const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
-            const mk = api.generateMasterKey();
-            await api.setMasterKey(mk);
-            localStorage.setItem('app_pin', await api.sealMasterKey('654321', mk));
-            api.clearMasterKeyMaterial();
-            dom.getEl('screen-lock').classList.remove('hidden');
-            const entered = deferred();
-            const release = deferred();
-            ctx.window.__dbReady = { then(resolve, reject) {
-              entered.resolve();
-              release.promise.then(resolve, reject);
-            } };
-            api.setCurrentPin('654321');
-            const first = api.validatePin();
-            await waitFor(entered.promise, 'pipeline cũ hiện loader');
-            assert.equal(dom.isHidden('pin-unlock-loading'), false);
-            assert.equal(dom.isHidden('pin-keypad'), true);
-            api.setCurrentPin('111111');
-            await api.validatePin();
-            assert.equal(dom.isHidden('pin-unlock-loading'), true);
-            assert.equal(dom.isHidden('pin-keypad'), false);
-            assert.equal(dom.isHidden('pin-display'), false);
-            assert.equal(api.isAppUnlocked(), false);
-            release.resolve();
-            await first;
-          });
-
-          test('tripwire: migration legacy mang vé qua install, record và finalize', () => {
-            const source = fs.readFileSync(path.join(__dirname, '..', 'assets', '02_security.js'), 'utf8');
-            assert.match(source, /runFieldCryptoMigrationIfNeeded\(pinForMigration, empForMigration, unlockAttempt\)/);
-            const start = source.indexOf('async function runFieldCryptoMigrationIfNeeded(pin, employeeId, unlockAttempt)');
-            const end = source.indexOf('\n// ============================================================\n// PIN Envelope v2', start);
-            assert.ok(start >= 0 && end > start);
-            const body = source.slice(start, end);
-            const install = body.indexOf('await _installMasterKey(mkStr)');
-            const guardBeforeInstall = body.lastIndexOf('if (!attemptCurrent()) return;', install);
-            const finalize = body.indexOf('localStorage.setItem(PIN_KEY, pinStage)');
-            const finalGuard = body.lastIndexOf('_legacyMigrationAlive(migrationGen, unlockAttempt)', finalize);
-            assert.ok(guardBeforeInstall >= 0 && guardBeforeInstall < install);
-            assert.ok(finalGuard > install && finalGuard < finalize);
-            assert.match(source, /function _legacyMigrationAlive\(gen, unlockAttempt\)[\s\S]*?unlockAttempt === __unlockAttemptSeq/);
-          });
-
-          ''')
-          t = t.replace(marker, added + marker, 1)
-          tp.write_text(t, encoding='utf-8')
-          PY
-      - name: Verify
-        run: |
-          node --check assets/02_security.js
-          node --test 'tests/**/*.test.js'
-          git diff --check
-      - name: Commit
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/02_security.js tests/unlock-keypad-ownership.test.js
-          git commit -m "fix: guard legacy migration ownership"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+      # Không cần `npm install`: bộ test chạy bằng test runner tích hợp của Node
+      # (node --test) + node:crypto (WebCrypto) + crypto-js.min.js self-host sẵn.
+      # Không thêm dependency, không thêm asset -> không đụng versioning/cache-buster.
+      - name: Run test suite (Node built-in runner)
+        run: node --test 'tests/**/*.test.js'
 
   e2e:
     name: E2E + a11y + Lighthouse (Playwright/axe/LHCI)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-      - uses: actions/cache@v4
+
+      # Cache npm + Chromium theo devDeps đã pin exact trong package.json
+      # (không có lockfile — chính sách no-lockfile giữ nguyên).
+      - name: Cache npm
+        uses: actions/cache@v4
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('package.json') }}
-      - uses: actions/cache@v4
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
-      - run: npm install --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
-      - run: npx playwright test
-      - run: npx lhci autorun
-      - if: always()
+
+      # devDeps CHỈ cho CI (Playwright/axe/Lighthouse). App shipped vẫn zero-dependency.
+      # Dùng `npm install` (không `npm ci`) vì không commit package-lock.json.
+      - name: Install CI test tooling
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E + axe a11y
+        run: npx playwright test
+
+      # Gate thật: assertion a11y (error, minScore 0.9) trong lighthouserc.json
+      # làm đỏ CI nếu vi phạm; perf/best-practices vẫn chỉ cảnh báo.
+      - name: Lighthouse CI (a11y gate + perf/best-practices cảnh báo)
+        run: npx lhci autorun
+
+      - name: Upload E2E & Lighthouse reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-lighthouse-reports
