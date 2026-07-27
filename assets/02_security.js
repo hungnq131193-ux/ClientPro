@@ -1969,7 +1969,16 @@ async function validatePin() {
     }
     // Lượt mới có thể bắt đầu khi lượt này đang importKey mà chưa đổi key generation.
     // Chặn trước mọi cleanup để không xóa PIN/keypad của lượt mới đang unwrap.
-    if (myUnlockAttempt !== __unlockAttemptSeq) return;
+    const installedGeneration = __keyGeneration;
+    const installedCryptoKey = masterCryptoKey;
+    if (myUnlockAttempt !== __unlockAttemptSeq) {
+      if (__keyGeneration === installedGeneration
+        && masterKey === res.masterKey
+        && masterCryptoKey === installedCryptoKey) {
+        clearMasterKeyMaterial();
+      }
+      return;
+    }
     const pinForMigration = pinAttempt;
     // Máy legacy chưa migrate vẫn còn plaintext; máy đã migrate trả "" (migration
     // legacy khi đó là no-op nên không cần mã NV).

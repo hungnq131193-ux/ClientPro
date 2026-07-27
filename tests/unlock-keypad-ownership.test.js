@@ -181,6 +181,96 @@ test('lượt mới nhận vé trước khi PBKDF2 unwrap: lượt cũ không đ
     'lượt mới hoàn tất đầy đủ thì mới mở dashboard');
 });
 
+test('lượt cũ mất vé sau importKey phải xóa khóa của chính nó khi lượt mới nhập sai PIN', async () => {
+  const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
+  const correctPin = '654321';
+  const wrongPin = '111111';
+  const mk = api.generateMasterKey();
+
+  await api.setMasterKey(mk);
+  localStorage.setItem('app_pin', await api.sealMasterKey(correctPin, mk));
+  api.clearMasterKeyMaterial();
+  dom.getEl('screen-lock').classList.remove('hidden');
+  const failuresBefore = api.getPinFailures().fails;
+
+  const originalCrypto = ctx.crypto;
+  const subtle = originalCrypto.subtle;
+  const firstInstallEntered = deferred();
+  const releaseFirstInstall = deferred();
+  const secondUnwrapEntered = deferred();
+  const releaseSecondUnwrap = deferred();
+  let aesInstallCount = 0;
+  let pbkdf2DeriveCount = 0;
+
+  ctx.crypto = {
+    getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
+    subtle: new Proxy(subtle, {
+      get(target, prop) {
+        if (prop === 'deriveKey') {
+return async (...args) => {
+  const algorithm = args[0];
+  const name = String((algorithm && algorithm.name) || algorithm || '');
+  if (name === 'PBKDF2') {
+    pbkdf2DeriveCount++;
+    if (pbkdf2DeriveCount === 2) {
+      secondUnwrapEntered.resolve();
+      await releaseSecondUnwrap.promise;
+    }
+  }
+  return target.deriveKey(...args);
+};
+        }
+        if (prop === 'importKey') {
+return async (...args) => {
+  const algorithm = args[2];
+  const name = String((algorithm && algorithm.name) || algorithm || '');
+  if (name === 'AES-GCM') {
+    aesInstallCount++;
+    if (aesInstallCount === 1) {
+      firstInstallEntered.resolve();
+      await releaseFirstInstall.promise;
+    }
+  }
+  return target.importKey(...args);
+};
+        }
+        const value = target[prop];
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }),
+  };
+
+  api.setCurrentPin(correctPin);
+  const first = api.validatePin();
+  await waitFor(firstInstallEntered.promise, 'lượt đúng PIN vào cài khóa');
+
+  api.setCurrentPin(wrongPin);
+  const second = api.validatePin();
+  await waitFor(secondUnwrapEntered.promise, 'lượt sai PIN vào PBKDF2');
+
+  releaseFirstInstall.resolve();
+  await first;
+
+  assert.equal(api.isAppUnlocked(), false,
+    'lượt cũ mất vé phải xóa masterKey vừa cài, không để phiên mở khóa phía sau màn PIN');
+  assert.equal(api.getState().hasGcmKey, false,
+    'khóa GCM của lượt cũ phải bị vô hiệu hóa cùng masterKey');
+  assert.equal(dom.isHidden('screen-lock'), false,
+    'màn khóa phải tiếp tục chặn trong khi lượt mới chưa xác thực xong');
+  assert.equal(api.getCurrentPin(), wrongPin,
+    'lượt cũ không được xóa PIN của lượt mới đang unwrap');
+
+  releaseSecondUnwrap.resolve();
+  await second;
+
+  assert.equal(api.getPinFailures().fails, failuresBefore + 1,
+    'lượt mới sai PIN vẫn phải được ghi nhận đúng một lần');
+  assert.equal(api.isAppUnlocked(), false,
+    'sau PIN sai không được còn vật liệu khóa từ lượt cũ');
+  assert.equal(api.getState().hasGcmKey, false);
+  assert.equal(dom.isHidden('screen-lock'), false);
+});
+
 test('tripwire: validatePin nhận vé và chụp PIN trước unwrap, cleanup chỉ thuộc chủ vé', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'assets', '02_security.js'),
@@ -206,11 +296,20 @@ test('tripwire: validatePin nhận vé và chụp PIN trước unwrap, cleanup c
   assert.ok(preInstallGuard > unwrap && preInstallGuard < install,
     'phải dừng lượt stale sau unwrap và trước khi cài khóa');
 
-  const postInstallGuard = body.indexOf('if (myUnlockAttempt !== __unlockAttemptSeq) return;', install);
+  const installedGeneration = body.indexOf('const installedGeneration = __keyGeneration;', install);
+  const installedCryptoKey = body.indexOf('const installedCryptoKey = masterCryptoKey;', installedGeneration);
+  const postInstallGuard = body.indexOf('if (myUnlockAttempt !== __unlockAttemptSeq) {', installedCryptoKey);
   const migrationPin = body.indexOf('const pinForMigration = pinAttempt;', postInstallGuard);
   const clearSharedPin = body.indexOf('currentPin = "";', migrationPin);
-  assert.ok(postInstallGuard > install && migrationPin > postInstallGuard && clearSharedPin > migrationPin,
-    'sau importKey phải kiểm vé lại và migration chỉ dùng PIN snapshot');
+  assert.ok(installedGeneration > install && installedCryptoKey > installedGeneration
+      && postInstallGuard > installedCryptoKey && migrationPin > postInstallGuard
+      && clearSharedPin > migrationPin,
+    'sau importKey phải chụp identity khóa, kiểm vé lại và migration chỉ dùng PIN snapshot');
+
+  const staleInstallBlock = body.slice(postInstallGuard, migrationPin);
+  assert.match(staleInstallBlock,
+    /__keyGeneration === installedGeneration[\s\S]*?masterKey === res\.masterKey[\s\S]*?masterCryptoKey === installedCryptoKey[\s\S]*?clearMasterKeyMaterial\(\);[\s\S]*?return;/,
+    'lượt mất vé phải chỉ xóa đúng generation/key mà chính nó vừa cài');
 
   const catchStart = body.indexOf('} catch (e) {', install);
   const catchReturn = body.indexOf('\n        return;', catchStart);
