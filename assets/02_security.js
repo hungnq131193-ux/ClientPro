@@ -1934,64 +1934,56 @@ async function validatePin() {
     clearPin();
     return;
   }
+  // Nhận vé + chụp PIN TRƯỚC await đầu tiên. Biometric có thể gọi validatePin()
+  // trực tiếp trong khi lượt cũ đang chạy, nên keypad-disabled không ngăn được
+  // lượt mới. Lượt mới phải tiếp quản ngay từ lúc bắt đầu giải mã envelope.
+  const myUnlockAttempt = ++__unlockAttemptSeq;
+  const pinAttempt = currentPin;
   const encMaster = localStorage.getItem(PIN_KEY);
   _pinChecking = true;
   _setKeypadDisabled(true);
   let res = null;
   try {
-    res = await unwrapMasterKeyAny(currentPin, encMaster);
+    res = await unwrapMasterKeyAny(pinAttempt, encMaster);
   } finally {
-    _pinChecking = false;
+    // Lượt cũ hoàn tất PBKDF2 sau lượt mới không được mở lại đường nhập PIN.
+    if (myUnlockAttempt === __unlockAttemptSeq) _pinChecking = false;
   }
+  // Một lượt mới đã bắt đầu trong lúc unwrap: lượt này không còn quyền cài khóa,
+  // ghi nhận PIN sai hay thay đổi bất kỳ trạng thái UI/RAM dùng chung nào.
+  if (myUnlockAttempt !== __unlockAttemptSeq) return;
   if (res && res.masterKey) {
-    // Nhận vé TRƯỚC khi cài khóa: _installMasterKey gán masterKey rồi mới await
-    // importKey, nên giữa khe đó isAppUnlocked() đã true trong khi masterCryptoKey
-    // còn rỗng. Nhận vé sau await sẽ để lượt CŨ thấy "còn giữ vé + app đã mở" và ẩn
-    // màn khóa đúng lúc lượt mới chưa có khóa phái sinh, chưa vào pipeline.
-    // Migration legacy bên trong pipeline KHÔNG chạm vé nên lượt này giữ nguyên vé.
-    const myUnlockAttempt = ++__unlockAttemptSeq;
-    // Giải mã thành công: cài masterKey (dựng key GCM) — giữ lock đến khi load xong dữ liệu
+    // Giải mã thành công: cài masterKey (dựng key GCM) — giữ lock đến khi load xong dữ liệu.
     try {
       await _installMasterKey(res.masterKey);
     } catch (e) {
-      // Auto-lock (60s ẩn) / thu hồi xen vào GIỮA importKey: phiên này không có khóa.
-      // Không mở khóa, không chạy pipeline, GIỮ NGUYÊN màn khóa; PIN nhập đúng nên
-      // không tính là lần sai. Trả bàn phím lại để người dùng nhập lại ngay.
+      // Auto-lock / thu hồi / lượt cài khóa mới xen vào giữa importKey.
       try { ErrorHandler.logError("unlock-install-key", e); } catch (_) {}
       if (myUnlockAttempt === __unlockAttemptSeq) {
         currentPin = "";
         updatePinDots();
         _setKeypadDisabled(false);
       }
-      // Lượt này đang giữ vé mà bỏ dở -> phải nhả UI dùng chung, nếu không màn khóa
-      // kẹt ở trạng thái spinner (pipeline cũ nay không còn quyền tự dọn).
       _releaseUnlockLoading(myUnlockAttempt);
       return;
     }
-    const pinForMigration = currentPin;
+    // Lượt mới có thể bắt đầu khi lượt này đang importKey mà chưa đổi key generation.
+    // Chặn trước mọi cleanup để không xóa PIN/keypad của lượt mới đang unwrap.
+    if (myUnlockAttempt !== __unlockAttemptSeq) return;
+    const pinForMigration = pinAttempt;
     // Máy legacy chưa migrate vẫn còn plaintext; máy đã migrate trả "" (migration
     // legacy khi đó là no-op nên không cần mã NV).
     const empForMigration = _resolveEmployeeId();
-    currentPin = ""; // không giữ PIN trong bộ nhớ lâu hơn cần thiết
+    currentPin = ""; // chỉ chủ vé được xóa PIN dùng chung khỏi RAM
     resetPinFailures();
     _setKeypadDisabled(false);
     await completeUnlockDataLoad(pinForMigration, empForMigration, myUnlockAttempt);
-    // Auto-lock (60s ẩn) có thể đã nổ GIỮA pipeline dài phía trên và xóa key +
-    // hiện lại màn khóa. Ẩn màn khóa vô điều kiện ở đây là mở app với
-    // masterKey=null — vào được dashboard mà không qua PIN. Mất phiên thì giữ
-    // nguyên màn khóa, người dùng nhập PIN lại.
+    // Auto-lock / thu hồi có thể đã nổ giữa pipeline dài phía trên.
     if (!isAppUnlocked()) return;
-    // isAppUnlocked() thôi thì chưa đủ: sau auto-lock người dùng có thể nhập PIN lại
-    // ngay, và lượt CŨ tỉnh dậy sẽ thấy khóa của lượt MỚI. Ẩn màn khóa khi đó là mở
-    // dashboard giữa chừng pipeline của lượt mới, kèm cả prompt nâng cấp PIN dựa trên
-    // kết quả `res` đã cũ. Chỉ lượt đang sở hữu phiên mới được đổi UI.
+    // Chỉ lượt đang sở hữu phiên mới được ẩn màn khóa hoặc mở prompt nâng cấp PIN.
     if (myUnlockAttempt !== __unlockAttemptSeq) return;
     getEl("screen-lock").classList.add("hidden");
-    // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới (masterKey giữ nguyên, dữ liệu không đổi).
-    // HOÃN khi migration legacy chưa finalize: saveSecuritySetup sẽ niêm phong
-    // masterKey hiện tại (đã là MK2) vào PIN_KEY/SEC_KEY và vứt mất khóa legacy —
-    // các record U2FsdGVk… chưa migrate sẽ không bao giờ đọc được nữa. Lần mở khóa
-    // sau, khi migration đã xong, prompt này lại hiện bình thường.
+    // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới, nhưng chỉ sau khi migration hoàn tất.
     if (res.legacy && !__legacyMigrationUnfinished) _openForcedPinUpgrade();
   } else {
     registerPinFailure();
