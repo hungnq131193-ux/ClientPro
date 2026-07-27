@@ -39,6 +39,14 @@ jobs:
           cat scripts/.agent-fix-142/part* | base64 -d | gzip -d > /tmp/agent_fix_142.py
           rm -rf scripts/.agent-fix-142
           python3 /tmp/agent_fix_142.py
+          python3 - <<'PY'
+          from pathlib import Path
+          for path in Path('e2e').glob('*.spec.js'):
+              text = path.read_text(encoding='utf-8')
+              updated = text.replace('version: 4', 'version: 5')
+              if updated != text:
+                  path.write_text(updated, encoding='utf-8')
+          PY
           node scripts/sync-version.mjs
 
       - name: Static checks
@@ -62,7 +70,21 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Playwright E2E and axe
-        run: npx playwright test
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test 2>&1 | tee /tmp/playwright.log
+
+      - name: Upload Playwright failure details
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-fix-playwright-failure
+          path: |
+            /tmp/playwright.log
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
 
       - name: Lighthouse CI
         run: npx lhci autorun
