@@ -192,6 +192,27 @@ test('App lock khi tour mở: tour đóng, overlay dọn, không tự mở lại
   await expect(page.locator(OVERLAY)).toHaveCount(0);
 });
 
+test('Thu hồi quyền khi tour mở: tour đóng, cổng kích hoạt hiện ra không bị che', async ({ page }) => {
+  await seedAndUnlock(page);
+  await page.waitForSelector(TOOLTIP, { state: 'visible', timeout: 15_000 });
+
+  // Thu hồi từ server: _revokeAndShowActivationGate() GIỮ #screen-lock ẩn và chỉ hiện
+  // #activation-modal (z-index 305). Tour ở z-index 1000+ nên nếu observer chỉ nghe
+  // #screen-lock thì tour vẫn đè lên cổng kích hoạt của một máy vừa bị thu hồi quyền.
+  await page.evaluate(() => _revokeAndShowActivationGate('Tài khoản đã bị thu hồi!'));
+
+  await expect(page.locator('#activation-modal')).toBeVisible();
+  await expect(page.locator(OVERLAY)).toHaveCount(0, { timeout: 4_000 });
+  await expect(page.locator(TOOLTIP)).toHaveCount(0);
+  await expect(page.locator('#screen-lock')).toBeHidden();
+
+  // Cổng kích hoạt phải thực sự nhận được thao tác (không có lớp nào chặn phía trên).
+  await expect(page.locator('#activation-key')).toBeVisible();
+  await page.click('#activation-key');
+  await page.keyboard.type('ABC');
+  await expect(page.locator('#activation-key')).toHaveValue('ABC');
+});
+
 test('Viewport điện thoại nhỏ: tooltip không vượt khỏi màn hình', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await seedAndUnlock(page);

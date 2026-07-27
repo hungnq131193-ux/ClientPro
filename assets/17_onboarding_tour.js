@@ -257,16 +257,28 @@
         requestAnimationFrame(() => { overlay && overlay.classList.add('is-visible'); });
     }
 
+    // Quan sát MỌI màn chặn, không chỉ #screen-lock. Thu hồi quyền
+    // (_revokeAndShowActivationGate trong 02_security.js — gọi từ check_status /
+    // issue_kdata trả 'locked') GIỮ #screen-lock ẩn và chỉ hiện #activation-modal.
+    // Tour nằm ở z-index 1000+ còn cổng kích hoạt ở 305, nên nếu chỉ nghe #screen-lock
+    // thì người dùng vừa bị thu hồi quyền vẫn thấy tour tương tác đè lên cổng kích
+    // hoạt cho tới khi họ tự bấm Bỏ qua. Điều kiện chặn dùng chung isTourBlocked()
+    // để không nhân bản danh sách màn chặn.
     function watchLock() {
         try {
-            const lock = document.getElementById('screen-lock');
-            // Màn khóa đã hiện sẵn -> hủy tour ngay, không chờ mutation.
-            if (lock && !lock.classList.contains('hidden')) { removeTourUI(); return; }
-            if (!lock || typeof MutationObserver === 'undefined') return;
+            const screens = ['screen-lock', 'activation-modal', 'setup-lock-modal']
+                .map((id) => document.getElementById(id))
+                .filter(Boolean);
+            // Đã bị chặn sẵn -> hủy tour ngay, không chờ mutation.
+            if (isTourBlocked()) { removeTourUI(); return; }
+            if (!screens.length || typeof MutationObserver === 'undefined') return;
+            // MỘT observer quan sát nhiều node; disconnect() dọn hết trong removeTourUI.
             lockObserver = new MutationObserver(() => {
-                if (active && lock && !lock.classList.contains('hidden')) removeTourUI();
+                if (active && isTourBlocked()) removeTourUI();
             });
-            lockObserver.observe(lock, { attributes: true, attributeFilter: ['class'] });
+            for (const node of screens) {
+                lockObserver.observe(node, { attributes: true, attributeFilter: ['class'] });
+            }
         } catch (e) { }
     }
 

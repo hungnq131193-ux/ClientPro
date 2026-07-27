@@ -1020,8 +1020,12 @@ replay entry.
 - Auto-start waits for the dashboard (`#customer-list`), a set `masterKey`, and a
   hidden lock/activation/setup screen before showing. The tour contains exactly 11
   steps; update `e2e/onboarding-tour.spec.js` whenever count/version/selectors change.
-- A `MutationObserver` on `#screen-lock` detects app-lock and tears the tour down
-  (without marking complete), and it does not reopen after unlock.
+- One `MutationObserver` watches **every** blocking screen — `#screen-lock`,
+  `#activation-modal`, `#setup-lock-modal` — and tears the tour down (without
+  marking complete) as soon as `isTourBlocked()` turns true; it does not reopen
+  after unlock. Watching only `#screen-lock` is not enough: server revocation
+  (`_revokeAndShowActivationGate`) keeps the lock screen hidden and raises only
+  the activation gate, which sits at z-index 305 under the tour's 1000+.
 
 ### Read source code only when
 Editing tour steps/behavior, verifying a dashboard selector, or debugging tour

@@ -530,3 +530,14 @@ test('acceptKdata: chỉ được dọn KDATA của chính request (biến RAM d
   assert.ok(/APP_BACKUP_KDATA_B64U === kdata/.test(line),
     'Lệnh dọn phải có identity-check APP_BACKUP_KDATA_B64U === kdata');
 });
+
+test('tour: observer đóng tour phải nghe MỌI màn chặn, không chỉ #screen-lock', () => {
+  const body = fnBody(read('assets/17_onboarding_tour.js'), 'watchLock');
+  // Thu hồi quyền (_revokeAndShowActivationGate) giữ #screen-lock ẩn và chỉ hiện
+  // #activation-modal (z-index 305) — tour ở 1000+ sẽ đè lên cổng kích hoạt.
+  for (const id of ['screen-lock', 'activation-modal', 'setup-lock-modal']) {
+    assert.ok(body.includes(`'${id}'`), `Observer phải theo dõi #${id}`);
+  }
+  assert.ok(/isTourBlocked\(\)/.test(body),
+    'Điều kiện đóng tour phải dùng chung isTourBlocked(), không nhân bản danh sách màn chặn');
+});
