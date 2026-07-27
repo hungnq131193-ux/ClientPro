@@ -1062,36 +1062,96 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId, unlockAttempt) {
   if (typeof db === "undefined" || !db) return;
   if (localStorage.getItem(SCHEMA_KEY) === "2") return;
   const attemptCurrent = () => unlockAttempt === undefined || unlockAttempt === __unlockAttemptSeq;
+  const recoveryId = String(employeeId || "").trim();
   if (!attemptCurrent()) return;
 
   if (!masterKeyLegacy && masterCryptoKey) {
     if (!attemptCurrent()) return;
-    if (parseV2Envelope(localStorage.getItem(PIN_KEY))) {
-      localStorage.setItem(SCHEMA_KEY, "2");
-      localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
-      __legacyMigrationUnfinished = false;
+    const pinCurrent = localStorage.getItem(PIN_KEY) || "";
+    if (!parseV2Envelope(pinCurrent)) return;
+
+    const pinStageCurrent = localStorage.getItem(PIN_STAGE) || "";
+    let secStageCurrent = localStorage.getItem(SEC_STAGE) || "";
+    let secCurrent = localStorage.getItem(SEC_KEY) || "";
+    const stagedPairCommitted = !!pinStageCurrent && !!secStageCurrent
+      && pinCurrent === pinStageCurrent && secCurrent === secStageCurrent
+      && !!parseV2Envelope(pinStageCurrent) && !!parseV2Envelope(secStageCurrent);
+
+    if (!stagedPairCommitted) {
+      if (!recoveryId) throw new Error("LEGACY_MIGR_EMPLOYEE_ID_MISSING");
+      let recovered = null;
+      if (parseV2Envelope(secCurrent)) {
+        recovered = await openMasterKeyV2(recoveryId, secCurrent);
+        if (!attemptCurrent()) return;
+      }
+      if (recovered !== masterKey) {
+        let stagedRecovery = null;
+        if (parseV2Envelope(secStageCurrent)) {
+          stagedRecovery = await openMasterKeyV2(recoveryId, secStageCurrent);
+          if (!attemptCurrent()) return;
+        }
+        if (stagedRecovery !== masterKey) {
+          secStageCurrent = await sealMasterKey(recoveryId, masterKey);
+          if (!attemptCurrent()) return;
+          localStorage.setItem(SEC_STAGE, secStageCurrent);
+          if ((localStorage.getItem(SEC_STAGE) || "") !== secStageCurrent) {
+            throw new Error("LEGACY_MIGR_SEC_STAGE_WRITE_FAILED");
+          }
+          stagedRecovery = await openMasterKeyV2(recoveryId, secStageCurrent);
+          if (!attemptCurrent()) return;
+          if (stagedRecovery !== masterKey) throw new Error("LEGACY_MIGR_SEC_STAGE_MISMATCH");
+        }
+        localStorage.setItem(SEC_KEY, secStageCurrent);
+        if ((localStorage.getItem(SEC_KEY) || "") !== secStageCurrent) {
+          throw new Error("LEGACY_MIGR_SEC_WRITE_FAILED");
+        }
+        secCurrent = secStageCurrent;
+      }
     }
+
+    if (!parseV2Envelope(secCurrent)) throw new Error("LEGACY_MIGR_SEC_NOT_V2");
+    localStorage.setItem(SCHEMA_KEY, "2");
+    if (localStorage.getItem(SCHEMA_KEY) !== "2") throw new Error("LEGACY_MIGR_SCHEMA_WRITE_FAILED");
+    localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
+    __legacyMigrationUnfinished = false;
     return;
   }
   if (!masterKeyLegacy) return;
 
   const legacyKey = masterKeyLegacy;
   let mkStr = null;
-  const staged = localStorage.getItem(PIN_STAGE);
-  if (staged) {
-    mkStr = await openMasterKeyV2(pin, staged);
+  let pinStage = localStorage.getItem(PIN_STAGE) || "";
+  if (pinStage) {
+    mkStr = await openMasterKeyV2(pin, pinStage);
     if (!attemptCurrent()) return;
   }
   if (!mkStr) {
     mkStr = generateMasterKey();
-    const pinStage = await sealMasterKey(pin, mkStr);
+    pinStage = await sealMasterKey(pin, mkStr);
     if (!attemptCurrent()) return;
     localStorage.setItem(PIN_STAGE, pinStage);
-    if (employeeId) {
-      const secStage = await sealMasterKey(employeeId, mkStr);
-      if (!attemptCurrent()) return;
-      localStorage.setItem(SEC_STAGE, secStage);
+    if ((localStorage.getItem(PIN_STAGE) || "") !== pinStage) {
+      throw new Error("LEGACY_MIGR_PIN_STAGE_WRITE_FAILED");
     }
+  }
+
+  if (!recoveryId) throw new Error("LEGACY_MIGR_EMPLOYEE_ID_MISSING");
+  let secStage = localStorage.getItem(SEC_STAGE) || "";
+  let stagedRecovery = null;
+  if (parseV2Envelope(secStage)) {
+    stagedRecovery = await openMasterKeyV2(recoveryId, secStage);
+    if (!attemptCurrent()) return;
+  }
+  if (stagedRecovery !== mkStr) {
+    secStage = await sealMasterKey(recoveryId, mkStr);
+    if (!attemptCurrent()) return;
+    localStorage.setItem(SEC_STAGE, secStage);
+    if ((localStorage.getItem(SEC_STAGE) || "") !== secStage) {
+      throw new Error("LEGACY_MIGR_SEC_STAGE_WRITE_FAILED");
+    }
+    stagedRecovery = await openMasterKeyV2(recoveryId, secStage);
+    if (!attemptCurrent()) return;
+    if (stagedRecovery !== mkStr) throw new Error("LEGACY_MIGR_SEC_STAGE_MISMATCH");
   }
 
   if (!attemptCurrent()) return;
@@ -1131,13 +1191,27 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId, unlockAttempt) {
   await _migrateDriveToken(legacyKey, migrationGen, unlockAttempt);
   if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
 
-  const pinStage = localStorage.getItem(PIN_STAGE);
-  if (!pinStage || !parseV2Envelope(pinStage)) throw new Error("LEGACY_MIGR_PIN_STAGE_MISSING");
+  pinStage = localStorage.getItem(PIN_STAGE) || "";
+  secStage = localStorage.getItem(SEC_STAGE) || "";
+  if (!parseV2Envelope(pinStage)) throw new Error("LEGACY_MIGR_PIN_STAGE_MISSING");
+  if (!parseV2Envelope(secStage)) throw new Error("LEGACY_MIGR_SEC_STAGE_MISSING");
+
+  const stagedPinKey = await openMasterKeyV2(pin, pinStage);
+  if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
+  if (stagedPinKey !== mkStr) throw new Error("LEGACY_MIGR_PIN_STAGE_MISMATCH");
+  const stagedSecKey = await openMasterKeyV2(recoveryId, secStage);
+  if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
+  if (stagedSecKey !== mkStr) throw new Error("LEGACY_MIGR_SEC_STAGE_MISMATCH");
+
+  localStorage.setItem(SEC_KEY, secStage);
+  if ((localStorage.getItem(SEC_KEY) || "") !== secStage) throw new Error("LEGACY_MIGR_SEC_WRITE_FAILED");
   if (!_legacyMigrationAlive(migrationGen, unlockAttempt)) throw new Error("STALE_KEY_GENERATION");
   localStorage.setItem(PIN_KEY, pinStage);
-  const secStage = localStorage.getItem(SEC_STAGE);
-  if (secStage) localStorage.setItem(SEC_KEY, secStage);
+  if ((localStorage.getItem(PIN_KEY) || "") !== pinStage) throw new Error("LEGACY_MIGR_PIN_WRITE_FAILED");
+  if ((localStorage.getItem(SEC_KEY) || "") !== secStage) throw new Error("LEGACY_MIGR_SEC_COMMIT_LOST");
+
   localStorage.setItem(SCHEMA_KEY, "2");
+  if (localStorage.getItem(SCHEMA_KEY) !== "2") throw new Error("LEGACY_MIGR_SCHEMA_WRITE_FAILED");
   localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
   masterKeyLegacy = null;
   __legacyMigrationUnfinished = false;
