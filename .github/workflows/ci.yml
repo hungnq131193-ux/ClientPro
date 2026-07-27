@@ -1,95 +1,119 @@
-name: Apply recovery identity retry fix
+name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: recovery-identity-fix-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  apply:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+  static-checks:
+    name: Static checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-      - name: Preserve recovery identity until migration finalizes
-        shell: bash
+
+      - name: Validate JSON files
         run: |
-          python3 <<'PY'
-          from pathlib import Path
+          python3 -m json.tool manifest.json > /dev/null
+          python3 -m json.tool vercel.json  > /dev/null
 
-          security = Path('assets/02_security.js')
-          source = security.read_text(encoding='utf-8')
-          old = '''async function runEmployeeIdSealMigrationIfNeeded() {
-            if (!masterCryptoKey) return;
-            // Mã NV là secret khôi phục masterKey -> cũng phải theo thế hệ khóa: khóa/thu hồi'''.replace('          ', '')
-          new = '''async function runEmployeeIdSealMigrationIfNeeded() {
-            if (!masterCryptoKey) return;
-            // Khi legacy migration chưa commit xong, plaintext mã NV là nguồn recovery
-            // DUY NHẤT để dựng/kiểm SEC_STAGE ở lần retry. Không được seal+xóa nó sớm.
-            const migrationSchemaDone = localStorage.getItem(SCHEMA_KEY) === "2";
-            const legacyPinStillActive = isLegacyEnvelope(localStorage.getItem(PIN_KEY));
-            const migrationStagePending = !!(localStorage.getItem(PIN_STAGE) || localStorage.getItem(SEC_STAGE));
-            if (!migrationSchemaDone
-              && (legacyPinStillActive || migrationStagePending || __legacyMigrationUnfinished)) return;
-            // Mã NV là secret khôi phục masterKey -> cũng phải theo thế hệ khóa: khóa/thu hồi'''.replace('          ', '')
-          if source.count(old) != 1:
-              raise SystemExit(f'employee migration target count={source.count(old)}')
-          security.write_text(source.replace(old, new), encoding='utf-8')
-
-          tests = Path('tests/employee-id-seal.test.js')
-          text = tests.read_text(encoding='utf-8')
-          marker = "test('migration: seal plaintext -> xóa plaintext, RAM + sealed đọc lại đúng', async () => {"
-          added = '''test('legacy migration chưa finalize phải giữ plaintext recovery identity để retry', async () => {
-            const { api, localStorage } = loadSecurity();
-            localStorage.setItem(PLAIN_KEY, EMP);
-            localStorage.setItem('app_pin', 'legacy-pin-envelope');
-            localStorage.setItem('app_pin_v2_stage', '{"v":2,"pending":true}');
-            await api.setMasterKey(api.generateMasterKey());
-
-            await api.runEmployeeIdSealMigrationIfNeeded();
-
-            assert.equal(localStorage.getItem(PLAIN_KEY), EMP,
-              'PIN còn legacy/stage còn pending thì phải giữ identity plaintext cho lần retry');
-            assert.equal(localStorage.getItem(SEALED_KEY), null,
-              'không được seal dưới MK2 chưa được PIN_KEY commit');
-
-            localStorage.setItem('app_crypto_schema_v', '2');
-            localStorage.removeItem('app_pin_v2_stage');
-            await api.runEmployeeIdSealMigrationIfNeeded();
-
-            assert.equal(localStorage.getItem(PLAIN_KEY), null,
-              'sau finalize schema mới được xóa plaintext');
-            assert.ok(localStorage.getItem(SEALED_KEY));
-          });
-
-          '''.replace('          ', '')
-          if text.count(marker) != 1:
-              raise SystemExit(f'test marker count={text.count(marker)}')
-          tests.write_text(text.replace(marker, added + marker, 1), encoding='utf-8')
-          PY
-      - name: Verify targeted and full test suites
+      - name: Check JavaScript syntax
         run: |
-          node --check assets/02_security.js
-          node --test tests/employee-id-seal.test.js tests/legacy-migration-envelope-commit.test.js
-          node --test 'tests/**/*.test.js'
-          git diff --check
-      - name: Commit verified fix
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/02_security.js tests/employee-id-seal.test.js
-          git commit -m "fix: preserve recovery identity for migration retry"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          node --check sw.js
+          find assets scripts -name '*.js' -o -name '*.mjs' | xargs -n1 node --check
+
+      - name: Verify version single-source (package.json → manifest/sw/pwa/README)
+        run: node scripts/sync-version.mjs --check
+
+      # Debug scaffold + cache-buster + self-host policy — cùng script để dev chạy local được.
+      - name: Verify repo policy (debug scaffold / cache-buster / self-host)
+        run: node scripts/check-policy.mjs
+
+  tests:
+    name: Automated tests (crypto & data integrity)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      # Không cần `npm install`: bộ test chạy bằng test runner tích hợp của Node
+      # (node --test) + node:crypto (WebCrypto) + crypto-js.min.js self-host sẵn.
+      # Không thêm dependency, không thêm asset -> không đụng versioning/cache-buster.
+      - name: Run test suite (Node built-in runner)
+        run: node --test 'tests/**/*.test.js'
+
+  e2e:
+    name: E2E + a11y + Lighthouse (Playwright/axe/LHCI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      # Cache npm + Chromium theo devDeps đã pin exact trong package.json
+      # (không có lockfile — chính sách no-lockfile giữ nguyên).
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      # devDeps CHỈ cho CI (Playwright/axe/Lighthouse). App shipped vẫn zero-dependency.
+      # Dùng `npm install` (không `npm ci`) vì không commit package-lock.json.
+      - name: Install CI test tooling
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E + axe a11y
+        run: npx playwright test
+
+      # Gate thật: assertion a11y (error, minScore 0.9) trong lighthouserc.json
+      # làm đỏ CI nếu vi phạm; perf/best-practices vẫn chỉ cảnh báo.
+      - name: Lighthouse CI (a11y gate + perf/best-practices cảnh báo)
+        run: npx lhci autorun
+
+      - name: Upload E2E & Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-lighthouse-reports
+          path: |
+            playwright-report/
+            .lighthouseci/
+          if-no-files-found: ignore
