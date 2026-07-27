@@ -389,3 +389,53 @@ test('ensureBackupSecret nhận locked: xóa khóa VÀ dựng UI chặn', async 
   assert.equal(els['setup-lock-modal'].classList.contains('hidden'), true);
   assert.match(els['activation-title'].textContent, /thu hồi/i);
 });
+
+// Codex PR #136: request KDATA cũ chỉ được dọn ĐÚNG giá trị của chính nó.
+// APP_BACKUP_KDATA_B64U là biến RAM DÙNG CHUNG. Nếu request cũ xóa trắng nó sau khi
+// một phiên mới đã cài KDATA hợp lệ, phiên mới vừa trả ok:true còn backup/restore
+// ngay sau đó lại thấy rỗng và hỏng — mà không có lỗi nào chỉ ra nguyên nhân.
+test('ensureBackupSecret cũ không xóa KDATA mà phiên mới vừa cài', async () => {
+  const { api, ctx, localStorage } = loadSecurity();
+  const mk = api.generateMasterKey();
+  await api.setMasterKey(mk);
+  api.setEmployeeIdRam('NV001');
+  localStorage.setItem('app_activated', 'true');
+  ctx.ADMIN_SERVER_URL = 'https://gas.test';
+
+  const OLD_KDATA = 'A'.repeat(43);
+  const NEW_KDATA = 'B'.repeat(43);
+
+  // Chặn bên trong _writeCachedKdata (seal bằng WebCrypto) của request CŨ.
+  const realEncrypt = ctx.crypto.subtle.encrypt.bind(ctx.crypto.subtle);
+  const sealStarted = deferred();
+  const sealRelease = deferred();
+  let gated = false;
+  wrapCrypto(ctx, {
+    encrypt: async (...args) => {
+      const out = await realEncrypt(...args);
+      if (!gated) {
+        gated = true;
+        sealStarted.resolve();
+        await sealRelease.promise;
+      }
+      return out;
+    },
+  });
+  ctx.fetch = async () => ({ text: async () => JSON.stringify({ status: 'success', kdata_b64u: OLD_KDATA }) });
+
+  const oldRequest = api.ensureBackupSecret();
+  await sealStarted.promise;
+
+  // Trong lúc request cũ đang seal: khóa rồi mở lại -> phiên MỚI cài KDATA của nó.
+  api.clearMasterKeyMaterial();
+  await api.setMasterKey(mk);
+  api.setEmployeeIdRam('NV001');
+  api.setKdataRam(NEW_KDATA);
+
+  sealRelease.resolve();
+  const result = await oldRequest;
+
+  assert.equal(result.ok, false, 'request cũ vẫn phải tự coi là thất bại');
+  assert.equal(api.getKdataRam(), NEW_KDATA,
+    'KDATA của phiên MỚI phải còn nguyên — request cũ chỉ được dọn giá trị của chính nó');
+});

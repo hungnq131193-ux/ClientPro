@@ -1566,11 +1566,17 @@ async function ensureBackupSecret() {
 
   const acceptKdata = async (value) => {
     if (!sessionAlive()) return false;
-    APP_BACKUP_KDATA_B64U = String(value || "");
-    if (!APP_BACKUP_KDATA_B64U) return false;
-    await _writeCachedKdata(employeeId, deviceId, APP_BACKUP_KDATA_B64U);
+    const kdata = String(value || "");
+    if (!kdata) return false;
+    APP_BACKUP_KDATA_B64U = kdata;
+    await _writeCachedKdata(employeeId, deviceId, kdata);
     if (!sessionAlive()) {
-      APP_BACKUP_KDATA_B64U = "";
+      // Chỉ dọn ĐÚNG giá trị của request này. Trong lúc _writeCachedKdata await
+      // WebCrypto, người dùng có thể khóa rồi mở lại và một ensureBackupSecret() MỚI
+      // đã cài KDATA hợp lệ của nó vào cùng biến RAM; xóa trắng ở đây là cướp khóa
+      // của phiên mới — nó vừa trả ok:true còn backup/restore ngay sau đó thấy rỗng.
+      // (Cùng nguyên tắc identity-check với __fieldDecryptPending.)
+      if (APP_BACKUP_KDATA_B64U === kdata) APP_BACKUP_KDATA_B64U = "";
       return false;
     }
     return true;

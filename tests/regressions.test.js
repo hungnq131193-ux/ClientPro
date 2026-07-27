@@ -518,3 +518,15 @@ test('activateApp: đường bỏ dở không được ẩn cổng kích hoạt 
   assert.ok(/localStorage\.getItem\(ACTIVATED_KEY\)[\s\S]{0,200}return;/.test(ui.slice(0, hideAt)),
     'Phải kiểm ACTIVATED_KEY và return TRƯỚC khi ẩn modal kích hoạt / hiện màn khóa');
 });
+
+test('acceptKdata: chỉ được dọn KDATA của chính request (biến RAM dùng chung)', () => {
+  const body = fnBody(read('assets/02_security.js'), 'ensureBackupSecret');
+  const at = body.indexOf('APP_BACKUP_KDATA_B64U = ""');
+  assert.ok(at !== -1, 'ensureBackupSecret phải còn nhánh dọn KDATA khi phiên chết');
+  // Xóa trắng biến dùng chung sẽ cướp KDATA mà một ensureBackupSecret() MỚI vừa cài
+  // trong lúc _writeCachedKdata await WebCrypto — phiên mới trả ok:true còn
+  // backup/restore ngay sau đó thấy rỗng.
+  const line = body.slice(body.lastIndexOf('\n', at), at + 30);
+  assert.ok(/APP_BACKUP_KDATA_B64U === kdata/.test(line),
+    'Lệnh dọn phải có identity-check APP_BACKUP_KDATA_B64U === kdata');
+});
