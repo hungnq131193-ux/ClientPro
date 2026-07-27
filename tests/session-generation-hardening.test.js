@@ -210,3 +210,161 @@ test('legacy migration: ghi token Drive thất bại vẫn chặn finalize', asy
   assert.equal(localStorage.getItem('app_crypto_schema_v'), null);
   assert.ok(localStorage.getItem('app_pin_v2_stage'), 'stage phải còn để retry');
 });
+
+// ---------------------------------------------------------------------------
+// Codex #134: migration legacy dở dang không được để đường re-seal xoá khóa legacy
+// ---------------------------------------------------------------------------
+
+// _installMasterKey(mkStr) cài MK2 làm khóa phiên NGAY đầu migration. Nếu migration
+// hỏng giữa chừng, saveSecuritySetup() (nâng cấp PIN bắt buộc sau validatePin) sẽ
+// niêm phong MK2 vào PIN_KEY/SEC_KEY -> khóa legacy biến mất -> lần mở app sau nhánh
+// resume-after-swap set SCHEMA="2" và mọi record U2FsdGVk… còn lại chết vĩnh viễn.
+test('migration legacy hỏng: chặn re-seal PIN/SEC bằng MK2 (giữ khóa legacy)', async () => {
+  const { api, localStorage } = loadSecurity();
+  api.setLegacyMasterKey('mk_legacy_test');
+  localStorage.setItem('app_pin', 'legacy-pin-envelope');
+  localStorage.setItem('app_sec_qa', 'legacy-sec-envelope');
+  api.setDb({
+    transaction() {
+      return {
+        objectStore() {
+          return {
+            getAllKeys() {
+              const req = { onsuccess: null, onerror: null, error: null };
+              Promise.resolve().then(() => {
+                req.error = new Error('IDB read failed');
+                if (req.onerror) req.onerror({ target: req });
+              });
+              return req;
+            },
+          };
+        },
+      };
+    },
+  });
+
+  await assert.rejects(() => api.runFieldCryptoMigrationIfNeeded('123456', 'NV001'));
+
+  // Trạng thái nguy hiểm có thật: khóa phiên đã là MK2 trong khi PIN/SEC còn legacy.
+  assert.ok(String(api.getMasterKey()).startsWith('MK2:'), 'migration đã cài MK2 làm khóa phiên');
+  assert.equal(api.isLegacyMigrationUnfinished(), true, 'cờ chặn re-seal phải bật');
+
+  // Đường phá dữ liệu: saveSecuritySetup phải từ chối, không đụng PIN_KEY/SEC_KEY.
+  await api.saveSecuritySetup();
+  assert.equal(localStorage.getItem('app_pin'), 'legacy-pin-envelope');
+  assert.equal(localStorage.getItem('app_sec_qa'), 'legacy-sec-envelope');
+  assert.equal(localStorage.getItem('app_crypto_schema_v'), null);
+  assert.ok(localStorage.getItem('app_pin_v2_stage'), 'stage phải còn để resume');
+});
+
+test('migration legacy xong: cờ chặn re-seal được gỡ', async () => {
+  const { api, localStorage } = loadSecurity();
+  api.setLegacyMasterKey('mk_legacy_test');
+  api.setDb(makeFakeDb([], []));
+  localStorage.setItem('app_pin', 'legacy-pin-envelope');
+
+  await api.runFieldCryptoMigrationIfNeeded('123456', 'NV001');
+  assert.equal(localStorage.getItem('app_crypto_schema_v'), '2');
+  assert.equal(api.isLegacyMigrationUnfinished(), false);
+});
+
+// ---------------------------------------------------------------------------
+// Codex #134: "" là plaintext hợp lệ trong migration legacy
+// ---------------------------------------------------------------------------
+
+// encryptText() mã hóa cả chuỗi rỗng (chỉ bỏ qua undefined/null), nên build cũ đã ghi
+// U2FsdGVk…("") cho phone/cccd/notes để trống — rất phổ biến. Coi "" là hỏng thì
+// migration abort ở MỌI lần mở khóa.
+test('migration legacy: field mã hóa chuỗi rỗng không làm hỏng migration', async () => {
+  const { api, localStorage } = loadSecurity();
+  const LK = 'mk_legacy_test';
+  const db = makeFakeDb([{
+    id: 'c1',
+    name: CryptoJS.AES.encrypt('Nguyễn Văn A', LK).toString(),
+    phone: CryptoJS.AES.encrypt('', LK).toString(),
+    notes: CryptoJS.AES.encrypt('', LK).toString(),
+    assets: [],
+  }], []);
+  api.setLegacyMasterKey(LK);
+  api.setDb(db);
+  localStorage.setItem('app_pin', 'legacy-pin-envelope');
+
+  await api.runFieldCryptoMigrationIfNeeded('123456', 'NV001');
+
+  assert.equal(localStorage.getItem('app_crypto_schema_v'), '2');
+  const rec = db._stores.customers.get('c1');
+  assert.equal(rec.cryptoV, 2);
+  assert.equal(await api.decryptFieldAsync(rec.name), 'Nguyễn Văn A');
+  assert.equal(await api.decryptFieldAsync(rec.phone), '', 'chuỗi rỗng giữ nguyên là rỗng');
+  assert.equal(await api.decryptFieldAsync(rec.notes), '');
+});
+
+// CryptoJS KHÔNG ném khi sai khóa/ciphertext hỏng — nó trả WordArray sigBytes ÂM và
+// toString(Utf8) ra "" y hệt plaintext rỗng thật. Nhận "" ở đây là ghi rỗng ĐÈ lên dữ
+// liệu thật, nên chốt chặn phải dựa vào sigBytes chứ không dựa vào exception.
+test('migration legacy: ciphertext hỏng thật vẫn fail-closed', async () => {
+  const { api, localStorage } = loadSecurity();
+  const LK = 'mk_legacy_test';
+  const foreign = CryptoJS.AES.encrypt('dữ liệu của khóa khác', 'mk_khac_hoan_toan').toString();
+  assert.equal(CryptoJS.AES.decrypt(foreign, LK).toString(CryptoJS.enc.Utf8), '',
+    'tiền đề: sai khóa ra "" chứ không ném');
+  const db = makeFakeDb([{ id: 'c1', name: foreign, assets: [] }], []);
+  api.setLegacyMasterKey(LK);
+  api.setDb(db);
+  localStorage.setItem('app_pin', 'legacy-pin-envelope');
+
+  await assert.rejects(
+    () => api.runFieldCryptoMigrationIfNeeded('123456', 'NV001'),
+    /LEGACY_FIELD_DECRYPT_FAILED/
+  );
+  assert.equal(localStorage.getItem('app_crypto_schema_v'), null);
+  assert.equal(localStorage.getItem('app_pin'), 'legacy-pin-envelope');
+});
+
+// ---------------------------------------------------------------------------
+// Codex #134: thu hồi quyền trong backup phải dựng UI chặn
+// ---------------------------------------------------------------------------
+
+/** DOM stub tối thiểu: đủ để quan sát classList của lock/setup/activation. */
+function installRevocationDom(ctx) {
+  const mk = (hidden) => {
+    const cls = new Set(hidden ? ['hidden'] : []);
+    return {
+      classList: {
+        add: (c) => cls.add(c),
+        remove: (c) => cls.delete(c),
+        contains: (c) => cls.has(c),
+      },
+    };
+  };
+  const els = {
+    'screen-lock': mk(false),
+    'setup-lock-modal': mk(false),
+    'activation-modal': mk(true),
+    'activation-title': { textContent: '' },
+  };
+  ctx.getEl = (id) => els[id] || null;
+  ctx.document.getElementById = (id) => els[id] || null;
+  return els;
+}
+
+test('ensureBackupSecret nhận locked: xóa khóa VÀ dựng UI chặn', async () => {
+  const { api, ctx, localStorage } = loadSecurity();
+  const els = installRevocationDom(ctx);
+  ctx.ADMIN_SERVER_URL = 'https://example.invalid/gas';
+  localStorage.setItem('app_activated', 'true');
+  localStorage.setItem('app_employee_id', 'NV001');
+  await api.setMasterKey(api.generateMasterKey());
+  ctx.fetch = async () => ({ text: async () => JSON.stringify({ status: 'locked', message: 'Tài khoản đã bị thu hồi.' }) });
+
+  const res = await api.ensureBackupSecret();
+
+  assert.equal(res.ok, false);
+  assert.equal(api.isAppUnlocked(), false, 'khóa phải bị xóa khỏi RAM');
+  assert.equal(localStorage.getItem('app_activated'), null);
+  // Không được để dashboard + plaintext đã render sống tiếp sau khi phiên bị thu hồi.
+  assert.equal(els['activation-modal'].classList.contains('hidden'), false, 'modal kích hoạt phải hiện');
+  assert.equal(els['screen-lock'].classList.contains('hidden'), true);
+  assert.equal(els['setup-lock-modal'].classList.contains('hidden'), true);
+  assert.match(els['activation-title'].textContent, /thu hồi/i);
+});

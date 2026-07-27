@@ -113,3 +113,69 @@ test('sai thiết bị 2 lần liên tiếp -> chặn (cùng đường với loc
   setFetch(deviceErr);
   assert.equal(await AuthGate.preflight(), false, 'Strike #2 -> chặn');
 });
+
+// ============================================================================
+// Codex #134: single-flight của preflight() phải gắn với thế hệ khóa.
+//
+// Máy legacy còn mã NV plaintext: boot phát issue_kdata lúc app CÒN KHÓA. Nếu
+// response về sau khi unlock, _checkByIssueKdata thấy generation đã đổi và bỏ kết
+// quả (stale). Listener clientpro:unlocked gọi preflight() — nếu nó tái dùng
+// _inflight cũ thì chỉ await đúng kết quả rỗng đó và KHÔNG BAO GIỜ phát lần check
+// thật, tức verdict device/KDATA bị bỏ suốt phiên.
+// ============================================================================
+
+test('preflight sau unlock phát request mới thay vì await request stale của boot', async () => {
+  const { AuthGate, localStorage, setFetch, setEmployeeIdRam, bumpKeyGeneration } = loadAuthGate();
+  localStorage.setItem(ACTIVATED_KEY, 'true');
+  localStorage.setItem('app_employee_id', 'NV001'); // máy legacy: mã NV còn plaintext
+
+  let calls = 0;
+  let releaseBoot;
+  const bootReleased = new Promise((r) => { releaseBoot = r; });
+  setFetch(async () => {
+    calls += 1;
+    if (calls === 1) {
+      await bootReleased; // request của boot còn đang bay khi unlock xảy ra
+      return { text: async () => JSON.stringify({ status: 'success', kdata_b64u: 'A'.repeat(43) }) };
+    }
+    return { text: async () => JSON.stringify({ status: 'success', kdata_b64u: 'B'.repeat(43) }) };
+  });
+
+  const boot = AuthGate.preflight();          // phát lúc còn khóa, chưa await
+  await new Promise((r) => setImmediate(r));
+  assert.equal(calls, 1, 'boot đã phát request');
+
+  bumpKeyGeneration();                        // unlock: _installMasterKey tăng generation
+  setEmployeeIdRam('NV001');
+  // KHÔNG await thẳng: nếu single-flight lại tái dùng request boot (bug), await ở đây
+  // khoá cứng vào bootReleased -> test treo thay vì báo lỗi. Đo bằng số fetch đã phát.
+  const afterUnlock = AuthGate.preflight();   // listener clientpro:unlocked
+  await new Promise((r) => setImmediate(r));
+
+  assert.equal(calls, 2, 'phải phát request MỚI sau unlock, không await cái stale');
+
+  releaseBoot();
+  await Promise.all([boot, afterUnlock]);
+});
+
+test('preflight trong cùng thế hệ khóa vẫn single-flight (không spam GAS)', async () => {
+  const { AuthGate, localStorage, setFetch } = loadAuthGate();
+  localStorage.setItem(ACTIVATED_KEY, 'true');
+  localStorage.setItem('app_employee_id', 'NV001');
+
+  let calls = 0;
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  setFetch(async () => {
+    calls += 1;
+    await gate;
+    return { text: async () => JSON.stringify({ status: 'success', kdata_b64u: 'A'.repeat(43) }) };
+  });
+
+  const a = AuthGate.preflight();
+  await new Promise((r) => setImmediate(r));
+  const b = AuthGate.preflight();
+  release();
+  await Promise.all([a, b]);
+  assert.equal(calls, 1, 'hai lời gọi cùng thế hệ chỉ được đi 1 request');
+});

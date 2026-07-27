@@ -25,6 +25,14 @@ let __pendingKdataCache = null;
 // thế hệ lúc bắt đầu và chỉ ghi kết quả vào RAM nếu thế hệ chưa đổi — nếu không,
 // một phiên vừa bị khóa/thu hồi sẽ nhận lại key hoặc plaintext ngay sau khi xóa.
 let __keyGeneration = 0;
+// Migration legacy CryptoJS→GCM đã cài MK2 làm khóa phiên nhưng CHƯA finalize:
+// PIN_KEY/SEC_KEY vẫn niêm phong khóa legacy, và các record U2FsdGVk… còn lại chỉ
+// đọc được bằng khóa legacy đó. Niêm phong lại PIN/SEC bằng masterKey hiện tại
+// (= MK2) trong cửa sổ này sẽ VỨT BỎ khóa legacy vĩnh viễn -> lần mở app sau nhánh
+// resume-after-swap thấy PIN_KEY là envelope v2, set SCHEMA_KEY="2" và các record
+// legacy còn lại không bao giờ giải mã được nữa. Cờ này chặn mọi đường re-seal
+// (nâng cấp PIN bắt buộc, saveSecuritySetup) cho tới khi migration hoàn tất.
+let __legacyMigrationUnfinished = false;
 // Mã nhân viên là secret khôi phục masterKey (SEC_KEY được niêm phong dưới nó)
 // nên KHÔNG được persist plaintext lâu dài — plaintext nằm cạnh envelope là
 // bypass PIN cho bất kỳ ai đọc được localStorage. Bản plaintext EMPLOYEE_KEY
@@ -569,6 +577,9 @@ function clearMasterKeyMaterial() {
   __keyGeneration++;
   if (masterKeyBytes) { try { masterKeyBytes.fill(0); } catch (e) {} }
   masterKey = null; masterKeyBytes = null; masterCryptoKey = null; masterKeyLegacy = null;
+  // Phiên kết thúc -> không còn cửa sổ "MK2 đã cài nhưng PIN/SEC còn legacy".
+  // Lần unlock sau sẽ tự bật lại cờ nếu migration vẫn dở dang.
+  __legacyMigrationUnfinished = false;
   // KDATA plaintext cũng là secret trong RAM -> xóa khi khóa (sealed v2 trong
   // localStorage giữ nguyên vì đã là ciphertext).
   APP_BACKUP_SECRET = "";
@@ -927,8 +938,25 @@ async function _reencryptRecord(c, legacyKey, migrationGen) {
   const decLegacy = (v) => {
     if (!(typeof v === "string" && v.startsWith("U2FsdGVk"))) return v;
     if (!_legacyMigrationAlive(migrationGen)) throw new Error("STALE_KEY_GENERATION");
-    const pt = CryptoJS.AES.decrypt(v, legacyKey).toString(CryptoJS.enc.Utf8);
-    if (!pt) throw new Error("LEGACY_FIELD_DECRYPT_FAILED");
+    // "" LÀ plaintext hợp lệ: encryptText() mã hóa cả chuỗi rỗng (chỉ bỏ qua
+    // undefined/null), nên build cũ đã ghi U2FsdGVk…("") cho phone/cccd/notes để
+    // trống. Coi "" là hỏng thì migration abort ở MỌI lần mở khóa trên phần lớn
+    // máy legacy.
+    //
+    // Nhưng CryptoJS KHÔNG ném khi sai khóa/ciphertext hỏng: nó gỡ padding rác,
+    // trả WordArray có sigBytes ÂM và toString(Utf8) cũng ra "". Nhận "" ở ca đó
+    // là ghi rỗng ĐÈ LÊN dữ liệu thật. Phân biệt bằng sigBytes: === 0 là rỗng thật,
+    // khác 0 mà ra "" là hỏng -> fail-closed, giữ nguyên record cũ.
+    let wa;
+    try { wa = CryptoJS.AES.decrypt(v, legacyKey); }
+    catch (e) { throw new Error("LEGACY_FIELD_DECRYPT_FAILED"); }
+    if (!wa || typeof wa.sigBytes !== "number" || wa.sigBytes < 0) {
+      throw new Error("LEGACY_FIELD_DECRYPT_FAILED");
+    }
+    let pt;
+    try { pt = wa.toString(CryptoJS.enc.Utf8); }
+    catch (e) { throw new Error("LEGACY_FIELD_DECRYPT_FAILED"); }
+    if (!pt && wa.sigBytes !== 0) throw new Error("LEGACY_FIELD_DECRYPT_FAILED");
     return pt;
   };
   const conv = async (v) => {
@@ -989,6 +1017,7 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
     if (parseV2Envelope(localStorage.getItem(PIN_KEY))) {
       localStorage.setItem(SCHEMA_KEY, "2");
       localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
+      __legacyMigrationUnfinished = false;
     }
     return;
   }
@@ -1011,6 +1040,9 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
     throw new Error("LEGACY_MIGR_KEY_INSTALL_ABORTED");
   }
   masterKeyLegacy = legacyKey;
+  // Từ đây tới finalize: masterKey là MK2 nhưng PIN_KEY/SEC_KEY vẫn giữ khóa legacy.
+  // Chặn mọi đường re-seal cho tới khi swap xong (xem khai báo cờ ở đầu file).
+  __legacyMigrationUnfinished = true;
 
   const ids = await _getAllCustomerKeys(); // lỗi đọc phải reject, tuyệt đối không coi là []
   for (const id of ids) {
@@ -1046,6 +1078,8 @@ async function runFieldCryptoMigrationIfNeeded(pin, employeeId) {
   localStorage.setItem(SCHEMA_KEY, "2");
   localStorage.removeItem(PIN_STAGE); localStorage.removeItem(SEC_STAGE);
   masterKeyLegacy = null;
+  // Swap xong: PIN_KEY/SEC_KEY đã giữ MK2, re-seal lại an toàn.
+  __legacyMigrationUnfinished = false;
 }
 
 // ============================================================
@@ -1374,6 +1408,24 @@ function setTheme(themeName) {
 }
 // Check ngầm check_status đã chạy tới nơi (nhận + parse được phản hồi) trong
 // phiên này. Lỗi mạng/offline KHÔNG set cờ để lần sau còn thử lại.
+/**
+ * Thu hồi quyền: xóa vật liệu khóa RỒI dựng UI chặn. Mọi đường thu hồi phải đi qua
+ * đây — xóa masterKey mà để nguyên dashboard là phiên "khóa bên trong, mở bên ngoài":
+ * plaintext khách hàng đã render vẫn nằm trên màn hình và mọi thao tác tiếp theo chạy
+ * với masterKey === null.
+ * @param {string} msg thông điệp từ server (hiển thị trên modal kích hoạt)
+ */
+function _revokeAndShowActivationGate(msg) {
+  revokeUnlockedSession();
+  const lock = getEl("screen-lock"); if (lock) lock.classList.add("hidden");
+  const setup = getEl("setup-lock-modal"); if (setup) setup.classList.add("hidden");
+  const modal = getEl("activation-modal"); if (modal) modal.classList.remove("hidden");
+  const titleEl = (typeof document !== "undefined" && document.getElementById)
+    ? document.getElementById("activation-title") : null;
+  if (titleEl) titleEl.textContent = msg || "Tài khoản đã bị thu hồi!";
+  try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
+}
+
 let __serverStatusChecked = false;
 
 /**
@@ -1414,15 +1466,7 @@ async function runServerStatusCheck() {
       ? String(result.status).toLowerCase()
       : typeof result === "string" && result.toLowerCase().includes("locked") ? "locked" : "";
     const msg = result && typeof result === "object" && result.message ? result.message : "";
-    if (status === "locked") {
-      revokeUnlockedSession();
-      const lock = getEl("screen-lock"); if (lock) lock.classList.add("hidden");
-      const setup = getEl("setup-lock-modal"); if (setup) setup.classList.add("hidden");
-      const modal = getEl("activation-modal"); if (modal) modal.classList.remove("hidden");
-      const titleEl = document.getElementById("activation-title");
-      if (titleEl) titleEl.textContent = msg || "Tài khoản đã bị thu hồi!";
-      localStorage.removeItem(ACTIVATED_KEY);
-    }
+    if (status === "locked") _revokeAndShowActivationGate(msg);
   } catch (err) {
     // Offline: bỏ qua check ngầm với server, app vẫn hoạt động bình thường
   }
@@ -1552,8 +1596,9 @@ async function ensureBackupSecret() {
       return { ok: true, source: "cache", message: "Server đang giới hạn tần suất, dùng khóa KDATA đã lưu tạm." };
     }
     if (kdStatus === "locked") {
-      revokeUnlockedSession();
-      try { localStorage.removeItem(ACTIVATED_KEY); } catch (e) {}
+      // Không chỉ xóa khóa: phải dựng luôn UI chặn như runServerStatusCheck, nếu không
+      // dashboard + plaintext đã render vẫn hiển thị trong khi phiên đã bị thu hồi.
+      _revokeAndShowActivationGate(kdMsg);
       return { ok: false, message: kdMsg || "Tài khoản đã bị thu hồi." };
     }
     if (kdStatus === "error" || kdMsg) {
@@ -1648,6 +1693,14 @@ function closeSetupModal() {
   }
 }
 async function saveSecuritySetup() {
+  // Chốt chặn TRƯỚC mọi thao tác khóa: trong cửa sổ migration legacy chưa finalize,
+  // masterKey là MK2 còn PIN_KEY/SEC_KEY vẫn niêm phong khóa legacy. Niêm phong lại
+  // bằng masterKey hiện tại sẽ xóa vĩnh viễn bản duy nhất đọc được dữ liệu legacy
+  // còn lại (_installMasterKey ngay dưới cũng xóa masterKeyLegacy trong RAM).
+  if (__legacyMigrationUnfinished) {
+    ErrorHandler.showError('STORAGE', 'Dữ liệu cũ chưa nâng cấp mã hóa xong. Vui lòng mở lại ứng dụng để hoàn tất rồi đặt lại mã PIN.');
+    return;
+  }
   const pin = getEl("setup-pin").value;
   let ans = getEl("setup-answer").value.trim();
   if (!/^\d{6}$/.test(pin)) { ErrorHandler.showError('VALIDATION', "Mã PIN phải là 6 số"); return; }
@@ -1781,8 +1834,12 @@ async function validatePin() {
     // nguyên màn khóa, người dùng nhập PIN lại.
     if (!isAppUnlocked()) return;
     getEl("screen-lock").classList.add("hidden");
-    // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới (masterKey giữ nguyên, dữ liệu không đổi)
-    if (res.legacy) _openForcedPinUpgrade();
+    // PIN cũ 4 số: bắt buộc tạo PIN 6 số mới (masterKey giữ nguyên, dữ liệu không đổi).
+    // HOÃN khi migration legacy chưa finalize: saveSecuritySetup sẽ niêm phong
+    // masterKey hiện tại (đã là MK2) vào PIN_KEY/SEC_KEY và vứt mất khóa legacy —
+    // các record U2FsdGVk… chưa migrate sẽ không bao giờ đọc được nữa. Lần mở khóa
+    // sau, khi migration đã xong, prompt này lại hiện bình thường.
+    if (res.legacy && !__legacyMigrationUnfinished) _openForcedPinUpgrade();
   } else {
     registerPinFailure();
     _shakePinDots();

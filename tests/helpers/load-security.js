@@ -171,6 +171,10 @@ function loadSecurity() {
       ensureBackupSecret,
       ensureTransferKey,
       getKeyGeneration: () => __keyGeneration,
+      // Cửa sổ nguy hiểm: MK2 đã cài làm khóa phiên nhưng PIN/SEC còn niêm phong
+      // khóa legacy -> mọi đường re-seal phải bị chặn.
+      isLegacyMigrationUnfinished: () => __legacyMigrationUnfinished,
+      saveSecuritySetup,
       completeUnlockDataLoad,
     };
   `;

@@ -21,7 +21,12 @@
   const AUTH_LOCK_STRIKES_REQUIRED = 2;
 
   // Single-flight để tránh gọi GAS trùng trong cùng một phiên mở app.
+  // Chỉ hợp lệ TRONG CÙNG một thế hệ khóa: request phát lúc app còn khóa sẽ bị
+  // _checkByIssueKdata bỏ (requestStillCurrent -> stale) khi unlock đổi generation.
+  // Tái dùng nó cho lời gọi sau unlock đồng nghĩa await một kết quả rỗng và bỏ luôn
+  // lần check thật của cả phiên -> phải phát request mới khi generation đã đổi.
   let _inflight = null;
+  let _inflightGen = null;
 
   function _safeText(x) {
     try {
@@ -348,9 +353,11 @@
   }
 
   async function preflight() {
+    const curGen = (typeof __keyGeneration !== "undefined") ? __keyGeneration : null;
     try {
-      if (_inflight) return await _inflight;
-      _inflight = (async () => {
+      if (_inflight && _inflightGen === curGen) return await _inflight;
+      _inflightGen = curGen;
+      const run = (async () => {
         const r = await _checkByIssueKdata();
         if (!r || r.ok) {
           // CHỈ xóa strike khi server thật sự trả verdict OK. Kết quả `skipped`
@@ -392,11 +399,14 @@
         _resetLockStrikes();
         return true;
       })();
-      const ok = await _inflight;
-      _inflight = null;
+      _inflight = run;
+      const ok = await run;
+      // Chỉ dọn slot của CHÍNH mình: một preflight thế hệ mới có thể đã thay chỗ
+      // trong lúc await, xóa vô điều kiện là hủy single-flight của lời gọi đó.
+      if (_inflight === run) { _inflight = null; _inflightGen = null; }
       return ok;
     } catch (e) {
-      _inflight = null;
+      if (_inflightGen === curGen) { _inflight = null; _inflightGen = null; }
       // Lỗi mạng/parse: không chặn UI
       return true;
     }
