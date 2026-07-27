@@ -407,4 +407,43 @@
     preflight,
     block: _block,
   };
+
+  // `ensureBackupSecret()` nằm ở 02_security.js và có thể thu hồi phiên ngay khi
+  // Backup Manager/auto-backup đang mở. Bọc đúng đường này sau khi AuthGate sẵn
+  // sàng: chỉ chặn khi trước lời gọi app đang mở + đã kích hoạt, còn sau lời gọi
+  // activation đã bị xóa và masterKey đã mất. Các lỗi mạng/quota/rate-limit không
+  // thỏa bất biến này nên giữ nguyên UX fail-open hiện có.
+  try {
+    const originalEnsureBackupSecret = (typeof ensureBackupSecret === "function")
+      ? ensureBackupSecret
+      : null;
+    if (originalEnsureBackupSecret && !originalEnsureBackupSecret.__clientproRevocationUiGuard) {
+      const guardedEnsureBackupSecret = async function (...args) {
+        const activatedKey = (typeof ACTIVATED_KEY !== "undefined") ? ACTIVATED_KEY : "app_activated";
+        let wasActivated = false;
+        let wasUnlocked = false;
+        try { wasActivated = !!localStorage.getItem(activatedKey); } catch (e) {}
+        try { wasUnlocked = (typeof isAppUnlocked === "function") && isAppUnlocked(); } catch (e) {}
+
+        const result = await originalEnsureBackupSecret.apply(this, args);
+
+        let activationRemoved = false;
+        let nowLocked = false;
+        try { activationRemoved = !localStorage.getItem(activatedKey); } catch (e) {}
+        try { nowLocked = (typeof isAppUnlocked !== "function") || !isAppUnlocked(); } catch (e) { nowLocked = true; }
+        if (wasActivated && wasUnlocked && activationRemoved && nowLocked && result && result.ok === false) {
+          _block(result.message || "Tài khoản đã bị thu hồi.");
+        }
+        return result;
+      };
+      try {
+        Object.defineProperty(guardedEnsureBackupSecret, "__clientproRevocationUiGuard", {
+          value: true,
+          enumerable: false,
+        });
+      } catch (e) {}
+      try { ensureBackupSecret = guardedEnsureBackupSecret; } catch (e) {}
+      try { window.ensureBackupSecret = guardedEnsureBackupSecret; } catch (e) {}
+    }
+  } catch (e) {}
 })();
