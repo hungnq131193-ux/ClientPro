@@ -271,6 +271,82 @@ return async (...args) => {
   assert.equal(dom.isHidden('screen-lock'), false);
 });
 
+test('lượt mới phải xóa khóa của pipeline cũ ngay khi tiếp quản dù PIN mới sai', async () => {
+  const { api, localStorage, ctx, dom } = loadSecurity({ dom: true });
+  const correctPin = '654321';
+  const wrongPin = '111111';
+  const mk = api.generateMasterKey();
+
+  await api.setMasterKey(mk);
+  localStorage.setItem('app_pin', await api.sealMasterKey(correctPin, mk));
+  api.clearMasterKeyMaterial();
+  dom.getEl('screen-lock').classList.remove('hidden');
+  const failuresBefore = api.getPinFailures().fails;
+
+  const pipelineEntered = deferred();
+  const releasePipeline = deferred();
+  ctx.window.__dbReady = {
+    then(resolve, reject) {
+      pipelineEntered.resolve();
+      releasePipeline.promise.then(resolve, reject);
+    },
+  };
+
+  api.setCurrentPin(correctPin);
+  const first = api.validatePin();
+  await waitFor(pipelineEntered.promise, 'pipeline lượt đúng PIN bắt đầu');
+  assert.equal(api.isAppUnlocked(), true, 'tiền đề: lượt cũ đã cài khóa và đang ở pipeline');
+  assert.equal(api.getState().hasGcmKey, true);
+
+  const originalCrypto = ctx.crypto;
+  const subtle = originalCrypto.subtle;
+  const wrongUnwrapEntered = deferred();
+  const releaseWrongUnwrap = deferred();
+  let held = false;
+  ctx.crypto = {
+    getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
+    subtle: new Proxy(subtle, {
+      get(target, prop) {
+        if (prop === 'deriveKey') {
+return async (...args) => {
+  const algorithm = args[0];
+  const name = String((algorithm && algorithm.name) || algorithm || '');
+  if (!held && name === 'PBKDF2') {
+    held = true;
+    wrongUnwrapEntered.resolve();
+    await releaseWrongUnwrap.promise;
+  }
+  return target.deriveKey(...args);
+};
+        }
+        const value = target[prop];
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }),
+  };
+
+  api.setCurrentPin(wrongPin);
+  const second = api.validatePin();
+  await waitFor(wrongUnwrapEntered.promise, 'lượt sai PIN vào unwrap');
+
+  assert.equal(api.isAppUnlocked(), false,
+    'ngay khi lượt mới tiếp quản, khóa của pipeline cũ phải bị xóa trước await');
+  assert.equal(api.getState().hasGcmKey, false);
+  assert.equal(dom.isHidden('screen-lock'), false);
+
+  releasePipeline.resolve();
+  await first;
+  assert.equal(api.isAppUnlocked(), false,
+    'pipeline cũ tỉnh dậy không được hồi sinh hoặc giữ lại khóa');
+
+  releaseWrongUnwrap.resolve();
+  await second;
+  assert.equal(api.getPinFailures().fails, failuresBefore + 1);
+  assert.equal(api.isAppUnlocked(), false);
+  assert.equal(api.getState().hasGcmKey, false);
+  assert.equal(dom.isHidden('screen-lock'), false);
+});
+
 test('tripwire: validatePin nhận vé và chụp PIN trước unwrap, cleanup chỉ thuộc chủ vé', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'assets', '02_security.js'),
@@ -283,10 +359,14 @@ test('tripwire: validatePin nhận vé và chụp PIN trước unwrap, cleanup c
   const body = source.slice(start, end);
   const ticket = body.indexOf('const myUnlockAttempt = ++__unlockAttemptSeq;');
   const snapshot = body.indexOf('const pinAttempt = currentPin;');
+  const clearInherited = body.indexOf('if (masterKey || masterCryptoKey || masterKeyLegacy || masterKeyBytes)', snapshot);
   const unwrap = body.indexOf('await unwrapMasterKeyAny(pinAttempt, encMaster)');
   const install = body.indexOf('await _installMasterKey(res.masterKey)', unwrap);
-  assert.ok(ticket >= 0 && snapshot > ticket && unwrap > snapshot,
-    'vé và PIN cục bộ phải được chụp trước await unwrap đầu tiên');
+  assert.ok(ticket >= 0 && snapshot > ticket && clearInherited > snapshot && unwrap > clearInherited,
+    'vé + PIN phải được chụp và khóa kế thừa phải bị xóa trước await unwrap đầu tiên');
+  const takeoverBlock = body.slice(clearInherited, unwrap);
+  assert.match(takeoverBlock, /clearMasterKeyMaterial\(\);/,
+    'lượt mới phải vô hiệu hóa vật liệu khóa của pipeline cũ ngay khi tiếp quản');
 
   assert.match(body,
     /finally\s*\{[\s\S]*?if\s*\(myUnlockAttempt\s*===\s*__unlockAttemptSeq\)\s*_pinChecking\s*=\s*false;[\s\S]*?\}/,

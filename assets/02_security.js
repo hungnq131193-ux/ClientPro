@@ -1939,6 +1939,12 @@ async function validatePin() {
   // lượt mới. Lượt mới phải tiếp quản ngay từ lúc bắt đầu giải mã envelope.
   const myUnlockAttempt = ++__unlockAttemptSeq;
   const pinAttempt = currentPin;
+  // Lượt mới tiếp quản cổng PIN: mọi vật liệu khóa đang sống thuộc lượt/phiên
+  // trước. Vô hiệu hóa đồng bộ trước await unwrap để pipeline cũ dừng ngay và
+  // PIN sai của lượt mới không thể để khóa cũ sống phía sau màn hình khóa.
+  if (masterKey || masterCryptoKey || masterKeyLegacy || masterKeyBytes) {
+    clearMasterKeyMaterial();
+  }
   const encMaster = localStorage.getItem(PIN_KEY);
   _pinChecking = true;
   _setKeypadDisabled(true);
