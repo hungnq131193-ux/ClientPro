@@ -639,4 +639,15 @@ test('saveSecuritySetup: đóng modal / báo thành công phải sau chốt vé 
   assert.ok(/return/.test(before.slice(guardAt, guardAt + 80)), 'Chốt vé phải return');
   assert.ok(!/\bawait\s+[A-Za-z_(]/.test(before.slice(guardAt)),
     'Không được có await giữa chốt vé và các lệnh đổi UI cuối');
+
+  // Chốt vé CHỈ được gác UI. Hệ quả đã ghi xuống đĩa phải xong ngay sau lệnh ghi
+  // envelope: PIN mới đã lưu mà enrollment sinh trắc học còn mở ra PIN CŨ thì mở khóa
+  // sinh trắc học hỏng im lặng dù đổi PIN đã thành công.
+  const bioAt = body.indexOf('onPinChanged()');
+  assert.ok(bioAt !== -1, 'saveSecuritySetup phải hủy enrollment sinh trắc học khi đổi PIN');
+  const secWriteAt = body.indexOf('localStorage.setItem(SEC_KEY');
+  assert.ok(secWriteAt !== -1 && bioAt > secWriteAt,
+    'onPinChanged phải nằm SAU lệnh ghi envelope');
+  assert.ok(bioAt < guardAt,
+    'onPinChanged phải nằm TRƯỚC chốt vé — nó gắn với lệnh ghi đĩa, không gắn với UI');
 });

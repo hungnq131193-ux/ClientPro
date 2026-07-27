@@ -761,6 +761,12 @@ test('saveSecuritySetup: lượt Lưu cũ không đóng modal/báo thành công 
   const save1 = api.saveSecuritySetup();
   await gate1.entered;
 
+  // Hệ quả GHI XUỐNG ĐĨA phải xong ngay sau lệnh ghi envelope, không chờ cuối hàm:
+  // PIN trên đĩa đã đổi nên enrollment sinh trắc học cũ (mã hóa PIN cũ) phải bị hủy
+  // ngay, kể cả khi phiên chết trong pipeline dài phía sau.
+  assert.equal(onPinChanged, 1,
+    'hủy enrollment sinh trắc học phải gắn với lệnh ghi envelope, không gắn với UI cuối hàm');
+
   // Nút Lưu đã được bật lại trong `finally` của phần niêm phong -> người dùng bấm lần 2.
   assert.equal(dom.getEl('setup-save-btn').disabled, false,
     'tiền đề: nút Lưu đã bật lại nên bấm lần 2 là có thật');
@@ -778,13 +784,44 @@ test('saveSecuritySetup: lượt Lưu cũ không đóng modal/báo thành công 
   assert.equal(dom.isHidden('setup-lock-modal'), false,
     'lượt cũ không được đóng modal thiết lập khi lượt mới còn đang chạy');
   assert.equal(successToasts, 0, 'lượt cũ không được báo thành công');
-  assert.equal(onPinChanged, 0,
-    'lượt cũ không được hủy enrollment sinh trắc học theo PIN của mình');
 
   // Lượt 2 hoàn tất -> nó mới là bên đóng modal và báo thành công.
   gate2.release.resolve();
   await save2;
   assert.equal(dom.isHidden('setup-lock-modal'), true, 'lượt hiện hành đóng modal khi xong');
   assert.equal(successToasts, 1);
-  assert.equal(onPinChanged, 1);
+  assert.equal(onPinChanged, 2,
+    'mỗi lần ghi envelope là một lần PIN đổi trên đĩa -> mỗi lần đều phải hủy enrollment');
+});
+
+test('saveSecuritySetup: phiên chết trong pipeline -> PIN đã lưu thì enrollment sinh trắc học vẫn bị hủy', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  let onPinChanged = 0;
+  ctx.window.BiometricUnlock = { onPinChanged: () => { onPinChanged++; } };
+  localStorage.setItem('app_biometric_env_v1', 'enrollment-theo-PIN-cu');
+
+  dom.getEl('setup-pin').value = '123456';
+  dom.getEl('setup-answer').value = 'NV001';
+  dom.getEl('setup-lock-modal').classList.remove('hidden');
+
+  const gate = pipelineGate();
+  ctx.window.__dbReady = gate.thenable;
+  const save = api.saveSecuritySetup();
+  await gate.entered;
+
+  // Envelope đã ghi; auto-lock/thu hồi nổ ngay sau đó, trước khi pipeline xong.
+  const pinEnvelope = localStorage.getItem('app_pin');
+  assert.ok(pinEnvelope, 'tiền đề: PIN mới đã được lưu xuống đĩa');
+  api.clearMasterKeyMaterial();
+
+  gate.release.resolve();
+  await save;
+
+  assert.equal(localStorage.getItem('app_pin'), pinEnvelope, 'PIN mới vẫn nằm trên đĩa');
+  assert.equal(onPinChanged, 1,
+    'PIN trên đĩa đã đổi thì enrollment sinh trắc học PHẢI bị hủy — nếu không, mở khóa '
+    + 'sinh trắc học sau đó mở ra PIN CŨ và hỏng im lặng');
+  // UI vẫn bị gác đúng: phiên đã chết thì không báo thành công.
+  assert.equal(dom.isHidden('setup-lock-modal'), false);
 });

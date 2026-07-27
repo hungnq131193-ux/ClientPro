@@ -1843,6 +1843,13 @@ async function saveSecuritySetup() {
     }
     localStorage.setItem(PIN_KEY, pinEnvelope);
     localStorage.setItem(SEC_KEY, secEnvelope);
+    // PIN đã đổi TRÊN ĐĨA -> enrollment sinh trắc học cũ (mã hóa PIN cũ) hết hợp lệ
+    // ngay tại đây. Phải hủy ngay sau lệnh ghi envelope, KHÔNG gắn vào chốt vé/UI ở
+    // cuối hàm: nếu phiên chết giữa pipeline dài phía dưới thì PIN mới vẫn đã lưu,
+    // mà app_biometric_env_v1 lại còn mở ra PIN CŨ — mở khóa sinh trắc học sẽ hỏng
+    // im lặng và người dùng phải nhập tay dù đổi PIN đã thành công.
+    // onPinChanged() chỉ là disable(), idempotent, không phụ thuộc trạng thái phiên.
+    try { if (window.BiometricUnlock) window.BiometricUnlock.onPinChanged(); } catch (e) { }
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
   }
@@ -1860,11 +1867,9 @@ async function saveSecuritySetup() {
   // Khối `finally` của phần niêm phong đã bật lại nút Lưu TRƯỚC pipeline dài này, nên
   // người dùng có thể bấm Lưu lần nữa: lượt sau nhận vé mới, lượt này thành cũ. Đóng
   // modal + báo thành công ở đây là phơi UI nền ra trong lúc lượt mới còn đang cài
-  // khóa / migrate / tải dữ liệu — và onPinChanged() sẽ hủy enrollment sinh trắc học
-  // theo PIN của một lượt không còn là lượt hiện hành.
+  // khóa / migrate / tải dữ liệu. Chốt này CHỈ gác phần UI — mọi hệ quả đã ghi xuống
+  // đĩa (envelope, hủy enrollment sinh trắc học) đã xong ngay sau lệnh ghi ở trên.
   if (!isAppUnlocked() || myUnlockAttempt !== __unlockAttemptSeq) return;
-  // PIN vừa đổi: enrollment sinh trắc học cũ (nếu có) mã hóa PIN cũ nên không còn hợp lệ.
-  try { if (window.BiometricUnlock) window.BiometricUnlock.onPinChanged(); } catch (e) { }
   // Ẩn hộp thoại và thông báo
   const note = getEl("setup-pin-note");
   if (note) note.classList.add("hidden");
