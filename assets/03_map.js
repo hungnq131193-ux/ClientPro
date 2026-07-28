@@ -775,6 +775,10 @@ async function renderMapMarkers() {
     const custWithAssets = customers.filter((cust) => cust && cust.assets);
 
     await _mapJobPool(custWithAssets, 3, async (cust) => {
+        // Bỏ ngay từ đầu mỗi job: pool vẫn rút tiếp hàng đợi sau khi một job thoát,
+        // nên không có chốt này thì lượt render đã bị thay thế vẫn giải mã hết số
+        // khách hàng còn lại (tốn CPU/RAM) chỉ để vứt kết quả đi.
+        if (!alive()) return;
         let custName = await decryptFieldAsync(cust.name);
         if (typeof _looksEncrypted === 'function' && _looksEncrypted(custName)) custName = '';
         for (const asset of cust.assets) {

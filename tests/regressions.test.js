@@ -347,6 +347,13 @@ test('ảnh: vòng chỉnh chất lượng của compressImage phải có trần
     'adjustAndCheck: thiếu trần số vòng — ảnh biên có thể lặp setTimeout vô hạn');
   assert.ok(/lastDir/.test(body),
     'adjustAndCheck: thiếu phát hiện đảo chiều tăng/giảm quality');
+
+  // Các vòng sau chạy qua setTimeout => NGOÀI try/catch của img.onload. toDataURL
+  // ném lỗi ở đó mà không ai gọi cb thì Promise của saveImageToDB treo vĩnh viễn.
+  assert.ok(/try\s*\{[\s\S]{0,200}toDataURL/.test(body),
+    'adjustAndCheck: toDataURL phải nằm trong try/catch riêng, không dựa vào try/catch của img.onload');
+  assert.ok(/catch[\s\S]{0,220}cb\(base64\)/.test(body),
+    'adjustAndCheck: nhánh catch phải gọi cb(base64) để không treo loader');
 });
 
 test('map: renderMapMarkers phải có render seq + chỉ mục ảnh thay cho find lồng nhau', () => {
@@ -367,6 +374,11 @@ test('map: renderMapMarkers phải có render seq + chỉ mục ảnh thay cho f
     'renderMapMarkers: thiếu chỉ mục ảnh theo assetId/customerId');
   assert.ok(/_mapJobPool\(/.test(body),
     'renderMapMarkers: job giải mã phải chạy qua pool có giới hạn');
+
+  // Pool vẫn rút tiếp hàng đợi sau khi một job thoát: không chốt ở ĐẦU mỗi job thì
+  // lượt render đã bị thay thế vẫn giải mã hết số khách hàng còn lại.
+  assert.ok(/_mapJobPool\([^)]*async \(cust\) => \{\s*(?:\/\/[^\n]*\n\s*)*if \(!alive\(\)\) return;/.test(body),
+    'renderMapMarkers: mỗi job phải bỏ ngay ở đầu khi lượt render không còn hiệu lực');
 });
 
 test('ĐVHC: refreshIcons phải scope lucide.createIcons theo root màn hình', () => {

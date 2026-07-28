@@ -602,8 +602,11 @@ Capture/store/view/select/share photos tied to a `customerId`/`assetId`.
 - `handleFileUpload` snapshots `customerId` / `assetId` / `captureMode` **before**
   reading the file and passes them to `saveImageToDB(raw, opts)`; `FileReader` is
   async, so reading the globals afterwards attaches the photo to whatever record
-  the user switched to. `saveImageToDB` without `opts` keeps the old
-  snapshot-at-entry behavior (the camera path). Uploads run through a bounded
+  the user switched to. It also honours the caller's mode rather than the global:
+  a `profile` upload always sends `assetId: null`, because the profile grid filters
+  on `!img.assetId` and a leftover `currentAssetId` would otherwise swallow the
+  photo into an asset nobody is looking at. `saveImageToDB` without `opts` keeps the
+  old snapshot-at-entry behavior (the camera path). Uploads run through a bounded
   queue, not one `FileReader` per file at once.
 - Gallery decrypt goes through the bounded `_mapPool` helper, never
   `Promise.all(imgs.map(...))` over every image — each job holds ciphertext plus a
@@ -611,8 +614,10 @@ Capture/store/view/select/share photos tied to a `customerId`/`assetId`.
 - `compressImage`'s quality loop is bounded (iteration cap plus oscillation
   detection): the decrease and increase steps do not divide evenly, so an image
   with no quality level inside the target band would otherwise re-arm `setTimeout`
-  forever. Its `img.onload` body is wrapped so a canvas throw cannot hang the
-  `saveImageToDB` promise.
+  forever. A canvas throw must never hang the `saveImageToDB` promise, so **both**
+  ends are wrapped: the `img.onload` body, and `toDataURL` inside `adjustAndCheck`
+  itself — later iterations are re-armed through `setTimeout` and therefore run
+  outside the `onload` try/catch. Every failure path still calls `cb`.
 - `closeLightbox` (`04_ui_common.js`) removes the lightbox `<img>` `src` and clears
   `currentImageBase64` — hiding the overlay alone leaves a decrypted data URL in RAM.
 
@@ -774,7 +779,10 @@ Show customers on a map with clustering and compute road distance.
 - Per-customer decrypt jobs (name/link/valuation plus an optional thumbnail) run
   through the bounded `_mapJobPool`, not one `Promise.all` over every customer.
   That helper is a deliberate local copy — `03_map.js` lazy-loads independently and
-  must not depend on `08_images_camera.js`.
+  must not depend on `08_images_camera.js`. Each job re-checks the sequence at its
+  **start** as well: the pool keeps pulling from the queue after a job returns, so
+  a superseded run would otherwise decrypt every remaining customer just to discard
+  the result.
 - Do not change clustering/routing logic for docs/tour.
 
 ### Primary files

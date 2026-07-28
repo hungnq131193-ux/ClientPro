@@ -593,7 +593,18 @@ function _compressLoaded(img, base64, cb) {
   let lastDir = 0; // -1 = vừa giảm quality, +1 = vừa tăng
 
   function adjustAndCheck() {
-    const dataUrl = cvs.toDataURL("image/jpeg", q);
+    // try/catch phải nằm Ở ĐÂY, không chỉ ở img.onload: các vòng sau được hẹn lại
+    // bằng setTimeout nên chạy NGOÀI try/catch của onload. toDataURL ném lỗi (hết
+    // bộ nhớ, canvas quá lớn) ở một vòng sau sẽ không ai gọi cb -> Promise của
+    // saveImageToDB không bao giờ resolve và loader "Đang lưu ảnh..." treo vĩnh viễn.
+    let dataUrl;
+    try {
+      dataUrl = cvs.toDataURL("image/jpeg", q);
+    } catch (e) {
+      try { ErrorHandler.logError('compressImage/toDataURL', e); } catch (_) { }
+      cb(base64);
+      return;
+    }
     // Ước lượng size binary từ base64
     const sizeBytes = Math.floor(dataUrl.length * 0.75);
 
@@ -798,7 +809,11 @@ function handleFileUpload(input, mode) {
     if (!base64) return;
     await saveImageToDB(base64, {
       customerId: uploadCustomerId,
-      assetId: uploadAssetId,
+      // Tôn trọng ĐÚNG chế độ mà nút gọi truyền vào: ảnh hồ sơ phải có
+      // assetId = null mới hiện ở tab "Hình ảnh hồ sơ" (grid lọc !img.assetId).
+      // Đọc currentAssetId cho cả hai chế độ thì một giá trị còn sót lại từ luồng
+      // TSBĐ trước đó sẽ nuốt mất ảnh hồ sơ.
+      assetId: uploadMode === "asset" ? uploadAssetId : null,
       captureMode: uploadMode,
     });
   });

@@ -104,6 +104,32 @@ test('handleFileUpload: đổi hồ sơ giữa lúc đọc file, ảnh vẫn thu
   assert.equal(input.value, '', 'Input file phải được reset để lần sau vẫn trigger onchange');
 });
 
+test('handleFileUpload chế độ profile: assetId luôn null dù currentAssetId còn sót', async () => {
+  // Ảnh hồ sơ chỉ hiện ở tab "Hình ảnh hồ sơ" khi assetId rỗng (grid lọc
+  // !img.assetId). Một currentAssetId còn sót từ luồng TSBĐ trước đó mà bị đọc
+  // vào đây sẽ nuốt mất ảnh: không nằm ở hồ sơ, cũng không ai mở gallery TSBĐ đó.
+  const app = loadImages({ encryptMode: 'gcm', customerId: 'c1', assetId: 'a-con-sot' });
+  const input = { files: [{ _data: RAW }], value: 'x' };
+
+  app.handleFileUpload(input, 'profile');
+  await new Promise((r) => setTimeout(r, 30));
+
+  assert.equal(app.added.length, 1);
+  assert.equal(app.added[0].assetId, null,
+    'Ảnh chế độ profile phải có assetId = null, không lấy theo currentAssetId');
+});
+
+test('handleFileUpload chế độ asset: vẫn gắn đúng TSBĐ đang mở', async () => {
+  const app = loadImages({ encryptMode: 'gcm', customerId: 'c1', assetId: 'a1' });
+  const input = { files: [{ _data: RAW }], value: 'x' };
+
+  app.handleFileUpload(input, 'asset');
+  await new Promise((r) => setTimeout(r, 30));
+
+  assert.equal(app.added.length, 1);
+  assert.equal(app.added[0].assetId, 'a1', 'Chế độ asset phải giữ nguyên TSBĐ đang mở');
+});
+
 test('handleFileUpload: chưa mở hồ sơ nào thì không đọc file, không ghi', async () => {
   const app = loadImages({ encryptMode: 'gcm', customerId: null });
   const input = { files: [{ _data: RAW }], value: 'x' };
