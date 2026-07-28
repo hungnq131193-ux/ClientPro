@@ -281,6 +281,103 @@ test('nhóm ổn định B #7: saveImageToDB — transaction lưu ảnh đủ on
   assert.ok(/imgTxSettled/.test(body), 'saveImageToDB: cần settled guard (error bubble rồi abort bắn đôi)');
 });
 
+test('ảnh: saveImageToDB phải fail-closed — chặn plaintext TRƯỚC khi mở transaction ghi', () => {
+  const src = read('assets/08_images_camera.js');
+  const body = fnBody(src, 'saveImageToDB');
+
+  // encryptImageData fail-open ở tầng crypto (trả nguyên data URL khi mất
+  // masterKey). Caller ghi DB phải tự xác nhận kết quả là ciphertext.
+  const looksIdx = body.indexOf('_looksEncrypted');
+  const addIdx = body.search(/objectStore\(\s*["']images["']\s*\)\s*\.add\(/);
+  assert.ok(looksIdx !== -1,
+    'saveImageToDB: thiếu kiểm tra _looksEncrypted — ảnh plaintext sẽ vào IndexedDB khi mã hóa fail-open');
+  assert.ok(addIdx !== -1, 'saveImageToDB: không tìm thấy lệnh add() vào store images');
+  assert.ok(looksIdx < addIdx,
+    'saveImageToDB: kiểm tra ciphertext phải nằm TRƯỚC objectStore("images").add(...)');
+
+  assert.ok(/isAppUnlocked/.test(body),
+    'saveImageToDB: phải kiểm tra session còn mở khóa sau await mã hóa (auto-lock giữa chừng)');
+
+  // Nhánh mã hóa hỏng phải dừng hẳn, không rơi xuống đường ghi.
+  assert.ok(/showError\(/.test(body) && /return;/.test(body),
+    'saveImageToDB: mã hóa fail phải báo lỗi + return sớm, không ghi tiếp');
+
+  // Không hard-code tiền tố ciphertext (dùng helper chung — xem "Ciphertext rules").
+  assert.ok(!/startsWith\(\s*['"]cpg1:['"]\s*\)/.test(body),
+    'saveImageToDB: không hard-code prefix cpg1: cho imgCryptoV — dùng _looksEncrypted');
+});
+
+test('ảnh: handleFileUpload phải snapshot hồ sơ đích TRƯỚC khi đọc file', () => {
+  const src = read('assets/08_images_camera.js');
+  const body = fnBody(src, 'handleFileUpload');
+
+  // FileReader đọc bất đồng bộ: đọc global sau đó thì user kịp đổi hồ sơ và ảnh
+  // gắn nhầm đối tượng.
+  assert.ok(/const\s+uploadCustomerId\s*=\s*currentCustomerId/.test(body),
+    'handleFileUpload: phải snapshot currentCustomerId vào biến cục bộ ngay đầu hàm');
+  assert.ok(/const\s+uploadAssetId\s*=\s*currentAssetId/.test(body),
+    'handleFileUpload: phải snapshot currentAssetId vào biến cục bộ ngay đầu hàm');
+  assert.ok(/saveImageToDB\([^)]*,\s*\{[\s\S]*customerId:\s*uploadCustomerId/.test(body),
+    'handleFileUpload: phải truyền id đã snapshot xuống saveImageToDB qua opts');
+  assert.ok(!/new FileReader\(/.test(body) && !/\.readAsDataURL\(/.test(body),
+    'handleFileUpload: không mở FileReader trực tiếp — đi qua _readFileAsDataURL để giữ hàng đợi có giới hạn');
+
+  // Helper đọc file không được tự quyết định đối tượng đích.
+  const readerBody = fnBody(src, '_readFileAsDataURL');
+  assert.ok(!/currentCustomerId|currentAssetId/.test(readerBody),
+    '_readFileAsDataURL: không được đọc global đối tượng đích');
+});
+
+test('ảnh: gallery giải mã qua pool có giới hạn, không Promise.all toàn bộ', () => {
+  const src = read('assets/08_images_camera.js');
+  for (const fn of ['loadImagesFiltered', 'loadAssetImages']) {
+    const body = fnBody(src, fn);
+    assert.ok(/_mapPool\(\s*imgs\s*,/.test(body),
+      `${fn}: phải giải mã ảnh qua _mapPool (giới hạn đồng thời), không bung hết cùng lúc`);
+    assert.ok(!/Promise\.all\(\s*imgs\.map\(/.test(body),
+      `${fn}: Promise.all(imgs.map(...)) làm đỉnh RAM/CPU dựng đứng trên máy yếu`);
+  }
+});
+
+test('ảnh: vòng chỉnh chất lượng của compressImage phải có trần lặp', () => {
+  const src = read('assets/08_images_camera.js');
+  const body = fnBody(src, 'adjustAndCheck');
+  // Bước giảm 0.05 / bước tăng 0.03 có thể dao động quanh dải mục tiêu mãi mãi.
+  assert.ok(/MAX_STEPS|steps\s*>/.test(body),
+    'adjustAndCheck: thiếu trần số vòng — ảnh biên có thể lặp setTimeout vô hạn');
+  assert.ok(/lastDir/.test(body),
+    'adjustAndCheck: thiếu phát hiện đảo chiều tăng/giảm quality');
+});
+
+test('map: renderMapMarkers phải có render seq + chỉ mục ảnh thay cho find lồng nhau', () => {
+  const src = read('assets/03_map.js');
+  const body = fnBody(src, 'renderMapMarkers');
+
+  assert.ok(/__mapRenderSeq/.test(body),
+    'renderMapMarkers: thiếu token chống 2 lượt render chồng nhau (shared __mapFeatures)');
+  assert.ok(/if\s*\(!alive\(\)\)\s*return/.test(body),
+    'renderMapMarkers: phải bỏ dở sau await khi có lượt render mới hơn');
+  assert.ok(/__mapFeatures\s*=\s*features/.test(body),
+    'renderMapMarkers: feature gom vào mảng cục bộ, chỉ công bố khi lượt render còn hiệu lực');
+
+  // O(assets × images) khi máy có nhiều ảnh.
+  assert.ok(!/allImages\.find\(\s*\w+\s*=>/.test(body),
+    'renderMapMarkers: không quét allImages.find(...) cho từng TSBĐ — dùng chỉ mục Map');
+  assert.ok(/imgByAssetId/.test(body) && /imgByCustomerId/.test(body),
+    'renderMapMarkers: thiếu chỉ mục ảnh theo assetId/customerId');
+  assert.ok(/_mapJobPool\(/.test(body),
+    'renderMapMarkers: job giải mã phải chạy qua pool có giới hạn');
+});
+
+test('ĐVHC: refreshIcons phải scope lucide.createIcons theo root màn hình', () => {
+  const src = read('assets/dvhc-lookup/dvhc_ui.js');
+  const body = fnBody(src, 'refreshIcons');
+  assert.ok(/createIcons\(\s*\{\s*root/.test(body),
+    'refreshIcons: createIcons phải nhận { root } — unscoped chỉ dành cho boot (10_bootstrap.js)');
+  assert.ok(/screen-dvhc-lookup/.test(body),
+    'refreshIcons: cần fallback root #screen-dvhc-lookup khi screenEl chưa dựng');
+});
+
 test('nhóm ổn định B #8: put-wrapper trong 2 migration của 02_security.js phải reject cả onabort', () => {
   const src = read('assets/02_security.js');
   for (const fn of ['runImageCryptoMigrationIfNeeded', 'runFieldCryptoMigrationIfNeeded']) {
