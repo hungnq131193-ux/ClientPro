@@ -38,8 +38,18 @@
     if (cls) i.className = cls;
     return i;
   }
+  // Scope BẮT BUỘC theo root màn hình: refreshIcons chạy trên đường render (mỗi
+  // lần gõ tìm kiếm, mỗi lần đổi tab). createIcons() không scope quét và dựng lại
+  // MỌI [data-lucide] của cả document — unscoped chỉ dành cho boot
+  // (10_bootstrap.js), xem "Screen slide contract" trong CLAUDE.md.
   function refreshIcons() {
-    try { if (window.lucide && lucide.createIcons) lucide.createIcons(); }
+    try {
+      if (window.lucide && lucide.createIcons) {
+        const root = screenEl || document.getElementById('screen-dvhc-lookup');
+        if (root) lucide.createIcons({ root });
+        else lucide.createIcons();
+      }
+    }
     catch (e) {}
   }
 
