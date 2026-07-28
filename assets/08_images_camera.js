@@ -356,10 +356,10 @@ function loadImagesFiltered(filterFn, targetId = "content-images") {
       let imgs = e.target.result || [];
       imgs = imgs.filter(filterFn);
       imgs.sort((a, b) => b.createdAt - a.createdAt);
-      const resolved = await Promise.all(imgs.map(async (img) => ({
+      const resolved = await _mapPool(imgs, 4, async (img) => ({
         ...img,
         _displayData: await resolveImageData(img),
-      })));
+      }));
       // Sau decrypt: có lượt load mới hơn / user đã sang hồ sơ khác -> bỏ,
       // không ghi đè grid + lightbox list của đối tượng đang xem.
       if (loadSeq !== window.__galleryLoadSeq || currentCustomerId !== askedCustomerId) return;
@@ -457,10 +457,10 @@ function loadAssetImages(id) {
       let imgs = e.target.result || [];
       imgs = imgs.filter((img) => img.assetId === id);
       imgs.sort((a, b) => b.createdAt - a.createdAt);
-      const resolved = await Promise.all(imgs.map(async (img) => ({
+      const resolved = await _mapPool(imgs, 4, async (img) => ({
         ...img,
         _displayData: await resolveImageData(img),
-      })));
+      }));
       // Sau decrypt: có lượt load mới hơn / user đã sang nơi khác -> bỏ.
       if (loadSeq !== window.__galleryLoadSeq || currentCustomerId !== askedCustomerId) return;
       imgs = resolved;
@@ -536,59 +536,14 @@ function loadAssetImages(id) {
 function compressImage(base64, cb) {
   const img = new Image();
   img.onload = () => {
-    let w = img.width;
-    let h = img.height;
-
-    // Cho phép max ~2200px để chữ vẫn rất nét
-    const maxDim = 2200;
-    if (w > h && w > maxDim) {
-      h = (h * maxDim) / w;
-      w = maxDim;
-    } else if (h >= w && h > maxDim) {
-      w = (w * maxDim) / h;
-      h = maxDim;
+    try {
+      _compressLoaded(img, base64, cb);
+    } catch (e) {
+      // Canvas throw (tainted / hết bộ nhớ) không được để Promise của
+      // saveImageToDB treo mãi: trả ảnh gốc y như nhánh img.onerror.
+      try { ErrorHandler.logError('compressImage', e); } catch (_) { }
+      cb(base64);
     }
-
-    const cvs = document.createElement("canvas");
-    cvs.width = Math.round(w);
-    cvs.height = Math.round(h);
-    const ctx = cvs.getContext("2d");
-
-    // Filter nhẹ (không quá tay để khỏi mờ chữ)
-    ctx.filter = "contrast(1.03) brightness(1.01)";
-    ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
-
-    // Bắt đầu với chất lượng khá cao
-    let q = 0.9;
-
-    // Mục tiêu: 500–700KB
-    const MAX_BYTES = 700 * 1024;
-    const MIN_BYTES = 500 * 1024;
-
-    function adjustAndCheck() {
-      const dataUrl = cvs.toDataURL("image/jpeg", q);
-      // Ước lượng size binary từ base64
-      const sizeBytes = Math.floor(dataUrl.length * 0.75);
-
-      // Nếu > 700KB → giảm chất lượng xuống
-      if (sizeBytes > MAX_BYTES && q > 0.5) {
-        q -= 0.05;
-        setTimeout(adjustAndCheck, 0);
-        return;
-      }
-
-      // Nếu < 500KB mà vẫn còn room tăng chất lượng → tăng lên
-      if (sizeBytes < MIN_BYTES && q < 0.96) {
-        q += 0.03;
-        setTimeout(adjustAndCheck, 0);
-        return;
-      }
-
-      // Chốt ở đây: nằm trong [500, 700] hoặc hết room chỉnh
-      cb(dataUrl);
-    }
-
-    adjustAndCheck();
   };
 
   img.onerror = () => {
@@ -597,6 +552,82 @@ function compressImage(base64, cb) {
   };
 
   img.src = base64;
+}
+
+function _compressLoaded(img, base64, cb) {
+  let w = img.width;
+  let h = img.height;
+
+  // Cho phép max ~2200px để chữ vẫn rất nét
+  const maxDim = 2200;
+  if (w > h && w > maxDim) {
+    h = (h * maxDim) / w;
+    w = maxDim;
+  } else if (h >= w && h > maxDim) {
+    w = (w * maxDim) / h;
+    h = maxDim;
+  }
+
+  const cvs = document.createElement("canvas");
+  cvs.width = Math.round(w);
+  cvs.height = Math.round(h);
+  const ctx = cvs.getContext("2d");
+
+  // Filter nhẹ (không quá tay để khỏi mờ chữ)
+  ctx.filter = "contrast(1.03) brightness(1.01)";
+  ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
+
+  // Bắt đầu với chất lượng khá cao
+  let q = 0.9;
+
+  // Mục tiêu: 500–700KB
+  const MAX_BYTES = 700 * 1024;
+  const MIN_BYTES = 500 * 1024;
+
+  // Bước giảm (0.05) và bước tăng (0.03) không chia hết cho nhau: với ảnh mà
+  // không mức quality nào rơi vào [500, 700] KB, vòng cũ dao động quanh band
+  // qua setTimeout mãi mãi. Hai chốt chặn: trần số vòng, và phát hiện đảo chiều
+  // (vừa tăng rồi lại đòi giảm ⇒ đã kẹp sát band, chốt luôn).
+  const MAX_STEPS = 24;
+  let steps = 0;
+  let lastDir = 0; // -1 = vừa giảm quality, +1 = vừa tăng
+
+  function adjustAndCheck() {
+    const dataUrl = cvs.toDataURL("image/jpeg", q);
+    // Ước lượng size binary từ base64
+    const sizeBytes = Math.floor(dataUrl.length * 0.75);
+
+    if (++steps > MAX_STEPS) {
+      cb(dataUrl);
+      return;
+    }
+
+    // Nếu > 700KB → giảm chất lượng xuống
+    if (sizeBytes > MAX_BYTES) {
+      // Hết room giảm, hoặc vòng trước vừa TĂNG (dao động) → chốt bản này.
+      if (q <= 0.5 || lastDir === 1) {
+        cb(dataUrl);
+        return;
+      }
+      q -= 0.05;
+      lastDir = -1;
+      setTimeout(adjustAndCheck, 0);
+      return;
+    }
+
+    // Nếu < 500KB mà vẫn còn room tăng chất lượng → tăng lên
+    if (sizeBytes < MIN_BYTES && q < 0.96) {
+      q += 0.03;
+      lastDir = 1;
+      setTimeout(adjustAndCheck, 0);
+      return;
+    }
+
+    // Chốt ở đây: nằm trong [500, 700] hoặc hết room chỉnh
+    cb(dataUrl);
+  }
+
+  adjustAndCheck();
 }
 // --- ĐÃ SỬA: FIX LỖI KHÔNG REFRESH ẢNH ---
 // opts (tùy chọn) = { customerId, assetId, captureMode }: đường upload file đọc
