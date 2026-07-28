@@ -21,7 +21,7 @@ trên điện thoại).
 node --test 'tests/**/*.test.js'
 ```
 
-Yêu cầu Node.js >= 20 (CI dùng Node 22).
+Yêu cầu Node.js >= 22 (khớp `engines` trong `package.json`; CI dùng `.nvmrc`).
 
 ## Nội dung
 
@@ -40,6 +40,20 @@ Yêu cầu Node.js >= 20 (CI dùng Node 22).
 | `repository-hygiene.test.js` | Chính sách ảnh chụp màn hình trong repo (thư mục sinh tự động, giới hạn ảnh durable mỗi mục). |
 | `pdf-toolkit-utils.test.js` | Hàm thuần của PDF Toolkit (`pdf_toolkit_utils.js`): limits, parse range, tên file, chia trang. |
 | `dvhc-utils.test.js` | Hàm thuần của tool Tra cứu ĐVHC + toàn vẹn dữ liệu `assets/data/dvhc/dvhc.v1.json` (gồm chống dòng trùng). |
+| `auth-gate-strikes.test.js` | Bộ đếm strike của auth gate: `skipped` không được reset, ngưỡng 2 strike sống sót qua khởi động lại. |
+| `auto-backup-duplicate.test.js` | Sao lưu Drive tự động không tạo hai file cho một lượt (throttle, Web Locks, claim bền, fingerprint) — chạy `16_auto_backup_drive.js` thật. |
+| `employee-id-seal.test.js` | Mã nhân viên (bí mật khôi phục) được niêm phong sau lần mở khóa đầu, plaintext bị xóa. |
+| `error-detail.test.js` | `ErrorHandler` che khóa nhạy cảm và cắt chuỗi dài trước khi ghi `app_error_log`. |
+| `image-migration-autolock.test.js` | `runImageCryptoMigrationIfNeeded` fail-closed khi mất masterKey giữa chừng; marker không được set. |
+| `image-save-fail-closed.test.js` | `saveImageToDB` từ chối ghi khi mã hóa fail-open/ném lỗi/phiên đã khóa; upload gắn đúng hồ sơ khi đổi hồ sơ giữa lúc đọc file. |
+| `key-generation-race.test.js` | `__keyGeneration`: công việc bất đồng bộ của phiên đã chết không ghi lại key/plaintext vào RAM. |
+| `legacy-migration-envelope-commit.test.js` | Migration CryptoJS → GCM fail-closed: lỗi IDB/ghi token để nguyên PIN/SEC/schema cho lần sau. |
+| `master-key-install-race.test.js` | `_installMasterKey` ném `STALE_KEY_GENERATION`; mọi caller dừng trước khi ghi envelope (chạy `saveSecuritySetup`/`checkRecovery`/`validatePin` thật). |
+| `revocation-clears-session.test.js` | Đường thu hồi kích hoạt gọi `revokeUnlockedSession()` — xóa masterKey, KDATA, mã nhân viên, cache plaintext. |
+| `session-generation-hardening.test.js` | Kiểm tra generation đặt ngay trước mỗi lệnh ghi, sau mọi `await`. |
+| `unlock-autolock-race.test.js` | Auto-lock rơi giữa pipeline mở khóa: không mở dashboard với `masterKey === null`. |
+| `unlock-keypad-ownership.test.js` | Spinner/keypad dùng chung: chỉ chủ vé `__unlockAttemptSeq` hiện hành được dọn. |
+| `weather-cache-privacy.test.js` | Cache thời tiết chỉ lưu thứ pill hiển thị — không toạ độ/timezone/elevation. |
 
 ## Xem kết quả trên điện thoại
 

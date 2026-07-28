@@ -46,7 +46,9 @@ hàng nào.
 
 ### Google Drive (tùy chọn)
 - Kết nối Drive cá nhân của người dùng để lưu ảnh hồ sơ và bản backup.
-- Chỉ hoạt động khi người dùng chủ động cấu hình; không tự động gửi dữ liệu.
+- Chỉ hoạt động khi người dùng chủ động cấu hình. Khi đã bật, tính năng sao lưu
+  tự động (`assets/16_auto_backup_drive.js`) gửi bản backup lên Drive của chính
+  người dùng theo chu kỳ ngày; chưa cấu hình thì không có dữ liệu nào rời máy.
 
 ### Bản đồ & khoảng cách tuyến đường
 - Bản đồ MapLibre GL, gom cụm điểm bằng Supercluster.
@@ -135,6 +137,7 @@ manifest.json             Web App Manifest
 vercel.json               Header bảo mật + CSP
 package.json              Nguồn semver duy nhất + script test/CI
 scripts/sync-version.mjs  Đồng bộ version & ASSET_V ra manifest/SW/PWA/README
+scripts/check-policy.mjs  Kiểm tra policy repo (debug scaffold / cache-buster / self-host)
 scripts/build-dvhc-data.mjs  Sinh lại dữ liệu ĐVHC từ nguồn mở (chạy tay)
 assets/00…19_*.js, pwa.js Module nghiệp vụ theo tầng phụ thuộc
 assets/pdf-toolkit/       Bộ công cụ PDF (utils/core/ui + các tool)
@@ -142,12 +145,12 @@ assets/dvhc-lookup/       Tra cứu sáp nhập ĐVHC (utils/data/ui)
 assets/data/dvhc/         Dữ liệu ĐVHC offline (dvhc.v1.json + README nguồn)
 assets/ui/modals/         HTML fragment của modal (nạp qua ui/load_modals.js)
 assets/vendor/            Dependency self-host
-assets/fonts/             Font self-host (Be Vietnam Pro, Inter)
+assets/fonts/             Font self-host (Be Vietnam Pro)
 assets/styles.css, css/   CSS ứng dụng
 gas/                      Admin GAS + User Drive GAS
 tests/                    Unit test (node --test)
 e2e/                      Playwright + axe
-docs/                     terminology.md + ảnh chụp màn hình review
+docs/                     terminology.md + chính sách ảnh chụp màn hình
 .github/workflows/ci.yml  CI
 CLAUDE.md                 Sổ tay kỹ thuật & quy tắc an toàn cho agent
 AGENTS.md                 Chỉ dẫn agent đọc CLAUDE.md trước
