@@ -2,13 +2,17 @@
 let map = null; let markers = []; let mapResizeObserver = null;
 let __mapClusterIndex = null;
 let __mapFeatures = [];
+// Token chống 2 lượt renderMapMarkers chồng nhau (mở/đóng map nhanh, refresh sau
+// khi sửa TSBĐ): mọi await trong lượt cũ phải bỏ dở thay vì ghi đè __mapFeatures /
+// vẽ marker của lượt mới.
+let __mapRenderSeq = 0;
 let __mapClusterHandlers = null;
 let __superclusterLoadPromise = null;
 const MAP_CLUSTER_MIN_ZOOM = 0;
 const MAP_CLUSTER_MAX_ZOOM = 16;
 const MAP_CLUSTER_RADIUS = 56;
 // Cache-buster lazy-load maplibre/supercluster — phải khớp ASSET_V trong sw.js (CI kiểm tra 1 nguồn duy nhất).
-const MAPLIBRE_V = 'AUTOBACKUP_DEDUPE_20260728';
+const MAPLIBRE_V = 'IMAGE_MAP_PERF_20260728';
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 // Theme sáng dùng nền bản đồ sáng (Carto Positron — cùng host với dark-matter,
 // đã nằm trong CSP connect-src/img-src, không thêm origin mới).
@@ -702,10 +706,29 @@ function createMapStyleControl() {
     };
 }
 
+// Map bất đồng bộ có GIỚI HẠN đồng thời (bản cục bộ của 03_map.js — module lazy
+// load riêng, không phụ thuộc chéo sang 08_images_camera.js). Mỗi job giải mã
+// name/link/valuation + có thể cả một ảnh thumbnail; chạy hết khách hàng cùng lúc
+// làm đỉnh RAM/CPU dựng đứng khi mở map.
+async function _mapJobPool(items, limit, worker) {
+    let next = 0;
+    const workerCount = Math.min(Math.max(1, limit | 0), items.length);
+    await Promise.all(Array.from({ length: workerCount }, async () => {
+        while (next < items.length) {
+            const i = next++;
+            await worker(items[i], i);
+        }
+    }));
+}
+
 // --- GIẢI MÃ + SUPERCLUSTER: mượt với >100 điểm ---
 async function renderMapMarkers() {
     if (!db || !map) return;
+    const seq = ++__mapRenderSeq;
+    const alive = () => seq === __mapRenderSeq;
+
     const scOk = await ensureSuperclusterLoaded();
+    if (!alive()) return;
     if (!scOk || !window.Supercluster) {
         ErrorHandler.showWarning('Không gom được cụm điểm — đang hiện từng điểm.');
     }
@@ -733,56 +756,75 @@ async function renderMapMarkers() {
             } catch (e) { resolve([]); }
         }),
     ]);
+    if (!alive()) return;
+
+    // Chỉ mục ảnh: trước đây mỗi TSBĐ quét allImages.find() hai lần → O(assets ×
+    // images), máy có vài nghìn ảnh là treo rõ khi mở map. Lấy ảnh ĐẦU TIÊN theo
+    // thứ tự allImages, giữ đúng ngữ nghĩa fallback cũ (ảnh TSBĐ, nếu không có thì
+    // ảnh bất kỳ của khách hàng).
+    const imgByAssetId = new Map();
+    const imgByCustomerId = new Map();
+    for (const im of allImages) {
+        if (!im) continue;
+        if (im.assetId && !imgByAssetId.has(im.assetId)) imgByAssetId.set(im.assetId, im);
+        if (im.customerId && !imgByCustomerId.has(im.customerId)) imgByCustomerId.set(im.customerId, im);
+    }
 
     const bounds = [];
-    const featureJobs = [];
+    const features = [];
+    const custWithAssets = customers.filter((cust) => cust && cust.assets);
 
-    customers.forEach((cust) => {
-        if (!cust || !cust.assets) return;
-        featureJobs.push((async () => {
-            let custName = await decryptFieldAsync(cust.name);
-            if (typeof _looksEncrypted === 'function' && _looksEncrypted(custName)) custName = '';
-            for (const asset of cust.assets) {
-                const decryptedLink = await decryptFieldAsync(asset.link);
-                if (typeof _looksEncrypted === 'function' && _looksEncrypted(decryptedLink)) continue;
-                const loc = parseLatLngFromLink(decryptedLink);
-                if (!loc) continue;
+    await _mapJobPool(custWithAssets, 3, async (cust) => {
+        // Bỏ ngay từ đầu mỗi job: pool vẫn rút tiếp hàng đợi sau khi một job thoát,
+        // nên không có chốt này thì lượt render đã bị thay thế vẫn giải mã hết số
+        // khách hàng còn lại (tốn CPU/RAM) chỉ để vứt kết quả đi.
+        if (!alive()) return;
+        let custName = await decryptFieldAsync(cust.name);
+        if (typeof _looksEncrypted === 'function' && _looksEncrypted(custName)) custName = '';
+        for (const asset of cust.assets) {
+            const decryptedLink = await decryptFieldAsync(asset.link);
+            if (typeof _looksEncrypted === 'function' && _looksEncrypted(decryptedLink)) continue;
+            const loc = parseLatLngFromLink(decryptedLink);
+            if (!loc) continue;
 
-                let assetName = await decryptFieldAsync(asset.name);
-                let assetVal = await decryptFieldAsync(asset.valuation);
-                if (typeof _looksEncrypted === 'function') {
-                    if (_looksEncrypted(assetName)) assetName = '';
-                    if (_looksEncrypted(assetVal)) assetVal = '';
-                }
-                const img = allImages.find(i => i.assetId === asset.id) || allImages.find(i => i.customerId === cust.id);
-                let thumb = fallbackThumb;
-                if (img && img.data) {
-                    const raw = (typeof decryptImageData === 'function')
-                        ? await decryptImageData(img.data)
-                        : await decryptFieldAsync(img.data);
-                    if (typeof isSafeImageUrl === 'function' && isSafeImageUrl(raw)) thumb = raw;
-                }
-
-                const isApproved = cust.status === 'approved';
-                __mapFeatures.push({
-                    type: 'Feature',
-                    geometry: { type: 'Point', coordinates: [loc.lng, loc.lat] },
-                    properties: {
-                        custId: cust.id,
-                        custName,
-                        assetName,
-                        assetVal,
-                        isApproved,
-                        loc,
-                        thumb,
-                    },
-                });
-                bounds.push([loc.lng, loc.lat]);
+            let assetName = await decryptFieldAsync(asset.name);
+            let assetVal = await decryptFieldAsync(asset.valuation);
+            if (typeof _looksEncrypted === 'function') {
+                if (_looksEncrypted(assetName)) assetName = '';
+                if (_looksEncrypted(assetVal)) assetVal = '';
             }
-        })());
+            const img = imgByAssetId.get(asset.id) || imgByCustomerId.get(cust.id);
+            let thumb = fallbackThumb;
+            if (img && img.data) {
+                const raw = (typeof decryptImageData === 'function')
+                    ? await decryptImageData(img.data)
+                    : await decryptFieldAsync(img.data);
+                if (typeof isSafeImageUrl === 'function' && isSafeImageUrl(raw)) thumb = raw;
+            }
+
+            if (!alive()) return;
+            const isApproved = cust.status === 'approved';
+            features.push({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [loc.lng, loc.lat] },
+                properties: {
+                    custId: cust.id,
+                    custName,
+                    assetName,
+                    assetVal,
+                    isApproved,
+                    loc,
+                    thumb,
+                },
+            });
+            bounds.push([loc.lng, loc.lat]);
+        }
     });
 
-    await Promise.all(featureJobs);
+    // Chỉ công bố kết quả khi lượt render này vẫn là lượt mới nhất — jobs gom vào
+    // mảng cục bộ nên một lượt bị bỏ dở không để lại feature rác trên shared state.
+    if (!alive()) return;
+    __mapFeatures = features;
 
     if (window.Supercluster && __mapFeatures.length > 0) {
         __mapClusterIndex = new window.Supercluster({

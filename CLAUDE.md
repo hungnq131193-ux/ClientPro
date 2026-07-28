@@ -590,9 +590,40 @@ Capture/store/view/select/share photos tied to a `customerId`/`assetId`.
 ### Core invariants
 - Image `data` is encrypted at rest (see `encryptImageData`/`decryptImageData`).
 - Do not weaken image encryption or leak plaintext data URLs.
+- `saveImageToDB` is **fail-closed at the caller**: after `await encryptImageData`
+  it must confirm the session is still unlocked (`isAppUnlocked()`) *and* that the
+  result passes `_looksEncrypted` **before** opening the write transaction. Any
+  failure — missing `encryptImageData`, a throw, a locked session, or a result that
+  is not ciphertext — hides the loader, reports the error, and resolves **without**
+  writing. `encryptImageData` itself stays fail-open at the crypto layer (migrations
+  and other callers depend on that), so the DB-writing caller is what refuses
+  plaintext. `imgCryptoV` follows that same ciphertext check — never a literal
+  prefix comparison.
+- `handleFileUpload` snapshots `customerId` / `assetId` / `captureMode` **before**
+  reading the file and passes them to `saveImageToDB(raw, opts)`; `FileReader` is
+  async, so reading the globals afterwards attaches the photo to whatever record
+  the user switched to. It also honours the caller's mode rather than the global:
+  a `profile` upload always sends `assetId: null`, because the profile grid filters
+  on `!img.assetId` and a leftover `currentAssetId` would otherwise swallow the
+  photo into an asset nobody is looking at. `saveImageToDB` without `opts` keeps the
+  old snapshot-at-entry behavior (the camera path). Uploads run through a bounded
+  queue, not one `FileReader` per file at once.
+- Gallery decrypt goes through the bounded `_mapPool` helper, never
+  `Promise.all(imgs.map(...))` over every image — each job holds ciphertext plus a
+  plaintext data URL in RAM at the same time.
+- `compressImage`'s quality loop is bounded (iteration cap plus oscillation
+  detection): the decrease and increase steps do not divide evenly, so an image
+  with no quality level inside the target band would otherwise re-arm `setTimeout`
+  forever. A canvas throw must never hang the `saveImageToDB` promise, so **both**
+  ends are wrapped: the `img.onload` body, and `toDataURL` inside `adjustAndCheck`
+  itself — later iterations are re-armed through `setTimeout` and therefore run
+  outside the `onload` try/catch. Every failure path still calls `cb`.
+- `closeLightbox` (`04_ui_common.js`) removes the lightbox `<img>` `src` and clears
+  `currentImageBase64` — hiding the overlay alone leaves a decrypted data URL in RAM.
 
 ### Primary files
-`assets/08_images_camera.js`, `assets/ui/modals/camera-modal.html`.
+`assets/08_images_camera.js`, `assets/ui/modals/camera-modal.html`;
+`closeLightbox` lives in `assets/04_ui_common.js`.
 
 ### Public entry points
 `capturePhoto()`, gallery/lightbox actions, `shareSelectedImages()`,
@@ -602,7 +633,10 @@ Capture/store/view/select/share photos tied to a `customerId`/`assetId`.
 Debugging capture/gallery or verifying encryption of image data.
 
 ### Required tests when changed
-`npm test`, relevant e2e.
+`npm test` (`tests/image-save-fail-closed.test.js`, which runs the real
+`08_images_camera.js` in a sandbox via `tests/helpers/load-images.js`,
+`tests/image-migration-autolock.test.js`, plus the image tripwires in
+`tests/regressions.test.js`), relevant e2e.
 
 ### Must not affect
 Crypto schema, IndexedDB stores.
@@ -731,6 +765,24 @@ Show customers on a map with clustering and compute road distance.
   `_readRoadDistCacheAsync` / `_writeRoadDistCacheSealed`; older plaintext keys
   are in `ROAD_DIST_CACHE_OLD_KEYS` and get cleaned up). Never write it plaintext
   (tripwire in `tests/regressions.test.js`).
+- `renderMapMarkers` carries a render-sequence token (`__mapRenderSeq`): it claims
+  a sequence on entry and bails after every large `await` once a newer run exists.
+  Features are collected into a **local** array and published to the shared
+  `__mapFeatures` only while the run is still current — two overlapping runs (open
+  the map twice quickly, refresh after editing an asset) otherwise interleave their
+  pushes into shared state.
+- Images are looked up through `Map` indexes keyed by `assetId` / `customerId`,
+  built once from `allImages`. Do not scan `allImages.find(...)` per asset — that is
+  O(assets × images) and stalls the map open on a device with many photos. The
+  index keeps the old fallback meaning: asset photo first, then any photo of the
+  customer, first match in `allImages` order.
+- Per-customer decrypt jobs (name/link/valuation plus an optional thumbnail) run
+  through the bounded `_mapJobPool`, not one `Promise.all` over every customer.
+  That helper is a deliberate local copy — `03_map.js` lazy-loads independently and
+  must not depend on `08_images_camera.js`. Each job re-checks the sequence at its
+  **start** as well: the pool keeps pulling from the queue after a job returns, so
+  a superseded run would otherwise decrypt every remaining customer just to discard
+  the result.
 - Do not change clustering/routing logic for docs/tour.
 
 ### Primary files
@@ -815,6 +867,11 @@ cũ → mới, và nạp "gói thôn/TDP theo tỉnh" (đợt sắp xếp 2026) 
   lần** rồi cache (`getPackIndex()` trong `dvhc_data.js`, cache theo chuỗi thô
   trong `localStorage`, xoá khi `setPack`/`clearPack`). Đường render gọi
   `packLookupFromIndex()`, không bao giờ parse lại gói cho từng thẻ kết quả.
+- `refreshIcons()` (`dvhc_ui.js`) phải gọi
+  `lucide.createIcons({ root: screenEl | #screen-dvhc-lookup })`. Hàm này nằm
+  trên đường render (mỗi lần gõ tìm kiếm, mỗi lần đổi tab) nên gọi không scope
+  sẽ quét và dựng lại MỌI `[data-lucide]` của cả document — xem "Screen slide
+  contract".
 
 ### Primary files
 `assets/dvhc-lookup/dvhc_utils.js` (hàm thuần, unit-test được),
@@ -900,10 +957,11 @@ normalized to this rule). Do not put `backdrop-filter` on an animating
 `.app-container` (it forces a full-screen re-blur every frame); screen roots
 paint an opaque background instead.
 
-Render paths that run while a screen opens must scope the icon scan:
-`lucide.createIcons({ root: <container> })` — an unscoped call re-creates every
-`[data-lucide]` icon in the whole document. The unscoped call is reserved for
-boot (`10_bootstrap.js`).
+Render paths must scope the icon scan: `lucide.createIcons({ root: <container> })`
+— an unscoped call re-creates every `[data-lucide]` icon in the whole document.
+This applies to any path that re-renders on input, not only screen opens (the DVHC
+Lookup search box is one such caller). The unscoped call is reserved for boot
+(`10_bootstrap.js`).
 
 ## Theme
 
@@ -1155,6 +1213,9 @@ migration, data integrity, schema, backup, KDATA cache, sealed employee id
 (`tests/employee-id-seal.test.js`), auto-backup duplicate prevention
 (`tests/auto-backup-duplicate.test.js`, which runs the real
 `16_auto_backup_drive.js` in a sandbox via `tests/helpers/load-auto-backup.js`),
+fail-closed image saving
+(`tests/image-save-fail-closed.test.js`, which runs the real
+`08_images_camera.js` in a sandbox via `tests/helpers/load-images.js`),
 error-log redaction
 (`tests/error-detail.test.js`), session/key-generation races
 (`tests/key-generation-race.test.js`, `tests/session-generation-hardening.test.js`,

@@ -189,7 +189,19 @@ function openLightbox(src, id, idx, list) {
     currentImageBase64 = safeSrc;
     getEl('lightbox-counter').textContent = `${currentLightboxIndex + 1}/${currentLightboxList.length}`;
 }
-function closeLightbox() { getEl('lightbox').classList.add('hidden'); }
+// Đóng lightbox phải BỎ tham chiếu ảnh plaintext: ảnh sau nén vẫn cỡ 500–700 KB,
+// giữ nguyên trong <img>.src + currentImageBase64 sau khi ẩn overlay là data URL
+// đã giải mã nằm lại RAM vô thời hạn. openLightbox luôn gán lại src + list nên
+// việc gỡ ở đây không phá điều hướng vuốt.
+function closeLightbox() {
+    const box = getEl('lightbox');
+    if (box) box.classList.add('hidden');
+    try {
+        const imgEl = getEl('lightbox-img');
+        if (imgEl) imgEl.removeAttribute('src');
+    } catch (e) { }
+    currentImageBase64 = null;
+}
 
 let currentCustomerId = null; let currentCustomerData = null; let currentAssetId = null;
 

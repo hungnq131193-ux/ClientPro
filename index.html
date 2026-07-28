@@ -25,20 +25,20 @@
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-400-vietnamese.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-latin.woff2">
     <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/be-vietnam-pro-700-vietnamese.woff2">
-    <link rel="stylesheet" href="./assets/css/fonts.css?v=AUTOBACKUP_DEDUPE_20260728">
+    <link rel="stylesheet" href="./assets/css/fonts.css?v=IMAGE_MAP_PERF_20260728">
     <!-- Tailwind (self-host; đường dẫn ./ tương đối theo <base> để hoạt động ở mọi subpath) -->
-    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=AUTOBACKUP_DEDUPE_20260728">
-    <link rel="stylesheet" href="./assets/css/app.patch.css?v=AUTOBACKUP_DEDUPE_20260728">
+    <link rel="stylesheet" href="./assets/css/tailwind.clientpro.css?v=IMAGE_MAP_PERF_20260728">
+    <link rel="stylesheet" href="./assets/css/app.patch.css?v=IMAGE_MAP_PERF_20260728">
     <!-- Lucide icons (self-host, xem assets/vendor/README.md) -->
-    <script defer src="./assets/vendor/lucide.min.js?v=AUTOBACKUP_DEDUPE_20260728"></script>
+    <script defer src="./assets/vendor/lucide.min.js?v=IMAGE_MAP_PERF_20260728"></script>
     <!-- MapLibre GL JS is lazy-loaded when opening the Map screen (reduces initial JS/CSS load). -->
     <!-- CryptoJS library for hashing and encryption (self-host) -->
-    <script defer src="./assets/vendor/crypto-js.min.js?v=AUTOBACKUP_DEDUPE_20260728"></script>
+    <script defer src="./assets/vendor/crypto-js.min.js?v=IMAGE_MAP_PERF_20260728"></script>
 
-    <script defer src="./assets/head.js?v=AUTOBACKUP_DEDUPE_20260728"></script>
-    <link rel="stylesheet" href="./assets/styles.css?v=AUTOBACKUP_DEDUPE_20260728">
+    <script defer src="./assets/head.js?v=IMAGE_MAP_PERF_20260728"></script>
+    <link rel="stylesheet" href="./assets/styles.css?v=IMAGE_MAP_PERF_20260728">
     <!-- REDESIGN LAYER (banking / Vietinbank) — nạp cuối để đè lớp giao diện, không đụng JS -->
-    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=AUTOBACKUP_DEDUPE_20260728">
+    <link rel="stylesheet" href="./assets/css/redesign.clientpro.css?v=IMAGE_MAP_PERF_20260728">
     <!-- PDF Toolkit + Tra cứu ĐVHC: JS lẫn CSS đều LAZY-LOAD khi mở tool lần đầu
          (LazyModules trong 00_globals.js) — không tải lúc khởi động app. File vẫn
          nằm trong precache của sw.js nên offline vẫn mở được. -->
@@ -561,41 +561,41 @@
 
     <!-- UI Partials: Modals are loaded from /assets/ui/modals/*.html for maintainability -->
     <div id="ui-modals-root"></div>
-    <script src="./assets/ui/load_modals.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
+    <script src="./assets/ui/load_modals.js?v=IMAGE_MAP_PERF_20260728" defer></script>
 
-    <script src="./assets/00_globals.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/01_config.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/02_security.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/12_backup_core.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/13_ui_select_customers.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/15_auth_gate.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/03_map.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/04_ui_common.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
+    <script src="./assets/00_globals.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/01_config.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/02_security.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/12_backup_core.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/13_ui_select_customers.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/15_auth_gate.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/03_map.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/04_ui_common.js?v=IMAGE_MAP_PERF_20260728" defer></script>
     <!-- Chuẩn hóa error messages & loading states (ErrorHandler / LoadingManager / AppToast) -->
-    <script src="./assets/19_error_loading.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/05_customers.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/06_assets.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/08_images_camera.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/09_menu.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/09_backup_manager.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/09_donate.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/09_weather.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/07_drive.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
+    <script src="./assets/19_error_loading.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/05_customers.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/06_assets.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/08_images_camera.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/09_menu.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/09_backup_manager.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/09_donate.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/09_weather.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/07_drive.js?v=IMAGE_MAP_PERF_20260728" defer></script>
     <!-- Cloud transfer backup (send to other users) -->
-    <script src="./assets/14_cloud_transfer.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
+    <script src="./assets/14_cloud_transfer.js?v=IMAGE_MAP_PERF_20260728" defer></script>
     <!-- Auto backup to Drive -->
-    <script src="./assets/16_auto_backup_drive.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
+    <script src="./assets/16_auto_backup_drive.js?v=IMAGE_MAP_PERF_20260728" defer></script>
     <!-- Onboarding tour for new users -->
-    <script src="./assets/17_onboarding_tour.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
+    <script src="./assets/17_onboarding_tour.js?v=IMAGE_MAP_PERF_20260728" defer></script>
     <!-- Mở khóa sinh trắc học (Face ID / vân tay) - tính năng bổ sung, không thay đổi luồng PIN -->
-    <script src="./assets/18_biometric_unlock.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/10_bootstrap.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
-    <script src="./assets/11_edge_back_swipe.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
+    <script src="./assets/18_biometric_unlock.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/10_bootstrap.js?v=IMAGE_MAP_PERF_20260728" defer></script>
+    <script src="./assets/11_edge_back_swipe.js?v=IMAGE_MAP_PERF_20260728" defer></script>
     <!-- PDF Toolkit (utils -> core -> tools -> ui) và Tra cứu ĐVHC (utils -> data
          -> ui) KHÔNG còn thẻ script ở đây: cả hai LAZY-LOAD qua LazyModules
          (00_globals.js) khi người dùng mở tool lần đầu; vendor PDF (pdf-lib /
          pdf.js / JSZip) vẫn lazy-load tầng hai như trước. -->
-    <script src="./assets/pwa.js?v=AUTOBACKUP_DEDUPE_20260728" defer></script>
+    <script src="./assets/pwa.js?v=IMAGE_MAP_PERF_20260728" defer></script>
 </body>
 
 </html>

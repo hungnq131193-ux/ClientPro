@@ -16,6 +16,9 @@ coverage/
 .idea/
 .vscode/
 
+# Agent scratch file — repository-hygiene.test.js cấm track file này
+.agent-fetch-links.md
+
 # Local logs and temporary files
 *.log
 *.tmp
