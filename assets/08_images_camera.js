@@ -322,6 +322,24 @@ async function shareSelectedImages() {
   }
 }
 
+// Map bất đồng bộ có GIỚI HẠN đồng thời. Promise.all(imgs.map(...)) giải mã toàn
+// bộ ảnh cùng lúc: một hồ sơ vài chục ảnh làm đỉnh RAM/CPU dựng đứng trên Android
+// (mỗi job giữ ciphertext + plaintext data URL trong RAM). Giữ nguyên thứ tự kết
+// quả theo index đầu vào.
+async function _mapPool(items, limit, mapper) {
+  const out = new Array(items.length);
+  let next = 0;
+  const workerCount = Math.min(Math.max(1, limit | 0), items.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await mapper(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 function loadImagesFiltered(filterFn, targetId = "content-images") {
   // Token chống hiện nhầm ảnh khi user chuyển hồ sơ/TSBĐ trong lúc decrypt
   // (mirror __openFolderSeq ở 05_customers.js). Dùng chung 1 counter với
@@ -581,28 +599,35 @@ function compressImage(base64, cb) {
   img.src = base64;
 }
 // --- ĐÃ SỬA: FIX LỖI KHÔNG REFRESH ẢNH ---
-function saveImageToDB(rawBase64) {
+// opts (tùy chọn) = { customerId, assetId, captureMode }: đường upload file đọc
+// FileReader bất đồng bộ nên phải snapshot đối tượng đích TRƯỚC khi đọc file và
+// truyền xuống đây (xem handleFileUpload). Không truyền opts => giữ hành vi cũ:
+// snapshot global ngay đầu hàm (đường camera).
+function saveImageToDB(rawBase64, opts) {
   return new Promise(async (resolve) => {
     // SNAPSHOT đối tượng đích NGAY LÚC BẮT ĐẦU: chuỗi nén ảnh (nhiều vòng
     // setTimeout chỉnh chất lượng) + await mã hóa phía dưới có thể kéo dài —
     // nếu đọc global currentCustomerId/currentAssetId SAU đó, user kịp chuyển
     // hồ sơ/TSBĐ làm ảnh bị gán nhầm đối tượng mới. Ảnh luôn ghi vào đúng
     // đối tượng tại thời điểm chụp.
-    const askedCustomerId = currentCustomerId;
-    const askedAssetId = currentAssetId;
+    const hasOpts = !!opts && Object.prototype.hasOwnProperty.call(opts, "customerId");
+    const askedCustomerId = hasOpts ? opts.customerId : currentCustomerId;
+    const askedAssetId = hasOpts ? opts.assetId : currentAssetId;
     if (!askedCustomerId) {
       resolve();
       return;
     }
 
-    // Kiểm tra xem đang ở modal asset không
-    if (
-      getEl("asset-modal") &&
-      !getEl("asset-modal").classList.contains("hidden")
-    ) {
-      captureMode = "asset";
+    if (!hasOpts) {
+      // Kiểm tra xem đang ở modal asset không
+      if (
+        getEl("asset-modal") &&
+        !getEl("asset-modal").classList.contains("hidden")
+      ) {
+        captureMode = "asset";
+      }
     }
-    const askedCaptureMode = captureMode;
+    const askedCaptureMode = hasOpts ? (opts.captureMode || captureMode) : captureMode;
 
     LoadingManager.showGlobal("Xử lý ảnh...");
 
@@ -613,20 +638,49 @@ function saveImageToDB(rawBase64) {
 
     // Nén và Lưu vào Database (mã hóa at-rest trước khi ghi)
     compressImage(enhancedBase64, async (compressed) => {
+      // FAIL-CLOSED trước khi mở transaction: encryptImageData (02_security.js) là
+      // fail-open ở tầng crypto — mất masterKey thì nó TRẢ NGUYÊN data URL. Nuốt lỗi
+      // rồi ghi tiếp như trước = ảnh plaintext nằm vĩnh viễn trong IndexedDB. Caller
+      // ghi DB chịu trách nhiệm từ chối plaintext; tầng crypto giữ nguyên fail-open
+      // cho migration/callers khác.
+      const failClosed = (err) => {
+        LoadingManager.hideGlobal(true);
+        ErrorHandler.showError(
+          'STORAGE',
+          'Không mã hóa được ảnh — chưa lưu. Mở khóa lại rồi thử.',
+          err || null
+        );
+        resolve();
+      };
+
       let storedData = compressed;
       try {
-        if (typeof encryptImageData === 'function') {
-          storedData = await encryptImageData(compressed);
+        if (typeof encryptImageData !== 'function') {
+          failClosed(null);
+          return;
         }
+        storedData = await encryptImageData(compressed);
       } catch (e) {
         try { ErrorHandler.logError('encryptImageData', e); } catch (_) {}
+        failClosed(e);
+        return;
       }
+
+      // Session còn mở khóa? (auto-lock có thể rơi vào giữa nén + mã hóa)
+      const unlocked = (typeof isAppUnlocked !== 'function') || isAppUnlocked();
+      // Kết quả có thật sự là ciphertext? Dùng helper chung — không hard-code prefix.
+      const looksEnc = (typeof _looksEncrypted === 'function') && _looksEncrypted(storedData);
+      if (!unlocked || !looksEnc) {
+        failClosed(null);
+        return;
+      }
+
       const newImg = {
         id: "img_" + Date.now() + Math.random(),
         customerId: askedCustomerId,
         assetId: askedAssetId,
         data: storedData,
-        imgCryptoV: (typeof storedData === 'string' && storedData.startsWith('cpg1:')) ? 1 : undefined,
+        imgCryptoV: 1,
         createdAt: Date.now(),
       };
 
@@ -673,25 +727,50 @@ function saveImageToDB(rawBase64) {
     });
   });
 }
+function _readFileAsDataURL(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target && e.target.result);
+    reader.onerror = () => resolve(null);
+    try { reader.readAsDataURL(file); } catch (e) { resolve(null); }
+  });
+}
+
 function handleFileUpload(input, mode) {
   const files = input.files;
   if (!files || !files.length) return;
 
+  // SNAPSHOT đối tượng đích NGAY LÚC CHỌN FILE, TRƯỚC readAsDataURL: FileReader
+  // đọc bất đồng bộ, nếu để saveImageToDB tự đọc global sau đó thì user kịp
+  // chuyển hồ sơ/TSBĐ giữa chừng và ảnh bị gán nhầm đối tượng mới.
+  const uploadCustomerId = currentCustomerId;
+  const uploadAssetId = currentAssetId;
+  const uploadMode = mode || "profile";
+
   // Ghi chế độ ảnh (profile = hồ sơ / asset = tài sản)
-  captureMode = mode || "profile";
+  captureMode = uploadMode;
 
-  // Duyệt từng ảnh
-  Array.from(files).forEach((file) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64 = e.target.result;
-      await saveImageToDB(base64);
-    };
-    reader.readAsDataURL(file);
-  });
-
+  const list = Array.from(files);
   // Reset input để lần sau chọn lại vẫn trigger onchange
   input.value = "";
+
+  if (!uploadCustomerId) {
+    try { ErrorHandler.showWarning("Chưa mở hồ sơ khách hàng nên chưa lưu được ảnh."); } catch (e) { }
+    return;
+  }
+
+  // Hàng đợi TUẦN TỰ: mỗi ảnh là FileReader + compress (nhiều vòng canvas) +
+  // mã hóa. Bắn cả chục lượt song song như trước làm máy yếu giật và tranh nhau
+  // loader/gallery refresh dùng chung. Pool 1 giữ loader + toast đúng thứ tự.
+  _mapPool(list, 1, async (file) => {
+    const base64 = await _readFileAsDataURL(file);
+    if (!base64) return;
+    await saveImageToDB(base64, {
+      customerId: uploadCustomerId,
+      assetId: uploadAssetId,
+      captureMode: uploadMode,
+    });
+  });
 }
 // Dừng hẳn stream camera hiện tại (tắt đèn camera, giải phóng pin) + gỡ khỏi <video>.
 function _stopCameraStream() {
