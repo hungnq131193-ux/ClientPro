@@ -16,9 +16,14 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadAutoBackup } = require('./helpers/load-auto-backup');
+const { loadAutoBackup, makeLockManager, makeLocalStorage } = require('./helpers/load-auto-backup');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Đếm số lần thực sự tạo file backup trong một mảng request dùng chung. */
+function countBackups(requests) {
+  return requests.filter((r) => r.action === 'backup').length;
+}
 
 test('auto backup: một lượt chạy chỉ tạo đúng một file trên Drive', async () => {
   const h = loadAutoBackup();
@@ -148,6 +153,108 @@ test('backup thủ công: không bị dedupe theo nội dung, vẫn tạo bản 
   const ok = await h.DriveBackup.performNow();
   assert.equal(ok, true, 'Backup thủ công phải chạy thành công');
   assert.equal(h.backupCallCount(), 2, 'Backup thủ công không bị chặn bởi dedupe');
+});
+
+// ---------------------------------------------------------------------------
+// ĐỒNG THỜI GIỮA CÁC NGỮ CẢNH — khóa localStorage KHÔNG làm được việc này.
+// `acquireAutoBackupClaim_()` là cặp đọc-rồi-ghi; localStorage chỉ bảo đảm từng
+// thao tác đơn lẻ đồng bộ, không có compare-and-set cho cả cặp, nên hai tab đều
+// có thể đọc thấy khóa trống trước khi bên nào kịp setItem. Loại trừ lẫn nhau
+// thật do Web Locks đảm nhiệm; các test dưới đây canh giữ đúng điểm đó.
+// ---------------------------------------------------------------------------
+
+test('hai ngữ cảnh cùng origin cùng tới hạn: Web Locks giữ cho chỉ một bản được tạo', async () => {
+  const shared = {
+    localStorage: makeLocalStorage(),
+    lockManager: makeLockManager(),
+    requests: [],
+  };
+  const tabA = loadAutoBackup(shared);
+  const tabB = loadAutoBackup(shared);
+
+  // Dựng lại ĐÚNG cửa sổ đua của khóa localStorage: tab A đã đọc thấy khóa trống
+  // và sắp ghi, tab B chen vào đọc trước khi giá trị của A kịp nằm trong store.
+  // Đây không phải bóp méo localStorage — từng thao tác vẫn đồng bộ; test chỉ chọn
+  // điểm xen kẽ mà hai ngữ cảnh thật (hai tiến trình) hoàn toàn có thể rơi vào,
+  // vì đọc-rồi-ghi không phải một phép compare-and-set nguyên tử.
+  const rawSetItem = shared.localStorage.setItem.bind(shared.localStorage);
+  let runB = null;
+  shared.localStorage.setItem = (key, value) => {
+    if (key === 'CLIENTPRO_AUTO_BACKUP_CLAIM' && !runB) {
+      // Phần chạy đồng bộ của tab B (gồm cả lần đọc khóa của nó) diễn ra ngay đây.
+      runB = tabB.DriveBackup.checkDaily();
+    }
+    rawSetItem(key, value);
+  };
+
+  // Giữ tab B lại ngay trước lệnh tải lên cho tới khi tab A cũng tới đó. Nếu để
+  // một tab chạy trọn vẹn trước, nó kịp ghi hash và lớp dấu vân tay nội dung sẽ
+  // che mất việc CẢ HAI đã lọt qua khóa — che một lỗi vẫn còn nguyên. Thứ tự này
+  // (cả hai đọc hash trước khi bên nào ghi) là thứ tự hai tiến trình thật rơi vào
+  // khi cùng tới hạn: hash chỉ là lớp phòng thủ phụ thuộc thời điểm, không phải
+  // loại trừ lẫn nhau.
+  let tabAReachedUpload;
+  const bothAtUpload = new Promise((resolve) => { tabAReachedUpload = resolve; });
+
+  const defaultFetchB = tabB.ctx.fetch;
+  tabB.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    if (body.action === 'backup') await bothAtUpload;
+    return await defaultFetchB(url, init);
+  });
+
+  const defaultFetchA = tabA.ctx.fetch;
+  tabA.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    if (body.action === 'backup') tabAReachedUpload();
+    return await defaultFetchA(url, init);
+  });
+
+  await tabA.DriveBackup.checkDaily();
+  await runB;
+
+  assert.equal(
+    countBackups(shared.requests),
+    1,
+    'Hai ngữ cảnh xen kẽ trong cửa sổ đọc-ghi vẫn chỉ được tạo một file'
+  );
+
+  // Khóa đã nhả hết: lượt sau vẫn phải chạy được (không kẹt vĩnh viễn).
+  assert.equal(shared.lockManager._held.size, 0, 'Web Lock phải được nhả sau khi xong');
+  assert.equal(
+    shared.localStorage.getItem('CLIENTPRO_AUTO_BACKUP_CLAIM'),
+    null,
+    'Khóa bền cũng phải được nhả'
+  );
+});
+
+test('Web Locks lỗi/không dùng được: vẫn sao lưu đúng một lần qua nhánh dự phòng', async () => {
+  const h = loadAutoBackup({
+    lockManager: {
+      request: async () => { throw new Error('SecurityError'); },
+    },
+  });
+
+  await h.DriveBackup.checkDaily();
+
+  assert.equal(h.backupCallCount(), 1, 'Không có Web Locks thì vẫn phải sao lưu được');
+  assert.equal(
+    h.localStorage.getItem('CLIENTPRO_AUTO_BACKUP_CLAIM'),
+    null,
+    'Nhánh dự phòng cũng phải nhả khóa bền'
+  );
+});
+
+test('backup thủ công cũng đi qua Web Locks: bị chặn khi tab khác đang giữ khóa', async () => {
+  const lockManager = makeLockManager();
+  const h = loadAutoBackup({ lockManager });
+
+  // Một ngữ cảnh khác đang giữ khóa (không phải khóa bền — khóa Web Locks).
+  lockManager._held.add('clientpro-auto-backup');
+
+  const ok = await h.DriveBackup.performNow();
+  assert.equal(ok, false, 'Không chạy song song với ngữ cảnh đang sao lưu');
+  assert.equal(h.backupCallCount(), 0);
 });
 
 test('backup thủ công: bị chặn khi một lượt auto đang giữ khóa bền', async () => {

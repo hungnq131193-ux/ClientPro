@@ -76,15 +76,46 @@ function makeFakeCustomerDb(customers) {
 }
 
 /**
+ * LockManager giả lập theo đúng ngữ nghĩa Web Locks mà module dựa vào:
+ * một tên khóa chỉ có một chủ tại một thời điểm; `ifAvailable: true` gọi callback
+ * với `null` thay vì xếp hàng. Dùng chung một instance = "cùng origin".
+ */
+function makeLockManager() {
+  const held = new Set();
+  return {
+    _held: held,
+    async request(name, opts, cb) {
+      const callback = typeof opts === 'function' ? opts : cb;
+      const ifAvailable = typeof opts === 'object' && opts && opts.ifAvailable;
+      if (held.has(name)) {
+        if (ifAvailable) return await callback(null);
+        throw new Error('Khóa đang bị giữ và test không mô phỏng chế độ xếp hàng');
+      }
+      held.add(name);
+      try {
+        return await callback({ name, mode: 'exclusive' });
+      } finally {
+        held.delete(name);
+      }
+    },
+  };
+}
+
+/**
  * Nạp 16_auto_backup_drive.js và trả về sandbox test.
  *
  * @param {object} [opts]
- * @param {Array}  [opts.customers] - bản ghi khách hàng giả lập trong IndexedDB.
- * @param {number} [opts.now]       - mốc thời gian khởi điểm cho Date.now() giả lập.
+ * @param {Array}  [opts.customers]    - bản ghi khách hàng giả lập trong IndexedDB.
+ * @param {number} [opts.now]          - mốc thời gian khởi điểm cho Date.now() giả lập.
+ * @param {object} [opts.localStorage] - dùng chung localStorage với ngữ cảnh khác
+ *                                       (mô phỏng hai tab cùng origin).
+ * @param {object} [opts.lockManager]  - `navigator.locks` dùng chung. Bỏ trống thì
+ *                                       ngữ cảnh KHÔNG có Web Locks (nhánh dự phòng).
+ * @param {Array}  [opts.requests]     - mảng ghi log request dùng chung.
  */
 function loadAutoBackup(opts) {
   const options = opts || {};
-  const localStorage = makeLocalStorage();
+  const localStorage = options.localStorage || makeLocalStorage();
   const document = makeDocument();
 
   // Đồng hồ điều khiển được: test cần tua tới/lui quanh throttle 24h & TTL khóa.
@@ -97,7 +128,7 @@ function loadAutoBackup(opts) {
   }
 
   /** Lịch sử request gửi tới GAS (để đếm số lần tạo file backup). */
-  const requests = [];
+  const requests = options.requests || [];
 
   const ctx = {
     console: { log() {}, warn() {}, error() {} },
@@ -116,6 +147,10 @@ function loadAutoBackup(opts) {
     setTimeout: (fn) => { if (typeof fn === 'function') fn(); return 0; },
     clearTimeout: () => {},
     window: {},
+    // Có lockManager = trình duyệt hỗ trợ Web Locks. Bỏ trống = nhánh dự phòng.
+    navigator: options.lockManager
+      ? { onLine: true, locks: options.lockManager }
+      : { onLine: true },
 
     // --- hằng/hàm bình thường đến từ 00_globals.js / 01_config.js ---
     USER_SCRIPT_KEY: 'app_user_script_url',
@@ -196,4 +231,4 @@ function loadAutoBackup(opts) {
   };
 }
 
-module.exports = { loadAutoBackup };
+module.exports = { loadAutoBackup, makeLockManager, makeLocalStorage };
