@@ -1,6 +1,6 @@
 // ClientPro Service Worker — offline-first cache and update lifecycle.
 // Bump version when changing static assets or cache behavior.
-const VERSION = 'v1.4.2';
+const VERSION = 'v1.4.3';
 // Cache generation identifier. Bump for every major public release.
 const CACHE_EPOCH = 'genesis';
 const STATIC_CACHE = `clientpro-${CACHE_EPOCH}-static-${VERSION}`;
@@ -20,7 +20,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'SECURITY_HARDEN_20260727';
+const ASSET_V = 'AUTOBACKUP_DEDUPE_20260728';
 const STATIC_ASSETS = [
   './',
   './index.html',

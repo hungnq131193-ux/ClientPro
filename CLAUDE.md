@@ -657,6 +657,47 @@ them safely.
   and deletes remote only after a successful restore.
 - Delete/restore must have an in-flight guard and must not use
   `location.reload()` to hide errors.
+- **Auto-backup to Drive must never create two files for one run**
+  (`16_auto_backup_drive.js`). Four layers, all required — an in-RAM flag alone
+  is not enough because it dies with the page (reload, PWA reclaimed mid-upload,
+  a second same-origin context):
+  1. The 24h throttle marker `CLIENTPRO_LAST_AUTO_BACKUP` is written **the moment
+     Drive accepts the file**, inside `uploadAutoBackupToServer`, before any
+     follow-up step. Everything after the upload (retention cleanup, cache/UI
+     refresh) is best-effort and must not throw the run away — a failure there
+     used to leave the marker unadvanced, and the next `visibilitychange` seconds
+     later produced the second file. `enforceDriveBackupRetention_()` is
+     redundant cleanup anyway: GAS `handleCreateBackup_` already calls
+     `trimBackups_(BACKUP_KEEP_LAST)`.
+  2. **Web Locks** (`withAutoBackupLock_`, lock name `clientpro-auto-backup`,
+     `ifAvailable: true`) is the only real mutual exclusion between live
+     same-origin contexts, and both entry points — the auto path and
+     `performManualBackupNow` — must go through it. `ifAvailable` (not queueing)
+     is deliberate: a queued loser would back up again the moment the winner
+     finishes. **The localStorage claim below cannot do this job**: `acquire` is
+     a read-then-write pair and `localStorage` offers no compare-and-set across
+     it, so two contexts can both read an absent claim and both upload. The claim
+     runs *inside* the Web Lock, which is what serializes its read/write pair.
+     Keep the fallback path for a missing `navigator.locks`, and keep the
+     `entered` flag that distinguishes "`locks.request` failed" from "the
+     callback threw" — without it a throwing callback falls into the fallback and
+     runs the backup a second time.
+  3. A **persistent** claim (`CLIENTPRO_AUTO_BACKUP_CLAIM`, TTL
+     `AUTO_BACKUP_CLAIM_TTL_MS` = 5 min) is held for the whole run. It covers
+     what a Web Lock cannot: a lock dies with its context, so it says nothing
+     about a run that was killed mid-flight and is now being retried by a fresh
+     page load. It must have a TTL — a killed run never reaches its `finally`.
+  4. A content fingerprint (`CLIENTPRO_LAST_DRIVE_BACKUP_HASH`) hashed over
+     `cleanCustomers` only — never over the envelope, whose `createdAt` changes
+     every run and would make the hash never match. It suppresses a re-upload of
+     an identical payload within `AUTO_BACKUP_DEDUPE_MS` (6h). That window must
+     stay shorter than `AUTO_BACKUP_INTERVAL_MS` so the daily backup still runs,
+     and it applies to the auto path only — a manual backup always creates a new
+     file. Treat this as defence in depth, not exclusion: it only helps once the
+     winning run has written the hash, so it cannot be the answer to concurrency.
+- Read the 24h throttle **before** any network call (`ensureBackupSecret()`), not
+  after: it is a `localStorage` read, and putting it after widened the gap
+  between reading and writing the marker for no benefit.
 
 ### Primary files
 `assets/12_backup_core.js`, `assets/09_backup_manager.js`,
@@ -671,7 +712,8 @@ them safely.
 Debugging backup/restore — never for docs/tour.
 
 ### Required tests when changed
-`npm test` (`tests/backup.test.js`), full e2e.
+`npm test` (`tests/backup.test.js`, `tests/auto-backup-duplicate.test.js`), full
+e2e.
 
 ### Must not affect
 Crypto schema, IndexedDB schema.
@@ -1110,7 +1152,10 @@ for CI tooling.
 
 `node --test 'tests/**/*.test.js'` (also `npm test`). Covers crypto, field
 migration, data integrity, schema, backup, KDATA cache, sealed employee id
-(`tests/employee-id-seal.test.js`), error-log redaction
+(`tests/employee-id-seal.test.js`), auto-backup duplicate prevention
+(`tests/auto-backup-duplicate.test.js`, which runs the real
+`16_auto_backup_drive.js` in a sandbox via `tests/helpers/load-auto-backup.js`),
+error-log redaction
 (`tests/error-detail.test.js`), session/key-generation races
 (`tests/key-generation-race.test.js`, `tests/session-generation-hardening.test.js`,
 `tests/master-key-install-race.test.js` — the last one drives the real

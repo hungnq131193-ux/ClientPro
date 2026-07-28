@@ -18,8 +18,20 @@
     const LAST_AUTO_BACKUP_KEY = 'CLIENTPRO_LAST_AUTO_BACKUP';
     const AUTO_BACKUP_ENABLED_KEY = 'CLIENTPRO_AUTO_BACKUP_ENABLED';
     const DRIVE_BACKUPS_CACHE_KEY = 'CLIENTPRO_DRIVE_BACKUPS_CACHE';
+    // Khóa bền của một lượt sao lưu đang chạy + hash payload đã tải lên gần nhất.
+    // Hai khóa này chống trùng ở tầng mà cờ RAM không với tới được (xem §AUTO BACKUP CHECK).
+    const AUTO_BACKUP_CLAIM_KEY = 'CLIENTPRO_AUTO_BACKUP_CLAIM';
+    const LAST_UPLOAD_HASH_KEY = 'CLIENTPRO_LAST_DRIVE_BACKUP_HASH';
+    // Tên khóa Web Locks — loại trừ lẫn nhau THẬT giữa các ngữ cảnh cùng origin.
+    const AUTO_BACKUP_LOCK_NAME = 'clientpro-auto-backup';
     const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes cache
     const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+    // Trần thời gian một lượt sao lưu được giữ khóa. Lượt bị giết giữa chừng (tab
+    // bị đóng băng/thu hồi) không chạy được finally nên khóa phải tự hết hạn.
+    const AUTO_BACKUP_CLAIM_TTL_MS = 5 * 60 * 1000;
+    // Cửa sổ chống trùng theo nội dung cho ĐƯỜNG AUTO: cùng payload trong khoảng
+    // này thì không tải lên lần nữa (backup thủ công không bị chặn).
+    const AUTO_BACKUP_DEDUPE_MS = 6 * 60 * 60 * 1000;
     const MAX_DRIVE_BACKUPS = 3;
     let manualBackupInProgress = false;
     // In-flight guard cho đường auto: chặn hai lần kiểm tra chạy chồng nhau
@@ -71,6 +83,119 @@
         localStorage.setItem(LAST_AUTO_BACKUP_KEY, String(ts || Date.now()));
     }
 
+    // ------------------------------------------------------------
+    // CHỐNG TẠO TRÙNG BẢN SAO LƯU — hai cơ chế cho hai mối nguy KHÁC NHAU
+    //
+    // `autoBackupCheckInProgress`/`manualBackupInProgress` là biến RAM: chúng chết
+    // theo tab. Hai tình huống lọt qua chúng, và mỗi tình huống cần một công cụ riêng:
+    //
+    // (a) TUẦN TỰ — reload, hoặc PWA bị hệ điều hành đóng băng/thu hồi giữa lúc tải
+    //     lên rồi mở lại. Ngữ cảnh cũ đã chết hẳn. Cần một dấu vết SỐNG SÓT QUA LẦN
+    //     TẢI TRANG: khóa bền `AUTO_BACKUP_CLAIM_KEY` trong localStorage, có TTL vì
+    //     lượt bị giết không bao giờ chạy được `finally` để nhả.
+    //
+    // (b) ĐỒNG THỜI — hai tab / hai ngữ cảnh cùng origin cùng sống và cùng tới hạn.
+    //     Khóa localStorage KHÔNG giải quyết được việc này: `acquireAutoBackupClaim_()`
+    //     là cặp đọc-rồi-ghi, mà localStorage chỉ bảo đảm từng thao tác đơn lẻ là đồng
+    //     bộ — không có compare-and-set cho cả cặp. Hai ngữ cảnh đều có thể đọc thấy
+    //     khóa trống trước khi bên nào kịp `setItem`, rồi cả hai cùng tải lên. Việc
+    //     loại trừ lẫn nhau THẬT phải do Web Locks API đảm nhiệm (`withAutoBackupLock_`);
+    //     khóa bền chạy BÊN TRONG Web Lock nên cặp đọc-ghi của nó được tuần tự hóa.
+    // ------------------------------------------------------------
+    function isAutoBackupClaimed_() {
+        let ts = 0;
+        try { ts = parseInt(localStorage.getItem(AUTO_BACKUP_CLAIM_KEY) || '', 10); } catch (e) { }
+        if (!Number.isFinite(ts) || ts <= 0) return false;
+        const age = Date.now() - ts;
+        if (age >= 0 && age < AUTO_BACKUP_CLAIM_TTL_MS) return true;
+        // Quá hạn (hoặc đồng hồ máy nhảy lùi): dọn để không khóa vĩnh viễn.
+        releaseAutoBackupClaim_();
+        return false;
+    }
+
+    function acquireAutoBackupClaim_() {
+        if (isAutoBackupClaimed_()) return false;
+        try { localStorage.setItem(AUTO_BACKUP_CLAIM_KEY, String(Date.now())); } catch (e) { }
+        return true;
+    }
+
+    function releaseAutoBackupClaim_() {
+        try { localStorage.removeItem(AUTO_BACKUP_CLAIM_KEY); } catch (e) { }
+    }
+
+    function readLastUploadHash_() {
+        try {
+            const obj = JSON.parse(localStorage.getItem(LAST_UPLOAD_HASH_KEY) || 'null');
+            if (!obj || typeof obj.hash !== 'string' || !obj.hash) return null;
+            const ts = Number(obj.ts);
+            return { hash: obj.hash, ts: Number.isFinite(ts) ? ts : 0 };
+        } catch (e) { return null; }
+    }
+
+    function writeLastUploadHash_(hash) {
+        if (!hash) return;
+        try {
+            localStorage.setItem(LAST_UPLOAD_HASH_KEY, JSON.stringify({ hash: hash, ts: Date.now() }));
+        } catch (e) { }
+    }
+
+    /**
+     * Giá trị trả về khi KHÔNG giành được quyền chạy (ngữ cảnh khác đang sao lưu).
+     * Là object riêng nên không trùng với bất kỳ giá trị nào fn() có thể trả về.
+     */
+    const AUTO_BACKUP_BUSY = { busy: true };
+
+    /** Chạy fn() dưới khóa bền localStorage. Trả AUTO_BACKUP_BUSY nếu khóa đang bị giữ. */
+    async function _runWithPersistentClaim_(fn) {
+        if (!acquireAutoBackupClaim_()) return AUTO_BACKUP_BUSY;
+        try {
+            return await fn();
+        } finally {
+            releaseAutoBackupClaim_();
+        }
+    }
+
+    /**
+     * Chạy fn() dưới khóa loại trừ THẬT giữa các ngữ cảnh cùng origin.
+     *
+     * Web Locks (`navigator.locks`) là thứ duy nhất ở đây cho loại trừ nguyên tử: hai
+     * tab cùng xin một tên khóa thì chỉ một tab vào được callback. `ifAvailable: true`
+     * để tab thua CHẠY TIẾP NGAY với `lock === null` (bỏ qua lượt này) thay vì xếp
+     * hàng — xếp hàng chỉ khiến nó sao lưu lần nữa ngay sau khi tab kia xong.
+     * Trình duyệt tự nhả khóa khi ngữ cảnh giữ nó chết, nên khóa không kẹt.
+     *
+     * Khóa bền localStorage chạy LỒNG BÊN TRONG: nó lo tình huống (a) tuần tự — Web
+     * Lock biến mất cùng ngữ cảnh nên không nói được gì về một lượt đã bị giết.
+     *
+     * @returns {Promise<*>} giá trị fn() trả về, hoặc AUTO_BACKUP_BUSY nếu bị bỏ qua.
+     */
+    async function withAutoBackupLock_(fn) {
+        const locks = (typeof navigator !== 'undefined' && navigator && navigator.locks) || null;
+        if (!locks || typeof locks.request !== 'function') {
+            // Không có Web Locks (trình duyệt cũ / ngữ cảnh không bảo mật): vẫn phải
+            // chạy được, lùi về khóa bền — chống (a), không chống được (b).
+            return await _runWithPersistentClaim_(fn);
+        }
+
+        // `entered` phân biệt "locks.request lỗi" với "fn() ném lỗi". Thiếu nó, một
+        // lỗi từ fn() sẽ rơi xuống nhánh dự phòng và CHẠY LẠI fn() — đúng cái lỗi
+        // tạo bản sao lưu thứ hai mà cả thay đổi này đang chống.
+        let entered = false;
+        let out = AUTO_BACKUP_BUSY;
+        try {
+            await locks.request(AUTO_BACKUP_LOCK_NAME, { ifAvailable: true }, async (lock) => {
+                if (!lock) return;   // ngữ cảnh khác đang sao lưu -> bỏ qua lượt này
+                entered = true;
+                out = await _runWithPersistentClaim_(fn);
+            });
+        } catch (err) {
+            if (entered) throw err;
+            console.warn('[AutoBackup] Web Locks unavailable, falling back:', err && err.message ? err.message : err);
+            return await _runWithPersistentClaim_(fn);
+        }
+        return out;
+    }
+
     function setDriveBackupStatus(message, tone) {
         const el = document.getElementById('drive-backup-status');
         if (!el) return;
@@ -94,23 +219,37 @@
         // Không chạy đồng thời với auto-backup check (tránh tạo backup Drive trùng).
         if (autoBackupCheckInProgress) return false;
         manualBackupInProgress = true;
-        setManualBackupButtonLoading(true);
-        setDriveBackupStatus('Đã nhận lệnh. Đang xác thực và đóng gói bản sao lưu…', 'working');
-        try { if (window.ErrorHandler) ErrorHandler.showInfo('Đang sao lưu lên Drive…'); } catch (e) { }
         try {
-            await performAutoBackup();
-            setDriveBackupStatus('Sao lưu thành công. Danh sách đang được cập nhật.', 'success');
-            try { if (window.ErrorHandler) ErrorHandler.showSuccess('Đã sao lưu lên Drive'); } catch (e) { }
-            await renderDriveBackupsList('drive-backup-list');
-            return true;
-        } catch (err) {
-            const msg = err && err.message ? err.message : 'Sao lưu lên Drive thất bại';
-            setDriveBackupStatus(msg, 'error');
-            try { if (window.ErrorHandler) ErrorHandler.showError('BACKUP', msg, err); } catch (e) { }
-            return false;
+            // Cùng khóa với đường auto: chặn cả lượt đang chạy ở tab khác lẫn lượt bị
+            // đóng băng chưa kịp nhả cờ RAM.
+            const result = await withAutoBackupLock_(async () => {
+                setManualBackupButtonLoading(true);
+                setDriveBackupStatus('Đã nhận lệnh. Đang xác thực và đóng gói bản sao lưu…', 'working');
+                try { if (window.ErrorHandler) ErrorHandler.showInfo('Đang sao lưu lên Drive…'); } catch (e) { }
+                try {
+                    // Không truyền dedupeWindowMs: người dùng bấm nút thì luôn tạo bản mới.
+                    await performAutoBackup();
+                    setDriveBackupStatus('Sao lưu thành công. Danh sách đang được cập nhật.', 'success');
+                    try { if (window.ErrorHandler) ErrorHandler.showSuccess('Đã sao lưu lên Drive'); } catch (e) { }
+                    await renderDriveBackupsList('drive-backup-list');
+                    return true;
+                } catch (err) {
+                    const msg = err && err.message ? err.message : 'Sao lưu lên Drive thất bại';
+                    setDriveBackupStatus(msg, 'error');
+                    try { if (window.ErrorHandler) ErrorHandler.showError('BACKUP', msg, err); } catch (e) { }
+                    return false;
+                } finally {
+                    setManualBackupButtonLoading(false);
+                }
+            });
+
+            if (result === AUTO_BACKUP_BUSY) {
+                setDriveBackupStatus('Một bản sao lưu khác đang chạy. Vui lòng đợi rồi thử lại.', 'working');
+                return false;
+            }
+            return result === true;
         } finally {
             manualBackupInProgress = false;
-            setManualBackupButtonLoading(false);
         }
     }
 
@@ -152,31 +291,44 @@
             console.warn('[AutoBackup] Skip: missing masterKey.');
             return;
         }
-        if (typeof ensureBackupSecret !== 'function') {
-            console.warn('[AutoBackup] Skip: missing ensureBackupSecret.');
-            return;
-        }
-        const sec = await ensureBackupSecret();
-        if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
-            console.warn('[AutoBackup] Skip: backup secret is unavailable.', sec && sec.message ? sec.message : '');
-            return;
-        }
 
-        // Check last backup time
+        // Throttle 24h đọc TRƯỚC mọi lệnh gọi mạng. Trước đây ensureBackupSecret()
+        // (vài giây, có thể phải hỏi Admin GAS) chạy trước khi đọc mốc, làm cửa sổ
+        // giữa "đọc mốc" và "ghi mốc" rộng ra vô ích — và mỗi lần app quay lại
+        // foreground lại tốn một request dù chưa tới hạn sao lưu.
         const lastBackup = getLastAutoBackupTime();
-        const now = Date.now();
-        const elapsed = now - lastBackup;
+        if (Date.now() - lastBackup < AUTO_BACKUP_INTERVAL_MS) return;
 
-        if (elapsed < AUTO_BACKUP_INTERVAL_MS) return;
+        // Giữ khóa cho cả lượt: cờ RAM ở trên chỉ chặn được các lời gọi trong cùng
+        // một lần tải trang, không chặn được tab thứ hai hay lượt sau reload.
+        const result = await withAutoBackupLock_(async () => {
+            try {
+                if (typeof ensureBackupSecret !== 'function') {
+                    console.warn('[AutoBackup] Skip: missing ensureBackupSecret.');
+                    return;
+                }
+                const sec = await ensureBackupSecret();
+                if (!sec || !sec.ok || !APP_BACKUP_KDATA_B64U) {
+                    console.warn('[AutoBackup] Skip: backup secret is unavailable.', sec && sec.message ? sec.message : '');
+                    return;
+                }
+                await performAutoBackup({ dedupeWindowMs: AUTO_BACKUP_DEDUPE_MS });
+            } catch (err) {
+                console.warn('[AutoBackup] Daily backup failed:', err && err.message ? err.message : err);
+            }
+        });
 
-        try {
-            await performAutoBackup();
-        } catch (err) {
-            console.warn('[AutoBackup] Daily backup failed:', err && err.message ? err.message : err);
+        if (result === AUTO_BACKUP_BUSY) {
+            console.warn('[AutoBackup] Skip: another context is already running a backup.');
         }
     }
 
-    async function performAutoBackup() {
+    /**
+     * @param {{dedupeWindowMs?: number}} [opts] dedupeWindowMs > 0 (chỉ đường auto):
+     *   bỏ qua tải lên nếu payload y hệt lần tải lên gần nhất trong cửa sổ đó.
+     */
+    async function performAutoBackup(opts) {
+        const options = opts || {};
         try {
             if ((typeof isAppUnlocked === 'function' && !isAppUnlocked()) || typeof masterKey === 'undefined' || !masterKey) {
                 try { if (window.ErrorHandler) ErrorHandler.showWarning('Vui lòng mở khóa dữ liệu trước khi sao lưu.'); } catch (e) { }
@@ -228,6 +380,26 @@
                 customers.map((c) => BackupCore.normalizeCustomerForExport(c))
             );
 
+            // Chống trùng theo NỘI DUNG (đường auto). Một lượt bị cắt ngang sau khi
+            // file đã nằm trên Drive sẽ chạy lại với payload y hệt và tạo bản thứ
+            // hai; hash chặn đúng trường hợp đó. Cùng cơ chế "anti-spam backup" đã
+            // dùng cho backup trong máy (LAST_BACKUP_HASH_KEY, 09_backup_manager.js).
+            // Hash tính TRÊN DỮ LIỆU KHÁCH HÀNG, không gồm `createdAt` của phong bì —
+            // mốc đó đổi theo từng lượt nên sẽ làm hash không bao giờ khớp.
+            const dedupeWindowMs = Number(options.dedupeWindowMs) || 0;
+            const payloadHash = (typeof hashString === 'function')
+                ? await hashString(JSON.stringify(cleanCustomers))
+                : '';
+            if (payloadHash && dedupeWindowMs > 0) {
+                const last = readLastUploadHash_();
+                if (last && last.hash === payloadHash && (Date.now() - last.ts) < dedupeWindowMs) {
+                    // Dữ liệu chưa đổi kể từ bản gần nhất: nhích mốc 24h rồi dừng,
+                    // không tạo thêm file trùng trên Drive.
+                    setLastAutoBackupTime(Date.now());
+                    return;
+                }
+            }
+
             const dataToExport = {
                 v: 1.1,
                 customers: cleanCustomers,
@@ -246,11 +418,9 @@
 
             const encrypted = await encryptBackupPayload(rawStr, APP_BACKUP_KDATA_B64U, { type: 'auto_backup' });
 
-            // Upload to admin GAS
-            await uploadAutoBackupToServer(encrypted);
-
-            // Mark backup time
-            setLastAutoBackupTime(Date.now());
+            // Upload to admin GAS. Mốc 24h + hash được ghi NGAY khi Drive nhận file
+            // (bên trong uploadAutoBackupToServer), không đợi bước dọn retention.
+            await uploadAutoBackupToServer(encrypted, payloadHash);
 
         } catch (err) {
             ErrorHandler.logError('[AutoBackup] Error', err);
@@ -258,7 +428,7 @@
         }
     }
 
-    async function uploadAutoBackupToServer(encryptedContent) {
+    async function uploadAutoBackupToServer(encryptedContent, payloadHash) {
         const serverUrl = getUserScriptUrl();
         const emp = getEmployeeId();
         const dev = getDeviceIdSafe();
@@ -283,6 +453,14 @@
             throw new Error(result.message || 'Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
         }
 
+        // Drive đã nhận file -> chốt mốc 24h và hash NGAY, trước mọi bước phụ.
+        // Trước đây mốc chỉ được ghi sau khi enforceDriveBackupRetention_() chạy
+        // xong; retention gọi mạng nên chỉ cần nó lỗi (mất sóng, GAS bận) là cả lượt
+        // ném lỗi, mốc 24h không nhích, và lần kiểm tra kế tiếp (visibilitychange
+        // vài giây sau) tạo tiếp bản thứ hai cho cùng một ngày.
+        setLastAutoBackupTime(Date.now());
+        writeLastUploadHash_(payloadHash);
+
         // Optimistic UI: add to cache immediately
         if (result.fileId && result.filename) {
             const cached = readBackupsCache_();
@@ -301,7 +479,14 @@
         }
 
         // Keep retention policy in sync with Drive: only keep latest 3 backups.
-        await enforceDriveBackupRetention_();
+        // Best-effort: GAS đã tự trimBackups_(BACKUP_KEEP_LAST) ngay khi tạo file,
+        // nên đây chỉ là đồng bộ danh sách hiển thị. Lỗi ở đây KHÔNG được biến một
+        // lần sao lưu đã thành công thành thất bại (xem ghi chú mốc 24h ở trên).
+        try {
+            await enforceDriveBackupRetention_();
+        } catch (err) {
+            console.warn('[AutoBackup] Retention cleanup failed:', err && err.message ? err.message : err);
+        }
 
         return result;
     }
