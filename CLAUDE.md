@@ -793,8 +793,12 @@ them safely.
  path; an unknown message is never proof that no file was created. The
  upload filename is passed through `_sanitizeBackupFilename_` (same rules
  as `handleCreateBackup_`: strip path/control chars, force `.cpb`) *before*
- the request and before the probe match, so an employee id containing `/`
- or `\` cannot make the probe miss a file that GAS already renamed.
+ the request and before the probe match. It is built only from the already
+ persisted opaque device id plus a timestamp; **never include
+ `getEmployeeId()`**, because the write-ahead journal must persist this filename
+ in `localStorage` while the employee id is a master-key recovery secret that
+ otherwise remains sealed/RAM-only. A legacy device id containing `/` or `\`
+ still cannot make the probe miss a file that GAS renamed.
   2. **Web Locks** (`withAutoBackupLock_`, lock name `clientpro-auto-backup`,
      `ifAvailable: true`) is the only real mutual exclusion between live
      same-origin contexts, and both entry points — the auto path and

@@ -367,6 +367,8 @@ test('auto backup Drive: upload không rõ kết quả phải dò xác nhận tr
   const fetchIdx = up.indexOf('fetch(');
   assert.ok(pendingIdx >= 0 && fetchIdx > pendingIdx,
     'uploadAutoBackupToServer: phải journal pending TRƯỚC khi request backup rời client');
+  assert.ok(!/getEmployeeId\s*\(/.test(up),
+    'uploadAutoBackupToServer: filename lưu trong localStorage không được chứa mã nhân viên (bí mật khôi phục master key)');
   const perf = fnBody(src, 'performAutoBackup');
   assert.ok(/last\.confirmed/.test(perf) && /_probeUploadedBackupWithRetry_/.test(perf),
     'performAutoBackup: pending chưa xác nhận phải dò lại filename, không nhích mốc 24h ngay');

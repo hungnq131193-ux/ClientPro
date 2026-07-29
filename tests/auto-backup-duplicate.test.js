@@ -175,6 +175,32 @@ test('auto backup: phải ghi pending TRƯỚC khi gửi để PWA bị thu hồ
   );
 });
 
+test('auto backup: pending journal không được chứa mã nhân viên dùng khôi phục master key', async () => {
+  const h = loadAutoBackup();
+  const employeeSecret = 'MASTER-RECOVERY-SECRET-42';
+  h.ctx.getEmployeeId = () => employeeSecret;
+  h.ctx.getDeviceIdSafe = () => 'DEVICE/LEGACY\\1';
+
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'backup') throw new Error('network dropped');
+    if (body.action === 'list_backups') throw new Error('still offline');
+    return makeGasResponse({ status: 'success' });
+  });
+
+  await h.DriveBackup.checkDaily();
+
+  const sent = h.requests.find((r) => r.action === 'backup');
+  const pendingRaw = h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH') || '';
+  const pending = JSON.parse(pendingRaw || 'null');
+  assert.ok(sent && pending && pending.confirmed === false);
+  assert.equal(pending.filename, sent.filename, 'Journal phải giữ đúng opaque filename đã gửi');
+  assert.ok(!sent.filename.includes(employeeSecret), 'Request filename không được lộ mã nhân viên');
+  assert.ok(!pendingRaw.includes(employeeSecret), 'localStorage journal không được lộ mã nhân viên');
+  assert.ok(sent.filename.includes('DEVICE_LEGACY_1'), 'Vẫn giữ device id đã sanitize để phân biệt nguồn backup');
+});
+
 test('auto backup: mất mốc 24h vẫn không tạo bản trùng nhờ dấu vân tay nội dung', async () => {
   const h = loadAutoBackup();
 
@@ -837,12 +863,13 @@ test('auto backup: status error lạ + probe chưa thấy file -> giữ PENDING 
   assert.ok(h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'));
 });
 
-test('auto backup: mã NV chứa / hoặc \\ -> tên file đã sanitize khớp probe (không kết luận nhầm "chưa có")', async () => {
+test('auto backup: device ID chứa / hoặc \\ -> tên file opaque đã sanitize khớp probe', async () => {
   // Codex P2: handleCreateBackup_ thay '/' '\' bằng '_' trước khi tạo file.
   // Nếu client gửi tên thô rồi probe khớp đúng-tên thô, sẽ không bao giờ thấy
   // file đã sanitize trên Drive -> kết luận vắng mặt -> lần sau tạo trùng.
   const h = loadAutoBackup();
-  h.ctx.getEmployeeId = () => 'NV/001\\X';
+  h.ctx.getEmployeeId = () => 'MASTER-RECOVERY-SECRET-42';
+  h.ctx.getDeviceIdSafe = () => 'DEVICE/TEST\\1';
 
   // Mô phỏng đúng luật GAS: lưu file dưới tên ĐÃ sanitize; response upload mất.
   const gasSanitize = (name) => {
@@ -880,8 +907,10 @@ test('auto backup: mã NV chứa / hoặc \\ -> tên file đã sanitize khớp p
 
   assert.equal(h.backupCallCount(), 1);
   const sent = h.requests.find((r) => r.action === 'backup');
-  assert.ok(sent && sent.filename.includes('NV_001_X'),
-    'Tên gửi đi phải đã thay / và \\ bằng _ (got: ' + (sent && sent.filename) + ')');
+  assert.ok(sent && sent.filename.includes('DEVICE_TEST_1'),
+    'Tên gửi đi phải giữ device id đã thay / và \\ bằng _ (got: ' + (sent && sent.filename) + ')');
+  assert.ok(!sent.filename.includes('MASTER-RECOVERY-SECRET-42'),
+    'Tên opaque không được chứa mã nhân viên dùng khôi phục master key');
   assert.ok(
     h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'),
     'Probe khớp tên đã sanitize phải thấy file và chốt mốc 24h'
@@ -889,7 +918,7 @@ test('auto backup: mã NV chứa / hoặc \\ -> tên file đã sanitize khớp p
 
   h.advance(30 * 1000);
   await h.DriveBackup.checkDaily();
-  assert.equal(h.backupCallCount(), 1, 'Không tạo bản trùng vì mã NV có ký tự đường dẫn');
+  assert.equal(h.backupCallCount(), 1, 'Không tạo bản trùng vì device ID có ký tự đường dẫn');
 });
 
 test('auto backup: server từ chối rõ ràng (REJECTED pre-write) -> không dò probe, không chốt mốc, lần sau thử lại', async () => {

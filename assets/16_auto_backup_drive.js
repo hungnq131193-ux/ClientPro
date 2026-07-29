@@ -627,11 +627,14 @@
 
     async function uploadAutoBackupToServer(encryptedContent, payloadHash) {
         const serverUrl = getUserScriptUrl();
-        const emp = getEmployeeId();
         const dev = getDeviceIdSafe();
+        // Mã nhân viên là bí mật khôi phục master key và bình thường chỉ tồn tại
+        // plaintext trong RAM sau unlock. Không đưa nó vào filename: write-ahead
+        // journal phải lưu filename ở localStorage để re-probe sau context death.
+        // Device ID vốn đã là định danh opaque được lưu cục bộ, đủ phân biệt nguồn.
         // Chuẩn hoá theo đúng luật server TRƯỚC khi gửi: tên gửi == tên GAS lưu
-        // == tên probe khớp, kể cả khi mã NV/mã máy chứa ký tự đường dẫn.
-        const filename = _sanitizeBackupFilename_(`BACKUP_${emp}_${dev}_${Date.now()}.cpb`);
+        // == tên probe khớp, kể cả khi device ID legacy chứa ký tự đường dẫn.
+        const filename = _sanitizeBackupFilename_(`BACKUP_${dev}_${Date.now()}.cpb`);
 
         const payload = {
             action: 'backup',
