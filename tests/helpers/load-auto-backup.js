@@ -76,6 +76,18 @@ function makeFakeCustomerDb(customers) {
 }
 
 /**
+ * Response giả lập đủ hai cửa đọc body như Response thật: module đọc `text()`
+ * rồi tự JSON.parse trong try (KHÔNG response.json() trần) — cùng pattern
+ * `_postDriveUpload` của 07_drive.js.
+ */
+function makeGasResponse(payload) {
+  return {
+    text: async () => JSON.stringify(payload),
+    json: async () => payload,
+  };
+}
+
+/**
  * LockManager giả lập theo đúng ngữ nghĩa Web Locks mà module dựa vào:
  * một tên khóa chỉ có một chủ tại một thời điểm; `ifAvailable: true` gọi callback
  * với `null` thay vì xếp hàng. Dùng chung một instance = "cùng origin".
@@ -189,19 +201,17 @@ function loadAutoBackup(opts) {
     const body = JSON.parse((init && init.body) || '{}');
     requests.push(body);
     if (body.action === 'backup') {
-      return {
-        json: async () => ({
-          status: 'success',
-          fileId: 'file_' + requests.length,
-          filename: body.filename,
-          createdAt: new FakeDate().toISOString(),
-        }),
-      };
+      return makeGasResponse({
+        status: 'success',
+        fileId: 'file_' + requests.length,
+        filename: body.filename,
+        createdAt: new FakeDate().toISOString(),
+      });
     }
     if (body.action === 'list_backups') {
-      return { json: async () => ({ status: 'success', backups: [] }) };
+      return makeGasResponse({ status: 'success', backups: [] });
     }
-    return { json: async () => ({ status: 'success' }) };
+    return makeGasResponse({ status: 'success' });
   };
 
   ctx.globalThis = ctx;
@@ -231,4 +241,4 @@ function loadAutoBackup(opts) {
   };
 }
 
-module.exports = { loadAutoBackup, makeLockManager, makeLocalStorage };
+module.exports = { loadAutoBackup, makeLockManager, makeLocalStorage, makeGasResponse };

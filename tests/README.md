@@ -41,7 +41,7 @@ Yêu cầu Node.js >= 22 (khớp `engines` trong `package.json`; CI dùng `.nvmr
 | `pdf-toolkit-utils.test.js` | Hàm thuần của PDF Toolkit (`pdf_toolkit_utils.js`): limits, parse range, tên file, chia trang. |
 | `dvhc-utils.test.js` | Hàm thuần của tool Tra cứu ĐVHC + toàn vẹn dữ liệu `assets/data/dvhc/dvhc.v1.json` (gồm chống dòng trùng). |
 | `auth-gate-strikes.test.js` | Bộ đếm strike của auth gate: `skipped` không được reset, ngưỡng 2 strike sống sót qua khởi động lại. |
-| `auto-backup-duplicate.test.js` | Sao lưu Drive tự động không tạo hai file cho một lượt (throttle, Web Locks, claim bền, fingerprint) — chạy `16_auto_backup_drive.js` thật. |
+| `auto-backup-duplicate.test.js` | Sao lưu Drive tự động không tạo hai file cho một lượt (throttle, Web Locks, claim bền, fingerprint, phán quyết OK/REJECTED/UNCONFIRMED + dò xác nhận list_backups CÓ THỬ LẠI theo lịch trễ khi response upload bị mất — "chưa có" chỉ tin ở lần dò cuối) — chạy `16_auto_backup_drive.js` thật. |
 | `employee-id-seal.test.js` | Mã nhân viên (bí mật khôi phục) được niêm phong sau lần mở khóa đầu, plaintext bị xóa. |
 | `error-detail.test.js` | `ErrorHandler` che khóa nhạy cảm và cắt chuỗi dài trước khi ghi `app_error_log`. |
 | `image-migration-autolock.test.js` | `runImageCryptoMigrationIfNeeded` fail-closed khi mất masterKey giữa chừng; marker không được set. |

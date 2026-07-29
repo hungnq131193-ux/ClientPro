@@ -326,6 +326,89 @@ test('drive: upload ảnh KHÔNG được coi lỗi mạng/parse là "thất b�
     'renderDriveStatus: chú thích hoàn tất phải phụ thuộc cờ unconfirmed');
 });
 
+test('auto backup Drive: upload không rõ kết quả phải dò xác nhận trước khi kết luận (chống "1 lúc 3 file")', () => {
+  // GAS handleCreateBackup_ tạo file TRƯỚC khi response về tới máy: coi mọi
+  // response mất/HTML là "thất bại" thì mốc 24h + hash không được ghi và mỗi lần
+  // unlock/visibilitychange tải lên một file mới. Hành vi đầy đủ có test riêng
+  // (tests/auto-backup-duplicate.test.js); đây là tripwire cấu trúc.
+  const src = read('assets/16_auto_backup_drive.js');
+
+  const up = fnBody(src, 'uploadAutoBackupToServer');
+  assert.ok(/response\.text\s*\(/.test(up) && /JSON\.parse\s*\(/.test(up),
+    'uploadAutoBackupToServer: phải đọc body bằng text() rồi JSON.parse trong try (phân biệt lỗi parse với lỗi server)');
+  assert.ok(!/response\.json\s*\(/.test(up),
+    'uploadAutoBackupToServer: response.json() trần biến upload-thành-công-nhưng-mất-response thành thất-bại -> sinh bản trùng');
+
+  // UNCONFIRMED phải dò xác nhận bằng probe CÓ THỬ LẠI trước khi chốt mốc 24h.
+  const probeIdx = up.indexOf('_probeUploadedBackupWithRetry_');
+  const markerIdx = up.indexOf('setLastAutoBackupTime');
+  assert.ok(probeIdx >= 0 && markerIdx > probeIdx,
+    'uploadAutoBackupToServer: phải dò xác nhận file đã lên Drive chưa (probe) trước khi kết luận');
+  assert.ok(!/_probeUploadedBackupByName_/.test(up),
+    'uploadAutoBackupToServer: không gọi probe một-lần trực tiếp — "chưa có" ở lần dò đầu chưa phải kết luận');
+
+  // REJECTED chỉ dành cho verdict phát TRƯỚC khi GAS tạo file. Catch tổng của
+  // handleRequest_ ('Loi Server...') có thể phát SAU folder.createFile
+  // (trimBackups_ ném lỗi) — coi nó là REJECTED sẽ bỏ probe và tạo bản trùng
+  // ở lần kiểm tra kế tiếp.
+  const rejectGateIdx = up.indexOf('_isPreWriteReject_');
+  assert.ok(rejectGateIdx >= 0 && rejectGateIdx < probeIdx,
+    'uploadAutoBackupToServer: nhánh REJECTED phải được chặn bằng danh sách message pre-write đã biết');
+  const rejectList = src.match(/PRE_WRITE_REJECT_MESSAGES\s*=\s*\[([\s\S]*?)\]/);
+  assert.ok(rejectList, 'Thiếu danh sách PRE_WRITE_REJECT_MESSAGES');
+  assert.ok(!/Loi Server/.test(rejectList[1]),
+    'Message catch tổng của GAS có thể phát SAU khi file đã tạo — không được nằm trong danh sách REJECTED chắc chắn');
+
+  // Write-ahead journal phải có TRƯỚC fetch: page có thể chết giữa request và
+  // không bao giờ chạy catch/finally; ghi pending sau lỗi là quá muộn.
+  assert.ok(/confirmed:\s*false/.test(up) && /filename:\s*filename/.test(up),
+    'uploadAutoBackupToServer: phải ghi pending confirmed:false + filename');
+  const pendingIdx = up.indexOf('writeLastUploadHash_');
+  const fetchIdx = up.indexOf('fetch(');
+  assert.ok(pendingIdx >= 0 && fetchIdx > pendingIdx,
+    'uploadAutoBackupToServer: phải journal pending TRƯỚC khi request backup rời client');
+  assert.ok(!/getEmployeeId\s*\(/.test(up),
+    'uploadAutoBackupToServer: filename lưu trong localStorage không được chứa mã nhân viên (bí mật khôi phục master key)');
+  const perf = fnBody(src, 'performAutoBackup');
+  assert.ok(/last\.confirmed/.test(perf) && /_probeUploadedBackupWithRetry_/.test(perf),
+    'performAutoBackup: pending chưa xác nhận phải dò lại filename, không nhích mốc 24h ngay');
+  assert.ok(/if\s*\(\s*dedupeWindowMs\s*>\s*0\s*\)\s*return/.test(perf),
+    'performAutoBackup: reconcile pending cùng hash chỉ được return ở đường auto; manual phải tiếp tục tạo bản mới');
+  assert.ok(/AUTO_BACKUP_PENDING_SETTLE_MS/.test(src) && /isPendingUploadSettled_/.test(perf),
+    'performAutoBackup: snapshot rỗng chỉ được xoá pending sau cửa sổ settle có giới hạn');
+  assert.ok(/!pendingProbe\.answered\s*\|\|\s*!isPendingUploadSettled_\(last\)/.test(perf),
+    'performAutoBackup: mất mạng hoặc snapshot rỗng trước deadline phải giữ pending');
+
+  const probe = fnBody(src, '_probeUploadedBackupByName_');
+  assert.ok(/list_backups/.test(probe) && /\.filename\s*===\s*filename/.test(probe),
+    '_probeUploadedBackupByName_: phải hỏi list_backups và khớp ĐÚNG tên file vừa gửi (tên duy nhất mỗi lần thử)');
+
+  // list_backups KHÔNG giữ script lock GAS (WRITE_ACTIONS_USER_) nên có thể trả
+  // "chưa có" trong khi handleCreateBackup_ của execution gốc còn đang chạy —
+  // probe phải thử lại theo lịch trễ; lần dò cuối vẫn chỉ là snapshot và caller
+  // phải giữ pending cho tới deadline settle.
+  const retry = fnBody(src, '_probeUploadedBackupWithRetry_');
+  assert.ok(/_probeUploadedBackupByName_/.test(retry) && /UPLOAD_PROBE_RETRY_DELAYS_MS/.test(retry),
+    '_probeUploadedBackupWithRetry_: phải lặp qua lịch trễ và gọi probe một-lần bên trong');
+  assert.ok(/last\.answered\s*&&\s*last\.result/.test(retry),
+    '_probeUploadedBackupWithRetry_: thấy file thì trả thành công ngay; vắng mặt trả về caller để áp deadline settle');
+
+  // Tên file gửi đi phải qua cùng luật sanitize với handleCreateBackup_ (GAS):
+  // mã NV có thể chứa '/' '\' — nếu không chuẩn hoá trước khi gửi, probe khớp
+  // đúng-tên sẽ không thấy file GAS đã lưu dưới tên đã sanitize.
+  assert.ok(/_sanitizeBackupFilename_/.test(up),
+    'uploadAutoBackupToServer: phải chuẩn hoá tên file trước khi gửi và trước khi probe');
+  const sanitize = fnBody(src, '_sanitizeBackupFilename_');
+  assert.ok(/replace\s*\(/.test(sanitize) && /'_'/.test(sanitize) && /\.cpb/.test(sanitize),
+    '_sanitizeBackupFilename_: phải thay ký tự đường dẫn/điều khiển và ép đuôi .cpb giống GAS');
+  // Cùng character-class với gas/UserDriveAPI.gs handleCreateBackup_ — lệch luật
+  // là nguồn probe miss và sinh bản trùng.
+  const gas = read('gas/UserDriveAPI.gs');
+  const classRe = /\[\\\/\\\\\\r\\n\\t\\x00-\\x1F\]/;
+  assert.ok(classRe.test(sanitize) && classRe.test(gas),
+    '_sanitizeBackupFilename_ phải dùng đúng character-class của handleCreateBackup_ ([\\/\\\\\\r\\n\\t\\x00-\\x1F])');
+});
+
 test('nhóm ổn định B #7: saveImageToDB — transaction lưu ảnh đủ oncomplete/onerror/onabort', () => {
   const src = read('assets/08_images_camera.js');
   const body = fnBody(src, 'saveImageToDB');
