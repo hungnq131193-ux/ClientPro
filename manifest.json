@@ -1,7 +1,7 @@
 {
   "name": "ClientPro Quản Lý Khách Hàng",
   "short_name": "ClientPro",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "id": "./index.html",
   "start_url": "./index.html",
   "scope": "./",
