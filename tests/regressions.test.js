@@ -347,6 +347,18 @@ test('auto backup Drive: upload không rõ kết quả phải dò xác nhận tr
   assert.ok(!/_probeUploadedBackupByName_/.test(up),
     'uploadAutoBackupToServer: không gọi probe một-lần trực tiếp — "chưa có" ở lần dò đầu chưa phải kết luận');
 
+  // REJECTED chỉ dành cho verdict phát TRƯỚC khi GAS tạo file. Catch tổng của
+  // handleRequest_ ('Loi Server...') có thể phát SAU folder.createFile
+  // (trimBackups_ ném lỗi) — coi nó là REJECTED sẽ bỏ probe và tạo bản trùng
+  // ở lần kiểm tra kế tiếp.
+  const rejectGateIdx = up.indexOf('_isPreWriteReject_');
+  assert.ok(rejectGateIdx >= 0 && rejectGateIdx < probeIdx,
+    'uploadAutoBackupToServer: nhánh REJECTED phải được chặn bằng danh sách message pre-write đã biết');
+  const rejectList = src.match(/PRE_WRITE_REJECT_MESSAGES\s*=\s*\[([\s\S]*?)\]/);
+  assert.ok(rejectList, 'Thiếu danh sách PRE_WRITE_REJECT_MESSAGES');
+  assert.ok(!/Loi Server/.test(rejectList[1]),
+    'Message catch tổng của GAS có thể phát SAU khi file đã tạo — không được nằm trong danh sách REJECTED chắc chắn');
+
   // Nhánh không dò được (mất mạng): chỉ ghi fingerprint để cửa sổ dedupe chặn tải
   // lại mù cùng payload — lệnh ghi phải nằm giữa probe và lần chốt mốc thành công.
   const hashIdx = up.indexOf('writeLastUploadHash_(payloadHash)');

@@ -502,7 +502,75 @@ test('auto backup: lần dò cuối không trả lời được -> coi là chưa
   );
 });
 
-test('auto backup: server từ chối rõ ràng (REJECTED) -> không dò probe, không chốt mốc, lần sau thử lại', async () => {
+test('auto backup: GAS lỗi SAU khi đã tạo file (trimBackups_ ném) -> status error lạ phải đi đường probe, không tạo trùng', async () => {
+  const h = loadAutoBackup();
+
+  // gas/UserDriveAPI.gs: handleCreateBackup_ đã folder.createFile xong,
+  // trimBackups_ ném lỗi -> catch tổng trả status:'error' "Loi Server..."
+  // dù file ĐANG nằm trên Drive. Coi message này là REJECTED (chưa có file,
+  // thử lại an toàn) chính là nguồn tạo bản trùng ở lần kiểm tra kế tiếp.
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'backup') {
+      return makeGasResponse({ status: 'error', message: 'Loi Server. Vui long thu lai.' });
+    }
+    if (body.action === 'list_backups') {
+      const created = h.requests
+        .filter((r) => r.action === 'backup')
+        .map((r) => ({ id: 'file_trim_err', filename: r.filename, size: 10, createdAt: new Date().toISOString() }));
+      return makeGasResponse({ status: 'success', backups: created });
+    }
+    return makeGasResponse({ status: 'success' });
+  });
+
+  await h.DriveBackup.checkDaily();
+
+  assert.equal(h.backupCallCount(), 1, 'Chỉ một request tạo file được gửi đi');
+  assert.ok(
+    h.requests.filter((r) => r.action === 'list_backups').length >= 1,
+    'status:error với message KHÔNG thuộc nhóm pre-write phải được dò probe'
+  );
+  assert.ok(
+    h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'),
+    'Probe thấy file -> phải chốt mốc 24h như một upload thành công'
+  );
+
+  // Các trigger sau không được tạo thêm bản nào.
+  h.advance(30 * 1000);
+  await h.DriveBackup.checkDaily();
+  assert.equal(h.backupCallCount(), 1, 'Không tạo bản trùng sau lỗi trim hậu-createFile');
+});
+
+test('auto backup: status error lạ + probe khẳng định chưa có file -> thất bại thật, lần sau thử lại', async () => {
+  const h = loadAutoBackup();
+  const originalFetch = h.ctx.fetch;
+
+  // Lỗi server lạ phát TRƯỚC khi tạo file (vd getBackupFolder_ ném): probe trả
+  // lời rõ ràng "chưa có" ở mọi lần dò -> kết luận thất bại thật.
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'backup') {
+      return makeGasResponse({ status: 'error', message: 'Loi Server. Vui long thu lai.' });
+    }
+    if (body.action === 'list_backups') return makeGasResponse({ status: 'success', backups: [] });
+    return makeGasResponse({ status: 'success' });
+  });
+
+  await h.DriveBackup.checkDaily();
+
+  assert.equal(h.backupCallCount(), 1);
+  assert.equal(h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'), null, 'Không chốt mốc khi file chắc chắn chưa có');
+  assert.equal(h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH'), null, 'Không ghi fingerprint — lần sau phải thử lại được');
+
+  h.setFetch(originalFetch);
+  h.advance(5 * 60 * 1000);
+  await h.DriveBackup.checkDaily();
+  assert.equal(h.backupCallCount(), 2, 'Thất bại thật phải được thử lại ở lần kiểm tra kế tiếp');
+});
+
+test('auto backup: server từ chối rõ ràng (REJECTED pre-write) -> không dò probe, không chốt mốc, lần sau thử lại', async () => {
   const h = loadAutoBackup();
   const originalFetch = h.ctx.fetch;
 
@@ -519,7 +587,7 @@ test('auto backup: server từ chối rõ ràng (REJECTED) -> không dò probe, 
   assert.equal(
     h.requests.filter((r) => r.action === 'list_backups').length,
     0,
-    'REJECTED là câu trả lời dứt khoát từ server: không cần dò probe'
+    'Verdict pre-write (Unauthorized) là câu trả lời dứt khoát: không cần dò probe'
   );
   assert.equal(h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'), null);
   assert.equal(h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH'), null);

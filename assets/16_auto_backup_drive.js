@@ -484,6 +484,27 @@
         }
     }
 
+    // Các message từ chối mà gas/UserDriveAPI.gs phát TRƯỚC khi folder.createFile
+    // chạy (parse request, token, script lock, validate nội dung). CHỈ những
+    // message này mới được coi là REJECTED chắc chắn "chưa có file nào được tạo".
+    // Mọi status:'error' khác — đặc biệt 'Loi Server. Vui long thu lai.' từ catch
+    // tổng của handleRequest_ — có thể phát SAU khi file đã nằm trên Drive
+    // (trimBackups_ ném lỗi ngay sau createFile), nên phải đi đường probe như
+    // một kết quả không rõ. Message lạ (GAS bản khác) cũng rơi về probe: chậm
+    // hơn ~30s nhưng không bao giờ kết luận nhầm "chưa có file".
+    const PRE_WRITE_REJECT_MESSAGES = [
+        'Yeu cau khong hop le',
+        'Server chua cau hinh bao mat (ACCESS_TOKEN). Lien he admin.',
+        'Unauthorized',
+        'May chu ban, thu lai sau',
+        'Khong co noi dung backup',
+        'Backup qua lon'
+    ];
+
+    function _isPreWriteReject_(message) {
+        return PRE_WRITE_REJECT_MESSAGES.indexOf(String(message || '')) !== -1;
+    }
+
     /**
      * Dò xác nhận CÓ THỬ LẠI theo UPLOAD_PROBE_RETRY_DELAYS_MS. Quy tắc gộp:
      *   - Bất kỳ lần dò nào THẤY file -> trả về thành công ngay.
@@ -537,16 +558,18 @@
             try { result = JSON.parse(text); } catch (e) { result = null; }
         } catch (e) { result = null; }
 
-        if (result && result.status === 'error') {
-            // REJECTED: server nói KHÔNG rõ ràng (token sai, payload quá lớn...) ->
-            // chắc chắn chưa có file nào được tạo, thử lại là an toàn.
+        if (result && result.status === 'error' && _isPreWriteReject_(result.message)) {
+            // REJECTED: server từ chối bằng một verdict phát TRƯỚC khi tạo file
+            // (token sai, payload quá lớn...) -> chắc chắn chưa có file nào được
+            // tạo, thử lại là an toàn.
             throw new Error(result.message || 'Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
         }
 
         if (!result || result.status !== 'success') {
             // UNCONFIRMED: dò lại (có thử lại theo lịch trễ) trước khi kết luận —
             // request có thể đã tới GAS và file đã nằm trên Drive dù response
-            // không quay về, thậm chí execution gốc còn đang chạy dở.
+            // không quay về, execution gốc còn đang chạy dở, hoặc GAS trả
+            // status:'error' từ một lỗi SAU khi createFile (trimBackups_ ném).
             const probe = await _probeUploadedBackupWithRetry_(filename);
             if (probe.answered && probe.result) {
                 // File thực ra đã lên Drive: chạy tiếp nhánh thành công bên dưới
@@ -556,7 +579,7 @@
                 // Lần dò CUỐI (sau toàn bộ lịch trễ) vẫn khẳng định chưa có file
                 // -> thất bại thật. KHÔNG ghi mốc/hash để lần tới còn thử lại
                 // (không thể sinh trùng vì chưa có file nào).
-                throw new Error('Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
+                throw new Error((result && result.message) || 'Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
             } else {
                 // Không dò được (mất mạng): file CÓ THỂ đã lên Drive. Chỉ ghi dấu vân
                 // tay nội dung để cửa sổ chống trùng 6h chặn việc tải lại cùng payload
