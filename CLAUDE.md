@@ -93,6 +93,9 @@ multi-tenant server product and does not replace any core banking system.
 **Does not:**
 - Send business data to any server the user did not explicitly opt into.
 - Provide analytics, tracking, ads, or third-party CDNs.
+- Issue third-party requests at boot: the Donate modal's VietQR image has no
+  `src` in markup — `openDonateModal()` assigns it only when the user opens the
+  modal.
 - Act as a bank/core system of record or a shared multi-user database.
 - Upload PDFs anywhere — PDF Toolkit is fully on-device.
 
@@ -167,7 +170,7 @@ precache — so both tools still work offline.
 index.html                App shell + authoritative script load order + all ?v= tags
 sw.js                     Service Worker: precache list, VERSION, ASSET_V, CACHE_EPOCH
 manifest.json             Web App Manifest (name, icons, version)
-vercel.json               Security headers + CSP
+vercel.json               Security headers + CSP + Cache-Control (see "HTTP caching")
 package.json              Semver single source of truth + CI/test scripts
 playwright.config.js      Playwright e2e config (mobile profile + static server)
 lighthouserc.json         Lighthouse CI config
@@ -869,6 +872,11 @@ On-device PDF utilities; nothing is uploaded.
 - Object URLs are tracked in a registry and revoked; large buffers are released;
   operations are cancellable with progress; each tool registers cleanup.
 - No PDF or page content leaves the device.
+- `runTask`'s `finally` releases only its own session's `busy` flag
+  unconditionally; the shared DOM signals (`aria-busy` / `data-task-state` /
+  progress sheet) are reset **only while `session.isActive()`** — a late-finishing
+  task from a replaced session must not mark a newer task idle (structural
+  tripwire in `tests/regressions.test.js`).
 
 ### Primary files
 `assets/pdf-toolkit/pdf_toolkit_utils.js` (pure, unit-tested),
@@ -1276,6 +1284,17 @@ the app has real deep-link routes / a dedicated install-experience pass.
 `ASSET_V` is a free-form tag (e.g. `PDFTOOLKIT_20260721`). Changing it invalidates
 precache and forces fresh assets. Every `?v=` in `index.html`, the `sw.js`
 precache list, `MAPLIBRE_V`, and `LAZY_MODULES_V` must use the same `ASSET_V`.
+
+## HTTP caching (vercel.json)
+
+`vercel.json` also sets `Cache-Control` on top of the same contract: `immutable`
+for `/assets/**/*.js|css` and `/assets/data/**` (every request URL carries the
+`?v=ASSET_V` buster — enforced above), one week for `/assets/fonts/**` and the
+root PNG/`favicon.ico` (referenced unversioned; binary-stable), and explicit
+`must-revalidate` for `sw.js` and the modal fragments (`load_modals.js` fetches
+them without `?v=`). `index.html`/`manifest.json` keep the Vercel default
+(`max-age=0, must-revalidate`). Never mark an unversioned mutable path
+`immutable`; a new asset path must either carry the buster or stay revalidated.
 
 ## Test architecture
 

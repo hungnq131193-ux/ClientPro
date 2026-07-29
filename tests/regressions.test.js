@@ -814,3 +814,31 @@ test('saveSecuritySetup: đóng modal / báo thành công phải sau chốt vé 
   assert.ok(bioAt < guardAt,
     'onPinChanged phải nằm TRƯỚC chốt vé — nó gắn với lệnh ghi đĩa, không gắn với UI');
 });
+
+test('PDF runTask: finally không được hạ trạng thái dùng chung khi phiên đã bị thay', () => {
+  const src = read('assets/pdf-toolkit/pdf_toolkit_ui.js');
+  // runTask là async method trong object literal (makeToolContext) — fnBody không bắt được.
+  const m = src.match(/async\s+runTask\s*\(/);
+  assert.ok(m, 'Không tìm thấy runTask trong pdf_toolkit_ui.js');
+  const i = src.indexOf('{', m.index);
+  let depth = 0;
+  let end = -1;
+  for (let j = i; j < src.length; j++) {
+    if (src[j] === '{') depth++;
+    else if (src[j] === '}') { depth--; if (depth === 0) { end = j; break; } }
+  }
+  assert.ok(end > i, 'Không cắt được thân runTask');
+  const body = src.slice(i, end + 1);
+  const fin = body.slice(body.lastIndexOf('finally'));
+  // session.busy là state RIÊNG của phiên cũ — nhả vô điều kiện là đúng.
+  assert.ok(/session\.busy\s*=\s*false/.test(fin), 'finally phải nhả busy của phiên');
+  // aria-busy / data-task-state / progress sheet là DOM DÙNG CHUNG giữa các phiên:
+  // tác vụ cũ về muộn (sau khi người dùng đã mở tool/tác vụ mới) mà hạ chúng là
+  // báo idle + aria-busy=false giữa chừng tác vụ mới — tín hiệu UI/a11y/E2E sai.
+  const guardAt = fin.indexOf('session.isActive()');
+  assert.ok(guardAt !== -1, 'finally phải kiểm session.isActive() trước khi chạm DOM dùng chung');
+  const setAt = fin.indexOf('setTaskState(false)');
+  const doneAt = fin.indexOf('progress.done()');
+  assert.ok(setAt > guardAt && doneAt > guardAt,
+    'setTaskState(false) và progress.done() phải nằm SAU guard session.isActive()');
+});

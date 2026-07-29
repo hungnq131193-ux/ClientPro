@@ -31,11 +31,12 @@
             </div>
             
             <div class="bg-white rounded-2xl p-3 shadow-inner donate-qr-frame">
-                <!-- QR VietQR auto tạo từ API img.vietqr.io.
+                <!-- QR VietQR tạo từ API img.vietqr.io. KHÔNG đặt src ở đây:
+                     openDonateModal() (09_donate.js) gán src lúc người dùng mở modal
+                     lần đầu — không request tới bên thứ ba khi khởi động app.
                      Khi ảnh không tải được, Chrome hiển thị alt — alt chính là thông điệp dự phòng. -->
                 <img
     id="donate-qr-img"
-    src="https://img.vietqr.io/image/vietinbank-888886838888-compact.jpg?accountName=NGUYEN%20QUOC%20HUNG&addInfo=Ung%20ho%20tac%20gia%20ClientPro"
     alt="Không tải được mã QR — dùng nút Sao chép STK phía trên để chuyển khoản."
     class="w-56 h-56 object-contain mx-auto"
 />

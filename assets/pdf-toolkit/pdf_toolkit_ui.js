@@ -468,8 +468,14 @@
           return null;
         } finally {
           session.busy = false;
-          setTaskState(false);
-          progress.done();
+          // Chỉ phiên CÒN ACTIVE mới được chạm DOM dùng chung (aria-busy /
+          // data-task-state / progress sheet): tác vụ của phiên cũ kết thúc muộn
+          // sau khi người dùng đã mở tool/tác vụ mới không được hạ trạng thái
+          // của tác vụ mới. Phiên đã dispose thì disposeSession() đã dọn sheet.
+          if (session.isActive()) {
+            setTaskState(false);
+            progress.done();
+          }
         }
       },
       showProgressSheet: showProgress,
