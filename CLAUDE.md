@@ -678,6 +678,13 @@ Optional, user-initiated upload of images/backups to the user's own Drive.
 - Each upload path carries a `reachedDrive` flag. Once Drive has accepted the
   images, a later error (persisting the link, re-rendering) must report
   "đã lên Drive nhưng chưa cập nhật được hồ sơ", never a plain upload failure.
+- `driveLink` reaches RAM only after the DB commit, and an empty `url` never
+  overwrites an existing link — go through `_persistCustomerDriveLink` /
+  `_persistAssetDriveLink`. Assigning `outcome.url` first wipes the link the user
+  is currently looking at when the reply carried none, and leaves RAM ahead of
+  IndexedDB when the write fails. The asset variant has to mutate RAM first
+  (`persistCurrentCustomer` copies `currentCustomerData.assets`), so it restores
+  the previous value when the write fails.
 
 ### Primary files
 `assets/07_drive.js`, `assets/16_auto_backup_drive.js`, `gas/UserDriveAPI.gs`.

@@ -345,8 +345,15 @@ function _classifyUploadResult(result, imagesToUpload) {
                 uploadedCount: succeeded.length,
             });
         }
-        // Server liệt kê rõ TỪNG ảnh đều lỗi -> thất bại thật.
-        return Object.assign({}, base, { verdict: DRIVE_UPLOAD_REJECTED, uploadedCount: 0 });
+        // Không ảnh nào có id. Chỉ là thất bại thật khi server nói rõ ràng:
+        // hoặc TỪNG entry mang .error, hoặc status top-level là 'error'. Một
+        // deployment GAS cũ/lạ trả entry không có cả .id lẫn .error thì đây vẫn
+        // là "không biết" — báo thất bại ở đó chính là false-negative cần tránh.
+        const everyEntryErrored = files.every((f) => f && f.error);
+        if (everyEntryErrored || status === 'error') {
+            return Object.assign({}, base, { verdict: DRIVE_UPLOAD_REJECTED, uploadedCount: 0 });
+        }
+        return Object.assign({}, base, { verdict: DRIVE_UPLOAD_UNCONFIRMED, uploadedCount: 0 });
     }
 
     // (b) files[] lệch số lượng nhưng có entry mang id: đã có file trên Drive,
@@ -393,6 +400,31 @@ async function _runDriveImageUpload(scriptUrl, payload, imagesToUpload) {
         };
     }
     return _classifyUploadResult(posted.result, imagesToUpload);
+}
+
+// Ghi driveLink: RAM chỉ được mang giá trị mới khi DB đã commit. url rỗng thì
+// KHÔNG đụng vào link cũ — gán đè sẽ xóa mất link đang hiển thị mà chẳng lưu
+// được gì. Hai hàm dưới giữ cho hai đường (hồ sơ / tài sản) cùng một thứ tự.
+async function _persistCustomerDriveLink(url) {
+    if (!url) return false;
+    const ok = await new Promise((resolve) => {
+        persistCurrentCustomer((rec) => { rec.driveLink = url; }, resolve);
+    });
+    if (ok) currentCustomerData.driveLink = url;
+    return ok;
+}
+
+async function _persistAssetDriveLink(assetIndex, url) {
+    if (!url) return false;
+    // persistCurrentCustomer chép `rec.assets = currentCustomerData.assets` nên
+    // buộc phải sửa RAM trước; ghi hỏng thì trả nguyên giá trị cũ.
+    const prev = currentCustomerData.assets[assetIndex].driveLink;
+    currentCustomerData.assets[assetIndex].driveLink = url;
+    const ok = await new Promise((resolve) => {
+        persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, resolve);
+    });
+    if (!ok) currentCustomerData.assets[assetIndex].driveLink = prev;
+    return ok;
 }
 
 /** Thông báo cho phán quyết UNCONFIRMED: không khẳng định hỏng, chỉ ra việc cần làm. */
@@ -562,12 +594,8 @@ async function uploadAssetToDrive() {
             // Không xác nhận được: KHÔNG khẳng định hỏng, KHÔNG xóa ảnh gốc.
             if (outcome.verdict === DRIVE_UPLOAD_UNCONFIRMED) {
                 reachedDrive = true;
-                if (outcome.url) {
-                    const linkOk = await new Promise((resolve) => {
-                        currentCustomerData.assets[assetIndex].driveLink = outcome.url;
-                        persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, resolve);
-                    });
-                    if (linkOk) renderAssetDriveStatus(outcome.url);
+                if (await _persistAssetDriveLink(assetIndex, outcome.url)) {
+                    renderAssetDriveStatus(outcome.url);
                 }
                 LoadingManager.hideGlobal(true);
                 ErrorHandler.showWarning(_unconfirmedUploadMessage(outcome, imagesToUpload.length));
@@ -578,18 +606,12 @@ async function uploadAssetToDrive() {
             reachedDrive = true;
             const succeededImgs = outcome.succeeded;
 
-            // 1. Lưu Link vào đúng đối tượng Asset
-            currentCustomerData.assets[assetIndex].driveLink = outcome.url;
-
-            // 2. Cập nhật Database (không put() nguyên currentCustomerData vì
-            //    name/phone/cccd trên object đó đã bị giải mã trong openFolder).
-            //    Await kết quả ghi: KHÔNG báo thành công / hỏi xóa ảnh gốc khi ghi
-            //    link thất bại (mirror pattern _doSaveAsset ở 06_assets.js).
-            const ok = outcome.url
-                ? await new Promise((resolve) => {
-                    persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, resolve);
-                })
-                : false;
+            // 1+2. Lưu Link vào đúng đối tượng Asset rồi ghi Database (không put()
+            //    nguyên currentCustomerData vì name/phone/cccd trên object đó đã bị
+            //    giải mã trong openFolder). Await kết quả ghi: KHÔNG báo thành công /
+            //    hỏi xóa ảnh gốc khi ghi link thất bại (mirror pattern _doSaveAsset
+            //    ở 06_assets.js).
+            const ok = await _persistAssetDriveLink(assetIndex, outcome.url);
 
             LoadingManager.hideGlobal(true);
 
@@ -917,14 +939,8 @@ async function uploadToGoogleDrive() {
 
             if (outcome.verdict === DRIVE_UPLOAD_UNCONFIRMED) {
                 reachedDrive = true;
-                if (outcome.url) {
-                    const linkOk = await new Promise((resolve) => {
-                        persistCurrentCustomer((rec) => { rec.driveLink = outcome.url; }, resolve);
-                    });
-                    if (linkOk) {
-                        currentCustomerData.driveLink = outcome.url;
-                        renderDriveStatus(outcome.url);
-                    }
+                if (await _persistCustomerDriveLink(outcome.url)) {
+                    renderDriveStatus(outcome.url);
                 }
                 LoadingManager.hideGlobal(true);
                 ErrorHandler.showWarning(_unconfirmedUploadMessage(outcome, imagesToUpload.length));
@@ -937,12 +953,7 @@ async function uploadToGoogleDrive() {
             // Lưu link Folder (ghi an toàn, giữ nguyên ciphertext các trường khác).
             // Await kết quả ghi: KHÔNG báo thành công / hỏi xóa ảnh gốc khi ghi
             // link thất bại (mirror pattern _doSaveAsset ở 06_assets.js).
-            currentCustomerData.driveLink = outcome.url;
-            const ok = outcome.url
-                ? await new Promise((resolve) => {
-                    persistCurrentCustomer((rec) => { rec.driveLink = outcome.url; }, resolve);
-                })
-                : false;
+            const ok = await _persistCustomerDriveLink(outcome.url);
 
             LoadingManager.hideGlobal(true);
 

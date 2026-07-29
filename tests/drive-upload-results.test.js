@@ -82,6 +82,26 @@ test('REGRESSION — UNCONFIRMED: files[] lệch số lượng nhưng có id là
   assert.equal(out.url, 'https://drive.google.com/folder', 'vẫn giữ link folder để lưu vào hồ sơ');
 });
 
+test('REGRESSION — files[] khớp số lượng nhưng entry không có cả id lẫn error -> UNCONFIRMED', () => {
+  // Deployment GAS cũ/lạ có thể trả entry trống. "Không ảnh nào có id" KHÔNG
+  // đồng nghĩa "server từ chối" — báo thất bại ở đây là đúng cái false-negative
+  // mà thay đổi này sinh ra để dập.
+  const { classify, VERDICT } = loadDrive();
+  const out = classify({ status: 'partial', files: [{ name: 'f0' }, { name: 'f1' }] }, imgs(2));
+  assert.equal(out.verdict, VERDICT.UNCONFIRMED);
+  assert.deepEqual(ids(out.succeeded), []);
+
+  // Ngược lại: TỪNG entry mang .error, hoặc status 'error' -> vẫn REJECTED.
+  assert.equal(
+    classify({ status: 'partial', files: [badFile(0), badFile(1)] }, imgs(2)).verdict,
+    VERDICT.REJECTED
+  );
+  assert.equal(
+    classify({ status: 'error', files: [{ name: 'f0' }, { name: 'f1' }] }, imgs(2)).verdict,
+    VERDICT.REJECTED
+  );
+});
+
 test('UNCONFIRMED: status lạ / success kèm failed>0 mà không có files[] -> không kết luận', () => {
   const { classify, VERDICT } = loadDrive();
   assert.equal(classify({ status: 'success', failed: 2 }, imgs(3)).verdict, VERDICT.UNCONFIRMED);
@@ -203,6 +223,143 @@ test('ảnh rỗng/không phải chuỗi -> DỪNG', async () => {
   const { resolveImages } = loadDrive();
   assert.equal(await resolveImages([{ id: 'x', data: '' }], 'hoso'), null);
   assert.equal(await resolveImages([{ id: 'x', data: null }], 'hoso'), null);
+});
+
+// ---------------------------------------------------------------------------
+// Tích hợp: chạy TRỌN uploadToGoogleDrive / uploadAssetToDrive trong sandbox
+// (getAll -> giải mã -> POST -> phán quyết -> ghi link -> hỏi xóa ảnh gốc)
+// ---------------------------------------------------------------------------
+
+const dbImgs = (n, assetId) =>
+  Array.from({ length: n }, (_, i) => ({ id: `db${i}`, customerId: 'c1', assetId: assetId || undefined, data: `${GCM_PREFIX}pixel${i}` }));
+const kinds = (toasts, kind) => toasts.filter((t) => t.kind === kind).map((t) => t.msg);
+
+test('luồng đầy đủ — OK: lưu link vào DB, hiện thành công, xóa đúng ảnh đã lên Drive', async () => {
+  const h = loadDrive({
+    images: dbImgs(2),
+    fetchImpl: async () => makeResponse({
+      body: JSON.stringify({ status: 'success', url: 'https://drive.google.com/folder', files: [okFile(0), okFile(1)] }),
+    }),
+  });
+  await h.runUploadFlow('profile');
+  assert.equal(h.record.driveLink, 'https://drive.google.com/folder', 'link phải được ghi vào DB');
+  assert.equal(h.ctx.currentCustomerData.driveLink, 'https://drive.google.com/folder');
+  assert.deepEqual(h.deleted, ['db0', 'db1']);
+  assert.equal(kinds(h.toasts, 'error').length, 0);
+});
+
+test('luồng đầy đủ — PARTIAL: chỉ xóa ảnh có files[i].id, ảnh lỗi ở lại máy', async () => {
+  const h = loadDrive({
+    images: dbImgs(3),
+    fetchImpl: async () => makeResponse({
+      body: JSON.stringify({ status: 'partial', failed: 1, url: 'https://drive.google.com/folder', files: [okFile(0), badFile(1), okFile(2)] }),
+    }),
+  });
+  await h.runUploadFlow('profile');
+  assert.deepEqual(h.deleted, ['db0', 'db2'], 'ảnh lỗi db1 phải được giữ nguyên');
+  assert.equal(kinds(h.toasts, 'error').length, 0);
+});
+
+test('REGRESSION — luồng đầy đủ, mạng rớt: không toast thất bại, không xóa ảnh nào', async () => {
+  const h = loadDrive({ images: dbImgs(2) }); // fetch mặc định ném lỗi mạng
+  await h.runUploadFlow('profile');
+  assert.deepEqual(h.deleted, [], 'chưa biết ảnh đã lên hay chưa -> giữ nguyên toàn bộ');
+  assert.equal(kinds(h.toasts, 'error').length, 0, 'không được hiện toast "thất bại"');
+  const warn = kinds(h.toasts, 'warning').join('\n');
+  assert.ok(/Tìm kết nối cũ/.test(warn), 'phải hướng dẫn kiểm tra thư mục trên Drive');
+});
+
+test('luồng đầy đủ — REJECTED: hiện toast thất bại kèm message của server, không xóa ảnh', async () => {
+  const h = loadDrive({
+    images: dbImgs(2),
+    fetchImpl: async () => makeResponse({ body: JSON.stringify({ status: 'error', message: 'Unauthorized' }) }),
+  });
+  await h.runUploadFlow('profile');
+  assert.deepEqual(h.deleted, []);
+  const errs = kinds(h.toasts, 'error');
+  assert.equal(errs.length, 1);
+  assert.ok(errs[0].includes('Unauthorized'));
+});
+
+test('luồng đầy đủ — ghi link thất bại: cảnh báo "chưa lưu được link", không xóa ảnh', async () => {
+  const h = loadDrive({
+    images: dbImgs(2),
+    persistOk: false,
+    fetchImpl: async () => makeResponse({
+      body: JSON.stringify({ status: 'success', url: 'https://drive.google.com/folder', files: [okFile(0), okFile(1)] }),
+    }),
+  });
+  await h.runUploadFlow('profile');
+  assert.deepEqual(h.deleted, [], 'chưa lưu được link thì không hỏi xóa ảnh gốc');
+  assert.equal(h.ctx.currentCustomerData.driveLink, '', 'RAM không được mang link mà DB chưa commit');
+  assert.ok(kinds(h.toasts, 'warning').join('\n').includes('CHƯA lưu được link'));
+});
+
+test('REGRESSION — lỗi SAU khi Drive đã nhận ảnh không bị báo thành "tải ảnh thất bại"', async () => {
+  const h = loadDrive({
+    images: dbImgs(2),
+    fetchImpl: async () => makeResponse({
+      body: JSON.stringify({ status: 'success', url: 'https://drive.google.com/folder', files: [okFile(0), okFile(1)] }),
+    }),
+  });
+  // renderDriveStatus chạy SAU khi Drive đã nhận ảnh: lỗi ở đây là lỗi hiển thị.
+  h.ctx.renderDriveStatus = () => { throw new Error('DOM hỏng'); };
+  await h.runUploadFlow('profile');
+  assert.equal(kinds(h.toasts, 'error').length, 0, 'reachedDrive=true thì không được báo upload thất bại');
+  assert.ok(kinds(h.toasts, 'warning').join('\n').includes('đã lên Drive'));
+  assert.deepEqual(h.deleted, []);
+});
+
+test('REGRESSION — auto-lock trước khi gửi: không request nào rời máy, không xóa ảnh', async () => {
+  const h = loadDrive({ images: dbImgs(2), decryptMode: 'stuck' });
+  await h.runUploadFlow('profile');
+  assert.equal(h.fetchCalls.length, 0);
+  assert.deepEqual(h.deleted, []);
+  assert.equal(kinds(h.toasts, 'error').length, 0);
+});
+
+test('luồng đầy đủ (tài sản) — UNCONFIRMED có url: lưu link nhưng giữ nguyên ảnh gốc', async () => {
+  const h = loadDrive({
+    assetId: 'a1',
+    images: dbImgs(3, 'a1'),
+    fetchImpl: async () => makeResponse({
+      // files[] lệch số lượng nhưng có id -> đã có file trên Drive.
+      body: JSON.stringify({ status: 'partial', url: 'https://drive.google.com/folder', files: [okFile(0), okFile(1)] }),
+    }),
+  });
+  await h.runUploadFlow('asset');
+  assert.deepEqual(h.deleted, [], 'không map được index -> không xóa ảnh nào');
+  assert.equal(h.ctx.currentCustomerData.assets[0].driveLink, 'https://drive.google.com/folder');
+  assert.equal(kinds(h.toasts, 'error').length, 0);
+  assert.ok(kinds(h.toasts, 'warning').join('\n').includes('2/3'));
+});
+
+test('luồng đầy đủ (tài sản) — ghi link hỏng thì RAM trả về link cũ', async () => {
+  const h = loadDrive({
+    assetId: 'a1',
+    images: dbImgs(2, 'a1'),
+    persistOk: false,
+    fetchImpl: async () => makeResponse({
+      body: JSON.stringify({ status: 'success', url: 'https://drive.google.com/new', files: [okFile(0), okFile(1)] }),
+    }),
+  });
+  h.ctx.currentCustomerData.assets[0].driveLink = 'https://drive.google.com/old';
+  await h.runUploadFlow('asset');
+  assert.equal(h.ctx.currentCustomerData.assets[0].driveLink, 'https://drive.google.com/old',
+    'ghi DB hỏng -> RAM không được giữ link mới');
+  assert.deepEqual(h.deleted, []);
+});
+
+test('luồng đầy đủ — url rỗng không được xóa link đang có trong hồ sơ', async () => {
+  const h = loadDrive({
+    images: dbImgs(1),
+    fetchImpl: async () => makeResponse({ body: JSON.stringify({ status: 'success', files: [okFile(0)] }) }),
+  });
+  h.ctx.currentCustomerData.driveLink = 'https://drive.google.com/cu';
+  await h.runUploadFlow('profile');
+  assert.equal(h.ctx.currentCustomerData.driveLink, 'https://drive.google.com/cu',
+    'response không kèm url -> giữ nguyên link cũ, không gán đè rỗng');
+  assert.deepEqual(h.deleted, [], 'không lưu được link thì không hỏi xóa ảnh gốc');
 });
 
 // ---------------------------------------------------------------------------
