@@ -745,14 +745,26 @@ them safely.
   (`16_auto_backup_drive.js`). Four layers, all required — an in-RAM flag alone
   is not enough because it dies with the page (reload, PWA reclaimed mid-upload,
   a second same-origin context):
-  1. The 24h throttle marker `CLIENTPRO_LAST_AUTO_BACKUP` is written **the moment
-     Drive accepts the file**, inside `uploadAutoBackupToServer`, before any
-     follow-up step. Everything after the upload (retention cleanup, cache/UI
-     refresh) is best-effort and must not throw the run away — a failure there
-     used to leave the marker unadvanced, and the next `visibilitychange` seconds
-     later produced the second file. `enforceDriveBackupRetention_()` is
-     redundant cleanup anyway: GAS `handleCreateBackup_` already calls
-     `trimBackups_(BACKUP_KEEP_LAST)`.
+ 1. The 24h throttle marker `CLIENTPRO_LAST_AUTO_BACKUP` is written **the moment
+ Drive accepts the file**, inside `uploadAutoBackupToServer`, before any
+ follow-up step. Everything after the upload (retention cleanup, cache/UI
+ refresh) is best-effort and must not throw the run away — a failure there
+ used to leave the marker unadvanced, and the next `visibilitychange` seconds
+ later produced the second file. `enforceDriveBackupRetention_()` is
+ redundant cleanup anyway: GAS `handleCreateBackup_` already calls
+ `trimBackups_(BACKUP_KEEP_LAST)`. "The moment Drive accepts the file" is a
+ **verdict, not just a clean JSON reply**: GAS creates the file *before* the
+ response reaches the phone, so `uploadAutoBackupToServer` classifies the
+ upload exactly like `_postDriveUpload` (`OK` / `REJECTED` / `UNCONFIRMED`,
+ body read via `response.text()` + guarded `JSON.parse`, never bare
+ `response.json()`). An `UNCONFIRMED` upload is confirmed by
+ `_probeUploadedBackupByName_` — a fresh `list_backups` lookup for the exact
+ per-attempt unique filename: found → run the normal success path (marker +
+ hash); server answered "absent" → genuine failure, throw **without** writing
+ marker/hash so the next check retries (no file exists to duplicate); probe
+ itself unreachable → write **only the content hash** (the 6h dedupe window
+ then blocks a blind re-upload of the same payload; the dedupe-hit path
+ advances the 24h marker) and throw an "unconfirmed" error.
   2. **Web Locks** (`withAutoBackupLock_`, lock name `clientpro-auto-backup`,
      `ifAvailable: true`) is the only real mutual exclusion between live
      same-origin contexts, and both entry points — the auto path and

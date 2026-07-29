@@ -326,6 +326,36 @@ test('drive: upload ảnh KHÔNG được coi lỗi mạng/parse là "thất b�
     'renderDriveStatus: chú thích hoàn tất phải phụ thuộc cờ unconfirmed');
 });
 
+test('auto backup Drive: upload không rõ kết quả phải dò xác nhận trước khi kết luận (chống "1 lúc 3 file")', () => {
+  // GAS handleCreateBackup_ tạo file TRƯỚC khi response về tới máy: coi mọi
+  // response mất/HTML là "thất bại" thì mốc 24h + hash không được ghi và mỗi lần
+  // unlock/visibilitychange tải lên một file mới. Hành vi đầy đủ có test riêng
+  // (tests/auto-backup-duplicate.test.js); đây là tripwire cấu trúc.
+  const src = read('assets/16_auto_backup_drive.js');
+
+  const up = fnBody(src, 'uploadAutoBackupToServer');
+  assert.ok(/response\.text\s*\(/.test(up) && /JSON\.parse\s*\(/.test(up),
+    'uploadAutoBackupToServer: phải đọc body bằng text() rồi JSON.parse trong try (phân biệt lỗi parse với lỗi server)');
+  assert.ok(!/response\.json\s*\(/.test(up),
+    'uploadAutoBackupToServer: response.json() trần biến upload-thành-công-nhưng-mất-response thành thất-bại -> sinh bản trùng');
+
+  // UNCONFIRMED phải dò xác nhận bằng probe TRƯỚC khi chốt mốc 24h.
+  const probeIdx = up.indexOf('_probeUploadedBackupByName_');
+  const markerIdx = up.indexOf('setLastAutoBackupTime');
+  assert.ok(probeIdx >= 0 && markerIdx > probeIdx,
+    'uploadAutoBackupToServer: phải dò xác nhận file đã lên Drive chưa (probe) trước khi kết luận');
+
+  // Nhánh không dò được (mất mạng): chỉ ghi fingerprint để cửa sổ dedupe chặn tải
+  // lại mù cùng payload — lệnh ghi phải nằm giữa probe và lần chốt mốc thành công.
+  const hashIdx = up.indexOf('writeLastUploadHash_(payloadHash)');
+  assert.ok(hashIdx > probeIdx && hashIdx < markerIdx,
+    'uploadAutoBackupToServer: nhánh UNCONFIRMED-không-dò-được phải ghi fingerprint trước khi throw');
+
+  const probe = fnBody(src, '_probeUploadedBackupByName_');
+  assert.ok(/list_backups/.test(probe) && /\.filename\s*===\s*filename/.test(probe),
+    '_probeUploadedBackupByName_: phải hỏi list_backups và khớp ĐÚNG tên file vừa gửi (tên duy nhất mỗi lần thử)');
+});
+
 test('nhóm ổn định B #7: saveImageToDB — transaction lưu ảnh đủ oncomplete/onerror/onabort', () => {
   const src = read('assets/08_images_camera.js');
   const body = fnBody(src, 'saveImageToDB');

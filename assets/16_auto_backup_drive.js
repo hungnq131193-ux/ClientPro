@@ -428,6 +428,47 @@
         }
     }
 
+    /**
+     * Dò xác nhận sau một lượt upload KHÔNG RÕ KẾT QUẢ: hỏi list_backups và tìm
+     * ĐÚNG tên file vừa gửi (tên là duy nhất cho mỗi lần thử nhờ Date.now()).
+     * Không đụng cache — đây là một lần hỏi tươi, read-only.
+     *
+     * @returns {Promise<{answered: boolean, result: object|null}>}
+     *   - answered=false: không hỏi được server (mất mạng, GAS lỗi) -> chưa kết luận gì.
+     *   - answered=true, result=null: server trả lời, file KHÔNG có -> thất bại thật.
+     *   - answered=true, result={...}: file ĐÃ nằm trên Drive -> coi như upload thành công
+     *     (object theo đúng shape handleCreateBackup_ trả về để dùng chung nhánh thành công).
+     */
+    async function _probeUploadedBackupByName_(filename) {
+        try {
+            const serverUrl = getUserScriptUrl();
+            if (!serverUrl) return { answered: false, result: null };
+            const response = await fetch(serverUrl, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'list_backups', token: getUserTokenSafe() })
+            });
+            const text = await response.text();
+            let parsed = null;
+            try { parsed = JSON.parse(text); } catch (e) { parsed = null; }
+            if (!parsed || parsed.status !== 'success' || !Array.isArray(parsed.backups)) {
+                return { answered: false, result: null };
+            }
+            const hit = parsed.backups.find((b) => b && b.filename === filename);
+            if (!hit) return { answered: true, result: null };
+            return {
+                answered: true,
+                result: {
+                    status: 'success',
+                    fileId: hit.id || '',
+                    filename: hit.filename || filename,
+                    createdAt: hit.createdAt || new Date().toISOString()
+                }
+            };
+        } catch (e) {
+            return { answered: false, result: null };
+        }
+    }
+
     async function uploadAutoBackupToServer(encryptedContent, payloadHash) {
         const serverUrl = getUserScriptUrl();
         const emp = getEmployeeId();
@@ -441,16 +482,53 @@
             filename: filename
         };
 
+        // Phán quyết theo đúng mô hình của upload ảnh (_postDriveUpload, 07_drive.js):
+        // GAS handleCreateBackup_ TẠO FILE TRƯỚC khi response quay về máy, nên mọi sự
+        // cố sau thời điểm đó — fetch reject trên đường truyền chập chờn, body rỗng,
+        // GAS trả HTML (trang đăng nhập, lỗi triển khai) — đều KHÔNG nói được file đã
+        // lên Drive hay chưa. Coi "không rõ" là "thất bại" chính là nguồn sinh bản
+        // trùng: mốc 24h không nhích, lần kiểm tra kế tiếp (visibilitychange vài giây
+        // sau) tải lên lại và Drive có thêm một file mới cho cùng một lượt.
         // Use JSON.stringify like 07_drive.js (proven to work)
-        const response = await fetch(serverUrl, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
+        let result = null;
+        try {
+            const response = await fetch(serverUrl, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            // Đọc body bằng text() rồi tự parse trong try (cùng pattern
+            // _postDriveUpload): body không phải JSON thì lỗi parse phải thành
+            // phán quyết UNCONFIRMED, không phải exception chung.
+            const text = await response.text();
+            try { result = JSON.parse(text); } catch (e) { result = null; }
+        } catch (e) { result = null; }
 
-        const result = await response.json();
-
-        if (result.status !== 'success') {
+        if (result && result.status === 'error') {
+            // REJECTED: server nói KHÔNG rõ ràng (token sai, payload quá lớn...) ->
+            // chắc chắn chưa có file nào được tạo, thử lại là an toàn.
             throw new Error(result.message || 'Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
+        }
+
+        if (!result || result.status !== 'success') {
+            // UNCONFIRMED: dò lại trước khi kết luận — request có thể đã tới GAS và
+            // file đã nằm trên Drive dù response không quay về.
+            const probe = await _probeUploadedBackupByName_(filename);
+            if (probe.answered && probe.result) {
+                // File thực ra đã lên Drive: chạy tiếp nhánh thành công bên dưới
+                // (chốt mốc 24h + hash) để các lần kiểm tra sau dừng hẳn.
+                result = probe.result;
+            } else if (probe.answered) {
+                // Server khẳng định chưa có file -> thất bại thật. KHÔNG ghi mốc/hash
+                // để lần tới còn thử lại (không thể sinh trùng vì chưa có file nào).
+                throw new Error('Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
+            } else {
+                // Không dò được (mất mạng): file CÓ THỂ đã lên Drive. Chỉ ghi dấu vân
+                // tay nội dung để cửa sổ chống trùng 6h chặn việc tải lại cùng payload
+                // (khi trúng dedupe, mốc 24h được nhích tại đó) — tuyệt đối không tải
+                // mù một bản thứ hai. Vẫn báo lỗi để log/UI phản ánh đúng sự cố mạng.
+                writeLastUploadHash_(payloadHash);
+                throw new Error('Không xác nhận được bản sao lưu trên Drive (kết nối không ổn định). Vui lòng kiểm tra danh sách sao lưu trước khi thử lại.');
+            }
         }
 
         // Drive đã nhận file -> chốt mốc 24h và hash NGAY, trước mọi bước phụ.
