@@ -32,6 +32,11 @@
     // Cửa sổ chống trùng theo nội dung cho ĐƯỜNG AUTO: cùng payload trong khoảng
     // này thì không tải lên lần nữa (backup thủ công không bị chặn).
     const AUTO_BACKUP_DEDUPE_MS = 6 * 60 * 60 * 1000;
+    // Một snapshot `list_backups` rỗng không đồng bộ với request ghi đang chạy.
+    // Apps Script có trần 6 phút / execution; giữ pending 10 phút (gồm buffer
+    // truyền/Drive visibility) trước khi cho phép một snapshot rỗng trở thành
+    // terminal state. Trước deadline này TUYỆT ĐỐI không gửi tên file mới.
+    const AUTO_BACKUP_PENDING_SETTLE_MS = 10 * 60 * 1000;
     const MAX_DRIVE_BACKUPS = 3;
     let manualBackupInProgress = false;
     // In-flight guard cho đường auto: chặn hai lần kiểm tra chạy chồng nhau
@@ -147,17 +152,34 @@
      *   để lần sau dò lại đúng tên file.
      */
     function writeLastUploadHash_(hash, opts) {
-        if (!hash) return;
+        if (!hash) return false;
         const o = opts || {};
         const rec = { hash: hash, ts: Date.now(), confirmed: o.confirmed !== false };
         if (rec.confirmed === false && o.filename) rec.filename = String(o.filename);
         try {
             localStorage.setItem(LAST_UPLOAD_HASH_KEY, JSON.stringify(rec));
-        } catch (e) { }
+            return true;
+        } catch (e) {
+            return false;
+        }
     }
 
     function clearLastUploadHash_() {
         try { localStorage.removeItem(LAST_UPLOAD_HASH_KEY); } catch (e) { }
+    }
+
+    /**
+     * Chỉ sau cửa sổ settle mới được dùng một probe có trả lời "không thấy file"
+     * làm bằng chứng request cũ đã kết thúc mà không tạo file. Đồng hồ nhảy lùi
+     * giữ pending (fail-safe); record thiếu timestamp được coi là legacy/malformed
+     * đã settle để không khóa auto-backup vĩnh viễn.
+     */
+    function isPendingUploadSettled_(pending) {
+        const ts = Number(pending && pending.ts);
+        if (!Number.isFinite(ts) || ts <= 0) return true;
+        const age = Date.now() - ts;
+        if (age < 0) return false;
+        return age >= AUTO_BACKUP_PENDING_SETTLE_MS;
     }
 
     /**
@@ -407,57 +429,61 @@
             // dùng cho backup trong máy (LAST_BACKUP_HASH_KEY, 09_backup_manager.js).
             // Hash tính TRÊN DỮ LIỆU KHÁCH HÀNG, không gồm `createdAt` của phong bì —
             // mốc đó đổi theo từng lượt nên sẽ làm hash không bao giờ khớp.
-            const dedupeWindowMs = Number(options.dedupeWindowMs) || 0;
             const payloadHash = (typeof hashString === 'function')
                 ? await hashString(JSON.stringify(cleanCustomers))
                 : '';
-            if (payloadHash && dedupeWindowMs > 0) {
-                const last = readLastUploadHash_();
-                if (last && last.confirmed === false) {
-                    // Bản ghi CHƯA xác nhận (mất mạng / không rõ kết quả sau khi gửi)
-                    // là một lượt upload còn TREO: chưa biết file đã lên Drive hay chưa.
-                    // Phải đối soát nó ĐỘC LẬP với cửa sổ dedupe 6h. Trước đây nhánh này
-                    // nằm trong điều kiện `(now - last.ts) < dedupeWindowMs`, nên nếu
-                    // người dùng không mở lại app trong hơn 6h thì probe bị bỏ qua hẳn
-                    // và lần kiểm tra kế tiếp tải lên một tên khác — lại sinh bản trùng
-                    // đúng lúc file gốc thực ra đã tồn tại (Codex P1). Dò lại đúng tên đã
-                    // gửi; chỉ khi thấy file mới coi là thành công.
-                    if (last.filename) {
-                        const pendingProbe = await _probeUploadedBackupWithRetry_(last.filename);
-                        if (pendingProbe.answered && pendingProbe.result) {
-                            // File treo THỰC RA đã nằm trên Drive.
-                            if (last.hash === payloadHash) {
-                                // Dữ liệu chưa đổi -> nâng pending thành confirmed và
-                                // nhích mốc 24h, không tạo thêm file trùng.
-                                setLastAutoBackupTime(Date.now());
-                                writeLastUploadHash_(payloadHash);
-                                return;
-                            }
-                            // Dữ liệu đã đổi kể từ lượt treo: file cũ đã xác nhận có ->
-                            // xoá pending rồi chạy tiếp để tải payload MỚI như một bản
-                            // sao lưu mới hợp lệ (không phải bản trùng).
-                            clearLastUploadHash_();
-                        } else if (pendingProbe.answered) {
-                            // Server khẳng định chưa có file -> lượt treo chưa bao giờ
-                            // thành file. Xoá pending, chạy tiếp để tải lên thật (không
-                            // thể trùng vì chưa có file nào).
-                            clearLastUploadHash_();
-                        } else {
-                            // Vẫn không hỏi được server: giữ pending, không tải mù,
-                            // không nhích mốc — lần kiểm tra sau (khi có mạng) dò lại.
+            if (!payloadHash) {
+                // Không có fingerprint thì không thể journal/reconcile một request
+                // bị mất context mà vẫn bảo đảm không tạo bản trùng.
+                throw new Error('Không thể tạo dấu vân tay cho bản sao lưu.');
+            }
+
+            const dedupeWindowMs = Number(options.dedupeWindowMs) || 0;
+            const last = readLastUploadHash_();
+            if (last && last.confirmed === false) {
+                // Pending là một upload có số phận chưa rõ. Luôn đối soát nó — cả
+                // auto lẫn manual, độc lập cửa sổ dedupe 6h — trước khi tạo tên mới.
+                // Chỉ một snapshot rỗng SAU AUTO_BACKUP_PENDING_SETTLE_MS mới là
+                // terminal state; trước đó request GAS cũ vẫn có thể đang chạy.
+                if (last.filename) {
+                    const pendingProbe = await _probeUploadedBackupWithRetry_(last.filename);
+                    if (pendingProbe.answered && pendingProbe.result) {
+                        // File treo thực ra đã nằm trên Drive.
+                        if (last.hash === payloadHash) {
+                            // Dữ liệu chưa đổi -> nâng pending thành confirmed và
+                            // nhích mốc 24h, không tạo thêm file trùng.
+                            setLastAutoBackupTime(Date.now());
+                            writeLastUploadHash_(payloadHash);
                             return;
                         }
+                        // Dữ liệu đã đổi kể từ lượt treo: file cũ đã xác nhận có ->
+                        // xoá pending rồi tải payload MỚI (không phải bản trùng).
+                        clearLastUploadHash_();
+                    } else if (!pendingProbe.answered || !isPendingUploadSettled_(last)) {
+                        // Không hỏi được server, hoặc chỉ nhận snapshot rỗng khi
+                        // request cũ chưa qua trần settle: giữ nguyên filename/hash.
+                        // Ném để đường manual không báo thành công giả; đường auto
+                        // bắt lỗi ở caller và thử đối soát lại ở trigger sau.
+                        throw new Error('Bản sao lưu trước vẫn đang chờ Drive xác nhận. Vui lòng thử lại sau.');
                     } else {
-                        // Pending không kèm tên file thì không dò được -> bỏ đi.
+                        // Probe có trả lời rỗng SAU deadline: request cũ đã có
+                        // terminal state mà không tạo file, giờ mới an toàn xoá
+                        // pending và gửi một lượt mới.
                         clearLastUploadHash_();
                     }
-                } else if (last && last.confirmed && last.hash === payloadHash
-                           && (Date.now() - last.ts) < dedupeWindowMs) {
-                    // Bản ghi ĐÃ xác nhận, payload y hệt, còn trong cửa sổ dedupe:
-                    // dữ liệu chưa đổi -> nhích mốc 24h thay vì tạo thêm file trùng.
-                    setLastAutoBackupTime(Date.now());
-                    return;
+                } else if (!isPendingUploadSettled_(last)) {
+                    // Record thiếu filename không dò được, nhưng vẫn không được
+                    // tải mù khi còn trong cửa sổ request cũ có thể đang chạy.
+                    throw new Error('Bản sao lưu trước vẫn đang chờ Drive xác nhận. Vui lòng thử lại sau.');
+                } else {
+                    clearLastUploadHash_();
                 }
+            } else if (last && last.confirmed && last.hash === payloadHash
+                       && dedupeWindowMs > 0 && (Date.now() - last.ts) < dedupeWindowMs) {
+                // Bản ghi ĐÃ xác nhận, payload y hệt, còn trong cửa sổ dedupe:
+                // dữ liệu chưa đổi -> nhích mốc 24h thay vì tạo thêm file trùng.
+                setLastAutoBackupTime(Date.now());
+                return;
             }
 
             const dataToExport = {
@@ -495,7 +521,9 @@
     // reject có thể trả về "chưa có" hoàn toàn hợp lệ trong khi execution gốc
     // vẫn đang chạy và file sắp xuất hiện. Kết luận "thất bại thật" ở thời điểm
     // đó mở lại đúng kịch bản trùng file mà cả thay đổi này đang chống.
-    // Tổng cửa sổ ~30s đủ vượt lock 10s + tạo file + trimBackups_.
+    // Lịch ~30s giúp xác nhận nhanh khi file xuất hiện bình thường; nó KHÔNG biến
+    // một kết quả rỗng thành terminal state. Caller vẫn phải giữ write-ahead
+    // pending cho tới AUTO_BACKUP_PENDING_SETTLE_MS.
     const UPLOAD_PROBE_RETRY_DELAYS_MS = [0, 10 * 1000, 20 * 1000];
 
     function _sleep_(ms) {
@@ -582,11 +610,10 @@
     /**
      * Dò xác nhận CÓ THỬ LẠI theo UPLOAD_PROBE_RETRY_DELAYS_MS. Quy tắc gộp:
      *   - Bất kỳ lần dò nào THẤY file -> trả về thành công ngay.
-     *   - "Chưa có" chỉ được chấp nhận làm kết luận khi đến từ lần dò CUỐI
-     *     (thời điểm muộn nhất là thông tin đáng tin nhất — các lần trước có thể
-     *     rơi vào lúc execution gốc còn đang giữ lock/tạo file).
+     *   - "Chưa có" ở lần dò cuối chỉ là snapshot mới nhất; caller kết hợp nó với
+     *     timestamp pending + AUTO_BACKUP_PENDING_SETTLE_MS trước khi được retry.
      *   - Lần dò cuối không trả lời được -> answered=false (caller rơi về nhánh
-     *     UNCONFIRMED: ghi fingerprint, không bao giờ tải mù bản thứ hai).
+     *     UNCONFIRMED: giữ journal, không bao giờ tải mù bản thứ hai).
      */
     async function _probeUploadedBackupWithRetry_(filename) {
         let last = { answered: false, result: null };
@@ -613,6 +640,14 @@
             filename: filename
         };
 
+        // Write-ahead journal: ghi tên/hash TRƯỚC khi request rời client. Nếu PWA
+        // bị hệ điều hành thu hồi giữa fetch, ngữ cảnh mới vẫn dò được chính xác
+        // request cũ sau khi claim TTL hết; ghi pending sau catch là quá muộn vì
+        // một page đã chết không bao giờ chạy catch/finally.
+        if (!writeLastUploadHash_(payloadHash, { confirmed: false, filename: filename })) {
+            throw new Error('Không thể lưu trạng thái sao lưu an toàn. Vui lòng thử lại.');
+        }
+
         // Phán quyết theo đúng mô hình của upload ảnh (_postDriveUpload, 07_drive.js):
         // GAS handleCreateBackup_ TẠO FILE TRƯỚC khi response quay về máy, nên mọi sự
         // cố sau thời điểm đó — fetch reject trên đường truyền chập chờn, body rỗng,
@@ -638,6 +673,7 @@
             // REJECTED: server từ chối bằng một verdict phát TRƯỚC khi tạo file
             // (token sai, payload quá lớn...) -> chắc chắn chưa có file nào được
             // tạo, thử lại là an toàn.
+            clearLastUploadHash_();
             throw new Error(result.message || 'Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
         }
 
@@ -662,12 +698,9 @@
                 //    XẾP HÀNG hoặc đang chạy dở vẫn có thể tạo file NGAY SAU snapshot
                 //    này. Kết luận "thất bại thật" rồi quên tên file sẽ để lần kiểm
                 //    tra kế tiếp tải lên MỘT TÊN KHÁC -> đúng kịch bản sinh bản trùng
-                //    (Codex P1). Giữ PENDING (confirmed:false + filename) để lần auto
-                //    sau dò lại đúng tên; tuyệt đối không ghi hash "thành công" và
-                //    không nhích mốc 24h. Nếu file quả thật chưa bao giờ được tạo,
-                //    lần dò sau sẽ khẳng định vắng mặt và performAutoBackup xoá pending
-                //    rồi tải lại (không thể trùng vì chưa có file nào).
-                writeLastUploadHash_(payloadHash, { confirmed: false, filename: filename });
+                //    (Codex P1). Write-ahead journal ở trên đã giữ PENDING
+                //    (confirmed:false + filename) từ TRƯỚC fetch. Giữ nguyên record
+                //    đó; lần sau chỉ được xóa nếu probe vẫn rỗng SAU deadline settle.
                 throw new Error('Chưa xác nhận được bản sao lưu trên Drive. Sẽ tự kiểm tra lại ở lần sao lưu kế tiếp.');
             }
         }

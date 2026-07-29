@@ -769,20 +769,21 @@ them safely.
  is `UNCONFIRMED`, never a hard failure**: `list_backups` is not in
  `WRITE_ACTIONS_USER_`, so even the final "absent" is not synchronized with
  completion — the original execution may still be *queued* and create the file
- right after the snapshot. Both write a **pending** record
- `{ hash, confirmed: false, filename }` and throw (never a confirmed success
- hash — that would let the 6h dedupe path advance the 24h marker and suppress
- the daily backup even when Drive has nothing; and never a throw that forgets
- the filename — the next check would upload a *different* name and duplicate a
- file the queued execution then creates). A pending record is reconciled on
- the next auto check **independently of the 6h dedupe window** (a
- `confirmed:false` record is an in-flight upload of unknown fate; gating its
- re-probe on `(now - ts) < AUTO_BACKUP_DEDUPE_MS` skipped it entirely once the
- user stayed away > 6h, then uploaded a duplicate): re-probe by filename →
- found → confirm (marker + confirmed hash); absent → clear pending and upload
- fresh; still unreachable → keep pending, do not upload blind, do not advance
- the marker. The only definitive rejection is a **known pre-write verdict**
- (below), which alone throws without a pending record.
+ right after the snapshot. The client writes a **write-ahead pending journal**
+ `{ hash, confirmed: false, filename, ts }` **before `fetch` starts**, then
+ throws on any unconfirmed outcome without replacing that record. Writing it
+ only after `fetch`/probe fails is too late: a PWA context reclaimed while the
+ request is in flight never runs `catch` or `finally`, and a later context would
+ lose the only filename it can safely probe. Pending reconciliation applies to
+ both auto and manual entry points and is independent of the confirmed-upload
+ 6h dedupe window. Re-probe by filename: found → confirm (marker + confirmed
+ hash); unreachable → keep pending; absent before
+ `AUTO_BACKUP_PENDING_SETTLE_MS` (10 min) → also keep pending. Apps Script has a
+ 6-minute execution limit, so only an answered absence after that buffered
+ settle window is a bounded terminal state that may clear pending and upload
+ fresh. A repeated early empty snapshot never proves the original write stopped.
+ The only immediate definitive rejection is a **known pre-write verdict**
+ (below); it clears the write-ahead journal and throws.
  `REJECTED` (skip the probe, safe to
  retry) is reserved for the **known pre-write verdicts** in
  `PRE_WRITE_REJECT_MESSAGES` — messages `gas/UserDriveAPI.gs` emits before
@@ -810,16 +811,20 @@ them safely.
   3. A **persistent** claim (`CLIENTPRO_AUTO_BACKUP_CLAIM`, TTL
      `AUTO_BACKUP_CLAIM_TTL_MS` = 5 min) is held for the whole run. It covers
      what a Web Lock cannot: a lock dies with its context, so it says nothing
-     about a run that was killed mid-flight and is now being retried by a fresh
-     page load. It must have a TTL — a killed run never reaches its `finally`.
+     about a run that was killed before/in flight and is now being retried by a
+     fresh page load. It must have a TTL — a killed run never reaches its
+     `finally`. Once that TTL expires, the write-ahead pending journal in layer 1
+     still prevents a second upload while the server-side write can be alive.
   4. A content fingerprint (`CLIENTPRO_LAST_DRIVE_BACKUP_HASH`) hashed over
      `cleanCustomers` only — never over the envelope, whose `createdAt` changes
      every run and would make the hash never match. It suppresses a re-upload of
      an identical payload within `AUTO_BACKUP_DEDUPE_MS` (6h). That window must
      stay shorter than `AUTO_BACKUP_INTERVAL_MS` so the daily backup still runs,
-     and it applies to the auto path only — a manual backup always creates a new
-     file. Treat this as defence in depth, not exclusion: it only helps once the
-     winning run has written the hash, so it cannot be the answer to concurrency.
+     and confirmed-hash dedupe applies to the auto path only — a manual backup
+     creates a new file after any older pending attempt has reached a safe
+     terminal state. Treat this as defence in depth, not exclusion: it only helps
+     once the winning run has written the hash, so it cannot be the answer to
+     concurrency.
 - Read the 24h throttle **before** any network call (`ensureBackupSecret()`), not
   after: it is a `localStorage` read, and putting it after widened the gap
   between reading and writing the marker for no benefit.

@@ -359,15 +359,21 @@ test('auto backup Drive: upload không rõ kết quả phải dò xác nhận tr
   assert.ok(!/Loi Server/.test(rejectList[1]),
     'Message catch tổng của GAS có thể phát SAU khi file đã tạo — không được nằm trong danh sách REJECTED chắc chắn');
 
-  // Nhánh không dò được (mất mạng): ghi pending confirmed:false + filename —
-  // tuyệt đối không ghi hash "thành công" (dedupe sẽ nhích mốc 24h và nuốt backup).
+  // Write-ahead journal phải có TRƯỚC fetch: page có thể chết giữa request và
+  // không bao giờ chạy catch/finally; ghi pending sau lỗi là quá muộn.
   assert.ok(/confirmed:\s*false/.test(up) && /filename:\s*filename/.test(up),
-    'uploadAutoBackupToServer: nhánh UNCONFIRMED-không-dò-được phải ghi pending confirmed:false + filename');
+    'uploadAutoBackupToServer: phải ghi pending confirmed:false + filename');
+  const pendingIdx = up.indexOf('writeLastUploadHash_');
+  const fetchIdx = up.indexOf('fetch(');
+  assert.ok(pendingIdx >= 0 && fetchIdx > pendingIdx,
+    'uploadAutoBackupToServer: phải journal pending TRƯỚC khi request backup rời client');
   const perf = fnBody(src, 'performAutoBackup');
   assert.ok(/last\.confirmed/.test(perf) && /_probeUploadedBackupWithRetry_/.test(perf),
     'performAutoBackup: pending chưa xác nhận phải dò lại filename, không nhích mốc 24h ngay');
-  assert.ok(/clearLastUploadHash_/.test(perf),
-    'performAutoBackup: pending mà server khẳng định chưa có file phải xoá rồi tải lại');
+  assert.ok(/AUTO_BACKUP_PENDING_SETTLE_MS/.test(src) && /isPendingUploadSettled_/.test(perf),
+    'performAutoBackup: snapshot rỗng chỉ được xoá pending sau cửa sổ settle có giới hạn');
+  assert.ok(/!pendingProbe\.answered\s*\|\|\s*!isPendingUploadSettled_\(last\)/.test(perf),
+    'performAutoBackup: mất mạng hoặc snapshot rỗng trước deadline phải giữ pending');
 
   const probe = fnBody(src, '_probeUploadedBackupByName_');
   assert.ok(/list_backups/.test(probe) && /\.filename\s*===\s*filename/.test(probe),
@@ -375,12 +381,13 @@ test('auto backup Drive: upload không rõ kết quả phải dò xác nhận tr
 
   // list_backups KHÔNG giữ script lock GAS (WRITE_ACTIONS_USER_) nên có thể trả
   // "chưa có" trong khi handleCreateBackup_ của execution gốc còn đang chạy —
-  // probe phải thử lại theo lịch trễ, chỉ lần dò CUỐI mới được kết luận vắng mặt.
+  // probe phải thử lại theo lịch trễ; lần dò cuối vẫn chỉ là snapshot và caller
+  // phải giữ pending cho tới deadline settle.
   const retry = fnBody(src, '_probeUploadedBackupWithRetry_');
   assert.ok(/_probeUploadedBackupByName_/.test(retry) && /UPLOAD_PROBE_RETRY_DELAYS_MS/.test(retry),
     '_probeUploadedBackupWithRetry_: phải lặp qua lịch trễ và gọi probe một-lần bên trong');
   assert.ok(/last\.answered\s*&&\s*last\.result/.test(retry),
-    '_probeUploadedBackupWithRetry_: thấy file thì trả thành công ngay; vắng mặt chỉ tin ở lần dò cuối');
+    '_probeUploadedBackupWithRetry_: thấy file thì trả thành công ngay; vắng mặt trả về caller để áp deadline settle');
 
   // Tên file gửi đi phải qua cùng luật sanitize với handleCreateBackup_ (GAS):
   // mã NV có thể chứa '/' '\' — nếu không chuẩn hoá trước khi gửi, probe khớp
