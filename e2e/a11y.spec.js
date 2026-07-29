@@ -35,6 +35,71 @@ test('axe: màn hình cổng bảo mật không có vi phạm CRITICAL', async (
   expect(critical, 'Vi phạm a11y CRITICAL:\n' + summary).toEqual([]);
 });
 
+test('security gate: screen-lock cô lập accessibility tree của dashboard', async ({ page }) => {
+  await page.addInitScript((env) => {
+    localStorage.setItem('app_activated', 'true');
+    localStorage.setItem('app_employee_id', 'TEST');
+    localStorage.setItem('app_pin', env);
+    localStorage.setItem('app_crypto_schema_v', '2');
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 5, completedAt: Date.now() }));
+    const o = sessionStorage.getItem.bind(sessionStorage);
+    sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
+  }, PIN_ENVELOPE);
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+
+  const locked = await page.evaluate(() => {
+    const dash = document.getElementById('screen-dashboard');
+    const lock = document.getElementById('screen-lock');
+    return {
+      dashInert: !!(dash && dash.inert),
+      dashAriaHidden: dash ? dash.getAttribute('aria-hidden') : null,
+      lockInert: !!(lock && lock.inert),
+      focusInLock: !!(lock && lock.contains(document.activeElement)),
+    };
+  });
+  expect(locked.dashInert || locked.dashAriaHidden === 'true', 'Dashboard phải inert/aria-hidden khi lock mở').toBeTruthy();
+  expect(locked.lockInert, 'Chính #screen-lock không được inert').toBeFalsy();
+  expect(locked.focusInLock, 'Focus phải nằm trong #screen-lock').toBeTruthy();
+
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+
+  const unlocked = await page.evaluate(() => {
+    const dash = document.getElementById('screen-dashboard');
+    return {
+      dashInert: !!(dash && dash.inert),
+      dashAriaHidden: dash ? dash.getAttribute('aria-hidden') : null,
+    };
+  });
+  expect(unlocked.dashInert, 'Sau unlock dashboard không còn inert').toBeFalsy();
+  expect(unlocked.dashAriaHidden === 'true', 'Sau unlock dashboard không còn aria-hidden=true').toBeFalsy();
+});
+
+test('security gate: activation-modal cô lập accessibility tree', async ({ page }) => {
+  // Thiết bị chưa kích hoạt -> AuthGate hiện activation-modal.
+  await page.addInitScript(() => {
+    const o = sessionStorage.getItem.bind(sessionStorage);
+    sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
+  });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#activation-modal', { state: 'visible', timeout: 15_000 });
+
+  const state = await page.evaluate(() => {
+    const dash = document.getElementById('screen-dashboard');
+    const act = document.getElementById('activation-modal');
+    return {
+      dashInert: !!(dash && dash.inert),
+      dashAriaHidden: dash ? dash.getAttribute('aria-hidden') : null,
+      actInert: !!(act && act.inert),
+      focusInAct: !!(act && act.contains(document.activeElement)),
+    };
+  });
+  expect(state.dashInert || state.dashAriaHidden === 'true').toBeTruthy();
+  expect(state.actInert).toBeFalsy();
+  expect(state.focusInAct).toBeTruthy();
+});
+
 // UX hardening 1.1.0: axe trên màn hình chính (sau mở khóa) + modal thêm khách hàng.
 // Gate ở mức CRITICAL (log SERIOUS) — đồng bộ quy ước sẵn có của repo.
 test('axe: màn hình chính + modal thêm khách hàng không có vi phạm CRITICAL', async ({ page }) => {

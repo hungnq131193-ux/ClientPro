@@ -18,7 +18,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v1.4.5';
+  var SW_BUILD = 'v1.4.6';
 
   window.__swUpdatePending = false;
 

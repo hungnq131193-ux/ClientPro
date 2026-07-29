@@ -975,9 +975,14 @@ Runtime caching strategy, IndexedDB.
 
 ## Offline cache
 
-The precache list in `sw.js` covers the app shell, self-hosted vendor scripts,
-CSS, and fonts, each tagged with `?v=<ASSET_V>`. Runtime caches serve same-origin
-assets, same-origin vendor files, and map tiles under separate cache buckets.
+The precache list in `sw.js` covers the **full offline surface**: app shell,
+business modules, self-hosted vendor scripts (including MapLibre, PDF Toolkit
+vendors, lucide, crypto-js), CSS, fonts, DVHC data, and icons — each tagged with
+`?v=<ASSET_V>` where applicable. This is intentional for ClientPro's
+offline-first invariant: opening a feature once is **not** enough to guarantee
+offline PDF (vendors load on file processing), map tiles, or OSRM routing.
+Runtime caches still serve same-origin assets and map tiles under separate
+buckets with TTL/entry limits; they complement precache, they do not replace it.
 Keep the precache list and the `?v=` tags in `index.html` in lockstep with
 `ASSET_V`.
 
@@ -1024,6 +1029,16 @@ Business modals use the shared overlay/modal frame and `ModalA11y` behavior
 (both in `04_ui_common.js`) and the standard confirm (`showConfirm`, provided
 by `19_error_loading.js`). Do not modify existing modal stacking to accommodate a
 local flow.
+
+`ModalA11y` focus-traps every `.fixed.inset-0` overlay, but **background
+`inert` / `aria-hidden` isolation is limited to security gates**:
+`#activation-modal`, `#screen-lock`, `#setup-lock-modal`, `#forgot-pin-modal`,
+`#biometric-setup-modal`. Order: focus into the gate first, then isolate
+siblings on the path to `body`; on close, release isolation before restoring
+focus. Do **not** extend inert to all business modals in the same helper —
+there is no modal stack, and `.cp-confirm-overlay` is owned by
+`showConfirm` / `19_error_loading.js`, so blanket isolation breaks confirm /
+nested overlays.
 
 ## Z-index contract
 
@@ -1240,6 +1255,16 @@ Performing a release/version bump.
 ### Must not affect
 Caching strategy, IndexedDB version, crypto version, backup format.
 
+## Manifest / PWA identity
+
+`manifest.json` keeps `id: "./index.html"` so the Computed App Id stays equal to
+the previous identity derived from `start_url` (production:
+`https://client-pro-beryl.vercel.app/index.html`). Do not change `id` to `./` or
+another path without verifying it matches the already-installed app id.
+`scope` is `./`. Icons include `purpose: "any"` plus separate maskable assets
+(safe-zone padded). Shortcuts and screenshots are intentionally omitted until
+the app has real deep-link routes / a dedicated install-experience pass.
+
 ## Service Worker cache busting
 
 `ASSET_V` is a free-form tag (e.g. `PDFTOOLKIT_20260721`). Changing it invalidates
@@ -1250,8 +1275,19 @@ precache list, `MAPLIBRE_V`, and `LAZY_MODULES_V` must use the same `ASSET_V`.
 
 Two layers: Node built-in unit tests (`tests/**/*.test.js`) run with `node --test`
 and no install; Playwright/axe e2e (`e2e/*.spec.js`) plus Lighthouse CI run in the
-`e2e` CI job. The shipped app stays zero-dependency; devDependencies exist only
-for CI tooling.
+`e2e` CI job. The shipped app stays zero-dependency (`package.json` has no
+runtime `dependencies`). CI tooling (`devDependencies`) is locked by the
+committed `package-lock.json` and installed with `npm ci` — the lockfile is for
+tooling only, not an app runtime SBOM. Vendor binaries under `assets/vendor/`
+are tracked by the **vendor inventory** in `assets/vendor/README.md` (name,
+version, license, npm source URL, SHA-256), enforced by
+`scripts/check-policy.mjs`.
+
+Lighthouse CI (`lighthouserc.json`): `accessibility` and `best-practices` are
+`error` gates; `performance` remains `warn` for this release (mobile headless
+variance). Artifacts: upload `.lighthouseci/` separately with
+`include-hidden-files: true` (dot-dir) and fail if empty; Playwright report is a
+separate upload.
 
 ## Unit test
 
@@ -1337,6 +1373,16 @@ and unmerged.
 - Do not change logic to make a test pass, or change tests to hide out-of-scope
   logic changes.
 - Do not merge a PR.
+
+## Architecture roadmap (P3 — not in active hardening)
+
+The app currently loads ~28 ordered classic scripts with shared globals. That
+matches the zero-bundler, CSP-safe mobile PWA model and is appropriate at the
+current size. A future, deliberate migration may introduce clearer subsystem
+boundaries (e.g. ES modules or explicit interfaces) for the largest files such
+as security and customers — only with a dedicated plan that preserves load
+order, CSP, Service Worker precache, and offline behaviour. Do not start that
+refactor opportunistically inside docs/tour/CI hardening work.
 
 ## Rule for future updates to CLAUDE.md
 

@@ -8,6 +8,7 @@
 // Thoát mã != 0 khi vi phạm. Không sửa gì — chỉ đọc.
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -61,6 +62,27 @@ const errors = [];
     lines.forEach((line, i) => {
       if (CDN_RE.test(line)) errors.push(`${t}:${i + 1}: tham chiếu CDN ngoài — app phải self-host toàn bộ script/style/font.`);
     });
+  }
+}
+
+// --- 4. Vendor inventory: mọi file trong assets/vendor/ phải có SHA-256 ---
+{
+  const vendorDir = path.join(ROOT, 'assets/vendor');
+  const readme = read('assets/vendor/README.md');
+  const files = fs.readdirSync(vendorDir).filter((f) => f !== 'README.md' && !f.startsWith('.'));
+  for (const f of files) {
+    if (!new RegExp('`' + f.replace(/\./g, '\\.') + '`').test(readme)) {
+      errors.push(`assets/vendor/README.md: thiếu inventory cho ${f}`);
+      continue;
+    }
+    const buf = fs.readFileSync(path.join(vendorDir, f));
+    const hash = crypto.createHash('sha256').update(buf).digest('hex');
+    if (!readme.includes(hash)) {
+      errors.push(`assets/vendor/README.md: SHA-256 của ${f} không khớp (expected ${hash})`);
+    }
+  }
+  if (!errors.some((e) => e.includes('assets/vendor'))) {
+    console.log(`✅ Vendor inventory: ${files.length} file có SHA-256 khớp`);
   }
 }
 

@@ -132,4 +132,17 @@ test('manifest.json: đủ trường tối thiểu để cài đặt PWA', () =>
   assert.ok(Array.isArray(m.icons) && m.icons.length > 0, 'Manifest cần icons');
   assert.ok(m.start_url, 'Manifest cần start_url');
   assert.ok(m.display, 'Manifest cần display mode');
+  // id phải khớp computed app id hiện tại (start_url ./index.html → cùng identity).
+  assert.equal(m.id, './index.html', 'id phải là ./index.html để giữ identity PWA đã cài');
+  assert.equal(m.scope, './', 'Manifest cần scope ./');
+  assert.ok(m.icons.some((i) => String(i.purpose || '').includes('any')), 'Cần icon purpose any');
+  assert.ok(m.icons.some((i) => String(i.purpose || '').includes('maskable')), 'Cần icon purpose maskable');
+  assert.ok(!('shortcuts' in m), 'Chưa thêm shortcuts khi app chưa có deep-link');
+  assert.ok(!('screenshots' in m), 'Screenshots để PR install-experience riêng');
+});
+
+test('sw.js: precache gồm icon maskable', () => {
+  const sw = read('sw.js');
+  assert.ok(sw.includes('./icon-192-maskable.png'), 'Precache thiếu icon-192-maskable.png');
+  assert.ok(sw.includes('./icon-512-maskable.png'), 'Precache thiếu icon-512-maskable.png');
 });

@@ -78,24 +78,24 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      # Cache npm + Chromium theo devDeps đã pin exact trong package.json
-      # (không có lockfile — chính sách no-lockfile giữ nguyên).
+      # Cache npm + Chromium theo package-lock.json (CI tooling only;
+      # app shipped vẫn zero-dependency runtime).
       - name: Cache npm
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('package.json') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ hashFiles('package.json') }}
+          key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       # devDeps CHỈ cho CI (Playwright/axe/Lighthouse). App shipped vẫn zero-dependency.
-      # Dùng `npm install` (không `npm ci`) vì không commit package-lock.json.
+      # `npm ci` + package-lock.json đã commit để dependency test không trôi.
       - name: Install CI test tooling
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
@@ -103,17 +103,30 @@ jobs:
       - name: Run Playwright E2E + axe a11y
         run: npx playwright test
 
-      # Gate thật: assertion a11y (error, minScore 0.9) trong lighthouserc.json
-      # làm đỏ CI nếu vi phạm; perf/best-practices vẫn chỉ cảnh báo.
-      - name: Lighthouse CI (a11y gate + perf/best-practices cảnh báo)
+      # Gate: a11y + best-practices (error); performance vẫn warn một release.
+      - name: Lighthouse CI (a11y + best-practices gate; perf cảnh báo)
         run: npx lhci autorun
 
-      - name: Upload E2E & Lighthouse reports
+      # .lighthouseci/ là thư mục ẩn — upload-artifact@v4 bỏ qua hidden files
+      # trừ khi bật include-hidden-files. Tách upload để mất LHCI không bị
+      # che bởi playwright-report/ đã có sẵn.
+      - name: Verify Lighthouse output present
+        if: always()
+        run: test -n "$(find .lighthouseci -type f -print -quit)"
+
+      - name: Upload Lighthouse reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-lighthouse-reports
-          path: |
-            playwright-report/
-            .lighthouseci/
-          if-no-files-found: ignore
+          name: lighthouse-reports
+          path: .lighthouseci/
+          include-hidden-files: true
+          if-no-files-found: error
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: warn
