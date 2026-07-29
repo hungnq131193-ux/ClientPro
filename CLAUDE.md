@@ -758,13 +758,19 @@ them safely.
  upload exactly like `_postDriveUpload` (`OK` / `REJECTED` / `UNCONFIRMED`,
  body read via `response.text()` + guarded `JSON.parse`, never bare
  `response.json()`). An `UNCONFIRMED` upload is confirmed by
- `_probeUploadedBackupByName_` — a fresh `list_backups` lookup for the exact
- per-attempt unique filename: found → run the normal success path (marker +
- hash); server answered "absent" → genuine failure, throw **without** writing
- marker/hash so the next check retries (no file exists to duplicate); probe
- itself unreachable → write **only the content hash** (the 6h dedupe window
- then blocks a blind re-upload of the same payload; the dedupe-hit path
- advances the 24h marker) and throw an "unconfirmed" error.
+ `_probeUploadedBackupWithRetry_` — fresh `list_backups` lookups for the exact
+ per-attempt unique filename, **retried on a delay schedule**
+ (`UPLOAD_PROBE_RETRY_DELAYS_MS`, ~30s total): `list_backups` is not in the
+ GAS `WRITE_ACTIONS_USER_` lock set, so a probe fired right after the fetch
+ rejected can legitimately answer "absent" while the original
+ `handleCreateBackup_` execution is still holding the script lock and about
+ to create the file — only the **final** probe's "absent" counts. Found →
+ run the normal success path (marker + hash); final probe answered "absent"
+ → genuine failure, throw **without** writing marker/hash so the next check
+ retries (no file exists to duplicate); final probe unreachable → write
+ **only the content hash** (the 6h dedupe window then blocks a blind
+ re-upload of the same payload; the dedupe-hit path advances the 24h marker)
+ and throw an "unconfirmed" error.
   2. **Web Locks** (`withAutoBackupLock_`, lock name `clientpro-auto-backup`,
      `ifAvailable: true`) is the only real mutual exclusion between live
      same-origin contexts, and both entry points — the auto path and

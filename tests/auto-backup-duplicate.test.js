@@ -17,6 +17,9 @@
 //      không được ghi, mỗi lần unlock/visibilitychange lại tải lên một file nữa
 //      — đây là nguồn gốc thực tế của "1 lúc 3 file". Giờ phán quyết
 //      OK/REJECTED/UNCONFIRMED + dò xác nhận bằng list_backups theo đúng tên file.
+//      Probe phải THỬ LẠI theo lịch trễ: list_backups không giữ script lock GAS
+//      nên lần dò đầu có thể thấy "chưa có" trong khi execution gốc còn đang
+//      tạo file — chỉ lần dò cuối mới được kết luận vắng mặt.
 // ============================================================================
 
 const test = require('node:test');
@@ -382,11 +385,11 @@ test('auto backup: mất mạng hoàn toàn sau upload -> chỉ ghi fingerprint,
   );
 });
 
-test('auto backup: server khẳng định chưa có file -> thất bại thật, lần sau được thử lại', async () => {
+test('auto backup: server khẳng định chưa có file (mọi lần dò) -> thất bại thật, lần sau được thử lại', async () => {
   const h = loadAutoBackup();
   const originalFetch = h.ctx.fetch;
 
-  // Upload không tới được server; probe trả lời rõ ràng: chưa có file nào.
+  // Upload không tới được server; probe trả lời rõ ràng ở MỌI lần dò: chưa có file.
   h.setFetch(async (url, init) => {
     const body = JSON.parse((init && init.body) || '{}');
     h.requests.push(body);
@@ -398,6 +401,10 @@ test('auto backup: server khẳng định chưa có file -> thất bại thật,
   await h.DriveBackup.checkDaily();
 
   assert.equal(h.backupCallCount(), 1);
+  assert.ok(
+    h.requests.filter((r) => r.action === 'list_backups').length >= 2,
+    'Phải dò lại ít nhất một lần trước khi chấp nhận "chưa có" làm kết luận'
+  );
   assert.equal(
     h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'),
     null,
@@ -416,6 +423,83 @@ test('auto backup: server khẳng định chưa có file -> thất bại thật,
   await h.DriveBackup.checkDaily();
   assert.equal(h.backupCallCount(), 2, 'Thất bại thật phải được thử lại ở lần kiểm tra kế tiếp');
   assert.ok(h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'));
+});
+
+test('auto backup: fetch reject nhưng GAS còn đang xử lý (file xuất hiện muộn) -> probe thử lại bắt được, không kết luận sớm', async () => {
+  const h = loadAutoBackup();
+
+  // Đúng race trong review: upload reject trong khi execution gốc vẫn chạy
+  // (backup giữ script lock, list_backups thì không). Lần dò đầu thấy "chưa có"
+  // hoàn toàn hợp lệ; file xuất hiện ở lần dò sau.
+  let listCalls = 0;
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'backup') throw new Error('network dropped mid-flight');
+    if (body.action === 'list_backups') {
+      listCalls++;
+      if (listCalls === 1) return makeGasResponse({ status: 'success', backups: [] });
+      const created = h.requests
+        .filter((r) => r.action === 'backup')
+        .map((r) => ({ id: 'file_late', filename: r.filename, size: 10, createdAt: new Date().toISOString() }));
+      return makeGasResponse({ status: 'success', backups: created });
+    }
+    return makeGasResponse({ status: 'success' });
+  });
+
+  await h.DriveBackup.checkDaily();
+
+  assert.equal(h.backupCallCount(), 1, 'Chỉ một request tạo file được gửi đi');
+  assert.ok(listCalls >= 2, 'Probe phải thử lại sau lần dò đầu "chưa có"');
+  assert.ok(
+    h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'),
+    'Lần dò sau thấy file -> phải chốt mốc 24h như một upload thành công'
+  );
+  assert.ok(
+    h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH'),
+    'Fingerprint cũng phải được ghi'
+  );
+
+  // Trước khi sửa, "chưa có" ở lần dò đầu bị coi là thất bại thật -> các trigger
+  // sau upload lại và file gốc xuất hiện muộn tạo thành bản trùng.
+  h.advance(30 * 1000);
+  await h.document._emit('clientpro:unlocked');
+  await h.DriveBackup.checkDaily();
+  assert.equal(h.backupCallCount(), 1, 'Không được tạo thêm bản nào — file gốc đã được xác nhận');
+});
+
+test('auto backup: lần dò cuối không trả lời được -> coi là chưa xác nhận (ghi fingerprint), không kết luận thất bại', async () => {
+  const h = loadAutoBackup();
+
+  // Lần dò đầu "chưa có" (execution gốc có thể còn chạy), các lần dò sau mất
+  // mạng: vắng mặt chưa được xác nhận ở lần dò cuối -> không được coi là thất
+  // bại thật (nếu coi là thất bại, lần kiểm tra sau tải lại và có thể trùng).
+  let listCalls = 0;
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'backup') throw new Error('network dropped');
+    if (body.action === 'list_backups') {
+      listCalls++;
+      if (listCalls === 1) return makeGasResponse({ status: 'success', backups: [] });
+      throw new Error('offline again');
+    }
+    return makeGasResponse({ status: 'success' });
+  });
+
+  await h.DriveBackup.checkDaily();
+
+  assert.equal(h.backupCallCount(), 1);
+  assert.ok(listCalls >= 2, 'Phải dò tới hết lịch thử lại');
+  assert.equal(
+    h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'),
+    null,
+    'Chưa xác nhận được thì không chốt mốc 24h'
+  );
+  assert.ok(
+    h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH'),
+    'Nhánh chưa-xác-nhận phải ghi fingerprint để dedupe chặn tải lại mù'
+  );
 });
 
 test('auto backup: server từ chối rõ ràng (REJECTED) -> không dò probe, không chốt mốc, lần sau thử lại', async () => {

@@ -428,14 +428,29 @@
         }
     }
 
+    // Lịch dò xác nhận sau một upload không rõ kết quả. PHẢI dò lại có trễ,
+    // không được tin lần dò đầu: GAS handleCreateBackup_ giữ script lock
+    // (waitLock tới 10s) rồi mới tạo file, còn list_backups KHÔNG nằm trong
+    // WRITE_ACTIONS_USER_ nên không giữ lock — một probe bắn ngay sau khi fetch
+    // reject có thể trả về "chưa có" hoàn toàn hợp lệ trong khi execution gốc
+    // vẫn đang chạy và file sắp xuất hiện. Kết luận "thất bại thật" ở thời điểm
+    // đó mở lại đúng kịch bản trùng file mà cả thay đổi này đang chống.
+    // Tổng cửa sổ ~30s đủ vượt lock 10s + tạo file + trimBackups_.
+    const UPLOAD_PROBE_RETRY_DELAYS_MS = [0, 10 * 1000, 20 * 1000];
+
+    function _sleep_(ms) {
+        return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
     /**
-     * Dò xác nhận sau một lượt upload KHÔNG RÕ KẾT QUẢ: hỏi list_backups và tìm
-     * ĐÚNG tên file vừa gửi (tên là duy nhất cho mỗi lần thử nhờ Date.now()).
-     * Không đụng cache — đây là một lần hỏi tươi, read-only.
+     * Dò xác nhận MỘT lần: hỏi list_backups và tìm ĐÚNG tên file vừa gửi (tên là
+     * duy nhất cho mỗi lần thử nhờ Date.now()). Không đụng cache — hỏi tươi,
+     * read-only. Đừng gọi trực tiếp từ đường upload: dùng
+     * _probeUploadedBackupWithRetry_ để "chưa có" không bị kết luận quá sớm.
      *
      * @returns {Promise<{answered: boolean, result: object|null}>}
      *   - answered=false: không hỏi được server (mất mạng, GAS lỗi) -> chưa kết luận gì.
-     *   - answered=true, result=null: server trả lời, file KHÔNG có -> thất bại thật.
+     *   - answered=true, result=null: server trả lời, file KHÔNG có (tại thời điểm hỏi).
      *   - answered=true, result={...}: file ĐÃ nằm trên Drive -> coi như upload thành công
      *     (object theo đúng shape handleCreateBackup_ trả về để dùng chung nhánh thành công).
      */
@@ -467,6 +482,25 @@
         } catch (e) {
             return { answered: false, result: null };
         }
+    }
+
+    /**
+     * Dò xác nhận CÓ THỬ LẠI theo UPLOAD_PROBE_RETRY_DELAYS_MS. Quy tắc gộp:
+     *   - Bất kỳ lần dò nào THẤY file -> trả về thành công ngay.
+     *   - "Chưa có" chỉ được chấp nhận làm kết luận khi đến từ lần dò CUỐI
+     *     (thời điểm muộn nhất là thông tin đáng tin nhất — các lần trước có thể
+     *     rơi vào lúc execution gốc còn đang giữ lock/tạo file).
+     *   - Lần dò cuối không trả lời được -> answered=false (caller rơi về nhánh
+     *     UNCONFIRMED: ghi fingerprint, không bao giờ tải mù bản thứ hai).
+     */
+    async function _probeUploadedBackupWithRetry_(filename) {
+        let last = { answered: false, result: null };
+        for (let i = 0; i < UPLOAD_PROBE_RETRY_DELAYS_MS.length; i++) {
+            if (UPLOAD_PROBE_RETRY_DELAYS_MS[i] > 0) await _sleep_(UPLOAD_PROBE_RETRY_DELAYS_MS[i]);
+            last = await _probeUploadedBackupByName_(filename);
+            if (last.answered && last.result) return last;
+        }
+        return last;
     }
 
     async function uploadAutoBackupToServer(encryptedContent, payloadHash) {
@@ -510,16 +544,18 @@
         }
 
         if (!result || result.status !== 'success') {
-            // UNCONFIRMED: dò lại trước khi kết luận — request có thể đã tới GAS và
-            // file đã nằm trên Drive dù response không quay về.
-            const probe = await _probeUploadedBackupByName_(filename);
+            // UNCONFIRMED: dò lại (có thử lại theo lịch trễ) trước khi kết luận —
+            // request có thể đã tới GAS và file đã nằm trên Drive dù response
+            // không quay về, thậm chí execution gốc còn đang chạy dở.
+            const probe = await _probeUploadedBackupWithRetry_(filename);
             if (probe.answered && probe.result) {
                 // File thực ra đã lên Drive: chạy tiếp nhánh thành công bên dưới
                 // (chốt mốc 24h + hash) để các lần kiểm tra sau dừng hẳn.
                 result = probe.result;
             } else if (probe.answered) {
-                // Server khẳng định chưa có file -> thất bại thật. KHÔNG ghi mốc/hash
-                // để lần tới còn thử lại (không thể sinh trùng vì chưa có file nào).
+                // Lần dò CUỐI (sau toàn bộ lịch trễ) vẫn khẳng định chưa có file
+                // -> thất bại thật. KHÔNG ghi mốc/hash để lần tới còn thử lại
+                // (không thể sinh trùng vì chưa có file nào).
                 throw new Error('Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
             } else {
                 // Không dò được (mất mạng): file CÓ THỂ đã lên Drive. Chỉ ghi dấu vân

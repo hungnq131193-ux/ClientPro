@@ -339,11 +339,13 @@ test('auto backup Drive: upload không rõ kết quả phải dò xác nhận tr
   assert.ok(!/response\.json\s*\(/.test(up),
     'uploadAutoBackupToServer: response.json() trần biến upload-thành-công-nhưng-mất-response thành thất-bại -> sinh bản trùng');
 
-  // UNCONFIRMED phải dò xác nhận bằng probe TRƯỚC khi chốt mốc 24h.
-  const probeIdx = up.indexOf('_probeUploadedBackupByName_');
+  // UNCONFIRMED phải dò xác nhận bằng probe CÓ THỬ LẠI trước khi chốt mốc 24h.
+  const probeIdx = up.indexOf('_probeUploadedBackupWithRetry_');
   const markerIdx = up.indexOf('setLastAutoBackupTime');
   assert.ok(probeIdx >= 0 && markerIdx > probeIdx,
     'uploadAutoBackupToServer: phải dò xác nhận file đã lên Drive chưa (probe) trước khi kết luận');
+  assert.ok(!/_probeUploadedBackupByName_/.test(up),
+    'uploadAutoBackupToServer: không gọi probe một-lần trực tiếp — "chưa có" ở lần dò đầu chưa phải kết luận');
 
   // Nhánh không dò được (mất mạng): chỉ ghi fingerprint để cửa sổ dedupe chặn tải
   // lại mù cùng payload — lệnh ghi phải nằm giữa probe và lần chốt mốc thành công.
@@ -354,6 +356,15 @@ test('auto backup Drive: upload không rõ kết quả phải dò xác nhận tr
   const probe = fnBody(src, '_probeUploadedBackupByName_');
   assert.ok(/list_backups/.test(probe) && /\.filename\s*===\s*filename/.test(probe),
     '_probeUploadedBackupByName_: phải hỏi list_backups và khớp ĐÚNG tên file vừa gửi (tên duy nhất mỗi lần thử)');
+
+  // list_backups KHÔNG giữ script lock GAS (WRITE_ACTIONS_USER_) nên có thể trả
+  // "chưa có" trong khi handleCreateBackup_ của execution gốc còn đang chạy —
+  // probe phải thử lại theo lịch trễ, chỉ lần dò CUỐI mới được kết luận vắng mặt.
+  const retry = fnBody(src, '_probeUploadedBackupWithRetry_');
+  assert.ok(/_probeUploadedBackupByName_/.test(retry) && /UPLOAD_PROBE_RETRY_DELAYS_MS/.test(retry),
+    '_probeUploadedBackupWithRetry_: phải lặp qua lịch trễ và gọi probe một-lần bên trong');
+  assert.ok(/last\.answered\s*&&\s*last\.result/.test(retry),
+    '_probeUploadedBackupWithRetry_: thấy file thì trả thành công ngay; vắng mặt chỉ tin ở lần dò cuối');
 });
 
 test('nhóm ổn định B #7: saveImageToDB — transaction lưu ảnh đủ oncomplete/onerror/onabort', () => {
