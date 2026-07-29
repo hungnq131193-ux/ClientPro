@@ -767,10 +767,14 @@ them safely.
  to create the file — only the **final** probe's "absent" counts. Found →
  run the normal success path (marker + hash); final probe answered "absent"
  → genuine failure, throw **without** writing marker/hash so the next check
- retries (no file exists to duplicate); final probe unreachable → write
- ** only the content hash** (the 6h dedupe window then blocks a blind
- re-upload of the same payload; the dedupe-hit path advances the 24h marker)
- and throw an "unconfirmed" error. `REJECTED` (skip the probe, safe to
+ retries (no file exists to duplicate); final probe unreachable → write a
+ **pending** record `{ hash, confirmed: false, filename }` (never a confirmed
+ success hash — that would let the 6h dedupe path advance the 24h marker and
+ suppress the daily backup even when Drive has nothing). On the next auto
+ check, a matching pending hash is **re-probed** by filename: found → confirm
+ (marker + confirmed hash); absent → clear pending and upload; still
+ unreachable → keep pending, do not upload blind, do not advance the marker.
+ `REJECTED` (skip the probe, safe to
  retry) is reserved for the **known pre-write verdicts** in
  `PRE_WRITE_REJECT_MESSAGES` — messages `gas/UserDriveAPI.gs` emits before
  `folder.createFile` runs (parse/token/lock/validation). Any other

@@ -359,11 +359,15 @@ test('auto backup Drive: upload không rõ kết quả phải dò xác nhận tr
   assert.ok(!/Loi Server/.test(rejectList[1]),
     'Message catch tổng của GAS có thể phát SAU khi file đã tạo — không được nằm trong danh sách REJECTED chắc chắn');
 
-  // Nhánh không dò được (mất mạng): chỉ ghi fingerprint để cửa sổ dedupe chặn tải
-  // lại mù cùng payload — lệnh ghi phải nằm giữa probe và lần chốt mốc thành công.
-  const hashIdx = up.indexOf('writeLastUploadHash_(payloadHash)');
-  assert.ok(hashIdx > probeIdx && hashIdx < markerIdx,
-    'uploadAutoBackupToServer: nhánh UNCONFIRMED-không-dò-được phải ghi fingerprint trước khi throw');
+  // Nhánh không dò được (mất mạng): ghi pending confirmed:false + filename —
+  // tuyệt đối không ghi hash "thành công" (dedupe sẽ nhích mốc 24h và nuốt backup).
+  assert.ok(/confirmed:\s*false/.test(up) && /filename:\s*filename/.test(up),
+    'uploadAutoBackupToServer: nhánh UNCONFIRMED-không-dò-được phải ghi pending confirmed:false + filename');
+  const perf = fnBody(src, 'performAutoBackup');
+  assert.ok(/last\.confirmed/.test(perf) && /_probeUploadedBackupWithRetry_/.test(perf),
+    'performAutoBackup: pending chưa xác nhận phải dò lại filename, không nhích mốc 24h ngay');
+  assert.ok(/clearLastUploadHash_/.test(perf),
+    'performAutoBackup: pending mà server khẳng định chưa có file phải xoá rồi tải lại');
 
   const probe = fnBody(src, '_probeUploadedBackupByName_');
   assert.ok(/list_backups/.test(probe) && /\.filename\s*===\s*filename/.test(probe),

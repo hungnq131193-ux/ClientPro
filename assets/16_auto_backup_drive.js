@@ -128,15 +128,36 @@
             const obj = JSON.parse(localStorage.getItem(LAST_UPLOAD_HASH_KEY) || 'null');
             if (!obj || typeof obj.hash !== 'string' || !obj.hash) return null;
             const ts = Number(obj.ts);
-            return { hash: obj.hash, ts: Number.isFinite(ts) ? ts : 0 };
+            return {
+                hash: obj.hash,
+                ts: Number.isFinite(ts) ? ts : 0,
+                // Bản ghi cũ (không có field) = đã xác nhận thành công. Chỉ
+                // confirmed === false mới là "chưa chắc file đã lên Drive".
+                confirmed: obj.confirmed !== false,
+                filename: (typeof obj.filename === 'string' && obj.filename) ? obj.filename : ''
+            };
         } catch (e) { return null; }
     }
 
-    function writeLastUploadHash_(hash) {
+    /**
+     * @param {string} hash
+     * @param {{confirmed?: boolean, filename?: string}} [opts]
+     *   confirmed:false = lượt upload chưa xác nhận được (mất mạng sau khi gửi).
+     *   Bản ghi này KHÔNG được dùng để nhích mốc 24h — chỉ để chặn tải mù và
+     *   để lần sau dò lại đúng tên file.
+     */
+    function writeLastUploadHash_(hash, opts) {
         if (!hash) return;
+        const o = opts || {};
+        const rec = { hash: hash, ts: Date.now(), confirmed: o.confirmed !== false };
+        if (rec.confirmed === false && o.filename) rec.filename = String(o.filename);
         try {
-            localStorage.setItem(LAST_UPLOAD_HASH_KEY, JSON.stringify({ hash: hash, ts: Date.now() }));
+            localStorage.setItem(LAST_UPLOAD_HASH_KEY, JSON.stringify(rec));
         } catch (e) { }
+    }
+
+    function clearLastUploadHash_() {
+        try { localStorage.removeItem(LAST_UPLOAD_HASH_KEY); } catch (e) { }
     }
 
     /**
@@ -393,10 +414,35 @@
             if (payloadHash && dedupeWindowMs > 0) {
                 const last = readLastUploadHash_();
                 if (last && last.hash === payloadHash && (Date.now() - last.ts) < dedupeWindowMs) {
-                    // Dữ liệu chưa đổi kể từ bản gần nhất: nhích mốc 24h rồi dừng,
-                    // không tạo thêm file trùng trên Drive.
-                    setLastAutoBackupTime(Date.now());
-                    return;
+                    if (last.confirmed) {
+                        // Bản ghi ĐÃ xác nhận: dữ liệu chưa đổi -> nhích mốc 24h,
+                        // không tạo thêm file trùng trên Drive.
+                        setLastAutoBackupTime(Date.now());
+                        return;
+                    }
+                    // Bản ghi CHƯA xác nhận (mất mạng sau upload): tuyệt đối không
+                    // nhích mốc 24h — request có thể chưa bao giờ tới GAS, nhích mốc
+                    // sẽ nuốt mất bản sao lưu hằng ngày trong 24h (Codex P1).
+                    // Dò lại đúng tên file đã gửi; chỉ khi thấy file mới chốt thành công.
+                    if (last.filename) {
+                        const pendingProbe = await _probeUploadedBackupWithRetry_(last.filename);
+                        if (pendingProbe.answered && pendingProbe.result) {
+                            setLastAutoBackupTime(Date.now());
+                            writeLastUploadHash_(payloadHash);
+                            return;
+                        }
+                        if (pendingProbe.answered) {
+                            // Server khẳng định chưa có file -> xoá pending, chạy tiếp
+                            // để tải lên thật (không thể trùng vì chưa có file nào).
+                            clearLastUploadHash_();
+                        } else {
+                            // Vẫn không hỏi được server: giữ pending, không tải mù,
+                            // không nhích mốc — lần kiểm tra sau (khi có mạng) sẽ dò lại.
+                            return;
+                        }
+                    } else {
+                        clearLastUploadHash_();
+                    }
                 }
             }
 
@@ -597,11 +643,12 @@
                 // (không thể sinh trùng vì chưa có file nào).
                 throw new Error((result && result.message) || 'Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
             } else {
-                // Không dò được (mất mạng): file CÓ THỂ đã lên Drive. Chỉ ghi dấu vân
-                // tay nội dung để cửa sổ chống trùng 6h chặn việc tải lại cùng payload
-                // (khi trúng dedupe, mốc 24h được nhích tại đó) — tuyệt đối không tải
-                // mù một bản thứ hai. Vẫn báo lỗi để log/UI phản ánh đúng sự cố mạng.
-                writeLastUploadHash_(payloadHash);
+                // Không dò được (mất mạng): file CÓ THỂ đã lên Drive — hoặc request
+                // chưa bao giờ tới GAS. Ghi bản ghi CHƯA xác nhận (confirmed:false +
+                // filename) để lần sau dò lại đúng tên; tuyệt đối không ghi hash
+                // "thành công" (confirmed mặc định) vì nhánh dedupe sẽ nhích mốc
+                // 24h và nuốt mất bản sao lưu nếu Drive thực ra chưa có file.
+                writeLastUploadHash_(payloadHash, { confirmed: false, filename: filename });
                 throw new Error('Không xác nhận được bản sao lưu trên Drive (kết nối không ổn định). Vui lòng kiểm tra danh sách sao lưu trước khi thử lại.');
             }
         }
