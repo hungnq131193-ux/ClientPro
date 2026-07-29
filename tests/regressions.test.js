@@ -372,6 +372,8 @@ test('auto backup Drive: upload không rõ kết quả phải dò xác nhận tr
   const perf = fnBody(src, 'performAutoBackup');
   assert.ok(/last\.confirmed/.test(perf) && /_probeUploadedBackupWithRetry_/.test(perf),
     'performAutoBackup: pending chưa xác nhận phải dò lại filename, không nhích mốc 24h ngay');
+  assert.ok(/if\s*\(\s*dedupeWindowMs\s*>\s*0\s*\)\s*return/.test(perf),
+    'performAutoBackup: reconcile pending cùng hash chỉ được return ở đường auto; manual phải tiếp tục tạo bản mới');
   assert.ok(/AUTO_BACKUP_PENDING_SETTLE_MS/.test(src) && /isPendingUploadSettled_/.test(perf),
     'performAutoBackup: snapshot rỗng chỉ được xoá pending sau cửa sổ settle có giới hạn');
   assert.ok(/!pendingProbe\.answered\s*\|\|\s*!isPendingUploadSettled_\(last\)/.test(perf),

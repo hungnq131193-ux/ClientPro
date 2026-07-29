@@ -451,13 +451,15 @@
                         // File treo thực ra đã nằm trên Drive.
                         if (last.hash === payloadHash) {
                             // Dữ liệu chưa đổi -> nâng pending thành confirmed và
-                            // nhích mốc 24h, không tạo thêm file trùng.
+                            // nhích mốc 24h. Đường auto dừng để không tạo file trùng;
+                            // đường manual phải tiếp tục vì người dùng vừa yêu cầu
+                            // rõ ràng một bản mới.
                             setLastAutoBackupTime(Date.now());
                             writeLastUploadHash_(payloadHash);
-                            return;
+                            if (dedupeWindowMs > 0) return;
                         }
-                        // Dữ liệu đã đổi kể từ lượt treo: file cũ đã xác nhận có ->
-                        // xoá pending rồi tải payload MỚI (không phải bản trùng).
+                        // File cũ đã xác nhận có. Xóa record đối soát rồi tải lượt
+                        // mới khi dữ liệu đã đổi, hoặc khi đây là ý định manual.
                         clearLastUploadHash_();
                     } else if (!pendingProbe.answered || !isPendingUploadSettled_(last)) {
                         // Không hỏi được server, hoặc chỉ nhận snapshot rỗng khi

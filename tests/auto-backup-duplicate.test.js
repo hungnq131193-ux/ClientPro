@@ -280,6 +280,54 @@ test('backup thủ công: không được bỏ qua pending chưa settle để t�
   assert.equal(pending && pending.filename, pendingFilename, 'Manual phải giữ nguyên journal của request cũ');
 });
 
+test('backup thủ công: sau khi xác nhận pending cũ đã có file vẫn phải tạo bản manual mới', async () => {
+  const h = loadAutoBackup();
+  let pendingFilename = '';
+
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'backup') {
+      pendingFilename = body.filename;
+      throw new Error('network dropped');
+    }
+    if (body.action === 'list_backups') throw new Error('still offline');
+    return makeGasResponse({ status: 'success' });
+  });
+
+  await h.DriveBackup.checkDaily();
+  assert.equal(h.backupCallCount(), 1);
+  assert.ok(pendingFilename);
+
+  h.advance(5 * 60 * 1000);
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'list_backups') {
+      return makeGasResponse({
+        status: 'success',
+        backups: [{ id: 'pending_file', filename: pendingFilename, size: 10, createdAt: new Date().toISOString() }],
+      });
+    }
+    if (body.action === 'backup') {
+      return makeGasResponse({
+        status: 'success',
+        fileId: 'manual_file',
+        filename: body.filename,
+        createdAt: new Date().toISOString(),
+      });
+    }
+    return makeGasResponse({ status: 'success' });
+  });
+
+  const ok = await h.DriveBackup.performNow();
+
+  assert.equal(ok, true);
+  assert.equal(h.backupCallCount(), 2, 'Manual phải tạo file mới sau khi đã reconcile pending cũ');
+  const sentNames = h.requests.filter((r) => r.action === 'backup').map((r) => r.filename);
+  assert.notEqual(sentNames[1], pendingFilename, 'Bản manual mới phải là một lượt upload riêng');
+});
+
 // ---------------------------------------------------------------------------
 // ĐỒNG THỜI GIỮA CÁC NGỮ CẢNH — khóa localStorage KHÔNG làm được việc này.
 // `acquireAutoBackupClaim_()` là cặp đọc-rồi-ghi; localStorage chỉ bảo đảm từng
