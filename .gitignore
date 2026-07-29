@@ -1,6 +1,6 @@
-# CI-only test tooling artifacts (app shipped vẫn zero-dependency)
+# CI-only test tooling artifacts (app shipped vẫn zero-dependency).
+# package-lock.json ĐƯỢC commit — khóa phiên bản Playwright/axe/LHCI cho `npm ci`.
 node_modules/
-package-lock.json
 test-results/
 playwright-report/
 .lighthouseci/

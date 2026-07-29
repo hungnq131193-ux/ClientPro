@@ -436,25 +436,100 @@ function tryOpenCamera(mode) {
 // ============================================================
 const ModalA11y = (function () {
     const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    // Chỉ cô lập a11y tree cho cổng bảo mật — KHÔNG áp inert cho mọi business
+    // modal (thiếu modal stack; confirm `.cp-confirm-overlay` không do ModalA11y
+    // quản lý; inert chung dễ restore sớm / mất trap / focus lệch).
+    const SECURITY_GATE_IDS = {
+        'activation-modal': 1,
+        'screen-lock': 1,
+        'setup-lock-modal': 1,
+        'forgot-pin-modal': 1,
+        'biometric-setup-modal': 1,
+    };
     let activeModal = null;
     let lastFocused = null;
+    let isolationTouches = null; // [{ el, hadInert, ariaHidden }] khi security gate mở
 
     function isOverlay(el) {
         return el instanceof HTMLElement && el.classList.contains('fixed') && el.classList.contains('inset-0');
     }
     function isVisible(el) { return !!el && !el.classList.contains('hidden'); }
+    function isSecurityGate(el) { return !!(el && el.id && SECURITY_GATE_IDS[el.id]); }
     function overlays() { return Array.from(document.querySelectorAll('.fixed.inset-0')); }
     function topVisible() {
         const vis = overlays().filter(isVisible);
+        return vis.length ? vis[vis.length - 1] : null;
+    }
+    function topVisibleSecurityGate() {
+        const vis = overlays().filter((el) => isVisible(el) && isSecurityGate(el));
         return vis.length ? vis[vis.length - 1] : null;
     }
     function focusables(modal) {
         return Array.from(modal.querySelectorAll(FOCUSABLE))
             .filter((e) => e.type !== 'hidden' && e.getClientRects().length > 0);
     }
-    function activate(modal) {
+    // Đặt inert + aria-hidden lên mọi sibling trên đường modal → body (không
+    // đụng chính modal). Lưu giá trị cũ để restore đúng.
+    // Loại trừ: toast live region + confirm overlay + loader — chúng phải vẫn
+    // hoạt động cho gate hiện tại (vd báo lỗi kích hoạt / sai PIN).
+    const ISOLATION_EXEMPT_IDS = {
+        'app-toast-container': 1,  // role=status live region — không inert
+        'loader': 1,               // global loader có thể dùng trong gate
+    };
+    function isIsolationExempt(el) {
+        if (!el || !el.id) return el && el.classList && el.classList.contains('cp-confirm-overlay');
+        if (ISOLATION_EXEMPT_IDS[el.id]) return true;
+        if (el.classList && el.classList.contains('cp-confirm-overlay')) return true;
+        return false;
+    }
+    function isolateBackground(modal) {
+        releaseIsolation();
+        const touches = [];
+        let node = modal;
+        while (node && node !== document.body) {
+            const parent = node.parentElement;
+            if (!parent) break;
+            Array.from(parent.children).forEach((sibling) => {
+                if (sibling === node || !(sibling instanceof HTMLElement)) return;
+                if (isIsolationExempt(sibling)) return;
+                touches.push({
+                    el: sibling,
+                    hadInert: !!sibling.inert,
+                    ariaHidden: sibling.getAttribute('aria-hidden'),
+                });
+                try { sibling.inert = true; } catch (e) { }
+                sibling.setAttribute('aria-hidden', 'true');
+            });
+            node = parent;
+        }
+        isolationTouches = touches;
+    }
+    function releaseIsolation() {
+        if (!isolationTouches) return;
+        for (let i = isolationTouches.length - 1; i >= 0; i--) {
+            const t = isolationTouches[i];
+            const el = t.el;
+            if (!el) continue;
+            try { el.inert = t.hadInert; } catch (e) { }
+            if (t.ariaHidden === null) el.removeAttribute('aria-hidden');
+            else el.setAttribute('aria-hidden', t.ariaHidden);
+        }
+        isolationTouches = null;
+    }
+    function activate(modal, opts) {
+        opts = opts || {};
         if (activeModal === modal) return;
-        lastFocused = document.activeElement;
+        // Handoff giữa các security gate (vd đóng forgot-pin còn screen-lock):
+        // GIỮ lastFocused gốc — không ghi đè bằng control trong modal vừa ẩn.
+        const handOff = !!opts.handOff
+            || (!!activeModal && isSecurityGate(activeModal) && isSecurityGate(modal));
+        if (activeModal && activeModal !== modal) {
+            // Đổi overlay: nhả isolation cũ (không trả focus — sẽ focus modal mới).
+            releaseIsolation();
+        }
+        if (!handOff) {
+            lastFocused = document.activeElement;
+        }
         activeModal = modal;
         modal.setAttribute('role', 'dialog');
         modal.setAttribute('aria-modal', 'true');
@@ -467,15 +542,34 @@ const ModalA11y = (function () {
             const isControl = b.tagName === 'BUTTON' || b.tagName === 'A' || b.hasAttribute('role');
             if (isControl && !b.getAttribute('aria-label')) b.setAttribute('aria-label', 'Đóng');
         });
-        // Đưa focus vào modal: ưu tiên ô nhập đầu tiên, nếu không thì phần tử focus được đầu tiên.
+        // 1) Focus vào modal TRƯỚC — rồi mới inert nền (tránh Chrome chặn
+        //    aria-hidden trên ancestor đang chứa focus).
         const firstInput = modal.querySelector('input:not([type=hidden]),textarea,select');
         const target = (firstInput && firstInput.getClientRects().length) ? firstInput : focusables(modal)[0];
         if (target) { try { target.focus(); } catch (e) { } }
+        // 2) Chỉ security gate mới cô lập accessibility tree của dashboard.
+        if (isSecurityGate(modal)) isolateBackground(modal);
     }
     function deactivate() {
+        releaseIsolation();
+        const nextGate = topVisibleSecurityGate();
+        // Không gán activeModal = null trước handoff: nếu null hóa trước,
+        // activate(next) sẽ tưởng đây là mở mới và ghi đè lastFocused bằng
+        // phần tử đang focus trong gate vừa ẩn.
+        if (nextGate && nextGate !== activeModal) {
+            activate(nextGate, { handOff: true });
+            return;
+        }
         activeModal = null;
-        if (lastFocused && typeof lastFocused.focus === 'function') { try { lastFocused.focus(); } catch (e) { } }
+        const focusBack = lastFocused;
         lastFocused = null;
+        // Chỉ trả focus nếu phần tử còn trong document và còn focusable
+        // (không nằm trong overlay đã ẩn).
+        if (focusBack && typeof focusBack.focus === 'function'
+            && document.contains(focusBack)
+            && !focusBack.closest('.fixed.inset-0.hidden')) {
+            try { focusBack.focus(); } catch (e) { }
+        }
     }
     function onKeydown(e) {
         const modal = (activeModal && isVisible(activeModal)) ? activeModal : topVisible();

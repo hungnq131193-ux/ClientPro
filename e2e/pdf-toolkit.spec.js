@@ -56,14 +56,68 @@ function attachErrorGuard(page, bag) {
   page.on('pageerror', (e) => bag.push(String(e)));
 }
 
-// Bấm nút xuất -> chờ panel kết quả -> bấm "Tải xuống" -> trả bytes đầu file.
-// (Xuất chỉ tạo panel kết quả; tải file là hành động thứ hai.)
-async function grabDownloadHead(page, exportSelector) {
+/** Kích thước fixture phía Node (không lấy qua page.evaluate). */
+function fixtureSize(fileName) {
+  return fs.statSync(FIX(fileName)).size;
+}
+
+/** Dump trạng thái toolkit khi chờ tác vụ timeout — gắn vào Playwright artifact. */
+async function attachPdfDiag(page, testInfo, extra) {
+  const diag = await page.evaluate(() => {
+    const screen = document.getElementById('screen-pdf-toolkit');
+    const tv = screen && screen.querySelector('.pdftk-tool-view');
+    const progress = screen && screen.querySelector('.pdftk-progress-host');
+    const workerReady = !!(window.__PdfTK && window.__PdfTK.vendor && window.__PdfTK.vendor.pdfjsLib);
+    return {
+      taskState: tv ? tv.getAttribute('data-task-state') : null,
+      ariaBusy: tv ? tv.getAttribute('aria-busy') : null,
+      progressVisible: !!(progress && progress.classList.contains('is-visible')),
+      resultCount: screen ? screen.querySelectorAll('.pdftk-result').length : 0,
+      compareCount: screen ? screen.querySelectorAll('.pdftk-compare').length : 0,
+      docInfo: ((screen && screen.querySelector('.pdftk-doc-info')) || {}).textContent || '',
+      fileMeta: Array.from((screen && screen.querySelectorAll('.pdftk-file-meta')) || []).map((n) => n.textContent),
+      workerReady,
+    };
+  }).catch((e) => ({ evaluateError: String(e) }));
+  const body = JSON.stringify({ ...diag, ...extra }, null, 2);
+  if (testInfo) {
+    await testInfo.attach('pdf-timeout-diag', { body, contentType: 'application/json' });
+  }
+  console.log('pdf-timeout-diag', body);
+}
+
+/**
+ * Chờ tác vụ PDF xong: result selector xuất hiện VÀ data-task-state !== busy.
+ * Không bắt buộc thấy progress (tác vụ nhanh có thể hiện rồi tắt trước khi
+ * Playwright quan sát). Không resolve trên idle ban đầu trước khi task chạy.
+ */
+async function waitPdfTaskDone(page, resultSelector, testInfo, extraDiag) {
+  try {
+    await page.waitForFunction((sel) => {
+      const result = document.querySelector(sel);
+      if (!result) return false;
+      const tv = document.querySelector('#screen-pdf-toolkit .pdftk-tool-view');
+      const st = tv ? tv.getAttribute('data-task-state') : null;
+      return st !== 'busy';
+    }, resultSelector, { timeout: 30000 });
+  } catch (err) {
+    await attachPdfDiag(page, testInfo, extraDiag || {});
+    throw err;
+  }
+}
+
+// Bấm nút xuất -> chờ task idle + panel kết quả -> bấm "Tải xuống" -> trả bytes đầu file.
+async function grabDownloadHead(page, exportSelector, testInfo, opts) {
+  const options = opts || {};
+  const resultSelector = options.resultSelector || '#screen-pdf-toolkit .pdftk-result';
+  const downloadClick = options.downloadClick || '#screen-pdf-toolkit .pdftk-result button:has-text("Tải")';
+  const sizes = {};
+  for (const f of (options.fixtures || [])) sizes[f] = fixtureSize(f);
   await page.click(exportSelector);
-  await page.waitForSelector('#screen-pdf-toolkit .pdftk-result', { timeout: 25000 });
+  await waitPdfTaskDone(page, resultSelector, testInfo, { fixtureBytes: sizes });
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.click('#screen-pdf-toolkit .pdftk-result button:has-text("Tải")'),
+    page.click(downloadClick),
   ]);
   const p = await download.path();
   return fs.readFileSync(p);
@@ -80,7 +134,7 @@ test('Mở PDF Toolkit từ Dashboard rồi quay lại', async ({ page }) => {
   expect(errors, errors.join(' | ')).toEqual([]);
 });
 
-test('Ghép hai PDF + đổi thứ tự -> file %PDF hợp lệ', async ({ page }) => {
+test('Ghép hai PDF + đổi thứ tự -> file %PDF hợp lệ', async ({ page }, testInfo) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   await openToolkit(page);
@@ -97,12 +151,14 @@ test('Ghép hai PDF + đổi thứ tự -> file %PDF hợp lệ', async ({ page 
   const firstName = await page.locator('#screen-pdf-toolkit .pdftk-file-row:nth-child(1) .pdftk-file-name').textContent();
   expect(firstName).toContain('sample-1p');
   // Ghép + tải.
-  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Ghép")');
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Ghép")', testInfo, {
+    fixtures: ['sample-3p.pdf', 'sample-1p.pdf'],
+  });
   expect(buf.slice(0, 5).toString('latin1')).toBe('%PDF-');
   expect(errors, errors.join(' | ')).toEqual([]);
 });
 
-test('Tách PDF: chọn trang qua thumbnail -> %PDF', async ({ page }) => {
+test('Tách PDF: chọn trang qua thumbnail -> %PDF', async ({ page }, testInfo) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   await openToolkit(page);
@@ -113,12 +169,14 @@ test('Tách PDF: chọn trang qua thumbnail -> %PDF', async ({ page }) => {
   await page.click('#screen-pdf-toolkit .pdftk-page-cell:nth-child(1)');
   await page.click('#screen-pdf-toolkit .pdftk-page-cell:nth-child(3)');
   await expect(page.locator('#screen-pdf-toolkit .pdftk-page-cell.is-selected')).toHaveCount(2);
-  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất 1 file PDF")');
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất 1 file PDF")', testInfo, {
+    fixtures: ['sample-3p.pdf'],
+  });
   expect(buf.slice(0, 5).toString('latin1')).toBe('%PDF-');
   expect(errors, errors.join(' | ')).toEqual([]);
 });
 
-test('Sắp xếp trang: xoay, xóa, hoàn tác, đặt lại, xuất -> %PDF', async ({ page }) => {
+test('Sắp xếp trang: xoay, xóa, hoàn tác, đặt lại, xuất -> %PDF', async ({ page }, testInfo) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   await openToolkit(page);
@@ -137,24 +195,28 @@ test('Sắp xếp trang: xoay, xóa, hoàn tác, đặt lại, xuất -> %PDF', 
   await page.click('#screen-pdf-toolkit .pdftk-tool-view button:has-text("Đặt lại")');
   await page.click('.cp-confirm-ok');
   await expect(page.locator('#screen-pdf-toolkit .pdftk-page-cell')).toHaveCount(3);
-  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất PDF mới")');
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất PDF mới")', testInfo, {
+    fixtures: ['sample-3p.pdf'],
+  });
   expect(buf.slice(0, 5).toString('latin1')).toBe('%PDF-');
   expect(errors, errors.join(' | ')).toEqual([]);
 });
 
-test('Ảnh thành PDF -> %PDF', async ({ page }) => {
+test('Ảnh thành PDF -> %PDF', async ({ page }, testInfo) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   await openToolkit(page);
   await openTool(page, 'Ảnh thành PDF');
   await page.locator('#screen-pdf-toolkit input[type=file]').setInputFiles([FIX('sample.png'), FIX('sample.png')]);
   await page.waitForFunction(() => document.querySelectorAll('#screen-pdf-toolkit .pdftk-thumb-cell').length === 2, null, { timeout: 20000 });
-  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất PDF")');
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất PDF")', testInfo, {
+    fixtures: ['sample.png'],
+  });
   expect(buf.slice(0, 5).toString('latin1')).toBe('%PDF-');
   expect(errors, errors.join(' | ')).toEqual([]);
 });
 
-test('PDF thành ảnh (1 trang) -> ảnh hợp lệ', async ({ page }) => {
+test('PDF thành ảnh (1 trang) -> ảnh hợp lệ', async ({ page }, testInfo) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   await openToolkit(page);
@@ -163,13 +225,15 @@ test('PDF thành ảnh (1 trang) -> ảnh hợp lệ', async ({ page }) => {
   await page.waitForFunction(() => /trang/.test((document.querySelector('#screen-pdf-toolkit .pdftk-doc-info') || {}).textContent || ''), null, { timeout: 20000 });
   // Chỉ xuất trang 1 (một ảnh, không ZIP).
   await page.locator('#screen-pdf-toolkit .pdftk-input').first().fill('1');
-  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất ảnh")');
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất ảnh")', testInfo, {
+    fixtures: ['sample-3p.pdf'],
+  });
   const head = buf.slice(0, 3).toString('hex');
   expect(head.startsWith('ffd8ff') || buf.slice(0, 4).toString('hex') === '89504e47').toBeTruthy();
   expect(errors, errors.join(' | ')).toEqual([]);
 });
 
-test('Nén PDF (chế độ tối ưu) -> hiển thị so sánh dung lượng', async ({ page }) => {
+test('Nén PDF (chế độ tối ưu) -> hiển thị so sánh dung lượng', async ({ page }, testInfo) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   await openToolkit(page);
@@ -177,7 +241,9 @@ test('Nén PDF (chế độ tối ưu) -> hiển thị so sánh dung lượng', 
   await page.locator('#screen-pdf-toolkit input[type=file]').setInputFiles(FIX('sample-3p.pdf'));
   await page.waitForFunction(() => /trang/.test((document.querySelector('#screen-pdf-toolkit .pdftk-doc-info') || {}).textContent || ''), null, { timeout: 20000 });
   await page.click('#screen-pdf-toolkit .pdftk-tool-view button:has-text("Nén PDF")');
-  await page.waitForSelector('#screen-pdf-toolkit .pdftk-compare', { timeout: 20000 });
+  await waitPdfTaskDone(page, '#screen-pdf-toolkit .pdftk-compare', testInfo, {
+    fixtureBytes: { 'sample-3p.pdf': fixtureSize('sample-3p.pdf') },
+  });
   await expect(page.locator('#screen-pdf-toolkit .pdftk-compare-row')).toHaveCount(3);
   expect(errors, errors.join(' | ')).toEqual([]);
 });
@@ -207,7 +273,7 @@ test('Back gesture đóng đúng lớp; khóa app reset toolkit', async ({ page 
   expect(errors, errors.join(' | ')).toEqual([]);
 });
 
-test('Offline: mở lại app rồi ghép PDF vẫn hoạt động', async ({ page, context }) => {
+test('Offline: mở lại app rồi ghép PDF vẫn hoạt động', async ({ page, context }, testInfo) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   // Mở toolkit một lần để nạp + cache vendor.
@@ -257,7 +323,9 @@ test('Offline: mở lại app rồi ghép PDF vẫn hoạt động', async ({ pa
     const rows = document.querySelectorAll('#screen-pdf-toolkit .pdftk-file-meta');
     return rows.length === 2 && Array.from(rows).every((r) => /trang/.test(r.textContent));
   }, null, { timeout: 20000 });
-  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Ghép")');
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Ghép")', testInfo, {
+    fixtures: ['sample-3p.pdf', 'sample-1p.pdf'],
+  });
   expect(buf.slice(0, 5).toString('latin1')).toBe('%PDF-');
   await context.setOffline(false);
   expect(errors, errors.join(' | ')).toEqual([]);
@@ -307,7 +375,7 @@ test('regression race: chọn PDF thứ hai trước khi file đầu tải xong'
 
 // [Bug: Background hides break tool session] Chuyển nền GIỮA lúc tác vụ đang chạy
 // (busy) không được "giết" phiên: task bị hủy nhưng tool vẫn xuất lại được.
-test('regression session: chuyển nền giữa tác vụ, tool vẫn dùng được sau đó', async ({ page }) => {
+test('regression session: chuyển nền giữa tác vụ, tool vẫn dùng được sau đó', async ({ page }, testInfo) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   await openToolkit(page);
@@ -317,8 +385,14 @@ test('regression session: chuyển nền giữa tác vụ, tool vẫn dùng đư
   // Độ phân giải cao + toàn bộ trang -> tác vụ đủ dài để CHẮC CHẮN đang busy.
   await page.click('#screen-pdf-toolkit .pdftk-tool-view .pdftk-seg:has-text("Rõ nét")');
   await page.click('#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất ảnh")');
-  // Xác nhận tác vụ đã chạy (progress sheet hiện) TRƯỚC khi chuyển nền.
-  await page.waitForSelector('#screen-pdf-toolkit .pdftk-progress-host.is-visible', { timeout: 10000 });
+  // Xác nhận tác vụ đã chạy (progress sheet hiện HOẶC data-task-state=busy) TRƯỚC khi chuyển nền.
+  await page.waitForFunction(() => {
+    const h = document.querySelector('#screen-pdf-toolkit .pdftk-progress-host');
+    const tv = document.querySelector('#screen-pdf-toolkit .pdftk-tool-view');
+    const progressOn = h && h.classList.contains('is-visible');
+    const busy = tv && tv.getAttribute('data-task-state') === 'busy';
+    return progressOn || busy;
+  }, null, { timeout: 10000 });
   // Chuyển nền giữa chừng (giả lập visibilityState=hidden) -> hủy tác vụ.
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
@@ -326,13 +400,18 @@ test('regression session: chuyển nền giữa tác vụ, tool vẫn dùng đư
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  // Tác vụ phải dừng (progress ẩn) và phiên vẫn sống (không bị null hóa).
+  // Tác vụ phải dừng (progress ẩn + idle) và phiên vẫn sống (không bị null hóa).
   await page.waitForFunction(() => {
     const h = document.querySelector('#screen-pdf-toolkit .pdftk-progress-host');
-    return !h || !h.classList.contains('is-visible');
+    const tv = document.querySelector('#screen-pdf-toolkit .pdftk-tool-view');
+    const progressOff = !h || !h.classList.contains('is-visible');
+    const idle = !tv || tv.getAttribute('data-task-state') !== 'busy';
+    return progressOff && idle;
   }, null, { timeout: 15000 });
   // Xuất lại thành công — nếu phiên "chết" (bug cũ), export sẽ không tạo kết quả.
-  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất ảnh")');
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất ảnh")', testInfo, {
+    fixtures: ['sample-3p.pdf'],
+  });
   const hex4 = buf.slice(0, 4).toString('hex');
   const isZip = hex4.startsWith('504b'); // nhiều trang -> ZIP
   const isJpg = buf.slice(0, 3).toString('hex') === 'ffd8ff';
@@ -342,7 +421,7 @@ test('regression session: chuyển nền giữa tác vụ, tool vẫn dùng đư
 });
 
 // [Bug: Split export ignores range order] Xuất theo khoảng (không tap) tạo PDF hợp lệ.
-test('regression split range: xuất theo khoảng tạo %PDF hợp lệ', async ({ page }) => {
+test('regression split range: xuất theo khoảng tạo %PDF hợp lệ', async ({ page }, testInfo) => {
   const errors = []; attachErrorGuard(page, errors);
   await seedAndUnlock(page);
   await openToolkit(page);
@@ -351,7 +430,9 @@ test('regression split range: xuất theo khoảng tạo %PDF hợp lệ', async
   await page.waitForFunction(() => document.querySelectorAll('#screen-pdf-toolkit .pdftk-page-cell').length === 3, null, { timeout: 20000 });
   // Nhập khoảng đảo thứ tự (3,1) — không tap chọn.
   await page.locator('#screen-pdf-toolkit .pdftk-input').first().fill('3,1');
-  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất 1 file PDF")');
+  const buf = await grabDownloadHead(page, '#screen-pdf-toolkit .pdftk-tool-view button:has-text("Xuất 1 file PDF")', testInfo, {
+    fixtures: ['sample-3p.pdf'],
+  });
   expect(buf.slice(0, 5).toString('latin1')).toBe('%PDF-');
   expect(errors, errors.join(' | ')).toEqual([]);
 });

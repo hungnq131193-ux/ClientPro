@@ -102,7 +102,7 @@ test('.gitignore blocks generated screenshot matrices but allows durable documen
   );
   const requiredRules = [
     'node_modules/',
-    'package-lock.json',
+    // package-lock.json ĐƯỢC commit — khóa CI tooling (`npm ci`); không ignore.
     'test-results/',
     'playwright-report/',
     '.lighthouseci/',
@@ -134,6 +134,15 @@ test('.gitignore blocks generated screenshot matrices but allows durable documen
   for (const rule of requiredRules) {
     assert.ok(configuredRules.has(rule), `Thiếu rule .gitignore: ${rule}`);
   }
+  assert.ok(
+    !configuredRules.has('package-lock.json'),
+    'package-lock.json phải được commit (CI tooling), không nằm trong .gitignore'
+  );
+  assert.equal(
+    gitIgnores('package-lock.json'),
+    false,
+    'package-lock.json không được ignore'
+  );
 
   assert.equal(
     gitIgnores('docs/screenshots/ux-hardening-2.0/before/dashboard.png'),

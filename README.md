@@ -1,7 +1,7 @@
 # ClientPro
 
 [![CI](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml/badge.svg)](https://github.com/hungnq131193-ux/ClientPro/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.4.5-blue.svg)](manifest.json)
+[![Version](https://img.shields.io/badge/version-1.4.6-blue.svg)](manifest.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8.svg)](manifest.json)
 
 **Demo:** https://client-pro-beryl.vercel.app
@@ -173,15 +173,16 @@ python3 -m http.server 8080     # hoặc: npm run serve
 Mở http://localhost:8080. Service Worker, WebCrypto và camera cần HTTPS hoặc
 `localhost`.
 
-> Ứng dụng không cần `npm install` để chạy — chỉ cần khi muốn chạy bộ e2e
-> (Playwright). Toàn bộ dependency runtime đã self-host trong `assets/vendor/`.
+> Ứng dụng không cần `npm install` / `npm ci` để chạy — chỉ cần khi muốn chạy bộ
+> e2e (Playwright) hoặc Lighthouse. Toàn bộ dependency runtime đã self-host trong
+> `assets/vendor/`. `package-lock.json` chỉ khóa **CI tooling** (`devDependencies`).
 
 ## Kiểm thử
 
 Cài công cụ test (chỉ dùng cho CI/e2e, không ảnh hưởng app shipped):
 
 ```bash
-npm install
+npm ci
 ```
 
 Unit test + kiểm tra version + kiểm tra cú pháp:
@@ -214,10 +215,10 @@ command**. Header bảo mật và CSP nằm trong `vercel.json`.
 
 - **Tên phát hành** — **Genesis** (tên phát hành công khai, không hiển thị trong
   UI app).
-- **Phiên bản app (semver)** — hiện tại **`1.4.5`**. Số kỹ thuật nội bộ giữ cho
+- **Phiên bản app (semver)** — hiện tại **`1.4.6`**. Số kỹ thuật nội bộ giữ cho
   tooling đồng bộ và tương thích, không hiển thị cho người dùng. Nguồn duy nhất:
   `package.json`.
-- **cache-buster asset** — hiện tại **`DRIVE_UPLOAD_STATUS_20260729`**. Nguồn: `ASSET_V`
+- **cache-buster asset** — hiện tại **`A11Y_FOCUS_HANDOFF_20260729`**. Nguồn: `ASSET_V`
   trong `sw.js`.
 
 Sau khi thay đổi phiên bản, đồng bộ ra mọi nơi (manifest, SW, PWA, README):

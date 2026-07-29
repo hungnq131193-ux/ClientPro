@@ -163,6 +163,7 @@
     headerTitleEl.textContent = tool.name;
     gridWrapEl.style.display = 'none';
     toolViewEl.style.display = '';
+    setTaskState(false);
 
     // Đẩy một bước lịch sử để back/vuốt cạnh quay về lưới đúng một lớp.
     try { history.pushState({ __clientpro_edge_back: 1 }, document.title, location.href); } catch (e) {}
@@ -334,6 +335,15 @@
     _progressEls = null;
   }
 
+  // Trạng thái tác vụ trên tool view — tín hiệu ổn định cho E2E (không phụ thuộc
+  // progress sheet có kịp quan sát hay không). busy=true khi runTask chạy.
+  function setTaskState(busy) {
+    const target = toolViewEl || screenEl;
+    if (!target) return;
+    target.setAttribute('aria-busy', busy ? 'true' : 'false');
+    target.setAttribute('data-task-state', busy ? 'busy' : 'idle');
+  }
+
   // ----------------------------------------------------------------------
   // WIDGET builders dùng chung cho các tool (CSP-safe, textContent/DOM API).
   // ----------------------------------------------------------------------
@@ -439,6 +449,9 @@
         if (!session.isActive()) return null;
         if (session.busy) { if (window.ErrorHandler) ErrorHandler.showWarning('Đang có một tác vụ chạy, vui lòng đợi.'); return null; }
         session.busy = true;
+        // Tín hiệu E2E/a11y ổn định: không phụ thuộc progress sheet (có thể
+        // hiện/ẩn quá nhanh). Test chờ data-task-state="idle" + result selector.
+        setTaskState(true);
         const token = U.createCancelToken();
         session.trackCancel(token);
         const progress = showProgress(opts.label || 'Đang xử lý…', () => token.cancel());
@@ -455,6 +468,7 @@
           return null;
         } finally {
           session.busy = false;
+          setTaskState(false);
           progress.done();
         }
       },
