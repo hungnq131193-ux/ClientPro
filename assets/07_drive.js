@@ -220,25 +220,188 @@ function _normalizeDriveUrl(url) {
 
 // Legacy duplicate uploadToGoogleDrive implementation removed; canonical function is defined once below.
 
-// v1.6.0: phân loại kết quả upload TỪNG ảnh từ GAS. Server v4 trả status
-// 'success' | 'partial' | 'error' + files[] luôn 1 entry/1 ảnh gửi lên (đúng
-// thứ tự, entry lỗi có .error thay vì .id); server cũ (v3) luôn 'success' kể cả
-// khi có ảnh lỗi. Đối chiếu theo index; nếu không khớp được index thì chỉ tin
-// "đã lên hết" khi server báo success không kèm failed — còn lại coi như KHÔNG
-// chắc ảnh nào đã lên: không xóa ảnh gốc nào cho an toàn.
-// @returns {null | {succeeded: Array, failedCount: number}} null = thất bại toàn bộ (caller throw như cũ)
-function _splitUploadResults(result, imagesToUpload) {
-    if (!result || (result.status !== 'success' && result.status !== 'partial')) return null;
+// =============================================================================
+// KẾT QUẢ UPLOAD DRIVE — 4 phán quyết, KHÔNG gộp "không biết" vào "thất bại"
+// -----------------------------------------------------------------------------
+// GAS (handleUploadImages_ trong gas/UserDriveAPI.gs) tạo file TRƯỚC khi response
+// về tới máy. Mọi lỗi xảy ra SAU thời điểm đó — fetch reject vì mạng rớt giữa
+// chừng trên 4G, body rỗng, GAS trả HTML (trang đăng nhập / deployment sai) —
+// không nói lên điều gì về việc ảnh đã lên Drive hay chưa. Báo "thất bại" ở đó
+// là FALSE-NEGATIVE: người dùng thấy file trên Drive nhưng app nói hỏng, rồi tải
+// lại và tạo bản trùng.
+//
+//   OK          — mọi ảnh đã lên Drive, đối chiếu được từng ảnh.
+//   PARTIAL     — một phần lên được; `succeeded` là danh sách đối chiếu được.
+//   UNCONFIRMED — KHÔNG biết: có thể đã lên hết. Giữ nguyên ảnh gốc, gợi ý
+//                 "Tìm kết nối cũ". Tuyệt đối không xóa ảnh nào.
+//   REJECTED    — server nói rõ là hỏng (Unauthorized, thiếu folderName, mọi
+//                 entry đều .error). Đây mới là "thất bại" thật.
+//
+// Chỉ xóa ảnh gốc khi chắc chắn có files[i].id ứng với đúng ảnh đó (OK/PARTIAL).
+// =============================================================================
+const DRIVE_UPLOAD_OK = 'OK';
+const DRIVE_UPLOAD_PARTIAL = 'PARTIAL';
+const DRIVE_UPLOAD_UNCONFIRMED = 'UNCONFIRMED';
+const DRIVE_UPLOAD_REJECTED = 'REJECTED';
+
+/**
+ * Giải mã + kiểm chứng ảnh TRƯỚC khi gửi lên Drive.
+ * decryptImageData fail-open (trả nguyên ciphertext khi mất masterKey) nên nếu
+ * app tự khóa giữa chừng, payload sẽ chứa ciphertext: GAS vẫn tạo folder rồi
+ * báo lỗi từng ảnh — người dùng thấy folder trên Drive mà app nói thất bại.
+ * Xác nhận từng ảnh là plaintext và session còn mở khóa; sai một ảnh là DỪNG,
+ * không gửi request nào.
+ * @returns {Promise<Array|null>} null = không đủ điều kiện gửi.
+ */
+async function _resolveImagesForUpload(imagesToUpload, namePrefix) {
+    const stamp = Date.now();
+    const resolved = [];
+    for (let i = 0; i < imagesToUpload.length; i++) {
+        const img = imagesToUpload[i];
+        const data = (typeof decryptImageData === 'function')
+            ? await decryptImageData(img.data)
+            : img.data;
+        // Re-check SAU await: auto-lock có thể rơi vào đúng khe này.
+        if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) return null;
+        if (typeof data !== 'string' || !data) return null;
+        if (typeof _looksEncrypted === 'function' && _looksEncrypted(data)) return null;
+        resolved.push({ name: `${namePrefix}_${stamp}_${i}.jpg`, data });
+    }
+    return resolved;
+}
+
+/**
+ * POST payload upload và đọc body. KHÔNG dùng response.json() trần: mọi lỗi
+ * mạng/parse phải phân biệt được với "server trả lời là hỏng".
+ * @returns {Promise<{result?: object, unconfirmed?: true, reason?: string, error?: Error}>}
+ */
+async function _postDriveUpload(scriptUrl, payload) {
+    let response;
+    try {
+        response = await fetch(scriptUrl, { method: 'POST', body: JSON.stringify(payload) });
+    } catch (err) {
+        // Request có thể đã tới GAS và ảnh đã nằm trên Drive.
+        return { unconfirmed: true, reason: 'network', error: err };
+    }
+
+    let text = '';
+    try {
+        text = await response.text();
+    } catch (err) {
+        return { unconfirmed: true, reason: 'body', error: err };
+    }
+
+    let result = null;
+    try {
+        result = JSON.parse(text);
+    } catch (err) {
+        // Body rỗng hoặc HTML (đăng nhập Google / lỗi triển khai GAS).
+        return { unconfirmed: true, reason: response.ok ? 'parse' : 'http', error: err };
+    }
+    if (!result || typeof result !== 'object') {
+        return { unconfirmed: true, reason: 'parse' };
+    }
+    return { result };
+}
+
+/**
+ * Đọc response JSON của GAS thành phán quyết.
+ * Server v4 trả status 'success' | 'partial' | 'error' + files[] đúng 1 entry /
+ * 1 ảnh gửi lên (đúng thứ tự, entry lỗi có .error thay vì .id); server cũ (v3)
+ * luôn 'success' và không kèm files[].
+ */
+function _classifyUploadResult(result, imagesToUpload) {
+    const total = Array.isArray(imagesToUpload) ? imagesToUpload.length : 0;
+    const base = {
+        succeeded: [],
+        failedCount: total,
+        uploadedCount: null,
+        url: '',
+        message: '',
+    };
+    if (!result || typeof result !== 'object') {
+        return Object.assign({}, base, { verdict: DRIVE_UPLOAD_UNCONFIRMED });
+    }
+
+    base.url = String(result.url || result.folderUrl || '');
+    base.message = (typeof result.message === 'string') ? result.message : '';
+    const status = String(result.status || '');
     const files = Array.isArray(result.files) ? result.files : null;
-    if (files && files.length === imagesToUpload.length) {
-        const succeeded = imagesToUpload.filter((img, i) => files[i] && files[i].id && !files[i].error);
-        if (succeeded.length === 0) return null;
-        return { succeeded, failedCount: imagesToUpload.length - succeeded.length };
+    const isOkEntry = (f) => !!(f && f.id && !f.error);
+
+    // (a) files[] khớp số lượng -> đối chiếu theo index, nguồn tin cậy nhất.
+    if (files && total > 0 && files.length === total) {
+        const succeeded = imagesToUpload.filter((img, i) => isOkEntry(files[i]));
+        if (succeeded.length === total) {
+            return Object.assign({}, base, {
+                verdict: DRIVE_UPLOAD_OK, succeeded, failedCount: 0, uploadedCount: total,
+            });
+        }
+        if (succeeded.length > 0) {
+            return Object.assign({}, base, {
+                verdict: DRIVE_UPLOAD_PARTIAL,
+                succeeded,
+                failedCount: total - succeeded.length,
+                uploadedCount: succeeded.length,
+            });
+        }
+        // Server liệt kê rõ TỪNG ảnh đều lỗi -> thất bại thật.
+        return Object.assign({}, base, { verdict: DRIVE_UPLOAD_REJECTED, uploadedCount: 0 });
     }
-    if (result.status === 'success' && !(Number(result.failed) > 0)) {
-        return { succeeded: imagesToUpload.slice(), failedCount: 0 };
+
+    // (b) files[] lệch số lượng nhưng có entry mang id: đã có file trên Drive,
+    //     chỉ là không map được về ảnh nào trong máy -> KHÔNG xóa ảnh gốc nào.
+    const okEntries = files ? files.filter(isOkEntry) : [];
+    if (okEntries.length > 0) {
+        return Object.assign({}, base, {
+            verdict: DRIVE_UPLOAD_UNCONFIRMED, uploadedCount: okEntries.length,
+        });
     }
-    return null;
+
+    // (c) Server v3 cũ: 'success' trần, không files[], không failed -> tin như trước.
+    if (status === 'success' && !files && !(Number(result.failed) > 0)) {
+        return Object.assign({}, base, {
+            verdict: DRIVE_UPLOAD_OK,
+            succeeded: imagesToUpload.slice(),
+            failedCount: 0,
+            uploadedCount: total,
+        });
+    }
+
+    // (d) Server nói rõ 'error' và không entry nào có id -> từ chối thật.
+    if (status === 'error') {
+        return Object.assign({}, base, { verdict: DRIVE_UPLOAD_REJECTED, uploadedCount: 0 });
+    }
+
+    // (e) Còn lại (status lạ, 'partial' rỗng, files[] rỗng…): không đủ căn cứ.
+    return Object.assign({}, base, { verdict: DRIVE_UPLOAD_UNCONFIRMED });
+}
+
+/** POST + phân loại. KHÔNG bao giờ throw — mọi lỗi thành một phán quyết. */
+async function _runDriveImageUpload(scriptUrl, payload, imagesToUpload) {
+    const posted = await _postDriveUpload(scriptUrl, payload);
+    if (posted.unconfirmed) {
+        return {
+            verdict: DRIVE_UPLOAD_UNCONFIRMED,
+            succeeded: [],
+            failedCount: Array.isArray(imagesToUpload) ? imagesToUpload.length : 0,
+            uploadedCount: null,
+            url: '',
+            message: '',
+            transport: posted.reason,
+            error: posted.error || null,
+        };
+    }
+    return _classifyUploadResult(posted.result, imagesToUpload);
+}
+
+/** Thông báo cho phán quyết UNCONFIRMED: không khẳng định hỏng, chỉ ra việc cần làm. */
+function _unconfirmedUploadMessage(outcome, total) {
+    const n = (outcome && Number.isFinite(outcome.uploadedCount)) ? outcome.uploadedCount : null;
+    const head = (n !== null && n > 0)
+        ? `Drive báo đã nhận ${n}/${total} ảnh nhưng ứng dụng không đối chiếu được từng ảnh.`
+        : 'Chưa nhận được xác nhận từ Drive (mạng chập chờn hoặc link kết nối trả về dữ liệu lạ). Ảnh CÓ THỂ đã được tải lên.';
+    return `${head}\nẢnh gốc trong máy được giữ nguyên. Hãy bấm "Tìm kết nối cũ" để kiểm tra thư mục trên Drive trước khi tải lại (tránh tạo bản trùng).`;
 }
 
 // Xóa CHỈ những ảnh gốc đã upload thành công (không đụng ảnh lỗi), rồi gọi onDone().
@@ -364,10 +527,14 @@ async function uploadAssetToDrive() {
         // Ví dụ: Nguyen Van A - Nhà Đất 50m2
         const folderName = `${custNamePlain} - Tài sản: ${assetNamePlain}`;
 
-        const resolvedImages = await Promise.all(imagesToUpload.map(async (img, idx) => ({
-            name: `asset_img_${Date.now()}_${idx}.jpg`,
-            data: (typeof decryptImageData === 'function') ? await decryptImageData(img.data) : img.data,
-        })));
+        // Giải mã + kiểm chứng plaintext TRƯỚC khi gửi: app tự khóa giữa chừng thì
+        // dừng hẳn, không để GAS tạo folder rồi báo lỗi từng ảnh.
+        const resolvedImages = await _resolveImagesForUpload(imagesToUpload, 'asset_img');
+        if (!resolvedImages) {
+            LoadingManager.hideGlobal(true);
+            ErrorHandler.showWarning('Không giải mã được ảnh để tải lên (ứng dụng có thể đã tự khóa). Vui lòng mở khóa và thử lại — chưa có ảnh nào được gửi đi.');
+            return;
+        }
 
         const payload = {
             token: getUserToken(),
@@ -375,63 +542,88 @@ async function uploadAssetToDrive() {
             images: resolvedImages,
         };
 
+        // Cờ này quyết định cách diễn giải lỗi ở catch: sau khi Drive đã nhận ảnh,
+        // một lỗi ghi DB / render KHÔNG được báo thành "tải ảnh thất bại".
+        let reachedDrive = false;
         try {
-            const response = await fetch(scriptUrl, {
-                method: "POST",
-                body: JSON.stringify(payload)
-            });
-            
-            const result = await response.json();
+            const outcome = await _runDriveImageUpload(scriptUrl, payload, imagesToUpload);
 
-            // v1.6.0: KHÔNG tin status='success' trần — đối chiếu kết quả từng ảnh
-            // (server cũ trả 'success' kể cả khi có ảnh lỗi trong files[]).
-            const split = _splitUploadResults(result, imagesToUpload);
-            if (split) {
-                const succeededImgs = split.succeeded;
-
-                // 1. Lưu Link vào đúng đối tượng Asset
-                currentCustomerData.assets[assetIndex].driveLink = result.url;
-
-                // 2. Cập nhật Database (không put() nguyên currentCustomerData vì
-                //    name/phone/cccd trên object đó đã bị giải mã trong openFolder).
-                //    Await kết quả ghi: KHÔNG báo thành công / hỏi xóa ảnh gốc khi ghi
-                //    link thất bại (mirror pattern _doSaveAsset ở 06_assets.js).
-                const ok = await new Promise((resolve) => {
-                    persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, resolve);
-                });
-
+            // Server nói rõ là hỏng -> đây mới là thất bại thật.
+            if (outcome.verdict === DRIVE_UPLOAD_REJECTED) {
                 LoadingManager.hideGlobal(true);
-
-                if (!ok) {
-                    ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm lại link" sau.');
-                    return;
-                }
-
-                // 3. Cập nhật giao diện
-                renderAssetDriveStatus(result.url);
-                if (split.failedCount > 0) {
-                    ErrorHandler.showWarning(`Đã tải ${succeededImgs.length}/${imagesToUpload.length} ảnh tài sản lên Drive — ${split.failedCount} ảnh lỗi vẫn còn trong máy, hãy thử tải lại sau.`);
-                } else {
-                    ErrorHandler.showSuccess("Đã tải ảnh tài sản lên Drive");
-                }
-
-                // 4. Hỏi xóa ảnh — CHỈ xóa ảnh đã lên Drive thành công
-                const msgDel = split.failedCount > 0
-                    ? `Xóa ${succeededImgs.length} ảnh đã tải lên Drive khỏi máy để giảm dung lượng?\n(${split.failedCount} ảnh lỗi sẽ được giữ nguyên)`
-                    : "Đã tải ảnh tài sản lên Drive.\n\nXóa ảnh gốc trong máy để giảm dung lượng?";
-                if (await ErrorHandler.confirm(msgDel, { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
-                    _deleteSucceededUploadsOnly(succeededImgs, () => {
-                        loadAssetImages(currentAssetId); // Load lại lưới ảnh
-                        ErrorHandler.showSuccess("Đã xóa ảnh gốc của tài sản");
-                    });
-                }
-            } else {
-                throw new Error(result && result.message ? result.message : 'Tải ảnh lên Drive thất bại');
+                ErrorHandler.showError('BACKUP',
+                    outcome.message
+                        ? `Tải ảnh lên Drive thất bại: ${outcome.message}`
+                        : 'Tải ảnh lên Drive thất bại. Vui lòng kiểm tra kết nối và link kết nối Drive.',
+                    outcome.error || null);
+                return;
             }
 
+            // Không xác nhận được: KHÔNG khẳng định hỏng, KHÔNG xóa ảnh gốc.
+            if (outcome.verdict === DRIVE_UPLOAD_UNCONFIRMED) {
+                reachedDrive = true;
+                if (outcome.url) {
+                    const linkOk = await new Promise((resolve) => {
+                        currentCustomerData.assets[assetIndex].driveLink = outcome.url;
+                        persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, resolve);
+                    });
+                    if (linkOk) renderAssetDriveStatus(outcome.url);
+                }
+                LoadingManager.hideGlobal(true);
+                ErrorHandler.showWarning(_unconfirmedUploadMessage(outcome, imagesToUpload.length));
+                return;
+            }
+
+            // OK / PARTIAL: có files[i].id đối chiếu được từng ảnh.
+            reachedDrive = true;
+            const succeededImgs = outcome.succeeded;
+
+            // 1. Lưu Link vào đúng đối tượng Asset
+            currentCustomerData.assets[assetIndex].driveLink = outcome.url;
+
+            // 2. Cập nhật Database (không put() nguyên currentCustomerData vì
+            //    name/phone/cccd trên object đó đã bị giải mã trong openFolder).
+            //    Await kết quả ghi: KHÔNG báo thành công / hỏi xóa ảnh gốc khi ghi
+            //    link thất bại (mirror pattern _doSaveAsset ở 06_assets.js).
+            const ok = outcome.url
+                ? await new Promise((resolve) => {
+                    persistCurrentCustomer((rec) => { rec.assets = currentCustomerData.assets; }, resolve);
+                })
+                : false;
+
+            LoadingManager.hideGlobal(true);
+
+            if (!ok) {
+                ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm kết nối cũ" sau.');
+                return;
+            }
+
+            // 3. Cập nhật giao diện
+            renderAssetDriveStatus(outcome.url);
+            if (outcome.failedCount > 0) {
+                ErrorHandler.showWarning(`Đã tải ${succeededImgs.length}/${imagesToUpload.length} ảnh tài sản lên Drive — ${outcome.failedCount} ảnh lỗi vẫn còn trong máy, hãy thử tải lại sau.`);
+            } else {
+                ErrorHandler.showSuccess("Đã tải ảnh tài sản lên Drive");
+            }
+
+            // 4. Hỏi xóa ảnh — CHỈ xóa ảnh đã lên Drive thành công
+            const msgDel = outcome.failedCount > 0
+                ? `Xóa ${succeededImgs.length} ảnh đã tải lên Drive khỏi máy để giảm dung lượng?\n(${outcome.failedCount} ảnh lỗi sẽ được giữ nguyên)`
+                : "Đã tải ảnh tài sản lên Drive.\n\nXóa ảnh gốc trong máy để giảm dung lượng?";
+            if (await ErrorHandler.confirm(msgDel, { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
+                _deleteSucceededUploadsOnly(succeededImgs, () => {
+                    loadAssetImages(currentAssetId); // Load lại lưới ảnh
+                    ErrorHandler.showSuccess("Đã xóa ảnh gốc của tài sản");
+                });
+            }
         } catch (err) {
             LoadingManager.hideGlobal(true);
-            ErrorHandler.showError('BACKUP', "Tải ảnh lên Drive thất bại. Vui lòng kiểm tra kết nối và link kết nối Drive.", err);
+            if (reachedDrive) {
+                ErrorHandler.logError('uploadAssetToDrive: lỗi SAU khi Drive đã nhận ảnh', err);
+                ErrorHandler.showWarning('Ảnh đã lên Drive nhưng ứng dụng gặp lỗi khi cập nhật hồ sơ. Ảnh gốc trong máy được giữ nguyên — hãy dùng "Tìm kết nối cũ".');
+            } else {
+                ErrorHandler.showError('BACKUP', "Tải ảnh lên Drive thất bại. Vui lòng kiểm tra kết nối và link kết nối Drive.", err);
+            }
         }
     };
 }
@@ -691,10 +883,13 @@ async function uploadToGoogleDrive() {
             return;
         }
 
-        const resolvedImages = await Promise.all(imagesToUpload.map(async (img, idx) => ({
-            name: `hoso_${Date.now()}_${idx}.jpg`,
-            data: (typeof decryptImageData === 'function') ? await decryptImageData(img.data) : img.data,
-        })));
+        // Giải mã + kiểm chứng plaintext TRƯỚC khi gửi (xem _resolveImagesForUpload).
+        const resolvedImages = await _resolveImagesForUpload(imagesToUpload, 'hoso');
+        if (!resolvedImages) {
+            LoadingManager.hideGlobal(true);
+            ErrorHandler.showWarning('Không giải mã được ảnh để tải lên (ứng dụng có thể đã tự khóa). Vui lòng mở khóa và thử lại — chưa có ảnh nào được gửi đi.');
+            return;
+        }
 
         // 2. Chuẩn bị gói dữ liệu
         const payload = {
@@ -705,58 +900,82 @@ async function uploadToGoogleDrive() {
             images: resolvedImages,
         };
 
+        // Xem chú thích cùng cờ này trong uploadAssetToDrive.
+        let reachedDrive = false;
         try {
-            const response = await fetch(scriptUrl, {
-                method: "POST",
-                body: JSON.stringify(payload)
-            });
-            
-            const result = await response.json();
+            const outcome = await _runDriveImageUpload(scriptUrl, payload, imagesToUpload);
 
-            // v1.6.0: KHÔNG tin status='success' trần — đối chiếu kết quả từng ảnh
-            // (server cũ trả 'success' kể cả khi có ảnh lỗi trong files[]).
-            const split = _splitUploadResults(result, imagesToUpload);
-            if (split) {
-                const succeededImgs = split.succeeded;
-
-                // Lưu link Folder (ghi an toàn, giữ nguyên ciphertext các trường khác).
-                // Await kết quả ghi: KHÔNG báo thành công / hỏi xóa ảnh gốc khi ghi
-                // link thất bại (mirror pattern _doSaveAsset ở 06_assets.js).
-                currentCustomerData.driveLink = result.url;
-                const ok = await new Promise((resolve) => {
-                    persistCurrentCustomer((rec) => { rec.driveLink = result.url; }, resolve);
-                });
-
+            if (outcome.verdict === DRIVE_UPLOAD_REJECTED) {
                 LoadingManager.hideGlobal(true);
+                ErrorHandler.showError('BACKUP',
+                    outcome.message
+                        ? `Tải ảnh lên Drive thất bại: ${outcome.message}`
+                        : 'Tải ảnh lên Drive thất bại. Vui lòng kiểm tra kết nối và link kết nối Drive.',
+                    outcome.error || null);
+                return;
+            }
 
-                if (!ok) {
-                    ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm lại link" sau.');
-                    return;
-                }
-
-                renderDriveStatus(result.url);
-                if (split.failedCount > 0) {
-                    ErrorHandler.showWarning(`Đã tải ${succeededImgs.length}/${imagesToUpload.length} ảnh hồ sơ lên Drive — ${split.failedCount} ảnh lỗi vẫn còn trong máy, hãy thử tải lại sau.`);
-                } else {
-                    ErrorHandler.showSuccess("Đã tải ảnh hồ sơ lên Drive");
-                }
-
-                // CHỈ xóa ảnh đã lên Drive thành công
-                const msgDel = split.failedCount > 0
-                    ? `Xóa ${succeededImgs.length} ảnh đã tải lên Drive khỏi ứng dụng để giảm dung lượng?\n(${split.failedCount} ảnh lỗi sẽ được giữ nguyên)`
-                    : "Đã tải ảnh hồ sơ lên Drive.\nXóa ảnh gốc trong ứng dụng để giảm dung lượng?";
-                if (await ErrorHandler.confirm(msgDel, { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
-                    _deleteSucceededUploadsOnly(succeededImgs, () => {
-                        loadProfileImages();
-                        ErrorHandler.showSuccess("Đã xóa ảnh gốc");
+            if (outcome.verdict === DRIVE_UPLOAD_UNCONFIRMED) {
+                reachedDrive = true;
+                if (outcome.url) {
+                    const linkOk = await new Promise((resolve) => {
+                        persistCurrentCustomer((rec) => { rec.driveLink = outcome.url; }, resolve);
                     });
+                    if (linkOk) {
+                        currentCustomerData.driveLink = outcome.url;
+                        renderDriveStatus(outcome.url);
+                    }
                 }
+                LoadingManager.hideGlobal(true);
+                ErrorHandler.showWarning(_unconfirmedUploadMessage(outcome, imagesToUpload.length));
+                return;
+            }
+
+            reachedDrive = true;
+            const succeededImgs = outcome.succeeded;
+
+            // Lưu link Folder (ghi an toàn, giữ nguyên ciphertext các trường khác).
+            // Await kết quả ghi: KHÔNG báo thành công / hỏi xóa ảnh gốc khi ghi
+            // link thất bại (mirror pattern _doSaveAsset ở 06_assets.js).
+            currentCustomerData.driveLink = outcome.url;
+            const ok = outcome.url
+                ? await new Promise((resolve) => {
+                    persistCurrentCustomer((rec) => { rec.driveLink = outcome.url; }, resolve);
+                })
+                : false;
+
+            LoadingManager.hideGlobal(true);
+
+            if (!ok) {
+                ErrorHandler.showWarning('Ảnh đã lên Drive nhưng CHƯA lưu được link vào hồ sơ. Hãy dùng "Tìm kết nối cũ" sau.');
+                return;
+            }
+
+            renderDriveStatus(outcome.url);
+            if (outcome.failedCount > 0) {
+                ErrorHandler.showWarning(`Đã tải ${succeededImgs.length}/${imagesToUpload.length} ảnh hồ sơ lên Drive — ${outcome.failedCount} ảnh lỗi vẫn còn trong máy, hãy thử tải lại sau.`);
             } else {
-                throw new Error(result && result.message ? result.message : 'Tải ảnh lên Drive thất bại');
+                ErrorHandler.showSuccess("Đã tải ảnh hồ sơ lên Drive");
+            }
+
+            // CHỈ xóa ảnh đã lên Drive thành công
+            const msgDel = outcome.failedCount > 0
+                ? `Xóa ${succeededImgs.length} ảnh đã tải lên Drive khỏi ứng dụng để giảm dung lượng?\n(${outcome.failedCount} ảnh lỗi sẽ được giữ nguyên)`
+                : "Đã tải ảnh hồ sơ lên Drive.\nXóa ảnh gốc trong ứng dụng để giảm dung lượng?";
+            if (await ErrorHandler.confirm(msgDel, { title: "Dọn dẹp bộ nhớ", confirmText: "Xóa ảnh gốc" })) {
+                _deleteSucceededUploadsOnly(succeededImgs, () => {
+                    loadProfileImages();
+                    ErrorHandler.showSuccess("Đã xóa ảnh gốc");
+                });
             }
         } catch (err) {
             LoadingManager.hideGlobal(true);
-            ErrorHandler.showError('BACKUP', "Tải ảnh lên Drive thất bại. Vui lòng kiểm tra kết nối và link kết nối Drive.", err);
+            if (reachedDrive) {
+                ErrorHandler.logError('uploadToGoogleDrive: lỗi SAU khi Drive đã nhận ảnh', err);
+                ErrorHandler.showWarning('Ảnh đã lên Drive nhưng ứng dụng gặp lỗi khi cập nhật hồ sơ. Ảnh gốc trong máy được giữ nguyên — hãy dùng "Tìm kết nối cũ".');
+            } else {
+                ErrorHandler.showError('BACKUP', "Tải ảnh lên Drive thất bại. Vui lòng kiểm tra kết nối và link kết nối Drive.", err);
+            }
         }
     };
 }
