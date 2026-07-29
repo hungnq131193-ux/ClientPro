@@ -506,6 +506,20 @@
     }
 
     /**
+     * Chuẩn hoá tên file backup GIỐNG HỆT handleCreateBackup_ (gas/UserDriveAPI.gs):
+     * trim, thay ký tự đường dẫn/điều khiển bằng '_', ép đuôi .cpb. Mã nhân viên
+     * do người dùng nhập có thể chứa '/' hoặc '\'; nếu tên gửi đi khác tên GAS
+     * lưu, probe list_backups khớp đúng-tên sẽ không bao giờ tìm thấy file vừa
+     * tạo và kết luận nhầm "chưa có" -> đúng kịch bản sinh bản trùng.
+     */
+    function _sanitizeBackupFilename_(name) {
+        let s = String(name || '').trim();
+        s = s.replace(/[\/\\\r\n\t\x00-\x1F]/g, '_');
+        if (!/\.cpb$/i.test(s)) s = (s.replace(/\.[a-z0-9]+$/i, '') || 'BACKUP') + '.cpb';
+        return s;
+    }
+
+    /**
      * Dò xác nhận CÓ THỬ LẠI theo UPLOAD_PROBE_RETRY_DELAYS_MS. Quy tắc gộp:
      *   - Bất kỳ lần dò nào THẤY file -> trả về thành công ngay.
      *   - "Chưa có" chỉ được chấp nhận làm kết luận khi đến từ lần dò CUỐI
@@ -528,7 +542,9 @@
         const serverUrl = getUserScriptUrl();
         const emp = getEmployeeId();
         const dev = getDeviceIdSafe();
-        const filename = `BACKUP_${emp}_${dev}_${Date.now()}.cpb`;
+        // Chuẩn hoá theo đúng luật server TRƯỚC khi gửi: tên gửi == tên GAS lưu
+        // == tên probe khớp, kể cả khi mã NV/mã máy chứa ký tự đường dẫn.
+        const filename = _sanitizeBackupFilename_(`BACKUP_${emp}_${dev}_${Date.now()}.cpb`);
 
         const payload = {
             action: 'backup',

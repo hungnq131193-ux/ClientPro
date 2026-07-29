@@ -570,6 +570,61 @@ test('auto backup: status error lạ + probe khẳng định chưa có file -> t
   assert.equal(h.backupCallCount(), 2, 'Thất bại thật phải được thử lại ở lần kiểm tra kế tiếp');
 });
 
+test('auto backup: mã NV chứa / hoặc \\ -> tên file đã sanitize khớp probe (không kết luận nhầm "chưa có")', async () => {
+  // Codex P2: handleCreateBackup_ thay '/' '\' bằng '_' trước khi tạo file.
+  // Nếu client gửi tên thô rồi probe khớp đúng-tên thô, sẽ không bao giờ thấy
+  // file đã sanitize trên Drive -> kết luận vắng mặt -> lần sau tạo trùng.
+  const h = loadAutoBackup();
+  h.ctx.getEmployeeId = () => 'NV/001\\X';
+
+  // Mô phỏng đúng luật GAS: lưu file dưới tên ĐÃ sanitize; response upload mất.
+  const gasSanitize = (name) => {
+    let s = String(name || '').trim().replace(/[\/\\\r\n\t\x00-\x1F]/g, '_');
+    if (!/\.cpb$/i.test(s)) s = (s.replace(/\.[a-z0-9]+$/i, '') || 'BACKUP') + '.cpb';
+    return s;
+  };
+
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'backup') {
+      // Client phải đã gửi tên đã sanitize — nếu còn '/' '\' thì bug.
+      assert.equal(body.filename, gasSanitize(body.filename),
+        'Client phải gửi tên đã chuẩn hoá (không còn ký tự đường dẫn)');
+      assert.ok(!/[\/\\]/.test(body.filename), 'Tên file gửi đi không được còn / hoặc \\');
+      throw new Error('network dropped');
+    }
+    if (body.action === 'list_backups') {
+      // Drive chỉ có file dưới tên đã sanitize (đúng hành vi GAS).
+      const created = h.requests
+        .filter((r) => r.action === 'backup')
+        .map((r) => ({
+          id: 'file_sanitized',
+          filename: gasSanitize(r.filename),
+          size: 10,
+          createdAt: new Date().toISOString(),
+        }));
+      return makeGasResponse({ status: 'success', backups: created });
+    }
+    return makeGasResponse({ status: 'success' });
+  });
+
+  await h.DriveBackup.checkDaily();
+
+  assert.equal(h.backupCallCount(), 1);
+  const sent = h.requests.find((r) => r.action === 'backup');
+  assert.ok(sent && sent.filename.includes('NV_001_X'),
+    'Tên gửi đi phải đã thay / và \\ bằng _ (got: ' + (sent && sent.filename) + ')');
+  assert.ok(
+    h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'),
+    'Probe khớp tên đã sanitize phải thấy file và chốt mốc 24h'
+  );
+
+  h.advance(30 * 1000);
+  await h.DriveBackup.checkDaily();
+  assert.equal(h.backupCallCount(), 1, 'Không tạo bản trùng vì mã NV có ký tự đường dẫn');
+});
+
 test('auto backup: server từ chối rõ ràng (REJECTED pre-write) -> không dò probe, không chốt mốc, lần sau thử lại', async () => {
   const h = loadAutoBackup();
   const originalFetch = h.ctx.fetch;

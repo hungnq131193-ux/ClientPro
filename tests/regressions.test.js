@@ -377,6 +377,21 @@ test('auto backup Drive: upload không rõ kết quả phải dò xác nhận tr
     '_probeUploadedBackupWithRetry_: phải lặp qua lịch trễ và gọi probe một-lần bên trong');
   assert.ok(/last\.answered\s*&&\s*last\.result/.test(retry),
     '_probeUploadedBackupWithRetry_: thấy file thì trả thành công ngay; vắng mặt chỉ tin ở lần dò cuối');
+
+  // Tên file gửi đi phải qua cùng luật sanitize với handleCreateBackup_ (GAS):
+  // mã NV có thể chứa '/' '\' — nếu không chuẩn hoá trước khi gửi, probe khớp
+  // đúng-tên sẽ không thấy file GAS đã lưu dưới tên đã sanitize.
+  assert.ok(/_sanitizeBackupFilename_/.test(up),
+    'uploadAutoBackupToServer: phải chuẩn hoá tên file trước khi gửi và trước khi probe');
+  const sanitize = fnBody(src, '_sanitizeBackupFilename_');
+  assert.ok(/replace\s*\(/.test(sanitize) && /'_'/.test(sanitize) && /\.cpb/.test(sanitize),
+    '_sanitizeBackupFilename_: phải thay ký tự đường dẫn/điều khiển và ép đuôi .cpb giống GAS');
+  // Cùng character-class với gas/UserDriveAPI.gs handleCreateBackup_ — lệch luật
+  // là nguồn probe miss và sinh bản trùng.
+  const gas = read('gas/UserDriveAPI.gs');
+  const classRe = /\[\\\/\\\\\\r\\n\\t\\x00-\\x1F\]/;
+  assert.ok(classRe.test(sanitize) && classRe.test(gas),
+    '_sanitizeBackupFilename_ phải dùng đúng character-class của handleCreateBackup_ ([\\/\\\\\\r\\n\\t\\x00-\\x1F])');
 });
 
 test('nhóm ổn định B #7: saveImageToDB — transaction lưu ảnh đủ oncomplete/onerror/onabort', () => {

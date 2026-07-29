@@ -768,7 +768,7 @@ them safely.
  run the normal success path (marker + hash); final probe answered "absent"
  → genuine failure, throw **without** writing marker/hash so the next check
  retries (no file exists to duplicate); final probe unreachable → write
- **only the content hash** (the 6h dedupe window then blocks a blind
+ ** only the content hash** (the 6h dedupe window then blocks a blind
  re-upload of the same payload; the dedupe-hit path advances the 24h marker)
  and throw an "unconfirmed" error. `REJECTED` (skip the probe, safe to
  retry) is reserved for the **known pre-write verdicts** in
@@ -776,7 +776,11 @@ them safely.
  `folder.createFile` runs (parse/token/lock/validation). Any other
  `status:'error'` — notably the generic `handleRequest_` catch, which
  `trimBackups_` can trigger *after* the file exists — must take the probe
- path; an unknown message is never proof that no file was created.
+ path; an unknown message is never proof that no file was created. The
+ upload filename is passed through `_sanitizeBackupFilename_` (same rules
+ as `handleCreateBackup_`: strip path/control chars, force `.cpb`) *before*
+ the request and before the probe match, so an employee id containing `/`
+ or `\` cannot make the probe miss a file that GAS already renamed.
   2. **Web Locks** (`withAutoBackupLock_`, lock name `clientpro-auto-backup`,
      `ifAvailable: true`) is the only real mutual exclusion between live
      same-origin contexts, and both entry points — the auto path and
