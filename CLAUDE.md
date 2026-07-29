@@ -650,12 +650,59 @@ Optional, user-initiated upload of images/backups to the user's own Drive.
 - Opt-in only; no automatic upload of business data beyond the auto-backup flow
   the user configured.
 - Do not commit tokens/secrets; do not add new endpoints.
+- **Image upload has four verdicts, and "unknown" is not "failed"**
+  (`_classifyUploadResult` / `_runDriveImageUpload` in `07_drive.js`). GAS
+  (`handleUploadImages_`) creates the Drive files **before** the response reaches
+  the phone, so anything that breaks after that moment — `fetch` rejecting on a
+  flaky mobile link, an empty body, GAS returning HTML (sign-in page, bad
+  deployment) — says nothing about whether the images landed. The verdicts:
+  `OK` / `PARTIAL` (per-image mapping via `files[i].id`), `UNCONFIRMED` (no
+  usable answer), `REJECTED` (the server explicitly said no — `status: 'error'`,
+  or `files[]` matching the request length with every entry carrying `.error`).
+  Only `REJECTED` may show "Tải ảnh lên Drive thất bại".
+- Never call `response.json()` on the upload response. `_postDriveUpload` reads
+  `response.text()` and `JSON.parse`s it inside their own `try` blocks so a parse
+  failure is `UNCONFIRMED`, not an exception that the shared `catch` turns into
+  "upload failed".
+- **Only delete local originals for images with a confirmed `files[i].id`**
+  (`outcome.succeeded`, consumed by `_deleteSucceededUploadsOnly`). A `files[]`
+  whose length differs from the request cannot be mapped by index: that is
+  `UNCONFIRMED` — keep every original and point the user at "Tìm kết nối cũ".
+  The folder `url` is still saved to the record when the reply carried one.
+- `_resolveImagesForUpload` decrypts each image and verifies the result is
+  plaintext (`!_looksEncrypted`) and that the session is still unlocked
+  (`isAppUnlocked()`) after every `await`, **before** any request goes out.
+  `decryptImageData` is fail-open, so an auto-lock mid-loop would otherwise POST
+  ciphertext: GAS creates the folder, fails every image, and the user sees a
+  folder on Drive next to a failure toast.
+- Each upload path carries a `reachedDrive` flag. Once Drive has accepted the
+  images, a later error (persisting the link, re-rendering) must report
+  "đã lên Drive nhưng chưa cập nhật được hồ sơ", never a plain upload failure.
+- An `UNCONFIRMED` upload must not render the completed state. `renderDriveStatus`
+  / `renderAssetDriveStatus` take an optional second argument
+  (`DRIVE_STATUS_UNCONFIRMED`) that keeps the open-folder link but replaces the
+  "Đã tải ảnh lên Drive" caption with "Chưa xác nhận đủ ảnh". The warning toast
+  disappears after a few seconds; the caption in the profile stays, so rendering
+  the finished state there tells the user the upload completed when it may not
+  have.
+- `driveLink` reaches RAM only after the DB commit, and an empty `url` never
+  overwrites an existing link — go through `_persistCustomerDriveLink` /
+  `_persistAssetDriveLink`. Assigning `outcome.url` first wipes the link the user
+  is currently looking at when the reply carried none, and leaves RAM ahead of
+  IndexedDB when the write fails. The asset variant has to mutate RAM first
+  (`persistCurrentCustomer` copies `currentCustomerData.assets`), so it restores
+  the previous value when the write fails.
 
 ### Primary files
 `assets/07_drive.js`, `assets/16_auto_backup_drive.js`, `gas/UserDriveAPI.gs`.
 
 ### Read source code only when
 Debugging Drive upload/config — never for docs/tour.
+
+### Required tests when changed
+`npm test` (`tests/drive-upload-results.test.js`, which runs the real
+`07_drive.js` in a sandbox via `tests/helpers/load-drive.js`, plus the Drive
+tripwires in `tests/regressions.test.js`).
 
 ### Must not affect
 Crypto, backup format, GAS endpoints.
@@ -1216,6 +1263,8 @@ migration, data integrity, schema, backup, KDATA cache, sealed employee id
 fail-closed image saving
 (`tests/image-save-fail-closed.test.js`, which runs the real
 `08_images_camera.js` in a sandbox via `tests/helpers/load-images.js`),
+Drive upload verdicts (`tests/drive-upload-results.test.js`, which runs the real
+`07_drive.js` in a sandbox via `tests/helpers/load-drive.js`),
 error-log redaction
 (`tests/error-detail.test.js`), session/key-generation races
 (`tests/key-generation-race.test.js`, `tests/session-generation-hardening.test.js`,

@@ -272,6 +272,60 @@ test('nhóm ổn định B #6: uploadToGoogleDrive dựng folder name từ decry
     'uploadToGoogleDrive: không được dựng folderName trực tiếp từ _displayText đồng bộ');
 });
 
+test('drive: upload ảnh KHÔNG được coi lỗi mạng/parse là "thất bại" (false-negative)', () => {
+  // GAS tạo file TRƯỚC khi response về tới máy: response.json() trần biến mọi
+  // lỗi mạng/body-lạ SAU thời điểm đó thành toast "Tải ảnh lên Drive thất bại"
+  // dù ảnh đã nằm trên Drive. Hành vi đầy đủ có test riêng
+  // (tests/drive-upload-results.test.js); đây là tripwire cấu trúc.
+  const src = read('assets/07_drive.js');
+
+  const post = fnBody(src, '_postDriveUpload');
+  assert.ok(/response\.text\s*\(/.test(post) && /JSON\.parse\s*\(/.test(post),
+    '_postDriveUpload: phải đọc body bằng text() rồi JSON.parse để phân biệt lỗi parse với lỗi server');
+  assert.ok(!/response\.json\s*\(/.test(post),
+    '_postDriveUpload: response.json() trần gộp lỗi mạng/HTML vào "thất bại"');
+  assert.ok(/unconfirmed:\s*true/.test(post),
+    '_postDriveUpload: lỗi mạng/parse phải thành UNCONFIRMED, không phải throw');
+
+  const resolve = fnBody(src, '_resolveImagesForUpload');
+  assert.ok(/isAppUnlocked/.test(resolve) && /_looksEncrypted/.test(resolve),
+    '_resolveImagesForUpload: decryptImageData fail-open — phải chặn ciphertext + auto-lock TRƯỚC khi gửi');
+
+  for (const fn of ['uploadToGoogleDrive', 'uploadAssetToDrive']) {
+    const body = fnBody(src, fn);
+    assert.ok(!/response\.json\s*\(/.test(body), `${fn}: không được gọi response.json() trần`);
+    assert.ok(!/\bawait\s+fetch\s*\(/.test(body),
+      `${fn}: phải đi qua _runDriveImageUpload (phân loại phán quyết), không fetch trực tiếp`);
+
+    const resolveIdx = body.indexOf('_resolveImagesForUpload');
+    const runIdx = body.indexOf('_runDriveImageUpload');
+    assert.ok(resolveIdx >= 0 && runIdx > resolveIdx,
+      `${fn}: phải giải mã + kiểm chứng ảnh TRƯỚC khi gửi request`);
+
+    // Chỉ OK/PARTIAL mới được xóa ảnh gốc: nhánh UNCONFIRMED phải return trước đó.
+    const unconfIdx = body.indexOf('DRIVE_UPLOAD_UNCONFIRMED');
+    const delIdx = body.indexOf('_deleteSucceededUploadsOnly');
+    assert.ok(unconfIdx >= 0, `${fn}: thiếu nhánh UNCONFIRMED — mọi kết quả không rõ sẽ bị báo thất bại`);
+    assert.ok(delIdx > unconfIdx,
+      `${fn}: xóa ảnh gốc phải nằm SAU nhánh UNCONFIRMED (không xóa khi chưa chắc ảnh đã lên Drive)`);
+    assert.ok(/outcome\.succeeded/.test(body),
+      `${fn}: chỉ được xóa những ảnh đối chiếu được files[i].id (outcome.succeeded)`);
+    assert.ok(/reachedDrive/.test(body),
+      `${fn}: lỗi SAU khi Drive đã nhận ảnh không được báo thành "tải ảnh thất bại"`);
+
+    // UI thường trú ở lại sau khi toast biến mất -> nhánh UNCONFIRMED phải render
+    // trạng thái "chưa xác nhận", không phải trạng thái hoàn tất.
+    const renderIdx = body.indexOf('DRIVE_STATUS_UNCONFIRMED');
+    assert.ok(renderIdx > unconfIdx && renderIdx < delIdx,
+      `${fn}: nhánh UNCONFIRMED phải render trạng thái chưa xác nhận (DRIVE_STATUS_UNCONFIRMED)`);
+  }
+
+  // Trạng thái hoàn tất chỉ được nói "Đã tải ảnh lên Drive" khi KHÔNG unconfirmed.
+  const render = fnBody(src, 'renderDriveStatus');
+  assert.ok(/unconfirmed\s*\?/.test(render) && /Đã tải ảnh lên Drive/.test(render),
+    'renderDriveStatus: chú thích hoàn tất phải phụ thuộc cờ unconfirmed');
+});
+
 test('nhóm ổn định B #7: saveImageToDB — transaction lưu ảnh đủ oncomplete/onerror/onabort', () => {
   const src = read('assets/08_images_camera.js');
   const body = fnBody(src, 'saveImageToDB');
