@@ -1035,8 +1035,11 @@ local flow.
 `#activation-modal`, `#screen-lock`, `#setup-lock-modal`, `#forgot-pin-modal`,
 `#biometric-setup-modal`. Order: focus into the gate first, then isolate
 siblings on the path to `body`; on close, release isolation before restoring
-focus. Do **not** extend inert to all business modals in the same helper —
-there is no modal stack, and `.cp-confirm-overlay` is owned by
+focus. When handing off between stacked security gates (e.g. close
+`#forgot-pin-modal` while `#screen-lock` remains), preserve the original
+`lastFocused` anchor — do not snapshot `document.activeElement` from the
+gate being hidden. Do **not** extend inert to all business modals in the same
+helper — there is no modal stack, and `.cp-confirm-overlay` is owned by
 `showConfirm` / `19_error_loading.js`, so blanket isolation breaks confirm /
 nested overlays.
 

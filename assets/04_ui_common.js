@@ -503,12 +503,18 @@ const ModalA11y = (function () {
         }
         isolationTouches = null;
     }
-    function activate(modal) {
+    function activate(modal, opts) {
+        opts = opts || {};
         if (activeModal === modal) return;
+        // Handoff giữa các security gate (vd đóng forgot-pin còn screen-lock):
+        // GIỮ lastFocused gốc — không ghi đè bằng control trong modal vừa ẩn.
+        const handOff = !!opts.handOff
+            || (!!activeModal && isSecurityGate(activeModal) && isSecurityGate(modal));
         if (activeModal && activeModal !== modal) {
             // Đổi overlay: nhả isolation cũ (không trả focus — sẽ focus modal mới).
             releaseIsolation();
-        } else {
+        }
+        if (!handOff) {
             lastFocused = document.activeElement;
         }
         activeModal = modal;
@@ -533,16 +539,22 @@ const ModalA11y = (function () {
     }
     function deactivate() {
         releaseIsolation();
-        activeModal = null;
         const nextGate = topVisibleSecurityGate();
-        if (nextGate) {
-            // Cổng bảo mật khác vẫn mở (vd đóng forgot-pin còn screen-lock).
-            activate(nextGate);
+        // Không gán activeModal = null trước handoff: nếu null hóa trước,
+        // activate(next) sẽ tưởng đây là mở mới và ghi đè lastFocused bằng
+        // phần tử đang focus trong gate vừa ẩn.
+        if (nextGate && nextGate !== activeModal) {
+            activate(nextGate, { handOff: true });
             return;
         }
+        activeModal = null;
         const focusBack = lastFocused;
         lastFocused = null;
-        if (focusBack && typeof focusBack.focus === 'function') {
+        // Chỉ trả focus nếu phần tử còn trong document và còn focusable
+        // (không nằm trong overlay đã ẩn).
+        if (focusBack && typeof focusBack.focus === 'function'
+            && document.contains(focusBack)
+            && !focusBack.closest('.fixed.inset-0.hidden')) {
             try { focusBack.focus(); } catch (e) { }
         }
     }

@@ -100,6 +100,92 @@ test('security gate: activation-modal cô lập accessibility tree', async ({ pa
   expect(state.focusInAct).toBeTruthy();
 });
 
+// Handoff lock → forgot-pin → lock → unlock phải GIỮ focus anchor gốc (dashboard),
+// không ghi đè lastFocused bằng control trong modal vừa ẩn.
+test('security gate: lock → forgot-pin → lock → unlock giữ focus anchor', async ({ page }) => {
+  await page.addInitScript((env) => {
+    localStorage.setItem('app_activated', 'true');
+    localStorage.setItem('app_employee_id', 'TEST');
+    localStorage.setItem('app_pin', env);
+    localStorage.setItem('app_crypto_schema_v', '2');
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 5, completedAt: Date.now() }));
+    const o = sessionStorage.getItem.bind(sessionStorage);
+    sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
+  }, PIN_ENVELOPE);
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+
+  // Anchor focus trên dashboard trước khi khóa.
+  await page.click('#btn-quick-add');
+  await page.waitForSelector('#add-modal', { state: 'visible' });
+  await page.click('#add-modal [data-action="closeModal"], #add-modal [data-action^="close"]');
+  await page.waitForSelector('#add-modal', { state: 'hidden', timeout: 10_000 });
+  await page.focus('#btn-quick-add');
+  await expect(page.locator('#btn-quick-add')).toBeFocused();
+
+  await page.evaluate(() => { if (typeof lockApp === 'function') lockApp(); });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+  await page.waitForFunction(() => {
+    const lock = document.getElementById('screen-lock');
+    return lock && !lock.classList.contains('hidden') && lock.contains(document.activeElement);
+  }, null, { timeout: 5_000 });
+
+  // Mở forgot-pin phía trên lock.
+  await page.click('#screen-lock [data-action="forgotPin"]');
+  await page.waitForSelector('#forgot-pin-modal', { state: 'visible', timeout: 10_000 });
+  const mid = await page.evaluate(() => {
+    const forgot = document.getElementById('forgot-pin-modal');
+    const lock = document.getElementById('screen-lock');
+    const dash = document.getElementById('screen-dashboard');
+    return {
+      focusInForgot: !!(forgot && forgot.contains(document.activeElement)),
+      lockStillOpen: !!(lock && !lock.classList.contains('hidden')),
+      dashIsolated: !!(dash && (dash.inert || dash.getAttribute('aria-hidden') === 'true')),
+    };
+  });
+  expect(mid.focusInForgot, 'Focus phải vào forgot-pin khi mở').toBeTruthy();
+  expect(mid.lockStillOpen, 'screen-lock vẫn mở phía dưới').toBeTruthy();
+  expect(mid.dashIsolated, 'Dashboard vẫn bị cô lập').toBeTruthy();
+
+  // Đóng forgot-pin → handoff về screen-lock, focus trong lock (không kẹt ở forgot ẩn).
+  await page.click('#forgot-pin-modal [data-action="closeForgotModal"]');
+  await page.waitForSelector('#forgot-pin-modal', { state: 'hidden', timeout: 10_000 });
+  await page.waitForSelector('#screen-lock', { state: 'visible' });
+  const afterForgot = await page.evaluate(() => {
+    const forgot = document.getElementById('forgot-pin-modal');
+    const lock = document.getElementById('screen-lock');
+    const ae = document.activeElement;
+    return {
+      focusInLock: !!(lock && lock.contains(ae)),
+      focusInForgot: !!(forgot && forgot.contains(ae)),
+      focusTag: ae ? ae.tagName : null,
+      focusId: ae ? ae.id : null,
+    };
+  });
+  expect(afterForgot.focusInForgot, 'Focus không được kẹt trong forgot-pin đã ẩn').toBeFalsy();
+  expect(afterForgot.focusInLock, 'Sau đóng forgot-pin, focus phải trong screen-lock').toBeTruthy();
+
+  // Unlock → trả focus về anchor dashboard (#btn-quick-add), không về body/hidden.
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+  await expect(page.locator('#btn-quick-add')).toBeFocused({ timeout: 5_000 });
+  const finalState = await page.evaluate(() => {
+    const dash = document.getElementById('screen-dashboard');
+    const lock = document.getElementById('screen-lock');
+    const forgot = document.getElementById('forgot-pin-modal');
+    return {
+      dashInert: !!(dash && dash.inert),
+      focusInLock: !!(lock && lock.contains(document.activeElement)),
+      focusInForgot: !!(forgot && forgot.contains(document.activeElement)),
+    };
+  });
+  expect(finalState.dashInert).toBeFalsy();
+  expect(finalState.focusInLock).toBeFalsy();
+  expect(finalState.focusInForgot).toBeFalsy();
+});
+
 // UX hardening 1.1.0: axe trên màn hình chính (sau mở khóa) + modal thêm khách hàng.
 // Gate ở mức CRITICAL (log SERIOUS) — đồng bộ quy ước sẵn có của repo.
 test('axe: màn hình chính + modal thêm khách hàng không có vi phạm CRITICAL', async ({ page }) => {

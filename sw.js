@@ -20,7 +20,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'A11Y_PWA_HARDEN_20260729';
+const ASSET_V = 'A11Y_FOCUS_HANDOFF_20260729';
 const STATIC_ASSETS = [
   './',
   './index.html',
