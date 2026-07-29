@@ -430,11 +430,17 @@ test('auto backup: mất mạng hoàn toàn -> online lại mà file ĐÃ có tr
   assert.ok(after && after.confirmed !== false, 'Pending phải được nâng thành confirmed');
 });
 
-test('auto backup: server khẳng định chưa có file (mọi lần dò) -> thất bại thật, lần sau được thử lại', async () => {
+test('auto backup: probe cuối vẫn "chưa thấy file" -> giữ PENDING (list_backups không giữ lock), lần sau dò lại rồi tải lên', async () => {
+  // Codex P1: list_backups KHÔNG nằm trong WRITE_ACTIONS_USER_ nên không chia sẻ
+  // script lock của handleCreateBackup_. Một lần dò trả "chưa thấy" — kể cả lần
+  // dò CUỐI — vẫn KHÔNG chứng minh được file chưa/không được tạo: execution gốc có
+  // thể còn xếp hàng. Vì vậy vắng mặt ở probe cuối không được coi là "thất bại
+  // thật" (quên tên file rồi tải tên khác -> sinh bản trùng); phải giữ pending và
+  // để lần kiểm tra sau dò lại đúng tên trước khi quyết định tải lại.
   const h = loadAutoBackup();
   const originalFetch = h.ctx.fetch;
 
-  // Upload không tới được server; probe trả lời rõ ràng ở MỌI lần dò: chưa có file.
+  // Upload không tới được server; probe trả lời rõ ràng ở MỌI lần dò: chưa thấy file.
   h.setFetch(async (url, init) => {
     const body = JSON.parse((init && init.body) || '{}');
     h.requests.push(body);
@@ -448,26 +454,70 @@ test('auto backup: server khẳng định chưa có file (mọi lần dò) -> th
   assert.equal(h.backupCallCount(), 1);
   assert.ok(
     h.requests.filter((r) => r.action === 'list_backups').length >= 2,
-    'Phải dò lại ít nhất một lần trước khi chấp nhận "chưa có" làm kết luận'
+    'Phải dò lại theo lịch trễ trước khi kết luận'
   );
   assert.equal(
     h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'),
     null,
-    'Thất bại thật không được chốt mốc 24h'
+    'Chưa xác nhận được file thì KHÔNG chốt mốc 24h'
   );
-  assert.equal(
-    h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH'),
-    null,
-    'Thất bại thật không được ghi fingerprint (không có file nào để lo trùng, còn phải thử lại)'
-  );
+  const pending = JSON.parse(h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH') || 'null');
+  assert.ok(pending && pending.confirmed === false && pending.filename,
+    'Vắng mặt ở probe cuối phải giữ PENDING (confirmed:false + filename), không kết luận thất bại rồi quên tên file');
 
-  // Mạng ổn định lại: lần kiểm tra sau phải tải lên bình thường — nếu ghi hash/mốc
-  // ở nhánh này, bản sao lưu hằng ngày sẽ bị nuốt mất.
+  // Mạng ổn định lại + Drive vẫn trống (request cũ chưa bao giờ tới GAS): lần kiểm
+  // tra sau dò lại pending, thấy vắng mặt -> xoá pending rồi tải lên thật.
   h.setFetch(originalFetch);
   h.advance(5 * 60 * 1000);
   await h.DriveBackup.checkDaily();
-  assert.equal(h.backupCallCount(), 2, 'Thất bại thật phải được thử lại ở lần kiểm tra kế tiếp');
+  assert.equal(h.backupCallCount(), 2, 'Pending mà Drive vẫn trống -> phải thử lại ở lần kiểm tra kế tiếp');
   assert.ok(h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'));
+  const after = JSON.parse(h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH') || 'null');
+  assert.ok(after && after.confirmed !== false, 'Sau upload thành công hash phải là confirmed');
+});
+
+test('auto backup: pending mà file gốc XUẤT HIỆN MUỘN (execution còn xếp hàng) -> lần sau dò thấy, không tải trùng', async () => {
+  // Đây chính là mối nguy Codex P1 nêu: probe cuối "chưa thấy" nhưng execution gốc
+  // vẫn đang xếp hàng và tạo file NGAY SAU đó. Nếu coi vắng mặt là thất bại thật thì
+  // lần kiểm tra kế tiếp tải lên một tên khác -> hai file cho một lượt. Giữ pending
+  // rồi dò lại đúng tên phải bắt được file muộn này.
+  const h = loadAutoBackup();
+  let pendingFilename = '';
+
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'backup') { pendingFilename = body.filename; throw new Error('network dropped'); }
+    if (body.action === 'list_backups') return makeGasResponse({ status: 'success', backups: [] });
+    return makeGasResponse({ status: 'success' });
+  });
+
+  await h.DriveBackup.checkDaily();
+  assert.equal(h.backupCallCount(), 1);
+  assert.ok(pendingFilename);
+  const pending = JSON.parse(h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH') || 'null');
+  assert.ok(pending && pending.confirmed === false, 'Phải giữ pending sau probe cuối vắng mặt');
+
+  // Lần kiểm tra sau: file gốc (xếp hàng) đã xuất hiện trên Drive.
+  h.setFetch(async (url, init) => {
+    const body = JSON.parse((init && init.body) || '{}');
+    h.requests.push(body);
+    if (body.action === 'backup') throw new Error('không được tải lại khi file gốc đã xuất hiện muộn');
+    if (body.action === 'list_backups') {
+      return makeGasResponse({
+        status: 'success',
+        backups: [{ id: 'file_late', filename: pendingFilename, size: 10, createdAt: new Date().toISOString() }],
+      });
+    }
+    return makeGasResponse({ status: 'success' });
+  });
+  h.advance(7 * 60 * 60 * 1000); // > cửa sổ dedupe 6h: pending vẫn phải được đối soát
+  await h.DriveBackup.checkDaily();
+
+  assert.equal(h.backupCallCount(), 1, 'File gốc xuất hiện muộn -> KHÔNG tạo bản thứ hai');
+  assert.ok(h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'), 'Dò thấy file muộn -> chốt mốc 24h');
+  const after = JSON.parse(h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH') || 'null');
+  assert.ok(after && after.confirmed !== false, 'Pending phải được nâng thành confirmed');
 });
 
 test('auto backup: fetch reject nhưng GAS còn đang xử lý (file xuất hiện muộn) -> probe thử lại bắt được, không kết luận sớm', async () => {
@@ -586,12 +636,14 @@ test('auto backup: GAS lỗi SAU khi đã tạo file (trimBackups_ ném) -> stat
   assert.equal(h.backupCallCount(), 1, 'Không tạo bản trùng sau lỗi trim hậu-createFile');
 });
 
-test('auto backup: status error lạ + probe khẳng định chưa có file -> thất bại thật, lần sau thử lại', async () => {
+test('auto backup: status error lạ + probe cuối chưa thấy file -> giữ PENDING, lần sau dò lại rồi thử lại', async () => {
+  // status:'error' với message KHÔNG thuộc nhóm pre-write có thể phát SAU khi file
+  // đã tạo (trimBackups_ ném) HOẶC trước khi tạo file. list_backups không giữ lock
+  // nên "chưa thấy" ở probe cuối vẫn không phải bằng chứng chắc chắn chưa có file
+  // (Codex P1). Giữ pending, dò lại ở lần sau; Drive vẫn trống thì mới tải lại.
   const h = loadAutoBackup();
   const originalFetch = h.ctx.fetch;
 
-  // Lỗi server lạ phát TRƯỚC khi tạo file (vd getBackupFolder_ ném): probe trả
-  // lời rõ ràng "chưa có" ở mọi lần dò -> kết luận thất bại thật.
   h.setFetch(async (url, init) => {
     const body = JSON.parse((init && init.body) || '{}');
     h.requests.push(body);
@@ -605,13 +657,22 @@ test('auto backup: status error lạ + probe khẳng định chưa có file -> t
   await h.DriveBackup.checkDaily();
 
   assert.equal(h.backupCallCount(), 1);
-  assert.equal(h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'), null, 'Không chốt mốc khi file chắc chắn chưa có');
-  assert.equal(h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH'), null, 'Không ghi fingerprint — lần sau phải thử lại được');
+  assert.ok(
+    h.requests.filter((r) => r.action === 'list_backups').length >= 1,
+    'status:error với message KHÔNG thuộc nhóm pre-write phải đi đường probe'
+  );
+  assert.equal(h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'), null, 'Chưa xác nhận được thì không chốt mốc 24h');
+  const pending = JSON.parse(h.localStorage.getItem('CLIENTPRO_LAST_DRIVE_BACKUP_HASH') || 'null');
+  assert.ok(pending && pending.confirmed === false && pending.filename,
+    'Probe cuối chưa thấy file -> giữ PENDING, không kết luận thất bại rồi quên tên file');
 
+  // Drive vẫn trống ở lần sau (lỗi thực sự phát trước createFile) -> dò lại vắng
+  // mặt -> xoá pending rồi tải lên thật.
   h.setFetch(originalFetch);
   h.advance(5 * 60 * 1000);
   await h.DriveBackup.checkDaily();
-  assert.equal(h.backupCallCount(), 2, 'Thất bại thật phải được thử lại ở lần kiểm tra kế tiếp');
+  assert.equal(h.backupCallCount(), 2, 'Pending mà Drive vẫn trống -> phải thử lại ở lần kiểm tra kế tiếp');
+  assert.ok(h.localStorage.getItem('CLIENTPRO_LAST_AUTO_BACKUP'));
 });
 
 test('auto backup: mã NV chứa / hoặc \\ -> tên file đã sanitize khớp probe (không kết luận nhầm "chưa có")', async () => {

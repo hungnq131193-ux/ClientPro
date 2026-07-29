@@ -413,36 +413,50 @@
                 : '';
             if (payloadHash && dedupeWindowMs > 0) {
                 const last = readLastUploadHash_();
-                if (last && last.hash === payloadHash && (Date.now() - last.ts) < dedupeWindowMs) {
-                    if (last.confirmed) {
-                        // Bản ghi ĐÃ xác nhận: dữ liệu chưa đổi -> nhích mốc 24h,
-                        // không tạo thêm file trùng trên Drive.
-                        setLastAutoBackupTime(Date.now());
-                        return;
-                    }
-                    // Bản ghi CHƯA xác nhận (mất mạng sau upload): tuyệt đối không
-                    // nhích mốc 24h — request có thể chưa bao giờ tới GAS, nhích mốc
-                    // sẽ nuốt mất bản sao lưu hằng ngày trong 24h (Codex P1).
-                    // Dò lại đúng tên file đã gửi; chỉ khi thấy file mới chốt thành công.
+                if (last && last.confirmed === false) {
+                    // Bản ghi CHƯA xác nhận (mất mạng / không rõ kết quả sau khi gửi)
+                    // là một lượt upload còn TREO: chưa biết file đã lên Drive hay chưa.
+                    // Phải đối soát nó ĐỘC LẬP với cửa sổ dedupe 6h. Trước đây nhánh này
+                    // nằm trong điều kiện `(now - last.ts) < dedupeWindowMs`, nên nếu
+                    // người dùng không mở lại app trong hơn 6h thì probe bị bỏ qua hẳn
+                    // và lần kiểm tra kế tiếp tải lên một tên khác — lại sinh bản trùng
+                    // đúng lúc file gốc thực ra đã tồn tại (Codex P1). Dò lại đúng tên đã
+                    // gửi; chỉ khi thấy file mới coi là thành công.
                     if (last.filename) {
                         const pendingProbe = await _probeUploadedBackupWithRetry_(last.filename);
                         if (pendingProbe.answered && pendingProbe.result) {
-                            setLastAutoBackupTime(Date.now());
-                            writeLastUploadHash_(payloadHash);
-                            return;
-                        }
-                        if (pendingProbe.answered) {
-                            // Server khẳng định chưa có file -> xoá pending, chạy tiếp
-                            // để tải lên thật (không thể trùng vì chưa có file nào).
+                            // File treo THỰC RA đã nằm trên Drive.
+                            if (last.hash === payloadHash) {
+                                // Dữ liệu chưa đổi -> nâng pending thành confirmed và
+                                // nhích mốc 24h, không tạo thêm file trùng.
+                                setLastAutoBackupTime(Date.now());
+                                writeLastUploadHash_(payloadHash);
+                                return;
+                            }
+                            // Dữ liệu đã đổi kể từ lượt treo: file cũ đã xác nhận có ->
+                            // xoá pending rồi chạy tiếp để tải payload MỚI như một bản
+                            // sao lưu mới hợp lệ (không phải bản trùng).
+                            clearLastUploadHash_();
+                        } else if (pendingProbe.answered) {
+                            // Server khẳng định chưa có file -> lượt treo chưa bao giờ
+                            // thành file. Xoá pending, chạy tiếp để tải lên thật (không
+                            // thể trùng vì chưa có file nào).
                             clearLastUploadHash_();
                         } else {
                             // Vẫn không hỏi được server: giữ pending, không tải mù,
-                            // không nhích mốc — lần kiểm tra sau (khi có mạng) sẽ dò lại.
+                            // không nhích mốc — lần kiểm tra sau (khi có mạng) dò lại.
                             return;
                         }
                     } else {
+                        // Pending không kèm tên file thì không dò được -> bỏ đi.
                         clearLastUploadHash_();
                     }
+                } else if (last && last.confirmed && last.hash === payloadHash
+                           && (Date.now() - last.ts) < dedupeWindowMs) {
+                    // Bản ghi ĐÃ xác nhận, payload y hệt, còn trong cửa sổ dedupe:
+                    // dữ liệu chưa đổi -> nhích mốc 24h thay vì tạo thêm file trùng.
+                    setLastAutoBackupTime(Date.now());
+                    return;
                 }
             }
 
@@ -637,19 +651,24 @@
                 // File thực ra đã lên Drive: chạy tiếp nhánh thành công bên dưới
                 // (chốt mốc 24h + hash) để các lần kiểm tra sau dừng hẳn.
                 result = probe.result;
-            } else if (probe.answered) {
-                // Lần dò CUỐI (sau toàn bộ lịch trễ) vẫn khẳng định chưa có file
-                // -> thất bại thật. KHÔNG ghi mốc/hash để lần tới còn thử lại
-                // (không thể sinh trùng vì chưa có file nào).
-                throw new Error((result && result.message) || 'Tải bản sao lưu lên Drive thất bại. Vui lòng thử lại.');
             } else {
-                // Không dò được (mất mạng): file CÓ THỂ đã lên Drive — hoặc request
-                // chưa bao giờ tới GAS. Ghi bản ghi CHƯA xác nhận (confirmed:false +
-                // filename) để lần sau dò lại đúng tên; tuyệt đối không ghi hash
-                // "thành công" (confirmed mặc định) vì nhánh dedupe sẽ nhích mốc
-                // 24h và nuốt mất bản sao lưu nếu Drive thực ra chưa có file.
+                // Không xác nhận được file. Hai khả năng gộp CHUNG một cách xử lý,
+                // vì KHÔNG khả năng nào chứng minh được "chưa có file trên Drive":
+                //  - probe.answered=false: mất mạng, không hỏi được server;
+                //  - probe.answered=true, result=null: server trả lời nhưng
+                //    list_backups CHƯA thấy file. list_backups KHÔNG nằm trong
+                //    WRITE_ACTIONS_USER_ (gas/UserDriveAPI.gs) nên không chia sẻ
+                //    script lock của handleCreateBackup_ — một execution gốc còn
+                //    XẾP HÀNG hoặc đang chạy dở vẫn có thể tạo file NGAY SAU snapshot
+                //    này. Kết luận "thất bại thật" rồi quên tên file sẽ để lần kiểm
+                //    tra kế tiếp tải lên MỘT TÊN KHÁC -> đúng kịch bản sinh bản trùng
+                //    (Codex P1). Giữ PENDING (confirmed:false + filename) để lần auto
+                //    sau dò lại đúng tên; tuyệt đối không ghi hash "thành công" và
+                //    không nhích mốc 24h. Nếu file quả thật chưa bao giờ được tạo,
+                //    lần dò sau sẽ khẳng định vắng mặt và performAutoBackup xoá pending
+                //    rồi tải lại (không thể trùng vì chưa có file nào).
                 writeLastUploadHash_(payloadHash, { confirmed: false, filename: filename });
-                throw new Error('Không xác nhận được bản sao lưu trên Drive (kết nối không ổn định). Vui lòng kiểm tra danh sách sao lưu trước khi thử lại.');
+                throw new Error('Chưa xác nhận được bản sao lưu trên Drive. Sẽ tự kiểm tra lại ở lần sao lưu kế tiếp.');
             }
         }
 

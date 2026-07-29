@@ -764,16 +764,25 @@ them safely.
  GAS `WRITE_ACTIONS_USER_` lock set, so a probe fired right after the fetch
  rejected can legitimately answer "absent" while the original
  `handleCreateBackup_` execution is still holding the script lock and about
- to create the file — only the **final** probe's "absent" counts. Found →
- run the normal success path (marker + hash); final probe answered "absent"
- → genuine failure, throw **without** writing marker/hash so the next check
- retries (no file exists to duplicate); final probe unreachable → write a
- **pending** record `{ hash, confirmed: false, filename }` (never a confirmed
- success hash — that would let the 6h dedupe path advance the 24h marker and
- suppress the daily backup even when Drive has nothing). On the next auto
- check, a matching pending hash is **re-probed** by filename: found → confirm
- (marker + confirmed hash); absent → clear pending and upload; still
- unreachable → keep pending, do not upload blind, do not advance the marker.
+ to create the file. Found on any probe → run the normal success path
+ (marker + hash). **Any other final-probe outcome — "absent" OR unreachable —
+ is `UNCONFIRMED`, never a hard failure**: `list_backups` is not in
+ `WRITE_ACTIONS_USER_`, so even the final "absent" is not synchronized with
+ completion — the original execution may still be *queued* and create the file
+ right after the snapshot. Both write a **pending** record
+ `{ hash, confirmed: false, filename }` and throw (never a confirmed success
+ hash — that would let the 6h dedupe path advance the 24h marker and suppress
+ the daily backup even when Drive has nothing; and never a throw that forgets
+ the filename — the next check would upload a *different* name and duplicate a
+ file the queued execution then creates). A pending record is reconciled on
+ the next auto check **independently of the 6h dedupe window** (a
+ `confirmed:false` record is an in-flight upload of unknown fate; gating its
+ re-probe on `(now - ts) < AUTO_BACKUP_DEDUPE_MS` skipped it entirely once the
+ user stayed away > 6h, then uploaded a duplicate): re-probe by filename →
+ found → confirm (marker + confirmed hash); absent → clear pending and upload
+ fresh; still unreachable → keep pending, do not upload blind, do not advance
+ the marker. The only definitive rejection is a **known pre-write verdict**
+ (below), which alone throws without a pending record.
  `REJECTED` (skip the probe, safe to
  retry) is reserved for the **known pre-write verdicts** in
  `PRE_WRITE_REJECT_MESSAGES` — messages `gas/UserDriveAPI.gs` emits before
