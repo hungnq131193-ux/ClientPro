@@ -1035,7 +1035,10 @@ local flow.
 `#activation-modal`, `#screen-lock`, `#setup-lock-modal`, `#forgot-pin-modal`,
 `#biometric-setup-modal`. Order: focus into the gate first, then isolate
 siblings on the path to `body`; on close, release isolation before restoring
-focus. When handing off between stacked security gates (e.g. close
+focus. Exempt the toast live region (`#app-toast-container`), the global loader,
+and any `.cp-confirm-overlay` from isolation — `ErrorHandler` / `showConfirm`
+must keep working while a gate is open (e.g. activation error, wrong PIN).
+When handing off between stacked security gates (e.g. close
 `#forgot-pin-modal` while `#screen-lock` remains), preserve the original
 `lastFocused` anchor — do not snapshot `document.activeElement` from the
 gate being hidden. Do **not** extend inert to all business modals in the same

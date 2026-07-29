@@ -470,6 +470,18 @@ const ModalA11y = (function () {
     }
     // Đặt inert + aria-hidden lên mọi sibling trên đường modal → body (không
     // đụng chính modal). Lưu giá trị cũ để restore đúng.
+    // Loại trừ: toast live region + confirm overlay + loader — chúng phải vẫn
+    // hoạt động cho gate hiện tại (vd báo lỗi kích hoạt / sai PIN).
+    const ISOLATION_EXEMPT_IDS = {
+        'app-toast-container': 1,  // role=status live region — không inert
+        'loader': 1,               // global loader có thể dùng trong gate
+    };
+    function isIsolationExempt(el) {
+        if (!el || !el.id) return el && el.classList && el.classList.contains('cp-confirm-overlay');
+        if (ISOLATION_EXEMPT_IDS[el.id]) return true;
+        if (el.classList && el.classList.contains('cp-confirm-overlay')) return true;
+        return false;
+    }
     function isolateBackground(modal) {
         releaseIsolation();
         const touches = [];
@@ -479,6 +491,7 @@ const ModalA11y = (function () {
             if (!parent) break;
             Array.from(parent.children).forEach((sibling) => {
                 if (sibling === node || !(sibling instanceof HTMLElement)) return;
+                if (isIsolationExempt(sibling)) return;
                 touches.push({
                     el: sibling,
                     hadInert: !!sibling.inert,

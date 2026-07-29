@@ -51,16 +51,22 @@ test('security gate: screen-lock cô lập accessibility tree của dashboard', 
   const locked = await page.evaluate(() => {
     const dash = document.getElementById('screen-dashboard');
     const lock = document.getElementById('screen-lock');
+    const toast = document.getElementById('app-toast-container');
     return {
       dashInert: !!(dash && dash.inert),
       dashAriaHidden: dash ? dash.getAttribute('aria-hidden') : null,
       lockInert: !!(lock && lock.inert),
       focusInLock: !!(lock && lock.contains(document.activeElement)),
+      toastInert: !!(toast && toast.inert),
+      toastAriaHidden: toast ? toast.getAttribute('aria-hidden') : null,
     };
   });
   expect(locked.dashInert || locked.dashAriaHidden === 'true', 'Dashboard phải inert/aria-hidden khi lock mở').toBeTruthy();
   expect(locked.lockInert, 'Chính #screen-lock không được inert').toBeFalsy();
   expect(locked.focusInLock, 'Focus phải nằm trong #screen-lock').toBeTruthy();
+  // Toast live region phải thoát cô lập — ErrorHandler vẫn báo trong gate.
+  expect(locked.toastInert, 'Toast container không được inert trong gate').toBeFalsy();
+  expect(locked.toastAriaHidden === 'true', 'Toast container không được aria-hidden').toBeFalsy();
 
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
@@ -98,6 +104,48 @@ test('security gate: activation-modal cô lập accessibility tree', async ({ pa
   expect(state.dashInert || state.dashAriaHidden === 'true').toBeTruthy();
   expect(state.actInert).toBeFalsy();
   expect(state.focusInAct).toBeTruthy();
+});
+
+// Toast live region phải thoát cô lập cả khi toast đã tồn tại trước auto-lock
+// / mở gate (vd sau khi đóng modal thêm khách hàng hiện "Đã lưu").
+test('security gate: toast vẫn là live region khi lock mở (toast sẵn trước)', async ({ page }) => {
+  await page.addInitScript((env) => {
+    localStorage.setItem('app_activated', 'true');
+    localStorage.setItem('app_employee_id', 'TEST');
+    localStorage.setItem('app_pin', env);
+    localStorage.setItem('app_crypto_schema_v', '2');
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 5, completedAt: Date.now() }));
+    const o = sessionStorage.getItem.bind(sessionStorage);
+    sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
+  }, PIN_ENVELOPE);
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+
+  // Đảm bảo host toast tồn tại TRƯỚC khi lock (đường dẫn bị Codex chỉ ra).
+  await page.evaluate(() => { if (window.showToast) window.showToast('toast-before-lock'); });
+  await page.waitForSelector('#app-toast-container .app-toast', { timeout: 5_000 });
+
+  await page.evaluate(() => { if (typeof lockApp === 'function') lockApp(); });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+
+  const state = await page.evaluate(() => {
+    const toast = document.getElementById('app-toast-container');
+    return {
+      toastExists: !!toast,
+      toastInert: !!(toast && toast.inert),
+      toastAriaHidden: toast ? toast.getAttribute('aria-hidden') : null,
+      toastRole: toast ? toast.getAttribute('role') : null,
+    };
+  });
+  expect(state.toastExists).toBeTruthy();
+  expect(state.toastInert, 'Toast không được inert trong security gate').toBeFalsy();
+  expect(state.toastAriaHidden === 'true', 'Toast không được aria-hidden').toBeFalsy();
+  expect(state.toastRole, 'Toast giữ role=status').toBe('status');
+
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
 });
 
 // Handoff lock → forgot-pin → lock → unlock phải GIỮ focus anchor gốc (dashboard),
