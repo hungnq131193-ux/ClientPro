@@ -454,31 +454,39 @@ function _deleteSucceededUploadsOnly(succeededImgs, onDone) {
     txDel.onabort = delFail;
 }
 
+// UI thường trú sau upload phải nói đúng mức chắc chắn: 'done' (mặc định) chỉ
+// dùng khi đã đối chiếu được từng ảnh; 'unconfirmed' cho phán quyết UNCONFIRMED
+// — có thư mục để mở, nhưng KHÔNG được khẳng định "đã tải ảnh lên". Toast cảnh
+// báo biến mất sau vài giây, dòng chú thích này thì ở lại.
+const DRIVE_STATUS_UNCONFIRMED = 'unconfirmed';
+
 // 3. Hàm hiển thị nút mở Drive
-function renderDriveStatus(url) {
+function renderDriveStatus(url, state) {
     const area = getEl('drive-status-area');
     const btnUp = getEl('btn-upload-drive');
-    
+
     if (!area) return;
-    
+
     const safeUrl = _normalizeDriveUrl(url).trim();
     const hasSafeDriveUrl = typeof isSafeDriveUrl === 'function' && isSafeDriveUrl(safeUrl);
     const safeHref = hasSafeDriveUrl ? escapeHTML(safeUrl) : '';
+    const unconfirmed = state === DRIVE_STATUS_UNCONFIRMED;
     if (hasSafeDriveUrl) {
         // ĐÃ CÓ LINK → hiện nút Mở Drive
         area.classList.remove('hidden');
         area.innerHTML = `
       <a href="${safeHref}" target="_blank" rel="noopener noreferrer"
-         class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold
+         class="w-full py-3 ${unconfirmed ? 'bg-amber-600 border-amber-400/30' : 'bg-emerald-600 border-emerald-400/30'}
+                text-white rounded-xl font-bold
                 flex items-center justify-center gap-2 shadow-lg mb-1
-                animate-fade-in border border-emerald-400/30">
+                animate-fade-in border">
         <i data-lucide="external-link" class="w-5 h-5"></i> Mở thư mục ảnh
       </a>
-      <p class="text-[10px] text-center text-emerald-400/70 italic mb-2">
-        Đã tải ảnh lên Drive
+      <p class="text-[10px] text-center italic mb-2 ${unconfirmed ? 'text-amber-300/80' : 'text-emerald-400/70'}">
+        ${unconfirmed ? 'Chưa xác nhận đủ ảnh — mở thư mục để kiểm tra' : 'Đã tải ảnh lên Drive'}
       </p>
     `;
-        
+
         if (btnUp) btnUp.classList.remove('hidden'); // vẫn cho phép upload thêm
     } else {
         // CHƯA CÓ LINK → hiện nút tìm lại + nút upload
@@ -595,7 +603,8 @@ async function uploadAssetToDrive() {
             if (outcome.verdict === DRIVE_UPLOAD_UNCONFIRMED) {
                 reachedDrive = true;
                 if (await _persistAssetDriveLink(assetIndex, outcome.url)) {
-                    renderAssetDriveStatus(outcome.url);
+                    // Có thư mục để mở, nhưng UI KHÔNG được nói "đã tải xong".
+                    renderAssetDriveStatus(outcome.url, DRIVE_STATUS_UNCONFIRMED);
                 }
                 LoadingManager.hideGlobal(true);
                 ErrorHandler.showWarning(_unconfirmedUploadMessage(outcome, imagesToUpload.length));
@@ -651,7 +660,7 @@ async function uploadAssetToDrive() {
 }
 
 // 1. Cập nhật giao diện: Thêm nút Tìm kết nối cũ
-function renderAssetDriveStatus(url) {
+function renderAssetDriveStatus(url, state) {
     const area = getEl('asset-drive-status-area');
     const btnUp = getEl('btn-asset-upload');
     if (!area) return;
@@ -660,12 +669,14 @@ function renderAssetDriveStatus(url) {
     const safeUrl = _normalizeDriveUrl(url).trim();
     const hasSafeDriveUrl = typeof isSafeDriveUrl === 'function' && isSafeDriveUrl(safeUrl);
     const safeHref = hasSafeDriveUrl ? escapeHTML(safeUrl) : '';
+    const unconfirmed = state === DRIVE_STATUS_UNCONFIRMED;
     if (hasSafeDriveUrl) {
-        // Đã có link -> Hiện nút mở
+        // Đã có link -> Hiện nút mở (xem chú thích ở renderDriveStatus về 'unconfirmed')
         area.innerHTML = `
-            <a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border border-teal-400/30">
+            <a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="w-full py-3 ${unconfirmed ? 'bg-amber-600 border-amber-400/30' : 'bg-teal-600 border-teal-400/30'} text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg mb-1 animate-fade-in border">
                 <i data-lucide="external-link" class="w-5 h-5"></i> Xem thư mục tài sản
-            </a>`;
+            </a>
+            ${unconfirmed ? '<p class="text-[10px] text-center italic mb-2 text-amber-300/80">Chưa xác nhận đủ ảnh — mở thư mục để kiểm tra</p>' : ''}`;
         if (btnUp) btnUp.classList.remove('hidden');
     } else {
         // Chưa có link -> Hiện nút TÌM LẠI
@@ -940,7 +951,8 @@ async function uploadToGoogleDrive() {
             if (outcome.verdict === DRIVE_UPLOAD_UNCONFIRMED) {
                 reachedDrive = true;
                 if (await _persistCustomerDriveLink(outcome.url)) {
-                    renderDriveStatus(outcome.url);
+                    // Có thư mục để mở, nhưng UI KHÔNG được nói "đã tải xong".
+                    renderDriveStatus(outcome.url, DRIVE_STATUS_UNCONFIRMED);
                 }
                 LoadingManager.hideGlobal(true);
                 ErrorHandler.showWarning(_unconfirmedUploadMessage(outcome, imagesToUpload.length));

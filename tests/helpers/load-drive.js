@@ -42,6 +42,33 @@ function makeResponse({ body = '', ok = true, status = 200, textThrows = false }
   };
 }
 
+// Element duy nhất mà đường render Drive cần. Ngoài danh sách này getElementById
+// trả null (đúng như production khi màn chưa mở) để test không phải dựng cả DOM.
+const RENDER_EL_IDS = new Set([
+  'drive-status-area', 'btn-upload-drive',
+  'asset-drive-status-area', 'btn-asset-upload',
+]);
+
+function makeStatusEl(id) {
+  const classes = new Set(['hidden']);
+  return {
+    id,
+    innerHTML: '',
+    textContent: '',
+    classList: {
+      add: (...c) => c.forEach((x) => classes.add(x)),
+      remove: (...c) => c.forEach((x) => classes.delete(x)),
+      contains: (c) => classes.has(c),
+      toggle: (c, force) => {
+        const on = force === undefined ? !classes.has(c) : !!force;
+        if (on) classes.add(c); else classes.delete(c);
+        return on;
+      },
+    },
+    setAttribute() {},
+  };
+}
+
 /** Deferred nhỏ: test await được thời điểm callback getAll (async) chạy xong. */
 function deferred() {
   let resolve;
@@ -107,6 +134,7 @@ function loadDrive(opts) {
   const deleted = [];
   const toasts = [];
   const uploadDone = deferred();
+  const els = new Map();
   const images = options.images || [];
 
   const ctx = {
@@ -117,7 +145,13 @@ function loadDrive(opts) {
 
     document: {
       addEventListener() {},
-      getElementById: () => null,
+      // Chỉ dựng những element mà đường render Drive chạm tới — đủ để test đọc
+      // được innerHTML thường trú (thứ ở lại sau khi toast biến mất).
+      getElementById: (id) => {
+        if (!RENDER_EL_IDS.has(id)) return null;
+        if (!els.has(id)) els.set(id, makeStatusEl(id));
+        return els.get(id);
+      },
     },
     localStorage: {
       _data: new Map(),
@@ -136,7 +170,7 @@ function loadDrive(opts) {
     USER_TOKEN_KEY: 'app_user_script_token',
 
     // --- 00_globals.js ---
-    getEl: () => null,
+    getEl: (id) => ctx.document.getElementById(id),
     _looksEncrypted: (v) =>
       typeof v === 'string' && (v.startsWith('U2FsdGVk') || v.startsWith(GCM_PREFIX)),
     _displayPlain: (v) => v,
@@ -220,6 +254,8 @@ function loadDrive(opts) {
     deleted,
     /** Toast đã hiện cho người dùng (kind: error | warning | success). */
     toasts,
+    /** innerHTML thường trú của vùng trạng thái Drive (thứ ở lại sau toast). */
+    renderedHtml: (id) => (els.has(id) ? els.get(id).innerHTML : ''),
     /** Bản ghi khách hàng "trong DB" sau persistCurrentCustomer. */
     record: ctxRecord,
     /** Chạy trọn một lượt upload (callback getAll là async). */

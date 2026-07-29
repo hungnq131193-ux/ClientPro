@@ -678,6 +678,13 @@ Optional, user-initiated upload of images/backups to the user's own Drive.
 - Each upload path carries a `reachedDrive` flag. Once Drive has accepted the
   images, a later error (persisting the link, re-rendering) must report
   "đã lên Drive nhưng chưa cập nhật được hồ sơ", never a plain upload failure.
+- An `UNCONFIRMED` upload must not render the completed state. `renderDriveStatus`
+  / `renderAssetDriveStatus` take an optional second argument
+  (`DRIVE_STATUS_UNCONFIRMED`) that keeps the open-folder link but replaces the
+  "Đã tải ảnh lên Drive" caption with "Chưa xác nhận đủ ảnh". The warning toast
+  disappears after a few seconds; the caption in the profile stays, so rendering
+  the finished state there tells the user the upload completed when it may not
+  have.
 - `driveLink` reaches RAM only after the DB commit, and an empty `url` never
   overwrites an existing link — go through `_persistCustomerDriveLink` /
   `_persistAssetDriveLink`. Assigning `outcome.url` first wipes the link the user

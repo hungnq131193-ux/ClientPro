@@ -312,7 +312,18 @@ test('drive: upload ảnh KHÔNG được coi lỗi mạng/parse là "thất b�
       `${fn}: chỉ được xóa những ảnh đối chiếu được files[i].id (outcome.succeeded)`);
     assert.ok(/reachedDrive/.test(body),
       `${fn}: lỗi SAU khi Drive đã nhận ảnh không được báo thành "tải ảnh thất bại"`);
+
+    // UI thường trú ở lại sau khi toast biến mất -> nhánh UNCONFIRMED phải render
+    // trạng thái "chưa xác nhận", không phải trạng thái hoàn tất.
+    const renderIdx = body.indexOf('DRIVE_STATUS_UNCONFIRMED');
+    assert.ok(renderIdx > unconfIdx && renderIdx < delIdx,
+      `${fn}: nhánh UNCONFIRMED phải render trạng thái chưa xác nhận (DRIVE_STATUS_UNCONFIRMED)`);
   }
+
+  // Trạng thái hoàn tất chỉ được nói "Đã tải ảnh lên Drive" khi KHÔNG unconfirmed.
+  const render = fnBody(src, 'renderDriveStatus');
+  assert.ok(/unconfirmed\s*\?/.test(render) && /Đã tải ảnh lên Drive/.test(render),
+    'renderDriveStatus: chú thích hoàn tất phải phụ thuộc cờ unconfirmed');
 });
 
 test('nhóm ổn định B #7: saveImageToDB — transaction lưu ảnh đủ oncomplete/onerror/onabort', () => {

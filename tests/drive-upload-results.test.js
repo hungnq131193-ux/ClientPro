@@ -334,6 +334,48 @@ test('luồng đầy đủ (tài sản) — UNCONFIRMED có url: lưu link nhưn
   assert.ok(kinds(h.toasts, 'warning').join('\n').includes('2/3'));
 });
 
+test('REGRESSION — UI thường trú sau UNCONFIRMED không được nói "Đã tải ảnh lên Drive"', async () => {
+  // Toast cảnh báo biến mất sau vài giây; dòng chú thích trong hồ sơ thì ở lại.
+  const h = loadDrive({
+    images: dbImgs(3),
+    fetchImpl: async () => makeResponse({
+      body: JSON.stringify({ status: 'partial', url: 'https://drive.google.com/folder', files: [okFile(0), okFile(1)] }),
+    }),
+  });
+  await h.runUploadFlow('profile');
+  const html = h.renderedHtml('drive-status-area');
+  assert.ok(html.includes('Mở thư mục ảnh'), 'vẫn cho mở thư mục đã có trên Drive');
+  assert.ok(!html.includes('Đã tải ảnh lên Drive'), 'không được khẳng định upload đã xong');
+  assert.ok(html.includes('Chưa xác nhận đủ ảnh'), 'phải nói rõ là chưa xác nhận');
+});
+
+test('UI thường trú sau OK vẫn là trạng thái hoàn tất như cũ', async () => {
+  const h = loadDrive({
+    images: dbImgs(2),
+    fetchImpl: async () => makeResponse({
+      body: JSON.stringify({ status: 'success', url: 'https://drive.google.com/folder', files: [okFile(0), okFile(1)] }),
+    }),
+  });
+  await h.runUploadFlow('profile');
+  const html = h.renderedHtml('drive-status-area');
+  assert.ok(html.includes('Đã tải ảnh lên Drive'));
+  assert.ok(!html.includes('Chưa xác nhận đủ ảnh'));
+});
+
+test('REGRESSION — UI tài sản sau UNCONFIRMED cũng phải mang chú thích chưa xác nhận', async () => {
+  const h = loadDrive({
+    assetId: 'a1',
+    images: dbImgs(3, 'a1'),
+    fetchImpl: async () => makeResponse({
+      body: JSON.stringify({ status: 'partial', url: 'https://drive.google.com/folder', files: [okFile(0), okFile(1)] }),
+    }),
+  });
+  await h.runUploadFlow('asset');
+  const html = h.renderedHtml('asset-drive-status-area');
+  assert.ok(html.includes('Xem thư mục tài sản'));
+  assert.ok(html.includes('Chưa xác nhận đủ ảnh'));
+});
+
 test('luồng đầy đủ (tài sản) — ghi link hỏng thì RAM trả về link cũ', async () => {
   const h = loadDrive({
     assetId: 'a1',
