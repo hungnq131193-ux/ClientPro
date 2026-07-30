@@ -617,6 +617,41 @@ test('modals: ensure(id) chèn HTML trước khi resolve — không trả raw fe
     'business modals chỉ warm qua idle callback');
 });
 
+test('modals: fragment deferred được khởi tạo Lucide theo đúng modal vừa chèn', () => {
+  const load = read('assets/ui/load_modals.js');
+  const fetchBody = fnBody(load, 'fetchModal');
+  const iconBody = fnBody(load, 'initDeferredModalIcons');
+
+  assert.ok(/DEFERRED\.indexOf\(id\)\s*<\s*0/.test(iconBody),
+    'không quét lại critical gates trên cold-start');
+  assert.ok(/window\.lucide\.createIcons\(\s*\{\s*root:\s*modal\s*\}\s*\)/.test(iconBody),
+    'modal deferred phải được scan icon theo chính subtree vừa chèn');
+  assert.ok(!/window\.lucide\.createIcons\(\s*\)/.test(iconBody),
+    'không được gọi Lucide không scope');
+  const insertIdx = fetchBody.indexOf('insertHtml(html)');
+  const iconIdx = fetchBody.indexOf('initDeferredModalIcons(id, modal)');
+  assert.ok(insertIdx >= 0 && iconIdx > insertIdx,
+    'khởi tạo icon phải chạy sau khi fragment đã được chèn vào DOM');
+});
+
+test('khách hàng trống: openModal tự ensure add-modal trước mọi DOM access', () => {
+  const cust = read('assets/05_customers.js');
+  const body = fnBody(cust, 'openModal');
+  const firstLookup = body.indexOf("getEl('add-modal')");
+  const ensureIdx = body.indexOf("ModalLoader.ensure('add-modal')");
+  const secondLookup = body.indexOf("getEl('add-modal')", firstLookup + 1);
+  const openIdx = body.indexOf("modal.classList.remove('hidden')");
+
+  assert.ok(firstLookup >= 0 && ensureIdx > firstLookup,
+    'openModal phải kiểm tra fragment trước khi gọi loader');
+  assert.ok(secondLookup > ensureIdx,
+    'openModal phải lấy lại fragment sau khi await loader');
+  assert.ok(openIdx > secondLookup,
+    'không được dereference modal trước khi ensure hoàn tất');
+  assert.ok(/if\s*\(\s*!modal\s*\)\s*return/.test(body),
+    'fetch lỗi phải fail closed thay vì dereference null');
+});
+
 test('camera open: hủy sau lazy-load nếu khóa/ẩn; photo-mode revalidate sau await', () => {
   const ui = read('assets/04_ui_common.js');
   assert.ok(/__cameraOpenAttemptSeq/.test(ui) && /__cameraOpenStillAllowed/.test(ui),

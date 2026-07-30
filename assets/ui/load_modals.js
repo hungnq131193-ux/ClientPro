@@ -55,6 +55,17 @@
     root.insertAdjacentHTML('beforeend', html + '\n');
   }
 
+  function initDeferredModalIcons(id, modal) {
+    // Critical gates are scanned by bootstrap. Business modals arrive after that
+    // scan, so initialise only their own subtree once they are inserted.
+    if (DEFERRED.indexOf(id) < 0 || !modal) return;
+    try {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons({ root: modal });
+      }
+    } catch (e) { }
+  }
+
   /**
    * Fetch + insert one modal. Resolves true only when #id is in the DOM
    * (or was already present). Safe to call concurrently with loadGroup.
@@ -81,7 +92,11 @@
         if (!loaded[id] && !document.getElementById(id) && html) {
           insertHtml(html);
         }
-        if (document.getElementById(id)) loaded[id] = true;
+        var modal = document.getElementById(id);
+        if (modal) {
+          loaded[id] = true;
+          initDeferredModalIcons(id, modal);
+        }
         delete inflight[id];
         return !!loaded[id];
       })

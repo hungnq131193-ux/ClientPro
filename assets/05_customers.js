@@ -847,12 +847,21 @@ function renderList(list, opts = {}) {
     }
 }
 
-function openModal() {
+async function openModal() {
+    // Nút empty-state được tạo động nên không đi qua data-action/withModal.
+    // Tự bảo đảm fragment tồn tại để mọi đường mở modal đều an toàn.
+    let modal = getEl('add-modal');
+    if (!modal && window.ModalLoader && typeof window.ModalLoader.ensure === 'function') {
+        try { await window.ModalLoader.ensure('add-modal'); } catch (e) { }
+        modal = getEl('add-modal');
+    }
+    if (!modal) return;
+
     // Vô hiệu hóa lượt decrypt sửa-hồ-sơ còn treo (nếu có) + gỡ khóa nút Lưu,
     // tránh lượt cũ đè nhãn/trạng thái nút sau khi đã chuyển sang chế độ tạo mới.
     window.__editCustModalSeq = (window.__editCustModalSeq || 0) + 1;
     try { LoadingManager.hideButtonLoading(getEl('btn-save-cust')); } catch (e) { }
-    getEl('add-modal').classList.remove('hidden');
+    modal.classList.remove('hidden');
     // Reset tất cả trường nhập thông tin khách hàng khi tạo mới
     getEl('new-name').value = '';
     getEl('new-phone').value = '';
