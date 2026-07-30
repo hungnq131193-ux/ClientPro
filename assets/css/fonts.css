@@ -79,20 +79,6 @@ body:has(#ui-modals-root #screen-lock:not(.hidden),
   opacity: 0.72;
   color: #334155 !important;
 }
-/* The security gate is observed within ~100–150ms on the CI/browser trace. Keep
-   the boot copy available to assistive technology but outside the visual LCP
-   candidate set; after boot, LoadingManager messages remain fully visible. */
-body:not([data-cp-boot-ready="1"]) #loader-text {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
-}
 @keyframes cp-boot-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   #loader > div:first-child { animation-duration: 1.8s; }
