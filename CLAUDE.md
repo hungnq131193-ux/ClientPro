@@ -660,9 +660,19 @@ before the existing `saveImageToDB` path. Default camera mode is **Quét giấy 
 ### Core invariants
 - Pre-encryption only: detect → warp → enhance → JPEG → `saveImageToDB(..., { compressionProfile: "document" })`. Never change the encrypt/IDB write block.
 - No OCR, no OpenCV.js, no cloud vision. Frames never leave the device; do not log base64/blobs.
-- Detection runs in `document-detector.worker.js` (Web Worker). Cleanup on close / auto-lock / `pagehide`: stop tracks, terminate worker, revoke object URLs, clear review buffers. Locked session cancels without saving.
+- Detection runs in `document-detector.worker.js` (Web Worker), with at most one
+  preview detection in flight so slow devices cannot accumulate stale frames.
+  Cleanup on close / auto-lock / activation revocation / `pagehide`: stop tracks,
+  terminate worker, revoke object URLs, zero the plaintext review buffer, release
+  the canvas backing store, and remove corner handles. `04_ui_common.js` observes
+  the five real security-gate DOM nodes and emits
+  `clientpro:security-gate-shown`; do not rely on an un-emitted lock event.
+  Locked sessions cancel without saving.
 - Outward ~1% safety margin on quads; reject auto-capture when an edge touches the frame; re-detect on the still; if still detect fails, open manual corner review (no guessed crop).
 - Lazy-loaded with camera (`features.css` + scanner scripts); full SW precache for offline. Not on the cold-start path.
+- `doc-scan-review` participates in edge-back history tracking. Back closes it
+  through `DocumentScanner.close()` before the camera or underlying slide screen,
+  preserving both cleanup and navigation depth.
 
 ### Primary files
 `assets/document-scanner/document-scanner.js`, `document-detector.worker.js`,
