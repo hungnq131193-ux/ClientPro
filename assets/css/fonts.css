@@ -13,9 +13,10 @@
  * styled frame must not lay out the complete dashboard behind the security gate.
  * Only known business surfaces are suppressed: dynamic system overlays such as
  * ClientProConfirm and onboarding retain their existing lifecycle/stacking rules.
- * `head.js` releases cp-boot-ready after a real security gate or unlock.
+ * `head.js` releases data-cp-boot-ready after a real security gate or unlock. The
+ * attribute intentionally survives setTheme() replacing body.className.
  */
-body:not(.cp-boot-ready) > :is(
+body:not([data-cp-boot-ready="1"]) > :is(
   .app-container,
   [id^="screen-"],
   #cust-selection-bar,
