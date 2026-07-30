@@ -416,26 +416,80 @@ function formatLink(link) {
 let __docScanLoadPromise = null;
 /** Bumped to cancel in-flight tryOpenCamera after lock / hide / newer tap. */
 let __cameraOpenAttemptSeq = 0;
+const __cameraSecurityGateIds = [
+    'screen-lock',
+    'activation-modal',
+    'setup-lock-modal',
+    'forgot-pin-modal',
+    'biometric-setup-modal',
+];
+let __cameraSecurityGateObserver = null;
 
 function __invalidatePendingCameraOpen() {
     __cameraOpenAttemptSeq++;
 }
 
+/**
+ * Security code exposes lock / activation through the real gate DOM, not a
+ * synthetic "clientpro:locked" event. Observe those gates once they are loaded
+ * and publish one lifecycle event that camera/scanner cleanup can trust.
+ */
+function __bindCameraSecurityGateObserver() {
+    if (__cameraSecurityGateObserver) {
+        __cameraSecurityGateObserver.disconnect();
+        __cameraSecurityGateObserver = null;
+    }
+    const gates = __cameraSecurityGateIds
+        .map((id) => document.getElementById(id))
+        .filter(Boolean);
+    if (!gates.length || typeof MutationObserver === 'undefined') return;
+
+    const wasVisible = new Map();
+    const gateShown = (gate) => {
+        __invalidatePendingCameraOpen();
+        document.dispatchEvent(new CustomEvent('clientpro:security-gate-shown', {
+            detail: { id: gate.id },
+        }));
+    };
+
+    gates.forEach((gate) => {
+        const visible = !gate.classList.contains('hidden');
+        wasVisible.set(gate, visible);
+        if (visible) gateShown(gate);
+    });
+
+    __cameraSecurityGateObserver = new MutationObserver((records) => {
+        records.forEach((record) => {
+            const gate = record.target;
+            const visible = !gate.classList.contains('hidden');
+            if (visible && !wasVisible.get(gate)) gateShown(gate);
+            wasVisible.set(gate, visible);
+        });
+    });
+    gates.forEach((gate) => {
+        __cameraSecurityGateObserver.observe(gate, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+    });
+}
+
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') __invalidatePendingCameraOpen();
 });
-document.addEventListener('clientpro:locked', __invalidatePendingCameraOpen);
+document.addEventListener('clientpro:modals-critical-loaded', __bindCameraSecurityGateObserver);
 window.addEventListener('pagehide', __invalidatePendingCameraOpen);
+__bindCameraSecurityGateObserver();
 
 function __cameraOpenStillAllowed(attempt) {
     if (attempt !== __cameraOpenAttemptSeq) return false;
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return false;
     if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) return false;
     try {
-        const lock = document.getElementById('screen-lock');
-        if (lock && !lock.classList.contains('hidden')) return false;
-        const act = document.getElementById('activation-modal');
-        if (act && !act.classList.contains('hidden')) return false;
+        for (const id of __cameraSecurityGateIds) {
+            const gate = document.getElementById(id);
+            if (gate && !gate.classList.contains('hidden')) return false;
+        }
     } catch (e) { }
     return true;
 }
