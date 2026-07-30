@@ -1,12 +1,14 @@
 // Load HTML partials for modals (async fetch, no sync XHR)
-// Critical security gates load first; business modals load idle / on demand.
-// Other app code can await: window.__clientpro_modals_ready (critical)
-// and window.__clientpro_modals_all_ready (all). window.ModalLoader.ensure(id).
+// Cold start inserts only the security gate required by the current local state.
+// Remaining security modals warm after first paint; business modals warm at idle
+// or load on demand through ModalLoader.ensure(id).
 //
 // ensure(id) ALWAYS resolves only after that modal's HTML is inserted (or failed).
 // Never hand back a raw fetch promise from a batch that inserts later.
 
 (function () {
+  'use strict';
+
   if (window.ModalLoader) return;
 
   var root = document.getElementById('ui-modals-root');
@@ -16,20 +18,26 @@
     window.ModalLoader = {
       ensure: function () { return Promise.resolve(false); },
       criticalReady: function () { return window.__clientpro_modals_ready; },
+      securityReady: function () { return window.__clientpro_modals_ready; },
     };
     return;
   }
 
-  // Security gates — bootstrap waits only for these (criticalReady).
-  var CRITICAL = [
+  // Primary gates are mutually exclusive at cold start. Loading only the gate
+  // implied by local activation/PIN state removes four network competitors from
+  // the first-paint path without changing checkSecurity() or any gate markup.
+  var PRIMARY_SECURITY = [
     'screen-lock',
     'setup-lock-modal',
     'activation-modal',
+  ];
+
+  // These are security surfaces but never required to produce the first frame.
+  var AUX_SECURITY = [
     'forgot-pin-modal',
     'biometric-setup-modal',
   ];
 
-  // Business / feature modals — idle or ModalLoader.ensure(id).
   var DEFERRED = [
     'add-modal',
     'asset-modal',
@@ -41,8 +49,10 @@
     'backup-manager-modal',
   ];
 
+  var SECURITY = PRIMARY_SECURITY.concat(AUX_SECURITY);
+  var ALL = SECURITY.concat(DEFERRED);
   var FILE_FOR = {};
-  CRITICAL.concat(DEFERRED).forEach(function (id) {
+  ALL.forEach(function (id) {
     FILE_FOR[id] = 'assets/ui/modals/' + id + '.html';
   });
 
@@ -52,8 +62,7 @@
 
   // load_modals.js executes before 01_config.js, so capture the version from this
   // script's own ?v= token while document.currentScript still points at it. This
-  // keeps the first critical security-fragment requests identical to SW precache
-  // URLs instead of briefly falling back to unversioned, immutable requests.
+  // keeps the first security-fragment request identical to the SW precache URL.
   var loaderAssetVersion = (function () {
     try {
       var script = document.currentScript;
@@ -91,15 +100,24 @@
     return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(version);
   }
 
+  function initialSecurityModalId() {
+    try {
+      if (localStorage.getItem('app_activated') !== 'true') return 'activation-modal';
+      if (!localStorage.getItem('app_pin')) return 'setup-lock-modal';
+    } catch (e) {
+      // Storage unavailable: activation is the safest fail-closed surface.
+      return 'activation-modal';
+    }
+    return 'screen-lock';
+  }
+
   function insertHtml(html) {
     if (!html) return;
     root.insertAdjacentHTML('beforeend', html + '\n');
   }
 
-  function initDeferredModalIcons(id, modal) {
-    // Critical gates are scanned by bootstrap. Business modals arrive after that
-    // scan, so initialise only their own subtree once they are inserted.
-    if (DEFERRED.indexOf(id) < 0 || !modal) return;
+  function initModalIcons(modal) {
+    if (!modal) return;
     try {
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         window.lucide.createIcons({ root: modal });
@@ -109,7 +127,7 @@
 
   /**
    * Fetch + insert one modal. Resolves true only when #id is in the DOM
-   * (or was already present). Safe to call concurrently with loadGroup.
+   * (or was already present). Safe to call concurrently with any warmer.
    */
   function fetchModal(id) {
     if (loaded[id] || document.getElementById(id)) {
@@ -137,7 +155,9 @@
         var modal = document.getElementById(id);
         if (modal) {
           loaded[id] = true;
-          initDeferredModalIcons(id, modal);
+          // Safe for both early and late fragments. If Lucide has not loaded yet,
+          // bootstrap scans the primary gate; later fragments are scanned here.
+          initModalIcons(modal);
         }
         delete inflight[id];
         return !!loaded[id];
@@ -151,10 +171,10 @@
   }
 
   function loadGroup(ids) {
-    // Each fetchModal inserts as soon as its own response arrives, so ensure(id)
-    // racing a group never resolves before that modal exists in the DOM.
     var fetches = ids.map(function (id) { return fetchModal(id); });
-    return Promise.all(fetches).then(function () { return true; });
+    return Promise.all(fetches).then(function (results) {
+      return results.every(Boolean);
+    });
   }
 
   function scheduleIdle(fn) {
@@ -165,49 +185,89 @@
     }
   }
 
-  var criticalPromise = loadGroup(CRITICAL).then(function () {
-    document.dispatchEvent(new CustomEvent('clientpro:modals-critical-loaded'));
-    return true;
+  // requestIdleCallback may run before the browser has produced a paint. Two rAFs
+  // guarantee that warmers cannot enter the network queue ahead of the first gate.
+  function scheduleAfterFirstPaint(fn) {
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { fn(); });
+      });
+    } else {
+      setTimeout(fn, 32);
+    }
+  }
+
+  function dispatchSecurityLoaded(detail) {
+    try {
+      document.dispatchEvent(new CustomEvent('clientpro:modals-critical-loaded', {
+        detail: detail || {},
+      }));
+    } catch (e) { }
+  }
+
+  var initialSecurityId = initialSecurityModalId();
+  var criticalPromise = fetchModal(initialSecurityId).then(function (ok) {
+    if (ok) dispatchSecurityLoaded({ primary: initialSecurityId, complete: false });
+    return ok;
   });
+
+  var securityPromise = null;
+  function loadRemainingSecurity() {
+    if (!securityPromise) {
+      securityPromise = loadGroup(SECURITY).then(function (ok) {
+        dispatchSecurityLoaded({ primary: initialSecurityId, complete: true });
+        return ok;
+      });
+    }
+    return securityPromise;
+  }
 
   var deferredPromise = null;
   function loadDeferred() {
     if (!deferredPromise) {
-      deferredPromise = loadGroup(DEFERRED).then(function () {
-        document.dispatchEvent(new CustomEvent('clientpro:modals-loaded'));
-        return true;
+      deferredPromise = loadGroup(DEFERRED).then(function (ok) {
+        try { document.dispatchEvent(new CustomEvent('clientpro:modals-loaded')); } catch (e) { }
+        return ok;
       });
     }
     return deferredPromise;
   }
 
-  // After critical gates are in, warm business modals on idle (not on cold-start path).
+  // Security transitions (activation → PIN setup, forgot PIN, biometric) should be
+  // ready before a human can act, but only after the primary gate has painted.
   criticalPromise.then(function () {
-    scheduleIdle(function () { loadDeferred(); });
+    scheduleAfterFirstPaint(function () { loadRemainingSecurity(); });
+  });
+
+  // Business modals warm only after first paint AND during idle time.
+  criticalPromise.then(function () {
+    scheduleAfterFirstPaint(function () {
+      scheduleIdle(function () { loadDeferred(); });
+    });
   });
 
   window.__clientpro_modals_ready = criticalPromise;
-  // Lazy: constructing __clientpro_modals_all_ready must NOT invoke loadDeferred().
   try {
     Object.defineProperty(window, '__clientpro_modals_all_ready', {
       configurable: true,
       enumerable: true,
       get: function () {
-        return loadDeferred();
+        return Promise.all([loadRemainingSecurity(), loadDeferred()]);
       },
     });
   } catch (e) {
     window.__clientpro_modals_all_ready = {
       then: function (onFulfilled, onRejected) {
-        return loadDeferred().then(onFulfilled, onRejected);
+        return Promise.all([loadRemainingSecurity(), loadDeferred()]).then(onFulfilled, onRejected);
       },
       catch: function (onRejected) {
-        return loadDeferred().catch(onRejected);
+        return Promise.all([loadRemainingSecurity(), loadDeferred()]).catch(onRejected);
       },
     };
   }
 
   window.ModalLoader = {
+    initialSecurityId: initialSecurityId,
     /** Ensure a modal DOM id is present before opening it. */
     ensure: function (id) {
       if (!id) return Promise.resolve(false);
@@ -215,16 +275,18 @@
         loaded[id] = true;
         return Promise.resolve(true);
       }
-      if (CRITICAL.indexOf(id) >= 0 || DEFERRED.indexOf(id) >= 0) {
-        return fetchModal(id);
-      }
+      if (ALL.indexOf(id) >= 0) return fetchModal(id);
       return Promise.resolve(false);
     },
+    // Required gate only: bootstrap no longer waits for five security fragments.
     criticalReady: function () {
       return criticalPromise;
     },
+    securityReady: function () {
+      return loadRemainingSecurity();
+    },
     allReady: function () {
-      return loadDeferred();
+      return Promise.all([loadRemainingSecurity(), loadDeferred()]);
     },
     /** Preload feature CSS used by camera / scanner (idempotent). */
     ensureFeatureCss: (function () {
@@ -272,6 +334,6 @@
 
   installOpenModalGuard();
   document.addEventListener('DOMContentLoaded', installOpenModalGuard, { once: true });
-  document.addEventListener('clientpro:modals-critical-loaded', installOpenModalGuard, { once: true });
+  document.addEventListener('clientpro:modals-critical-loaded', installOpenModalGuard);
   setTimeout(installOpenModalGuard, 0);
 })();
