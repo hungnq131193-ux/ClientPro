@@ -138,6 +138,8 @@
     var msg = ev.data || {};
     if (msg.type !== 'detect-result' || msg.id !== state.detectId) return;
     if (!state.active || state.mode !== 'document' || state.busy) return;
+    var meta = state.detectMeta && state.detectMeta[msg.id];
+    if (state.detectMeta) delete state.detectMeta[msg.id];
     if (!msg.ok || !msg.corners) {
       state.history = [];
       state.lastCorners = null;
@@ -160,6 +162,13 @@
       return;
     }
     drawOverlay(corners, msg.width, msg.height);
+    // Blurry preview: keep overlay for guidance, but never advance stability / auto-capture.
+    if (meta && meta.sharpOk === false) {
+      setHint(HINTS.blurry);
+      state.stableSince = 0;
+      state.lastCorners = corners;
+      return;
+    }
     var now = Date.now();
     if (state.lastCorners && Geom) {
       var drift = Geom.cornerDrift(state.lastCorners, corners, msg.width, msg.height);
@@ -207,15 +216,22 @@
     var sample = samplePreviewFrame();
     if (!sample) return;
     // Quick lighting check on main thread (cheap downsample already)
+    var sharpOk = true;
     if (Enhance) {
       var light = Enhance.lightingStats(sample.imageData);
       if (light.tooDark) { setHint(HINTS.dark); return; }
       if (light.tooBright) { setHint(HINTS.bright); return; }
       var sharp = Enhance.sharpnessScore(sample.imageData);
-      if (sharp < 18) { setHint(HINTS.blurry); /* still detect */ }
+      if (sharp < 18) {
+        setHint(HINTS.blurry);
+        sharpOk = false;
+        // Still run detection for overlay guidance, but block auto-capture.
+      }
     }
     var worker = ensureWorker();
     var id = ++state.detectId;
+    if (!state.detectMeta) state.detectMeta = Object.create(null);
+    state.detectMeta[id] = { sharpOk: sharpOk };
     worker.postMessage({
       type: 'detect',
       id: id,
@@ -363,8 +379,11 @@
   }
 
   function cleanupAll() {
+    // Invalidate any in-flight captureDocument awaits (takePhoto / redetect).
+    state.seq = (state.seq || 0) + 1;
     state.active = false;
     state.busy = false;
+    state.detectMeta = Object.create(null);
     stopLoop();
     cleanupStreamOnly();
     terminateWorker();
@@ -446,34 +465,45 @@
       cleanupAll();
       return;
     }
+    var captureSeq = state.seq;
     state.busy = true;
     setHint(HINTS.processing);
     stopLoop();
     try {
       var bitmap = await takeHighResBitmap();
+      // Session may have been closed/locked during takePhoto / bitmap work.
+      if (captureSeq !== state.seq || !state.active) {
+        try { bitmap && bitmap.close && bitmap.close(); } catch (e) { }
+        return;
+      }
+      if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
+        try { bitmap && bitmap.close && bitmap.close(); } catch (e) { }
+        cleanupAll();
+        return;
+      }
       var pack = bitmapToImageData(bitmap);
       try { bitmap.close && bitmap.close(); } catch (e) { }
 
-      var corners = null;
-      if (state.lastCorners && Geom) {
-        // Scale preview corners to still size using last detect dims from history
-        var last = state.history[state.history.length - 1];
-        if (last) {
-          corners = Geom.scaleCorners(state.lastCorners, last.w, last.h, pack.imageData.width, pack.imageData.height);
-        }
-      }
+      // Preview corners are only a hint — still must re-detect on the high-res image.
+      // If still detection fails, discard preview coords (different aspect → guessed crop).
       var stillCorners = await redetectOnStill(pack.imageData);
-      if (stillCorners) corners = stillCorners;
-      if (!corners) {
-        // Manual review with full-frame corners
+      if (captureSeq !== state.seq || !state.active) return;
+      if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
+        cleanupAll();
+        return;
+      }
+
+      var corners;
+      if (stillCorners) {
+        corners = Geom.expandQuad(stillCorners, pack.imageData.width, pack.imageData.height, 0.01);
+      } else {
+        // Manual review inset — never scale preview corners onto a mismatched still.
         corners = [
           { x: pack.imageData.width * 0.08, y: pack.imageData.height * 0.08 },
           { x: pack.imageData.width * 0.92, y: pack.imageData.height * 0.08 },
           { x: pack.imageData.width * 0.92, y: pack.imageData.height * 0.92 },
           { x: pack.imageData.width * 0.08, y: pack.imageData.height * 0.92 },
         ];
-      } else {
-        corners = Geom.expandQuad(corners, pack.imageData.width, pack.imageData.height, 0.01);
       }
 
       // Pause camera UI → review
@@ -481,11 +511,16 @@
       var modal = document.getElementById('camera-modal');
       if (modal) modal.classList.add('hidden');
 
+      if (captureSeq !== state.seq || !state.active) return;
+      if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
+        cleanupAll();
+        return;
+      }
       openReview(pack.imageData, corners, opts && opts.auto);
     } catch (e) {
       try { ErrorHandler.showError('CAMERA', 'Không chụp được giấy tờ. Thử lại.', e); } catch (err) { }
       state.busy = false;
-      if (state.active) loopDetect();
+      if (state.active && captureSeq === state.seq) loopDetect();
     }
   }
 
@@ -509,8 +544,14 @@
       rotation: 0,
       fromAuto: !!fromAuto,
     };
-    layoutReviewHandles();
+    // Must unhide BEFORE measuring layout — hidden (display:none) yields 0×0 rect.
     rev.classList.remove('hidden');
+    layoutReviewHandles();
+    try {
+      requestAnimationFrame(function () {
+        if (state.review) layoutReviewHandles();
+      });
+    } catch (e) { }
     state.busy = false;
   }
 

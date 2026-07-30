@@ -794,7 +794,7 @@ function saveImageToDB(rawBase64, opts) {
       };
       imgTx.onerror = imgTxFail;
       imgTx.onabort = imgTxFail;
-    });
+    }, compressionProfile);
   });
 }
 function _readFileAsDataURL(file) {

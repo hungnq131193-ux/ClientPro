@@ -551,10 +551,51 @@ test('camera: compressionProfile document chỉ đổi nén — encrypt + transa
   const src = read('assets/08_images_camera.js');
   const body = fnBody(src, 'saveImageToDB');
   assert.ok(/compressionProfile/.test(body), 'saveImageToDB phải đọc compressionProfile từ opts');
-  assert.ok(/compressImage\([^,]+,\s*async/.test(body) || /compressImage\(enhancedBase64/.test(body));
+  assert.ok(
+    /compressImage\(\s*enhancedBase64\s*,\s*async\s*\([^)]*\)\s*=>[\s\S]*?,\s*compressionProfile\s*\)/.test(body)
+      || /compressImage\([^;]+compressionProfile\s*\)/.test(body),
+    'compressImage phải nhận compressionProfile làm đối số thứ 3'
+  );
   assert.ok(/encryptImageData\(compressed\)/.test(body), 'vẫn mã hóa compressed trước khi ghi');
   assert.ok(/_looksEncrypted\(storedData\)/.test(body), 'fail-closed ciphertext check giữ nguyên');
   assert.ok(/imgTx\.oncomplete/.test(body) && /imgTx\.onerror/.test(body) && /imgTx\.onabort/.test(body));
+});
+
+test('modals: ensure(id) chèn HTML trước khi resolve — không trả raw fetch của group', () => {
+  const load = read('assets/ui/load_modals.js');
+  assert.ok(/function fetchModal\(/.test(load), 'phải có fetchModal');
+  // ensure phải gọi fetchModal (insert-then-resolve), không trả Promise.all group.
+  const ensureBody = load.slice(load.indexOf('ensure: function'));
+  assert.ok(/return fetchModal\(id\)/.test(ensureBody), 'ensure phải await fetchModal(id)');
+  assert.ok(/Insert THIS modal immediately|insertHtml\(html\)/.test(load),
+    'fetchModal phải insert ngay khi response về');
+  // loadGroup không được gán inflight = raw fetch text-only.
+  assert.ok(!/inflight\[id\]\s*=\s*fetch\(url\)\s*\n\s*\.then\(function \(res\)/.test(load)
+    || /insertHtml/.test(load.slice(load.indexOf('function fetchModal'))),
+    'inflight phải gắn với đường insert');
+});
+
+test('document-scanner: review layout sau khi unhide; still-fail bỏ preview corners; session gate', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const openReview = fnBody(scan, 'openReview');
+  const unhideIdx = openReview.search(/classList\.remove\(\s*['"]hidden['"]\s*\)/);
+  const layoutIdx = openReview.search(/layoutReviewHandles\s*\(/);
+  assert.ok(unhideIdx >= 0 && layoutIdx >= 0 && unhideIdx < layoutIdx,
+    'openReview phải bỏ hidden TRƯỚC layoutReviewHandles');
+
+  const capture = fnBody(scan, 'captureDocument');
+  assert.ok(/stillCorners/.test(capture), 'captureDocument phải redetect trên ảnh tĩnh');
+  assert.ok(/captureSeq\s*!==\s*state\.seq/.test(capture), 'phải chặn session cũ sau await');
+  assert.ok(/isAppUnlocked/.test(capture), 'phải re-check unlocked trước openReview');
+  // Preview corners không được giữ khi still fail — chỉ stillCorners hoặc inset thủ công.
+  assert.ok(!/corners\s*=\s*Geom\.scaleCorners\(\s*state\.lastCorners/.test(capture),
+    'không scale preview corners làm crop khi còn đường still-detect');
+
+  const cleanup = fnBody(scan, 'cleanupAll');
+  assert.ok(/state\.seq\s*=/.test(cleanup), 'cleanupAll phải bump seq để hủy capture đang bay');
+
+  assert.ok(/sharpOk/.test(scan) && /HINTS\.blurry/.test(scan),
+    'frame mờ phải gắn sharpOk=false và chặn auto-capture');
 });
 
 test('document-scanner: không gửi frame lên mạng; cleanup khi khóa/ẩn trang', () => {

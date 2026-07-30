@@ -2,6 +2,9 @@
 // Critical security gates load first; business modals load idle / on demand.
 // Other app code can await: window.__clientpro_modals_ready (critical)
 // and window.__clientpro_modals_all_ready (all). window.ModalLoader.ensure(id).
+//
+// ensure(id) ALWAYS resolves only after that modal's HTML is inserted (or failed).
+// Never hand back a raw fetch promise from a batch that inserts later.
 
 (function () {
   if (window.ModalLoader) return;
@@ -44,6 +47,7 @@
   });
 
   var loaded = Object.create(null);
+  // inflight[id] = Promise that resolves AFTER insert (or failure) — never raw fetch.
   var inflight = Object.create(null);
 
   function insertHtml(html) {
@@ -51,11 +55,19 @@
     root.insertAdjacentHTML('beforeend', html + '\n');
   }
 
+  /**
+   * Fetch + insert one modal. Resolves true only when #id is in the DOM
+   * (or was already present). Safe to call concurrently with loadGroup.
+   */
   function fetchModal(id) {
-    if (loaded[id]) return Promise.resolve(true);
+    if (loaded[id] || document.getElementById(id)) {
+      loaded[id] = true;
+      return Promise.resolve(true);
+    }
     if (inflight[id]) return inflight[id];
     var url = FILE_FOR[id];
     if (!url) return Promise.resolve(false);
+
     inflight[id] = fetch(url)
       .then(function (res) {
         if (!res.ok) {
@@ -65,10 +77,11 @@
         return res.text();
       })
       .then(function (html) {
-        if (html && !loaded[id]) {
+        // Insert THIS modal immediately — do not wait for siblings in a group.
+        if (!loaded[id] && !document.getElementById(id) && html) {
           insertHtml(html);
-          loaded[id] = true;
         }
+        if (document.getElementById(id)) loaded[id] = true;
         delete inflight[id];
         return !!loaded[id];
       })
@@ -81,42 +94,10 @@
   }
 
   function loadGroup(ids) {
-    // Fetch in parallel; insert in declared order so DOM structure stays stable.
-    return Promise.all(ids.map(function (id) {
-      if (loaded[id]) return Promise.resolve({ id: id, html: null, already: true });
-      if (inflight[id]) {
-        return inflight[id].then(function () {
-          return { id: id, html: null, already: true };
-        });
-      }
-      var url = FILE_FOR[id];
-      inflight[id] = fetch(url)
-        .then(function (res) {
-          if (!res.ok) {
-            console.warn('[ClientPro] Failed to load modal partial:', url, 'status:', res.status);
-            return '';
-          }
-          return res.text();
-        })
-        .catch(function (e) {
-          console.warn('[ClientPro] Error loading modal partial:', url, e);
-          return '';
-        });
-      return inflight[id].then(function (html) {
-        delete inflight[id];
-        return { id: id, html: html, already: false };
-      });
-    })).then(function (results) {
-      for (var i = 0; i < results.length; i++) {
-        var r = results[i];
-        if (r.already || loaded[r.id]) continue;
-        if (r.html) {
-          insertHtml(r.html);
-          loaded[r.id] = true;
-        }
-      }
-      return true;
-    });
+    // Each fetchModal inserts as soon as its own response arrives, so ensure(id)
+    // racing a group never resolves before that modal exists in the DOM.
+    var fetches = ids.map(function (id) { return fetchModal(id); });
+    return Promise.all(fetches).then(function () { return true; });
   }
 
   function scheduleIdle(fn) {
