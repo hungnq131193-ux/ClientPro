@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-test('modal loader versions critical requests before 01_config.js executes', async () => {
+test('modal loader versions the single required gate before 01_config.js executes', async () => {
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'assets', 'ui', 'load_modals.js'),
     'utf8',
@@ -49,6 +49,13 @@ test('modal loader versions critical requests before 01_config.js executes', asy
   const context = {
     window: {},
     document,
+    localStorage: {
+      getItem(key) {
+        if (key === 'app_activated') return 'true';
+        if (key === 'app_pin') return 'sealed-pin';
+        return null;
+      },
+    },
     fetch(url) {
       requestedUrls.push(String(url));
       return Promise.resolve({
@@ -58,7 +65,9 @@ test('modal loader versions critical requests before 01_config.js executes', asy
     },
     console,
     CustomEvent: function CustomEvent() {},
-    requestIdleCallback() {},
+    // Do not run post-paint warmers in this cold-path assertion.
+    requestAnimationFrame() { return 1; },
+    requestIdleCallback() { return 1; },
     setTimeout,
     clearTimeout,
     Promise,
@@ -68,12 +77,33 @@ test('modal loader versions critical requests before 01_config.js executes', asy
 
   vm.runInNewContext(source, context, { filename: 'load_modals.js' });
 
-  // The loader starts the five critical security requests synchronously, before
-  // 01_config.js has had a chance to define LAZY_MODULES_V.
+  // Only the gate implied by local state enters the synchronous cold-load queue.
+  assert.deepEqual(requestedUrls, [
+    'assets/ui/modals/screen-lock.html?v=EARLY_VERSION',
+  ]);
+  assert.equal(context.window.ModalLoader.initialSecurityId, 'screen-lock');
+
+  // Every remaining security surface still uses the loader script's version even
+  // though 01_config.js has not defined LAZY_MODULES_V yet.
+  for (const id of [
+    'setup-lock-modal',
+    'activation-modal',
+    'forgot-pin-modal',
+    'biometric-setup-modal',
+  ]) {
+    await context.window.ModalLoader.ensure(id);
+  }
   assert.equal(requestedUrls.length, 5);
   for (const url of requestedUrls) {
     assert.match(url, /assets\/ui\/modals\/.+\.html\?v=EARLY_VERSION$/);
   }
+
+  // Business fragments and feature CSS share the same early version source.
+  await context.window.ModalLoader.ensure('camera-modal');
+  assert.equal(
+    requestedUrls.at(-1),
+    'assets/ui/modals/camera-modal.html?v=EARLY_VERSION',
+  );
 
   await context.window.ModalLoader.ensureFeatureCss();
   assert.equal(appendedNodes.length, 1);
