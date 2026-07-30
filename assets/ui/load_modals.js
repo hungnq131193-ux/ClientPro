@@ -208,14 +208,16 @@
   // inserting eight modal trees in one long task.
   function warmSequential(ids, onDone) {
     var queue = ids.slice();
+    var allOk = true;
     function next() {
       if (!queue.length) {
-        if (typeof onDone === 'function') onDone(true);
+        if (typeof onDone === 'function') onDone(allOk);
         return;
       }
       scheduleIdle(function () {
         var id = queue.shift();
-        fetchModal(id).then(function () {
+        fetchModal(id).then(function (ok) {
+          allOk = allOk && ok;
           // Yield both the main thread and network queue between fragments.
           setTimeout(next, 80);
         });
@@ -243,29 +245,30 @@
     return securityPromise;
   }
 
-  // Explicit all-business readiness. User action paths continue to use ensure(id).
+  // Explicit all-business readiness is sequential too, so even callers that ask
+  // for the complete set cannot create one giant parse/insert task.
   var deferredPromise = null;
   function loadDeferred() {
     if (!deferredPromise) {
-      deferredPromise = loadGroup(DEFERRED).then(function (ok) {
-        try { document.dispatchEvent(new CustomEvent('clientpro:modals-loaded')); } catch (e) { }
-        return ok;
+      deferredPromise = new Promise(function (resolve) {
+        warmSequential(DEFERRED, function (ok) {
+          try { document.dispatchEvent(new CustomEvent('clientpro:modals-loaded')); } catch (e) { }
+          resolve(ok);
+        });
       });
     }
     return deferredPromise;
   }
 
   // Business warming is useful only after data is unlocked. Delay it beyond the
-  // unlock transition, then parse one fragment per idle slice. A direct early tap
-  // still wins immediately through ensure(id) and shares the same inflight promise.
+  // unlock transition, then route through the same idle/sequential loader used by
+  // explicit allReady. Direct early taps still win through ensure(id).
   var deferredWarmStarted = false;
   function startDeferredWarmAfterUnlock() {
     if (deferredWarmStarted) return;
     deferredWarmStarted = true;
     setTimeout(function () {
-      warmSequential(DEFERRED, function () {
-        try { document.dispatchEvent(new CustomEvent('clientpro:modals-loaded')); } catch (e) { }
-      });
+      scheduleIdle(function () { loadDeferred(); });
     }, 2000);
   }
   document.addEventListener('clientpro:unlocked', startDeferredWarmAfterUnlock, { once: true });
