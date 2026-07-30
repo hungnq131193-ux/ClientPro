@@ -197,8 +197,6 @@
     }
   }
 
-  // requestIdleCallback may run before the browser has produced a paint. Two rAFs
-  // guarantee that warmers cannot enter the network queue ahead of the first gate.
   function scheduleAfterFirstPaint(fn) {
     if (typeof requestAnimationFrame === 'function') {
       requestAnimationFrame(function () {
@@ -207,6 +205,53 @@
     } else {
       setTimeout(fn, 32);
     }
+  }
+
+  // Two rAF callbacks are not a reliable proof of FCP when render-blocking CSS is
+  // still being processed under mobile throttling. Observe the browser's actual
+  // first-contentful-paint entry, then enqueue warm traffic. The fallback preserves
+  // behaviour on older browsers without PerformanceObserver.
+  function afterFirstContentfulPaint(fn) {
+    var finished = false;
+    var observer = null;
+    var fallback = null;
+
+    function run() {
+      if (finished) return;
+      finished = true;
+      if (observer) {
+        try { observer.disconnect(); } catch (e) { }
+      }
+      if (fallback) clearTimeout(fallback);
+      scheduleAfterFirstPaint(fn);
+    }
+
+    try {
+      if (typeof performance !== 'undefined'
+        && typeof performance.getEntriesByName === 'function'
+        && performance.getEntriesByName('first-contentful-paint').length) {
+        run();
+        return;
+      }
+      if (typeof PerformanceObserver === 'function') {
+        observer = new PerformanceObserver(function (list) {
+          var entries = list.getEntries();
+          for (var i = 0; i < entries.length; i++) {
+            if (entries[i].name === 'first-contentful-paint') {
+              run();
+              break;
+            }
+          }
+        });
+        observer.observe({ type: 'paint', buffered: true });
+        // Fail-open for engines that expose PerformanceObserver but not paint
+        // entries. This is deliberately later than the locked FCP budget.
+        fallback = setTimeout(run, 2200);
+        return;
+      }
+    } catch (e) { }
+
+    scheduleAfterFirstPaint(fn);
   }
 
   function dispatchSecurityLoaded(detail) {
@@ -246,14 +291,14 @@
   }
 
   // Security transitions (activation → PIN setup, forgot PIN, biometric) should be
-  // ready before a human can act, but only after the primary gate has painted.
+  // ready before a human can act, but never compete with the measured first frame.
   criticalPromise.then(function () {
-    scheduleAfterFirstPaint(function () { loadRemainingSecurity(); });
+    afterFirstContentfulPaint(function () { loadRemainingSecurity(); });
   });
 
-  // Business modals warm only after first paint AND during idle time.
+  // Business modals warm only after measured FCP AND during idle time.
   criticalPromise.then(function () {
-    scheduleAfterFirstPaint(function () {
+    afterFirstContentfulPaint(function () {
       scheduleIdle(function () { loadDeferred(); });
     });
   });
