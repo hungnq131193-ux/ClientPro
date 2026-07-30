@@ -50,6 +50,22 @@
   // inflight[id] = Promise that resolves AFTER insert (or failure) — never raw fetch.
   var inflight = Object.create(null);
 
+  function assetVersion() {
+    try {
+      if (typeof LAZY_MODULES_V !== 'undefined' && LAZY_MODULES_V) return String(LAZY_MODULES_V);
+    } catch (e) { }
+    try {
+      if (typeof ASSET_V !== 'undefined' && ASSET_V) return String(ASSET_V);
+    } catch (e) { }
+    return '';
+  }
+
+  function versionedUrl(url) {
+    var version = assetVersion();
+    if (!version) return url;
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(version);
+  }
+
   function insertHtml(html) {
     if (!html) return;
     root.insertAdjacentHTML('beforeend', html + '\n');
@@ -76,8 +92,9 @@
       return Promise.resolve(true);
     }
     if (inflight[id]) return inflight[id];
-    var url = FILE_FOR[id];
-    if (!url) return Promise.resolve(false);
+    var path = FILE_FOR[id];
+    if (!path) return Promise.resolve(false);
+    var url = versionedUrl(path);
 
     inflight[id] = fetch(url)
       .then(function (res) {
@@ -146,12 +163,6 @@
 
   window.__clientpro_modals_ready = criticalPromise;
   // Lazy: constructing __clientpro_modals_all_ready must NOT invoke loadDeferred().
-  // An eager criticalPromise.then(loadDeferred) would kick off all business-modal
-  // fetches the moment the critical group settles — even if nobody awaits it —
-  // competing with the DB/auth bootstrap and defeating the cold-start deferral.
-  // The idle warmer above already loads them off the critical path; a real awaiter
-  // reads this getter and still gets a promise that resolves once every business
-  // modal is inserted.
   try {
     Object.defineProperty(window, '__clientpro_modals_all_ready', {
       configurable: true,
@@ -161,7 +172,6 @@
       },
     });
   } catch (e) {
-    // Fallback thenable (no eager criticalPromise.then).
     window.__clientpro_modals_all_ready = {
       then: function (onFulfilled, onRejected) {
         return loadDeferred().then(onFulfilled, onRejected);
@@ -219,4 +229,29 @@
       };
     })(),
   };
+
+  // Some non-delegated callbacks (notably the customer empty state) call
+  // openModal() directly. Guard the function itself so every path waits for the
+  // deferred Add modal before the original opener touches its DOM.
+  function installOpenModalGuard() {
+    var original = window.openModal;
+    if (typeof original !== 'function' || original.__cpModalEnsureGuard) return false;
+    function guardedOpenModal() {
+      var args = arguments;
+      var self = this;
+      return window.ModalLoader.ensure('add-modal').then(function (ok) {
+        if (!ok) return false;
+        return original.apply(self, args);
+      });
+    }
+    guardedOpenModal.__cpModalEnsureGuard = true;
+    guardedOpenModal.__cpOriginal = original;
+    window.openModal = guardedOpenModal;
+    return true;
+  }
+
+  installOpenModalGuard();
+  document.addEventListener('DOMContentLoaded', installOpenModalGuard, { once: true });
+  document.addEventListener('clientpro:modals-critical-loaded', installOpenModalGuard, { once: true });
+  setTimeout(installOpenModalGuard, 0);
 })();
