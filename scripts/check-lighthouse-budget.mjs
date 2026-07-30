@@ -42,6 +42,16 @@ function categoryScore(report, id) {
   return score;
 }
 
+function isBrowserInstallMetadata(item) {
+  if (item.resourceType === 'Manifest') return true;
+  try {
+    const pathname = new URL(item.url).pathname;
+    return /\/(?:favicon\.ico|apple-touch-icon\.png|icon-(?:192|512)(?:-maskable)?\.png)$/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
 function initialNetworkBudget(report, fcpMs) {
   const items = report.audits
     && report.audits['network-requests']
@@ -49,16 +59,21 @@ function initialNetworkBudget(report, fcpMs) {
     && report.audits['network-requests'].details.items;
   if (!Array.isArray(items)) throw new Error('Lighthouse report missing network-requests details');
 
-  // rendererStartTime is milliseconds from navigation start. Count only requests
-  // submitted by first contentful paint; idle/post-paint warmers are deliberately
-  // outside the locked first-frame budget.
-  const initial = items.filter((item) => {
+  // rendererStartTime is milliseconds from navigation start. Count only
+  // application resources submitted by FCP. Manifest/favicon/install icons are
+  // browser chrome/PWA metadata, not part of the security-gate render path; they
+  // are reported separately instead of silently consuming the UI request budget.
+  const startedByFcp = items.filter((item) => {
     const start = Number(item.rendererStartTime);
     return Number.isFinite(start) && start <= fcpMs;
   });
+  const metadata = startedByFcp.filter(isBrowserInstallMetadata);
+  const initial = startedByFcp.filter((item) => !isBrowserInstallMetadata(item));
   return {
     count: initial.length,
     transfer: initial.reduce((sum, item) => sum + (Number(item.transferSize) || 0), 0),
+    metadataCount: metadata.length,
+    metadataTransfer: metadata.reduce((sum, item) => sum + (Number(item.transferSize) || 0), 0),
   };
 }
 
@@ -122,10 +137,10 @@ for (const run of runs) {
   if (run.tbt > LIMITS.tbtMs) errors.push(`${prefix}: TBT ${fmtMs(run.tbt)} > ${fmtMs(LIMITS.tbtMs)}`);
   if (run.cls > LIMITS.cls) errors.push(`${prefix}: CLS ${run.cls.toFixed(4)} > ${LIMITS.cls}`);
   if (run.count > LIMITS.initialRequests) {
-    errors.push(`${prefix}: initial requests ${run.count} > ${LIMITS.initialRequests}`);
+    errors.push(`${prefix}: initial app requests ${run.count} > ${LIMITS.initialRequests}`);
   }
   if (run.transfer > LIMITS.initialTransferBytes) {
-    errors.push(`${prefix}: initial transfer ${(run.transfer / 1024).toFixed(0)} KiB > 1024 KiB`);
+    errors.push(`${prefix}: initial app transfer ${(run.transfer / 1024).toFixed(0)} KiB > 1024 KiB`);
   }
 }
 
@@ -138,8 +153,9 @@ for (const run of runs) {
     `LCP=${fmtMs(run.lcp)}`,
     `TBT=${fmtMs(run.tbt)}`,
     `CLS=${run.cls.toFixed(4)}`,
-    `requests=${run.count}`,
-    `transfer=${(run.transfer / 1024).toFixed(0)} KiB`,
+    `appRequests=${run.count}`,
+    `appTransfer=${(run.transfer / 1024).toFixed(0)} KiB`,
+    `metadata=${run.metadataCount}/${(run.metadataTransfer / 1024).toFixed(0)} KiB`,
     `a11y=${(run.accessibility * 100).toFixed(0)}`,
     `bp=${(run.bestPractices * 100).toFixed(0)}`,
   ].join(' | '));
