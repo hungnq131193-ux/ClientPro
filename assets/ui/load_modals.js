@@ -130,9 +130,25 @@
   });
 
   window.__clientpro_modals_ready = criticalPromise;
-  window.__clientpro_modals_all_ready = criticalPromise.then(function () {
-    return loadDeferred();
-  });
+  // Lazy: constructing __clientpro_modals_all_ready must NOT invoke loadDeferred().
+  // An eager criticalPromise.then(loadDeferred) would kick off all business-modal
+  // fetches the moment the critical group settles — even if nobody awaits it —
+  // competing with the DB/auth bootstrap and defeating the cold-start deferral.
+  // The idle warmer above already loads them off the critical path; a real awaiter
+  // reads this getter and still gets a promise that resolves once every business
+  // modal is inserted.
+  // ModalLoader.allReady() covers real consumers, so if defineProperty is somehow
+  // unavailable we leave the property undefined rather than fall back to an eager
+  // assignment (which would restart the very cold-start regression this guards).
+  try {
+    Object.defineProperty(window, '__clientpro_modals_all_ready', {
+      configurable: true,
+      enumerable: true,
+      get: function () {
+        return criticalPromise.then(function () { return loadDeferred(); });
+      },
+    });
+  } catch (e) { }
 
   window.ModalLoader = {
     /** Ensure a modal DOM id is present before opening it. */

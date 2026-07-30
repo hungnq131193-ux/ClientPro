@@ -445,6 +445,16 @@ function __ensureDocumentScanner() {
     return __docScanLoadPromise;
 }
 
+// Token hủy mở camera: nếu app khóa/ẩn (hoặc có tap mới hơn) trong lúc nạp
+// scanner scripts+CSS lần đầu, tap này đã cũ — KHÔNG được mở camera sau màn khóa.
+let __cameraOpenToken = 0;
+function __invalidateCameraOpen() { __cameraOpenToken++; }
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') __invalidateCameraOpen();
+});
+window.addEventListener('pagehide', __invalidateCameraOpen);
+document.addEventListener('clientpro:locked', __invalidateCameraOpen);
+
 // Camera: Gọi trực tiếp camera function (sau khi nạp scanner lần đầu)
 async function tryOpenCamera(mode) {
     try {
@@ -453,6 +463,8 @@ async function tryOpenCamera(mode) {
         if (btn && window.LoadingManager && !window.DocumentScanner) {
             try { LoadingManager.showButtonLoading(btn); } catch (e) { }
         }
+        // Chụp token trước khi nạp; tap sau (hoặc lock/hidden) bump token này.
+        const token = ++__cameraOpenToken;
         try {
             await __ensureDocumentScanner();
         } finally {
@@ -460,6 +472,12 @@ async function tryOpenCamera(mode) {
                 try { LoadingManager.hideButtonLoading(btn); } catch (e) { }
             }
         }
+        // Hủy nếu bị tap mới hơn thay thế, hoặc app đã khóa/ẩn trong lúc nạp:
+        // mở camera lúc này sẽ hiện modal + stream sau màn khóa.
+        const lockedOrHidden =
+            (typeof isAppUnlocked === 'function' && !isAppUnlocked()) ||
+            (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+        if (token !== __cameraOpenToken || lockedOrHidden) return;
         if (typeof window._tryOpenCameraReal === 'function') {
             window._tryOpenCameraReal(mode);
         } else {

@@ -117,19 +117,26 @@
     }
     var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, cw, ch);
-    if (!corners || corners.length !== 4) return;
-    var sx = cw / w, sy = ch / h;
+    if (!corners || corners.length !== 4 || !w || !h) return;
+    // <video class="object-cover"> scales the landscape source UNIFORMLY and crops
+    // the overflow — on portrait phones cw/w and ch/h differ. Stretching x/y
+    // independently makes the outline diverge from the document; map through the
+    // same cover transform: scale = max(cw/w, ch/h), then subtract the crop offset.
+    var s = Math.max(cw / w, ch / h);
+    var offX = (w * s - cw) / 2, offY = (h * s - ch) / 2;
+    var mapX = function (x) { return x * s - offX; };
+    var mapY = function (y) { return y * s - offY; };
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.95)';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(corners[0].x * sx, corners[0].y * sy);
-    for (var i = 1; i < 4; i++) ctx.lineTo(corners[i].x * sx, corners[i].y * sy);
+    ctx.moveTo(mapX(corners[0].x), mapY(corners[0].y));
+    for (var i = 1; i < 4; i++) ctx.lineTo(mapX(corners[i].x), mapY(corners[i].y));
     ctx.closePath();
     ctx.stroke();
     ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
     for (i = 0; i < 4; i++) {
       ctx.beginPath();
-      ctx.arc(corners[i].x * sx, corners[i].y * sy, 6, 0, Math.PI * 2);
+      ctx.arc(mapX(corners[i].x), mapY(corners[i].y), 6, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -740,12 +747,27 @@
 
   async function capturePhotoMode() {
     // Legacy full-frame capture path
+    if (state.busy || !state.active) return;
     if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
       cleanupAll();
       return;
     }
+    var captureSeq = state.seq;
+    state.busy = true;
     try {
       var bitmap = await takeHighResBitmap();
+      // Auto-lock / pagehide / close may have run cleanupAll() during takePhoto:
+      // do not rebuild a plaintext frame or show save/error UI behind the lock.
+      if (captureSeq !== state.seq || !state.active) {
+        try { bitmap && bitmap.close && bitmap.close(); } catch (e) { }
+        if (captureSeq === state.seq) state.busy = false;
+        return;
+      }
+      if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
+        try { bitmap && bitmap.close && bitmap.close(); } catch (e) { }
+        cleanupAll();
+        return;
+      }
       var pack = bitmapToImageData(bitmap);
       try { bitmap.close && bitmap.close(); } catch (e) { }
       var dataUrl = pack.canvas.toDataURL('image/jpeg', 1.0);

@@ -610,6 +610,50 @@ test('document-scanner: không gửi frame lên mạng; cleanup khi khóa/ẩn t
   assert.ok(/Worker\(/.test(scan), 'detector chạy bằng Worker');
 });
 
+test('document-scanner: overlay map qua object-cover; photo-mode re-check session sau await', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const draw = fnBody(scan, 'drawOverlay');
+  assert.ok(/Math\.max\(\s*cw\s*\/\s*w\s*,\s*ch\s*\/\s*h\s*\)/.test(draw),
+    'drawOverlay phải dùng object-cover scale max(cw/w, ch/h), không kéo giãn x/y riêng');
+  assert.ok(!/var\s+sx\s*=\s*cw\s*\/\s*w\s*,\s*sy\s*=\s*ch\s*\/\s*h/.test(draw),
+    'drawOverlay không được nhân độc lập cw/w và ch/h');
+
+  const photo = fnBody(scan, 'capturePhotoMode');
+  assert.ok(/captureSeq\s*=\s*state\.seq/.test(photo),
+    'capturePhotoMode phải chụp captureSeq trước await');
+  assert.ok(/captureSeq\s*!==\s*state\.seq/.test(photo),
+    'capturePhotoMode phải re-check session sau await bitmap trước khi dựng frame/lưu');
+  assert.ok(/isAppUnlocked/.test(photo),
+    'capturePhotoMode phải re-check unlocked sau await');
+});
+
+test('camera: tryOpenCamera hủy nếu app khóa/ẩn trong lúc lazy-load scanner', () => {
+  const ui = read('assets/04_ui_common.js');
+  const body = fnBody(ui, 'tryOpenCamera');
+  assert.ok(/__cameraOpenToken/.test(body),
+    'tryOpenCamera phải chụp token hủy trước khi nạp scanner');
+  assert.ok(/isAppUnlocked\(\)/.test(body) && /visibilityState\s*===\s*['"]hidden['"]/.test(body),
+    'tryOpenCamera phải kiểm tra khóa/ẩn trước khi mở camera');
+  const openIdx = body.search(/_tryOpenCameraReal\(/);
+  const guardIdx = body.search(/token\s*!==\s*__cameraOpenToken/);
+  assert.ok(guardIdx >= 0 && openIdx >= 0 && guardIdx < openIdx,
+    'phải chặn token cũ TRƯỚC khi gọi _tryOpenCameraReal');
+});
+
+test('modals: __clientpro_modals_all_ready lazy — không eager gọi loadDeferred lúc init', () => {
+  const load = read('assets/ui/load_modals.js');
+  // Không được có eager `criticalPromise.then(...loadDeferred...)` gán thẳng vào
+  // window.__clientpro_modals_all_ready (ngoài getter) — nó sẽ nạp 8 modal nghiệp
+  // vụ ngay khi critical settle, tranh chấp cold-start.
+  assert.ok(/Object\.defineProperty\(\s*window\s*,\s*['"]__clientpro_modals_all_ready['"]/.test(load),
+    '__clientpro_modals_all_ready phải là getter lazy (Object.defineProperty)');
+  assert.ok(!/window\.__clientpro_modals_all_ready\s*=\s*criticalPromise\.then/.test(load),
+    'không được gán eager criticalPromise.then(loadDeferred) vào window.__clientpro_modals_all_ready');
+  // Idle warmer vẫn phải còn để hâm nóng ngoài đường cold-start.
+  assert.ok(/scheduleIdle\(function\s*\(\)\s*\{\s*loadDeferred\(\);?\s*\}\)/.test(load),
+    'phải giữ idle warmer gọi loadDeferred ngoài critical path');
+});
+
 test('nhóm ổn định B #8: put-wrapper trong 2 migration của 02_security.js phải reject cả onabort', () => {
   const src = read('assets/02_security.js');
   for (const fn of ['runImageCryptoMigrationIfNeeded', 'runFieldCryptoMigrationIfNeeded']) {
