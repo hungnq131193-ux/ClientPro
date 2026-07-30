@@ -7,7 +7,11 @@
 let __refPriceSeq = 0;
 let __refRoadInFlight = null; // { key, seq } của request đường bộ đang chạy
 
-function referenceAssetPrice(assetIndex) {
+async function referenceAssetPrice(assetIndex) {
+  // Modal nghiệp vụ lazy — ensure trước khi đụng DOM (nút Edit/Tham khảo gọi trực tiếp).
+  if (window.ModalLoader && typeof window.ModalLoader.ensure === 'function') {
+    try { await window.ModalLoader.ensure('ref-price-modal'); } catch (e) { }
+  }
   // 1. Lấy tài sản đang chọn
   const targetAsset = currentCustomerData.assets[assetIndex];
 
@@ -383,8 +387,14 @@ function openAssetModal() {
   getEl("asset-year").value = "";
 }
 async function openEditAssetModal(index) {
+  // Modal nghiệp vụ lazy — ensure trước khi getEl("asset-modal").
+  if (window.ModalLoader && typeof window.ModalLoader.ensure === 'function') {
+    try { await window.ModalLoader.ensure('asset-modal'); } catch (e) { }
+  }
   // Hiện modal
-  getEl("asset-modal").classList.remove("hidden");
+  const modal = getEl("asset-modal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
 
   // Lấy tài sản đang chọn — SNAPSHOT trước await, không đọc lại currentCustomerData
   // sống sau khi decrypt xong.

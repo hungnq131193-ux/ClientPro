@@ -602,6 +602,7 @@ function clearMasterKeyMaterial() {
   // Đóng thế hệ khóa hiện tại TRƯỚC khi xóa: mọi promise crypto đang bay (import
   // key, giải mã field, prime cache) thấy thế hệ đã đổi và bỏ kết quả thay vì ghi
   // ngược key/plaintext vào RAM của phiên vừa bị khóa/thu hồi.
+  const hadSession = !!(masterKey || masterCryptoKey);
   __keyGeneration++;
   if (masterKeyBytes) { try { masterKeyBytes.fill(0); } catch (e) {} }
   masterKey = null; masterKeyBytes = null; masterCryptoKey = null; masterKeyLegacy = null;
@@ -623,6 +624,11 @@ function clearMasterKeyMaterial() {
   // cũng là secret trong RAM -> xóa cùng lúc với __fieldPlainCache khi khóa.
   try { if (window.__custSummaryCache) window.__custSummaryCache.clear(); } catch (e) {}
   try { if (window.__custSearchBlobCache) window.__custSearchBlobCache.clear(); } catch (e) {}
+  // Báo phiên đã khóa (camera/scanner, pending lazy-open) — đối xứng clientpro:unlocked.
+  // Chỉ phát khi vừa có session thật; clear lặp sau lock không spam listener.
+  if (hadSession) {
+    try { document.dispatchEvent(new CustomEvent("clientpro:locked")); } catch (e) {}
+  }
 }
 
 /**

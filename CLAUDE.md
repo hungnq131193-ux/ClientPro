@@ -237,7 +237,11 @@ source before relying on it):
   tables. There are no inline `onclick` handlers (required by CSP). New static
   actions must be registered in these tables.
 - Unlock event: `document` dispatches `clientpro:unlocked` after a successful
-  unlock and data load.
+  unlock and data load. Lock/revoke clears key material via
+  `clearMasterKeyMaterial()` and, when a real session was present, dispatches
+  `clientpro:locked` (camera/document-scanner cleanup and pending camera-open
+  abort listen for it — `visibilitychange` alone does not cover in-foreground
+  revocation).
 - Namespace entry points such as `PdfToolkit.open()`, `BiometricUnlock.openSetup()`,
   `DriveBackup.performNow()`, `OnboardingTour.replay()`.
 

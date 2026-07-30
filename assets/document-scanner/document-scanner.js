@@ -24,6 +24,7 @@
     active: false,
     worker: null,
     detectId: 0,
+    detectInFlight: false, // backpressure: one worker detect at a time
     lastCorners: null,
     stableSince: 0,
     history: [],
@@ -146,7 +147,10 @@
 
   function onWorkerMessage(ev) {
     var msg = ev.data || {};
-    if (msg.type !== 'detect-result' || msg.id !== state.detectId) return;
+    if (msg.type !== 'detect-result') return;
+    // Any completed detect (even stale) frees the slot so the loop can post again.
+    state.detectInFlight = false;
+    if (msg.id !== state.detectId) return;
     if (!state.active || state.mode !== 'document' || state.busy) return;
     var meta = state.detectMeta && state.detectMeta[msg.id];
     if (state.detectMeta) delete state.detectMeta[msg.id];
@@ -223,6 +227,10 @@
 
   function requestDetect() {
     if (!state.active || state.mode !== 'document' || state.busy) return;
+    // Wait for the current worker result before posting another frame — otherwise
+    // every reply arrives after detectId has advanced and is discarded while the
+    // queue (and RAM) grow on slow devices.
+    if (state.detectInFlight) return;
     var sample = samplePreviewFrame();
     if (!sample) return;
     // Quick lighting check on main thread (cheap downsample already)
@@ -242,6 +250,7 @@
     var id = ++state.detectId;
     if (!state.detectMeta) state.detectMeta = Object.create(null);
     state.detectMeta[id] = { sharpOk: sharpOk };
+    state.detectInFlight = true;
     worker.postMessage({
       type: 'detect',
       id: id,
@@ -392,8 +401,29 @@
   function closeReview() {
     var rev = document.getElementById('doc-scan-review');
     if (rev) rev.classList.add('hidden');
+    // Drop plaintext review backing store — hiding alone leaves full-res pixels
+    // readable via canvas.toDataURL() behind the lock screen.
+    var canvas = document.getElementById('cp-review-canvas');
+    if (canvas) {
+      try {
+        var ctx = canvas.getContext('2d');
+        if (ctx && canvas.width && canvas.height) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      } catch (e) { }
+      canvas.width = 0;
+      canvas.height = 0;
+      try { canvas.style.width = ''; canvas.style.height = ''; } catch (e) { }
+    }
+    var handles = document.getElementById('cp-review-corners');
+    if (handles) {
+      while (handles.firstChild) handles.removeChild(handles.firstChild);
+    }
     if (state.review && state.review.objectUrl) {
       try { URL.revokeObjectURL(state.review.objectUrl); } catch (e) { }
+    }
+    if (state.review && state.review.imageData && state.review.imageData.data) {
+      try { state.review.imageData.data.fill(0); } catch (e) { }
     }
     state.review = null;
   }
@@ -403,6 +433,7 @@
     state.seq = (state.seq || 0) + 1;
     state.active = false;
     state.busy = false;
+    state.detectInFlight = false;
     state.detectMeta = Object.create(null);
     stopLoop();
     cleanupStreamOnly();

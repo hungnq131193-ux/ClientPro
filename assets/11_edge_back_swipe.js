@@ -190,6 +190,17 @@
     }
 
     // Known overlays (keep your current mapping)
+    // Review sits above folder/list after the camera UI is already hidden — must
+    // close via scanner cleanup before any underlying screen/modal.
+    if (isVisibleModal('doc-scan-review')) {
+      if (window.DocumentScanner && typeof window.DocumentScanner.close === 'function') {
+        window.DocumentScanner.close();
+        return true;
+      }
+      const rev = get('doc-scan-review');
+      if (rev) rev.classList.add('hidden');
+      return true;
+    }
     if (isVisibleModal('camera-modal')) {
       return callIfFn('closeCamera') || (get('camera-modal').classList.add('hidden'), true);
     }
@@ -492,7 +503,7 @@
     // exactly one real, legitimate navigation step — matching how Chrome
     // expects an SPA's history to behave, so it doesn't get collapsed.
     const TRACKED_MODAL_IDS = [
-      'camera-modal', 'lightbox', 'approve-modal', 'ref-price-modal',
+      'camera-modal', 'doc-scan-review', 'lightbox', 'approve-modal', 'ref-price-modal',
       'guide-modal', 'donate-modal', 'asset-modal', 'add-modal',
       'forgot-pin-modal', 'backup-manager-modal', 'settings-menu'
     ];

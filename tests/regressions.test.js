@@ -650,6 +650,54 @@ test('document-scanner: overlay map qua object-cover; photo-mode re-check sessio
     'capturePhotoMode phải re-check unlocked sau await');
 });
 
+test('document-scanner: closeReview xóa canvas plaintext; detect có backpressure', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const close = fnBody(scan, 'closeReview');
+  assert.ok(/canvas\.width\s*=\s*0/.test(close) && /canvas\.height\s*=\s*0/.test(close),
+    'closeReview phải reset kích thước canvas (xóa backing store)');
+  assert.ok(/clearRect|fill\(0\)/.test(close),
+    'closeReview phải xóa pixel/buffer review trước khi bỏ state.review');
+
+  const req = fnBody(scan, 'requestDetect');
+  assert.ok(/detectInFlight/.test(req),
+    'requestDetect phải chặn post khi detect đang bay (backpressure)');
+  assert.ok(/detectInFlight\s*=\s*true/.test(req),
+    'requestDetect phải đánh dấu in-flight trước postMessage');
+  const onMsg = fnBody(scan, 'onWorkerMessage');
+  assert.ok(/detectInFlight\s*=\s*false/.test(onMsg),
+    'onWorkerMessage phải nhả backpressure khi có detect-result');
+});
+
+test('lock lifecycle: clearMasterKeyMaterial phát clientpro:locked khi vừa có session', () => {
+  const sec = read('assets/02_security.js');
+  const body = fnBody(sec, 'clearMasterKeyMaterial');
+  assert.ok(/hadSession/.test(body) && /clientpro:locked/.test(body),
+    'clearMasterKeyMaterial phải dispatch clientpro:locked khi vừa xóa session thật');
+});
+
+test('edge-back: doc-scan-review trong cascade + TRACKED_MODAL_IDS', () => {
+  const back = read('assets/11_edge_back_swipe.js');
+  const run = fnBody(back, 'runBackAction');
+  const reviewIdx = run.search(/isVisibleModal\(\s*['"]doc-scan-review['"]\s*\)/);
+  const cameraIdx = run.search(/isVisibleModal\(\s*['"]camera-modal['"]\s*\)/);
+  assert.ok(reviewIdx >= 0 && cameraIdx >= 0 && reviewIdx < cameraIdx,
+    'runBackAction phải đóng doc-scan-review TRƯỚC camera-modal');
+  assert.ok(/DocumentScanner\.close/.test(run),
+    'back trên review phải đi qua DocumentScanner.close / cleanup');
+  assert.ok(/TRACKED_MODAL_IDS[\s\S]*doc-scan-review/.test(back),
+    'doc-scan-review phải có trong TRACKED_MODAL_IDS');
+});
+
+test('assets: openEditAssetModal / referenceAssetPrice ensure modal trước khi mở', () => {
+  const assets = read('assets/06_assets.js');
+  const edit = fnBody(assets, 'openEditAssetModal');
+  assert.ok(/ModalLoader\.ensure\(\s*['"]asset-modal['"]\s*\)/.test(edit),
+    'openEditAssetModal phải ensure asset-modal trước getEl');
+  // referenceAssetPrice may wrap impl — check either the wrapper or the body.
+  assert.ok(/ModalLoader\.ensure\(\s*['"]ref-price-modal['"]\s*\)/.test(assets),
+    'referenceAssetPrice phải ensure ref-price-modal trước khi đụng DOM');
+});
+
 test('camera: tryOpenCamera hủy nếu app khóa/ẩn trong lúc lazy-load scanner', () => {
   const ui = read('assets/04_ui_common.js');
   const body = fnBody(ui, 'tryOpenCamera');
