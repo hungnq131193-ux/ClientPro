@@ -106,6 +106,24 @@ test('A1: onStart (touchstart) không được preventDefault — chỉ claim ge
   assert.ok(/clearSwipeNoselect/.test(end), 'onEnd phải gỡ chặn text selection');
 });
 
+test('edge back: review giấy tờ đóng qua DocumentScanner trước camera/screen và được track history', () => {
+  const src = read('assets/11_edge_back_swipe.js');
+  const back = fnBody(src, 'runBackAction');
+  const reviewIdx = back.indexOf("isVisibleModal('doc-scan-review')");
+  const cameraIdx = back.indexOf("isVisibleModal('camera-modal')");
+  const folderIdx = back.indexOf("isVisibleSlide('screen-folder')");
+  assert.ok(reviewIdx >= 0 && cameraIdx > reviewIdx && folderIdx > reviewIdx,
+    'doc-scan-review phải được ưu tiên đóng trước camera và screen bên dưới');
+  assert.ok(/DocumentScanner\.close\(\)/.test(back.slice(reviewIdx, cameraIdx)),
+    'back ở review phải đi qua DocumentScanner.close để dọn stream/worker/plaintext');
+
+  const trackedStart = src.indexOf('const TRACKED_MODAL_IDS');
+  const trackedEnd = src.indexOf('];', trackedStart);
+  assert.ok(trackedStart >= 0 && trackedEnd > trackedStart);
+  assert.ok(src.slice(trackedStart, trackedEnd).includes("'doc-scan-review'"),
+    'doc-scan-review phải tham gia history depth tracking');
+});
+
 test('B9: openCustomerList phải xóa ô tìm kiếm và hủy debounce đang chờ', () => {
   const cust = read('assets/05_customers.js');
   const body = fnBody(cust, 'openCustomerList');
@@ -165,6 +183,25 @@ test('nhóm ổn định A #2: referenceAssetPrice có seq guard cho lần rende
   assert.ok(/seq\s*!==\s*__refPriceSeq/.test(ref), 'Callback phải kiểm seq trước khi ghi DOM/mở modal');
   const close = fnBody(src, 'closeRefModal');
   assert.ok(/__refPriceSeq\+\+/.test(close), 'Đóng modal phải tăng seq để hủy kết quả về muộn');
+});
+
+test('assets: nút động phải ensure modal trước khi gọi handler trực tiếp', () => {
+  const src = read('assets/06_assets.js');
+  const render = fnBody(src, 'renderAssets');
+  const ensureAsset = render.indexOf('ModalLoader.ensure("asset-modal")');
+  const openEdit = render.indexOf('openEditAssetModal(index)');
+  const ensureRef = render.indexOf('ModalLoader.ensure("ref-price-modal")');
+  const openRef = render.indexOf('referenceAssetPrice(index)');
+  assert.ok(ensureAsset >= 0 && openEdit > ensureAsset,
+    'nút Sửa phải await ensure asset-modal trước openEditAssetModal');
+  assert.ok(ensureRef >= 0 && openRef > ensureRef,
+    'nút Tham khảo giá phải await ensure ref-price-modal trước referenceAssetPrice');
+  assert.ok(/await\s+window\.ModalLoader\.ensure\("asset-modal"\)/.test(render)
+    && /await\s+window\.ModalLoader\.ensure\("ref-price-modal"\)/.test(render),
+  'hai dynamic handler phải chờ ensure hoàn tất, không chạy song song với fetch modal');
+  assert.ok(/if\s*\(!getEl\("asset-modal"\)\)/.test(render)
+    && /if\s*\(!getEl\("ref-price-modal"\)\)/.test(render),
+  'ensure thất bại phải dừng trước khi handler dereference modal');
 });
 
 test('nhóm ổn định A #3/#6: transaction ghi phải wire đủ onabort (guard không được treo vĩnh viễn)', () => {
@@ -587,8 +624,10 @@ test('camera open: hủy sau lazy-load nếu khóa/ẩn; photo-mode revalidate s
   const tryBody = fnBody(ui, 'tryOpenCamera');
   assert.ok(/__cameraOpenStillAllowed\(attempt\)/.test(tryBody),
     'sau ensureDocumentScanner phải chặn mở nếu attempt hết hiệu lực');
-  assert.ok(/clientpro:locked|visibilitychange/.test(ui),
-    'lock/hide phải invalidate pending camera open');
+  assert.ok(/visibilitychange/.test(ui)
+    && /clientpro:security-gate-shown/.test(ui)
+    && /MutationObserver/.test(fnBody(ui, '__bindCameraSecurityGateObserver')),
+  'ẩn trang và security gate thật phải invalidate pending camera open');
 
   const scan = read('assets/document-scanner/document-scanner.js');
   const photo = fnBody(scan, 'capturePhotoMode');
@@ -628,9 +667,60 @@ test('document-scanner: không gửi frame lên mạng; cleanup khi khóa/ẩn t
   assert.ok(!/fetch\s*\(/.test(scan.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')),
     'document-scanner.js không được fetch mạng');
   assert.ok(/terminate\(/.test(scan), 'phải terminate worker khi cleanup');
-  assert.ok(/pagehide|visibilitychange|clientpro:locked/.test(scan),
-    'cleanup khi ẩn trang / khóa app');
+  assert.ok(/pagehide/.test(scan) && /visibilitychange/.test(scan)
+    && /clientpro:security-gate-shown/.test(scan),
+  'cleanup khi ẩn trang / security gate thật được hiện');
   assert.ok(/Worker\(/.test(scan), 'detector chạy bằng Worker');
+});
+
+test('document-scanner: preview detect single-flight và cleanup xóa plaintext review', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const request = fnBody(scan, 'requestDetect');
+  const inFlightGuard = request.indexOf('state.previewDetectInFlight');
+  const sample = request.indexOf('samplePreviewFrame()');
+  const arm = request.indexOf('state.previewDetectInFlight = true');
+  const post = request.indexOf('worker.postMessage');
+  assert.ok(inFlightGuard >= 0 && sample > inFlightGuard,
+    'phải chặn trước khi sample frame mới nếu Worker còn một preview đang chạy');
+  assert.ok(arm >= 0 && post > arm,
+    'phải arm single-flight gate trước khi postMessage');
+
+  const receive = fnBody(scan, 'onWorkerMessage');
+  assert.ok(/msg\.id\s*===\s*state\.previewDetectId/.test(receive)
+    && /state\.previewDetectInFlight\s*=\s*false/.test(receive),
+  'chỉ response đúng request mới được nhả preview gate');
+  const cleanup = fnBody(scan, 'cleanupAll');
+  assert.ok(/state\.previewDetectInFlight\s*=\s*false/.test(cleanup),
+    'cleanup session phải nhả preview gate');
+
+  const close = fnBody(scan, 'closeReview');
+  assert.ok(/imageData\.data\.fill\(0\)/.test(close),
+    'closeReview phải zero JS plaintext image buffer');
+  assert.ok(/canvas\.width\s*=\s*0/.test(close) && /canvas\.height\s*=\s*0/.test(close),
+    'closeReview phải giải phóng canvas backing store');
+  assert.ok(/while\s*\(handles\.firstChild\)\s*handles\.removeChild/.test(close),
+    'closeReview phải gỡ corner handles');
+});
+
+test('camera/scanner: lifecycle khóa dựa trên 5 security gate thật, không dựa event chưa emit', () => {
+  const ui = read('assets/04_ui_common.js');
+  const bind = fnBody(ui, '__bindCameraSecurityGateObserver');
+  for (const id of [
+    'screen-lock',
+    'activation-modal',
+    'setup-lock-modal',
+    'forgot-pin-modal',
+    'biometric-setup-modal',
+  ]) {
+    assert.ok(ui.includes(`'${id}'`), `camera gate observer thiếu #${id}`);
+  }
+  assert.ok(/new CustomEvent\('clientpro:security-gate-shown'/.test(bind),
+    'gate observer phải phát lifecycle event thật');
+  assert.ok(!/addEventListener\(\s*['"]clientpro:locked['"]/.test(ui),
+    'không được dựa vào clientpro:locked vì security code không phát event này');
+  const scan = read('assets/document-scanner/document-scanner.js');
+  assert.ok(/addEventListener\(\s*['"]clientpro:security-gate-shown['"][\s\S]{0,100}cleanupAll/.test(scan),
+    'scanner phải cleanup khi lifecycle security gate được phát');
 });
 
 test('document-scanner: overlay map qua object-cover; photo-mode re-check session sau await', () => {
