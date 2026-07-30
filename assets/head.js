@@ -51,7 +51,10 @@
     const body = document.body;
     if (!body) return;
     bootReleased = true;
+    // Keep both markers: the data attribute survives setTheme() assigning
+    // body.className, while the class remains compatible with existing code/tests.
     body.classList.add('cp-boot-ready');
+    body.setAttribute('data-cp-boot-ready', '1');
     try {
       performance.mark('clientpro-boot-ready');
       window.__clientproBootReadyReason = reason || 'unknown';
@@ -99,7 +102,10 @@
   function closeBusinessShellForGate() {
     try {
       bootReleased = false;
-      if (document.body) document.body.classList.remove('cp-boot-ready');
+      if (document.body) {
+        document.body.classList.remove('cp-boot-ready');
+        document.body.removeAttribute('data-cp-boot-ready');
+      }
     } catch (e) { }
   }
   document.addEventListener('clientpro:locked', closeBusinessShellForGate);
