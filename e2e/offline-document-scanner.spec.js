@@ -17,6 +17,13 @@ test('document scanner shell and production worker execute from service-worker c
 
   await page.goto('/index.html', { waitUntil: 'networkidle' });
   await page.waitForFunction(() => 'serviceWorker' in navigator);
+
+  // First-install precache is intentionally deferred off cold start. This test
+  // explicitly emits the same lifecycle signal as a successful unlock, then
+  // waits for installation before taking the browser offline.
+  await page.evaluate(() => {
+    document.dispatchEvent(new CustomEvent('clientpro:unlocked'));
+  });
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
     if (!navigator.serviceWorker.controller) {
