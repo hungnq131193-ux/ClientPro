@@ -638,7 +638,8 @@
     var root = document.getElementById('ui-modals-root') || document.body;
     var wrap = document.createElement('div');
     wrap.id = 'doc-scan-review';
-    wrap.className = 'hidden';
+    // ModalA11y discovers overlays through this shared class contract.
+    wrap.className = 'fixed inset-0 hidden';
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-modal', 'true');
     wrap.setAttribute('aria-label', 'Xem lại ảnh giấy tờ');
@@ -659,7 +660,10 @@
     function mkBtn(action, label, primary) {
       var b = document.createElement('button');
       b.type = 'button';
-      b.setAttribute('data-docscan-action', action);
+      // Reuse the existing closeCamera data-action so ModalA11y can invoke the
+      // same full scanner cleanup from Escape as from the visible Đóng button.
+      if (action === 'cancel') b.setAttribute('data-action', 'closeCamera');
+      else b.setAttribute('data-docscan-action', action);
       b.textContent = label;
       if (primary) b.className = 'cp-primary';
       return b;
@@ -678,9 +682,15 @@
       var act = btn.getAttribute('data-docscan-action');
       if (act === 'retake') retake();
       else if (act === 'rotate') rotateReview();
-      else if (act === 'cancel') { cleanupAll(); }
       else if (act === 'save') saveReview();
     });
+    // ModalA11y initialized before this lazy module exists. Register the newly
+    // appended overlay now so showing it moves/traps focus and enables Escape.
+    try {
+      if (window.ModalA11y && typeof window.ModalA11y.observeAll === 'function') {
+        window.ModalA11y.observeAll();
+      }
+    } catch (e) { }
   }
 
   function layoutReviewHandles() {

@@ -185,4 +185,55 @@ test.describe('document scanner UI', () => {
       folderStillOpen: true,
     });
   });
+
+  test('review dialog receives focus, traps Tab, and Escape runs scanner cleanup', async ({ page }) => {
+    await page.goto('/index.html');
+    await hideSecurityGates(page);
+    await loadScanner(page);
+    await page.waitForFunction(() => !!window.ModalA11y);
+
+    await page.evaluate(() => {
+      const old = document.getElementById('doc-scan-review');
+      if (old) old.remove();
+
+      const review = document.createElement('div');
+      review.id = 'doc-scan-review';
+      review.className = 'fixed inset-0 hidden';
+      review.setAttribute('role', 'dialog');
+      review.setAttribute('aria-modal', 'true');
+      review.setAttribute('aria-label', 'Xem lại ảnh giấy tờ');
+
+      const actions = document.createElement('div');
+      actions.className = 'cp-review-actions';
+      [
+        ['retake', 'Chụp lại'],
+        ['rotate', 'Xoay 90°'],
+        ['closeCamera', 'Đóng'],
+        ['save', 'Lưu'],
+      ].forEach(([action, label]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        if (action === 'closeCamera') button.dataset.action = action;
+        else button.dataset.docscanAction = action;
+        actions.appendChild(button);
+      });
+      review.appendChild(actions);
+      (document.getElementById('ui-modals-root') || document.body).appendChild(review);
+
+      window.ModalA11y.observeAll();
+      document.getElementById('btn-quick-add').focus();
+      review.classList.remove('hidden');
+    });
+
+    const buttons = page.locator('#doc-scan-review button');
+    await expect(buttons.first()).toBeFocused();
+    await buttons.last().focus();
+    await page.keyboard.press('Tab');
+    await expect(buttons.first()).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#doc-scan-review')).toBeHidden();
+    await expect(page.locator('#btn-quick-add')).toBeFocused();
+  });
 });

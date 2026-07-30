@@ -679,6 +679,11 @@ before the existing `saveImageToDB` path. Default camera mode is **Quét giấy 
 - `doc-scan-review` participates in edge-back history tracking. Back closes it
   through `DocumentScanner.close()` before the camera or underlying slide screen,
   preserving both cleanup and navigation depth.
+- The dynamically created `doc-scan-review` follows the shared
+  `.fixed.inset-0` overlay contract, registers itself through
+  `ModalA11y.observeAll()`, and exposes its close control through
+  `data-action="closeCamera"` so focus trapping and Escape use the same full
+  scanner cleanup path as the visible button.
 
 ### Primary files
 `assets/document-scanner/document-scanner.js`, `document-detector.worker.js`,

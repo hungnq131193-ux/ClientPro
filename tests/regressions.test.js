@@ -675,10 +675,17 @@ test('camera open: hủy sau lazy-load nếu khóa/ẩn; photo-mode revalidate s
 test('document-scanner: review layout sau khi unhide; still-fail bỏ preview corners; session gate', () => {
   const scan = read('assets/document-scanner/document-scanner.js');
   const openReview = fnBody(scan, 'openReview');
+  const ensureReview = fnBody(scan, 'ensureReviewDom');
   const unhideIdx = openReview.search(/classList\.remove\(\s*['"]hidden['"]\s*\)/);
   const layoutIdx = openReview.search(/layoutReviewHandles\s*\(/);
   assert.ok(unhideIdx >= 0 && layoutIdx >= 0 && unhideIdx < layoutIdx,
     'openReview phải bỏ hidden TRƯỚC layoutReviewHandles');
+  assert.ok(/className\s*=\s*['"]fixed inset-0 hidden['"]/.test(ensureReview),
+    'review động phải theo overlay contract .fixed.inset-0 của ModalA11y');
+  assert.ok(/data-action['"]\s*,\s*['"]closeCamera['"]/.test(ensureReview),
+    'nút Đóng phải dùng close action để Escape đi qua cleanup scanner đầy đủ');
+  assert.ok(/ModalA11y\.observeAll\(\)/.test(ensureReview),
+    'review tạo sau bootstrap phải đăng ký lại với ModalA11y');
 
   const capture = fnBody(scan, 'captureDocument');
   assert.ok(/stillCorners/.test(capture), 'captureDocument phải redetect trên ảnh tĩnh');
