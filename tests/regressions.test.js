@@ -596,6 +596,8 @@ test('document-scanner: review layout sau khi unhide; still-fail bỏ preview co
 
   assert.ok(/sharpOk/.test(scan) && /HINTS\.blurry/.test(scan),
     'frame mờ phải gắn sharpOk=false và chặn auto-capture');
+  assert.ok(/abandonCapture|captureSeq === state\.seq\)\s*state\.busy\s*=\s*false/.test(capture),
+    'early-abort sau await phải nhả busy nếu vẫn là chủ session');
 });
 
 test('document-scanner: không gửi frame lên mạng; cleanup khi khóa/ẩn trang', () => {

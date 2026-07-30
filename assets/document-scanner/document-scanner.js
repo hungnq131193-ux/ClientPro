@@ -469,11 +469,17 @@
     state.busy = true;
     setHint(HINTS.processing);
     stopLoop();
+    function abandonCapture() {
+      // Early-abort after await must not leave busy stuck if cleanupAll did not run
+      // (e.g. seq advanced by a newer openSession that already set busy=false — still safe).
+      if (captureSeq === state.seq) state.busy = false;
+    }
     try {
       var bitmap = await takeHighResBitmap();
       // Session may have been closed/locked during takePhoto / bitmap work.
       if (captureSeq !== state.seq || !state.active) {
         try { bitmap && bitmap.close && bitmap.close(); } catch (e) { }
+        abandonCapture();
         return;
       }
       if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
@@ -487,7 +493,10 @@
       // Preview corners are only a hint — still must re-detect on the high-res image.
       // If still detection fails, discard preview coords (different aspect → guessed crop).
       var stillCorners = await redetectOnStill(pack.imageData);
-      if (captureSeq !== state.seq || !state.active) return;
+      if (captureSeq !== state.seq || !state.active) {
+        abandonCapture();
+        return;
+      }
       if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
         cleanupAll();
         return;
@@ -511,7 +520,10 @@
       var modal = document.getElementById('camera-modal');
       if (modal) modal.classList.add('hidden');
 
-      if (captureSeq !== state.seq || !state.active) return;
+      if (captureSeq !== state.seq || !state.active) {
+        abandonCapture();
+        return;
+      }
       if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
         cleanupAll();
         return;
