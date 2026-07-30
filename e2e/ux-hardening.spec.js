@@ -195,6 +195,12 @@ test('tham khảo giá: pending/success/failed hiển thị đúng, không lộ 
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   });
   await page.goto('/index.html', { waitUntil: 'networkidle' });
+  // This test calls showRefModal directly, so explicitly satisfy the production
+  // demand-load contract instead of depending on speculative business warmup.
+  await expect.poll(
+    () => page.evaluate(() => window.ModalLoader.ensure('ref-price-modal')),
+    { timeout: 10_000 }
+  ).toBe(true);
   await page.waitForSelector('#ref-price-modal', { state: 'attached', timeout: 10_000 });
 
   const sample = [{ valuation: 1000, assetName: 'Tài sản A', customerName: 'Khách C', area: 120, width: 5, distance: 3250, straight: 3250 }];
