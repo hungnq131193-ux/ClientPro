@@ -130,17 +130,32 @@
   });
 
   window.__clientpro_modals_ready = criticalPromise;
-  // Lazy thenable: do NOT call loadDeferred() when assigning this export — that would
-  // start all business-modal fetches as soon as critical settles and defeat idle deferral.
-  // Only load when someone actually awaits / .then()s this value (or idle fires above).
-  window.__clientpro_modals_all_ready = {
-    then: function (onFulfilled, onRejected) {
-      return loadDeferred().then(onFulfilled, onRejected);
-    },
-    catch: function (onRejected) {
-      return loadDeferred().catch(onRejected);
-    },
-  };
+  // Lazy: constructing __clientpro_modals_all_ready must NOT invoke loadDeferred().
+  // An eager criticalPromise.then(loadDeferred) would kick off all business-modal
+  // fetches the moment the critical group settles — even if nobody awaits it —
+  // competing with the DB/auth bootstrap and defeating the cold-start deferral.
+  // The idle warmer above already loads them off the critical path; a real awaiter
+  // reads this getter and still gets a promise that resolves once every business
+  // modal is inserted.
+  try {
+    Object.defineProperty(window, '__clientpro_modals_all_ready', {
+      configurable: true,
+      enumerable: true,
+      get: function () {
+        return loadDeferred();
+      },
+    });
+  } catch (e) {
+    // Fallback thenable (no eager criticalPromise.then).
+    window.__clientpro_modals_all_ready = {
+      then: function (onFulfilled, onRejected) {
+        return loadDeferred().then(onFulfilled, onRejected);
+      },
+      catch: function (onRejected) {
+        return loadDeferred().catch(onRejected);
+      },
+    };
+  }
 
   window.ModalLoader = {
     /** Ensure a modal DOM id is present before opening it. */

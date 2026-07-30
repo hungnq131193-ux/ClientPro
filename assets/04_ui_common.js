@@ -473,6 +473,7 @@ function __ensureDocumentScanner() {
 
 // Camera: Gọi trực tiếp camera function (sau khi nạp scanner lần đầu)
 async function tryOpenCamera(mode) {
+    // Chụp token trước khi nạp; lock/hide/tap mới bump token — không mở sau màn khóa.
     const attempt = ++__cameraOpenAttemptSeq;
     try {
         const btn = document.querySelector(`[data-action="tryOpenCamera"][data-arg="${mode}"]`) ||
@@ -487,7 +488,6 @@ async function tryOpenCamera(mode) {
                 try { LoadingManager.hideButtonLoading(btn); } catch (e) { }
             }
         }
-        // Lazy-load may finish after lock / hide / a newer tap — do not open camera then.
         if (!__cameraOpenStillAllowed(attempt)) return;
         if (typeof window._tryOpenCameraReal === 'function') {
             window._tryOpenCameraReal(mode);

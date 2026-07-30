@@ -118,7 +118,10 @@
     var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, cw, ch);
     if (!corners || corners.length !== 4 || !w || !h) return;
-    // <video class="object-cover"> uses uniform scale + center crop — not independent sx/sy.
+    // <video class="object-cover"> scales the landscape source UNIFORMLY and crops
+    // the overflow — on portrait phones cw/w and ch/h differ. Stretching x/y
+    // independently makes the outline diverge from the document; map through the
+    // same cover transform: scale = max(cw/w, ch/h), then center crop offset.
     var scale = Math.max(cw / w, ch / h);
     var offsetX = (cw - w * scale) / 2;
     var offsetY = (ch - h * scale) / 2;
@@ -757,7 +760,7 @@
 
   async function capturePhotoMode() {
     // Legacy full-frame capture path — same session gates as captureDocument.
-    if (!state.active) return;
+    if (state.busy || !state.active) return;
     if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
       cleanupAll();
       return;
@@ -766,6 +769,8 @@
     state.busy = true;
     try {
       var bitmap = await takeHighResBitmap();
+      // Auto-lock / pagehide / close may have run cleanupAll() during takePhoto:
+      // do not rebuild a plaintext frame or show save/error UI behind the lock.
       if (captureSeq !== state.seq || !state.active) {
         try { bitmap && bitmap.close && bitmap.close(); } catch (e) { }
         if (captureSeq === state.seq) state.busy = false;
