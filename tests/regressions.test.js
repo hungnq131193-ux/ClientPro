@@ -730,6 +730,14 @@ test('document-scanner: review layout sau khi unhide; still-fail bỏ preview co
     'openSession phải re-check seq (phát hiện cleanupAll) TRƯỚC getUserMedia');
   assert.ok(/isAppUnlocked/.test(openSess.slice(0, gumIdx)),
     'openSession phải re-check unlocked trước getUserMedia');
+  // Token phiên phải đơn điệu từ một nguồn (nextSessionToken), KHÔNG gán seq ngoài
+  // (vd __cameraOpenSeq của caller) — nếu không token có thể trùng phiên đã bỏ.
+  assert.ok(/nextSessionToken\(\)/.test(openSess) && /state\.seq\s*=\s*mySeq\b/.test(openSess),
+    'openSession phải mint token từ nextSessionToken(), không gán counter ngoài');
+  assert.ok(!/state\.seq\s*=\s*seq\b/.test(openSess),
+    'openSession không được gán state.seq từ tham số seq bên ngoài');
+  assert.ok(/state\.seq\s*=\s*nextSessionToken\(\)/.test(cleanup),
+    'cleanupAll phải bump seq qua nextSessionToken() (cùng nguồn đơn điệu)');
 
   assert.ok(/sharpOk/.test(scan) && /HINTS\.blurry/.test(scan),
     'frame mờ phải gắn sharpOk=false và chặn auto-capture');

@@ -39,6 +39,15 @@
     review: null, // { dataUrl, corners, width, height, objectUrl }
   };
 
+  // Single monotonic source for the scanner session token (state.seq). Every session
+  // start (openSession), invalidation (cleanupAll) and retake pulls the next value from
+  // here, so state.seq only ever increases. Never assign an external counter (e.g. the
+  // caller's __cameraOpenSeq) to state.seq: those counters advance independently and can
+  // collide with an abandoned session's token, letting a stale continuation pass the
+  // captureSeq === state.seq checks and attach its old stream/review to a new session.
+  var sessionTokenSeq = 0;
+  function nextSessionToken() { return ++sessionTokenSeq; }
+
   function assetV() {
     try {
       if (typeof LAZY_MODULES_V !== 'undefined' && LAZY_MODULES_V) return LAZY_MODULES_V;
@@ -312,12 +321,12 @@
     } catch (e) { }
   }
 
-  async function openSession(mode, seq) {
+  async function openSession(mode) {
     // A lock / pagehide / security-gate event during the lazy-load awaits below runs
     // cleanupAll(), which bumps state.seq and clears state.active. Capture the baseline
     // now so we can detect that invalidation after the awaits instead of blindly
-    // resurrecting the session (state.seq = seq; active = true) and hitting getUserMedia
-    // behind the lock.
+    // resurrecting the session (state.active = true) and hitting getUserMedia behind the
+    // lock.
     var seqAtEntry = state.seq;
     await ensureLibs();
     if (window.ModalLoader) {
@@ -329,7 +338,10 @@
     if (state.seq !== seqAtEntry) return;
     if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) { cleanupAll(); return; }
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') { cleanupAll(); return; }
-    state.seq = seq;
+    // Mint this session's token from the single monotonic source (never the caller's
+    // external counter) so an abandoned session can never share a token with this one.
+    var mySeq = nextSessionToken();
+    state.seq = mySeq;
     state.active = true;
     state.busy = false;
     state.mode = 'document';
@@ -373,7 +385,7 @@
         throw e2;
       }
     }
-    if (seq !== state.seq || !state.active || (modal && modal.classList.contains('hidden'))) {
+    if (mySeq !== state.seq || !state.active || (modal && modal.classList.contains('hidden'))) {
       try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { }
       return;
     }
@@ -455,7 +467,7 @@
 
   function cleanupAll() {
     // Invalidate any in-flight captureDocument awaits (takePhoto / redetect).
-    state.seq = (state.seq || 0) + 1;
+    state.seq = nextSessionToken();
     state.active = false;
     state.busy = false;
     state.detectMeta = Object.create(null);
@@ -812,9 +824,10 @@
     closeReview();
     state.busy = false;
     var mode = state.snapshot && state.snapshot.captureMode;
-    var seq = ++state.seq;
+    // Invalidate the review session's token immediately; openSession mints the next one.
+    state.seq = nextSessionToken();
     try {
-      await openSession(mode, seq);
+      await openSession(mode);
     } catch (e) {
       try {
         var fallback = document.getElementById(mode === 'profile' ? 'native-camera-profile' : 'native-camera-asset');
