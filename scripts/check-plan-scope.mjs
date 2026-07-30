@@ -29,7 +29,7 @@ function section(text, start, end) {
   const a = text.indexOf(start);
   const b = text.indexOf(end, a + start.length);
   if (a < 0 || b < 0) throw new Error(`Cannot locate protected section: ${start} … ${end}`);
-  return text.slice(a, b);
+  return text.slice(a, b + end.length);
 }
 
 const changed = git(['diff', '--name-only', `${BASE}...HEAD`])
@@ -152,10 +152,11 @@ for (const prefix of ['assets/pdf-toolkit/', 'assets/dvhc-lookup/', 'assets/data
   same('IndexedDB schema/open block đã thay đổi', section(at(BASE, 'assets/10_bootstrap.js'), start, end), section(current('assets/10_bootstrap.js'), start, end));
 }
 
-// Encryption call through transaction handlers must remain untouched; compression
-// profile changes are allowed only before/after this protected section.
+// Encryption through image transaction handlers must remain byte-for-byte
+// untouched. The document compression profile is introduced before this marker
+// and passed after the callback, so it cannot alter the protected data path.
 {
-  const start = 'const encryptedData = await encryptImageData';
+  const start = 'let storedData = compressed;';
   const end = 'imgTx.onabort = imgTxFail;';
   same('Khối encryptImageData → image transaction đã thay đổi', section(at(BASE, 'assets/08_images_camera.js'), start, end), section(current('assets/08_images_camera.js'), start, end));
 }
