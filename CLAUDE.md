@@ -189,7 +189,7 @@ assets/document-scanner/  Document detect/crop/enhance (lazy with camera; SW pre
 assets/css/features.css   Camera / scanner feature CSS (lazy with camera)
 assets/vendor/            Self-hosted deps (crypto-js, lucide, maplibre, supercluster, pdf-lib, pdf.js, jszip)
 assets/fonts/             Self-hosted fonts (Be Vietnam Pro only)
-assets/styles.css, css/   App CSS (styles.css + css/{fonts,tailwind.clientpro,app.patch,redesign.clientpro,pdf-toolkit,dvhc-lookup}.css)
+assets/styles.css, css/   App CSS (styles.css + css/{fonts,tailwind.clientpro,redesign.clientpro,features,pdf-toolkit,dvhc-lookup}.css)
 gas/                      Google Apps Script: AdminAPI.gs, UserDriveAPI.gs
 tests/                    Node unit tests (node --test)
 e2e/                      Playwright + axe specs

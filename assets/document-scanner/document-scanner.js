@@ -523,17 +523,35 @@
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-modal', 'true');
     wrap.setAttribute('aria-label', 'Xem lại ảnh giấy tờ');
-    wrap.innerHTML =
-      '<div class="cp-review-stage">' +
-      '<canvas id="cp-review-canvas" aria-hidden="true"></canvas>' +
-      '<div class="cp-review-corners" id="cp-review-corners"></div>' +
-      '</div>' +
-      '<div class="cp-review-actions">' +
-      '<button type="button" data-docscan-action="retake">Chụp lại</button>' +
-      '<button type="button" data-docscan-action="rotate">Xoay 90°</button>' +
-      '<button type="button" data-docscan-action="cancel">Đóng</button>' +
-      '<button type="button" class="cp-primary" data-docscan-action="save">Lưu</button>' +
-      '</div>';
+
+    var stage = document.createElement('div');
+    stage.className = 'cp-review-stage';
+    var canvas = document.createElement('canvas');
+    canvas.id = 'cp-review-canvas';
+    canvas.setAttribute('aria-hidden', 'true');
+    var corners = document.createElement('div');
+    corners.className = 'cp-review-corners';
+    corners.id = 'cp-review-corners';
+    stage.appendChild(canvas);
+    stage.appendChild(corners);
+
+    var actions = document.createElement('div');
+    actions.className = 'cp-review-actions';
+    function mkBtn(action, label, primary) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('data-docscan-action', action);
+      b.textContent = label;
+      if (primary) b.className = 'cp-primary';
+      return b;
+    }
+    actions.appendChild(mkBtn('retake', 'Chụp lại'));
+    actions.appendChild(mkBtn('rotate', 'Xoay 90°'));
+    actions.appendChild(mkBtn('cancel', 'Đóng'));
+    actions.appendChild(mkBtn('save', 'Lưu', true));
+
+    wrap.appendChild(stage);
+    wrap.appendChild(actions);
     root.appendChild(wrap);
     wrap.addEventListener('click', function (ev) {
       var btn = ev.target.closest('[data-docscan-action]');
@@ -551,7 +569,7 @@
     var canvas = document.getElementById('cp-review-canvas');
     var stage = box && box.parentElement;
     if (!box || !canvas || !state.review) return;
-    box.innerHTML = '';
+    while (box.firstChild) box.removeChild(box.firstChild);
     var rect = stage.getBoundingClientRect();
     var cw = canvas.width, ch = canvas.height;
     var scale = Math.min(rect.width / cw, rect.height / ch);
