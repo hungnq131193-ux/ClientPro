@@ -313,11 +313,22 @@
   }
 
   async function openSession(mode, seq) {
+    // A lock / pagehide / security-gate event during the lazy-load awaits below runs
+    // cleanupAll(), which bumps state.seq and clears state.active. Capture the baseline
+    // now so we can detect that invalidation after the awaits instead of blindly
+    // resurrecting the session (state.seq = seq; active = true) and hitting getUserMedia
+    // behind the lock.
+    var seqAtEntry = state.seq;
     await ensureLibs();
     if (window.ModalLoader) {
       await window.ModalLoader.ensure('camera-modal');
       await window.ModalLoader.ensureFeatureCss();
     }
+    // Aborted while we were loading libs/CSS: cleanupAll() (or a newer open) advanced
+    // state.seq. Do not reveal the modal or request the camera.
+    if (state.seq !== seqAtEntry) return;
+    if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) { cleanupAll(); return; }
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') { cleanupAll(); return; }
     state.seq = seq;
     state.active = true;
     state.busy = false;

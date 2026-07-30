@@ -577,12 +577,20 @@ const ModalA11y = (function () {
     let lastFocused = null;
     let isolationTouches = null; // [{ el, hadInert, ariaHidden }] khi security gate mở
 
-    function isOverlay(el) {
-        return el instanceof HTMLElement && el.classList.contains('fixed') && el.classList.contains('inset-0');
+    // #loader is a full-screen boot/loading surface (.fixed.inset-0) but NOT a
+    // dialog: it has no focusable controls and head.js "parks" it visible behind a
+    // security gate on lock. Treating it as a modal makes its class toggles run
+    // activate()/deactivate(), which would release a security gate's background
+    // isolation the moment the loader re-parks. Exclude it from the modal lifecycle
+    // entirely (it is already isolation-exempt).
+    function isModalOverlay(el) {
+        return el instanceof HTMLElement && el.id !== 'loader'
+            && el.classList.contains('fixed') && el.classList.contains('inset-0');
     }
+    function isOverlay(el) { return isModalOverlay(el); }
     function isVisible(el) { return !!el && !el.classList.contains('hidden'); }
     function isSecurityGate(el) { return !!(el && el.id && SECURITY_GATE_IDS[el.id]); }
-    function overlays() { return Array.from(document.querySelectorAll('.fixed.inset-0')); }
+    function overlays() { return Array.from(document.querySelectorAll('.fixed.inset-0')).filter(isModalOverlay); }
     function topVisible() {
         const vis = overlays().filter(isVisible);
         return vis.length ? vis[vis.length - 1] : null;

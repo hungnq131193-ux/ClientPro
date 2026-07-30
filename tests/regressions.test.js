@@ -719,6 +719,18 @@ test('document-scanner: review layout sau khi unhide; still-fail bỏ preview co
   const cleanup = fnBody(scan, 'cleanupAll');
   assert.ok(/state\.seq\s*=/.test(cleanup), 'cleanupAll phải bump seq để hủy capture đang bay');
 
+  // openSession chờ ensureLibs/ModalLoader; cleanupAll giữa chừng bump state.seq. Phải
+  // phát hiện điều đó TRƯỚC khi khôi phục state/getUserMedia, nếu không camera mở sau màn khóa.
+  const openSess = fnBody(scan, 'openSession');
+  assert.ok(/seqAtEntry\s*=\s*state\.seq/.test(openSess),
+    'openSession phải chụp seq baseline trước các await');
+  const seqGuardIdx = openSess.search(/state\.seq\s*!==\s*seqAtEntry/);
+  const gumIdx = openSess.search(/getUserMedia\s*\(/);
+  assert.ok(seqGuardIdx >= 0 && gumIdx >= 0 && seqGuardIdx < gumIdx,
+    'openSession phải re-check seq (phát hiện cleanupAll) TRƯỚC getUserMedia');
+  assert.ok(/isAppUnlocked/.test(openSess.slice(0, gumIdx)),
+    'openSession phải re-check unlocked trước getUserMedia');
+
   assert.ok(/sharpOk/.test(scan) && /HINTS\.blurry/.test(scan),
     'frame mờ phải gắn sharpOk=false và chặn auto-capture');
   assert.ok(/abandonCapture|captureSeq === state\.seq\)\s*state\.busy\s*=\s*false/.test(capture),
