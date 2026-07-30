@@ -9,18 +9,11 @@
 
   try {
     const origWarn = (console && console.warn) ? console.warn.bind(console) : function () { };
-    // Preserve original warn for later debugging.
     if (!console.__clientpro_warn) console.__clientpro_warn = origWarn;
-
     const silence = (() => {
       try { return localStorage.getItem('CLIENTPRO_SILENCE_WARN') === '1'; } catch (e) { return false; }
     })();
-
-    if (silence) {
-      console.warn = function () { };
-    } else {
-      console.warn = origWarn;
-    }
+    console.warn = silence ? function () { } : origWarn;
   } catch (e) {
     // Never break app boot due to console plumbing.
   }
@@ -47,19 +40,11 @@
     }
   }
 
-  /**
-   * LoadingManager used to replace #loader-text after hiding the overlay. The node
-   * was no longer visible, but Lighthouse Lantern attributed that late DOM paint to
-   * the original loader copy and held it as LCP for ~3.7s. Keep the initial node
-   * stable: update copy only when a visible loading operation actually needs a new
-   * message, and never rewrite hidden text during hideGlobal().
-   */
+  /** Keep the first contentful loader node stable across the security-gate handoff. */
   function stabilizeLoadingManager(manager) {
     if (!manager || manager.__cpStableLoaderText) return false;
     const initialText = document.getElementById('loader-text');
-    if (initialText && initialText.textContent) {
-      manager._originalLoaderText = initialText.textContent;
-    }
+    if (initialText && initialText.textContent) manager._originalLoaderText = initialText.textContent;
 
     manager.showGlobal = function stableShowGlobal(message) {
       this._globalCount++;
@@ -68,8 +53,7 @@
       const desired = message || 'Đang xử lý...';
       if (text && text.textContent !== desired) text.textContent = desired;
       if (loader) {
-        loader.classList.remove('hidden');
-        loader.classList.remove('is-progress');
+        loader.classList.remove('hidden', 'cp-loader-parked', 'is-progress');
       }
     };
 
@@ -79,11 +63,19 @@
       if (this._globalCount > 0) return;
       const loader = document.getElementById('loader');
       if (loader) {
-        loader.classList.add('hidden');
         loader.classList.remove('is-progress');
+        if (visibleSecurityGate()) {
+          // Security overlays are fixed at z>=300 while loader is z=250. Parking
+          // preserves one stable paint candidate without blocking or covering them.
+          loader.classList.remove('hidden');
+          loader.classList.add('cp-loader-parked');
+        } else {
+          loader.classList.remove('cp-loader-parked');
+          loader.classList.add('hidden');
+        }
       }
-      // Do not mutate #loader-text while hidden. The next showGlobal/showProgress
-      // call sets its required message before making the overlay visible again.
+      // Never rewrite #loader-text while it is hidden/parked. The next show call
+      // sets its message before exposing the global loader again.
       this._setProgressBar(null);
     };
 
@@ -91,8 +83,8 @@
     return true;
   }
 
-  // head.js executes before 19_error_loading.js. Intercept its global export so the
-  // stabilized methods are installed before bootstrap can call hideGlobal().
+  // head.js executes before 19_error_loading.js. Intercept its export so the
+  // stabilized methods exist before bootstrap can call hideGlobal().
   function watchLoadingManagerExport() {
     if (window.LoadingManager) return stabilizeLoadingManager(window.LoadingManager);
     try {
@@ -117,10 +109,18 @@
     const body = document.body;
     if (!body) return;
     bootReleased = true;
-    // Keep both markers: the data attribute survives setTheme() assigning
-    // body.className, while the class remains compatible with existing code/tests.
     body.classList.add('cp-boot-ready');
     body.setAttribute('data-cp-boot-ready', '1');
+
+    // A parked loader is retained only while a security gate owns the viewport.
+    // Once the app is unlocked, remove it from layout before revealing business UI.
+    if (reason === 'unlocked') {
+      const loader = document.getElementById('loader');
+      if (loader) {
+        loader.classList.remove('cp-loader-parked');
+        loader.classList.add('hidden');
+      }
+    }
     try {
       performance.mark('clientpro-boot-ready');
       window.__clientproBootReadyReason = reason || 'unknown';
@@ -131,12 +131,11 @@
     if (bootReleased) return;
     try {
       const loader = document.getElementById('loader');
-      // Fail closed: a hidden loader alone is not enough. At cold start there must
-      // be an actual security gate in the DOM before the business shell may enter
-      // layout. The unlock lifecycle is the other explicit release path.
-      if (loader && loader.classList.contains('hidden') && visibleSecurityGate()) {
-        releaseBootShell('security-gate');
-      }
+      const loaderYielded = loader && (
+        loader.classList.contains('hidden') || loader.classList.contains('cp-loader-parked')
+      );
+      // Fail closed: the loader may yield only when a real security gate exists.
+      if (loaderYielded && visibleSecurityGate()) releaseBootShell('security-gate');
     } catch (e) { }
   }
 
@@ -173,11 +172,8 @@
     });
   }
 
-  // document-scanner.js owns private session state. Its public open() is wrapped
-  // before first use so every slow prerequisite is completed outside that private
-  // session, followed by an epoch/unlock/gate revalidation. The original function's
-  // subsequent awaits are then already-resolved microtasks, so a lock task cannot
-  // interleave and be overwritten by `state.seq = seq` before getUserMedia().
+  // Complete every slow prerequisite outside the scanner's private session, then
+  // revalidate epoch/unlock/gate immediately before the original open path.
   function installScannerOpenGuard() {
     const scanner = window.DocumentScanner;
     if (!scanner || typeof scanner.open !== 'function' || scanner.open.__cpEpochGuard) return false;
@@ -244,14 +240,11 @@
     } catch (e) { }
   }
 
-  // A completed unlock is an explicit safe release even if a custom test/client
-  // hides the security gate before the loader observer sees its visible state.
   document.addEventListener('clientpro:unlocked', function () {
     releaseBootShell('unlocked');
   });
 
-  // Lock/revocation must immediately remove the business shell from layout and
-  // invalidate camera opens that are still preparing lazy resources.
+  // Lock/revocation immediately hides business layout and invalidates camera opens.
   function closeBusinessShellForGate() {
     scannerOpenEpoch++;
     try {
@@ -259,6 +252,11 @@
       if (document.body) {
         document.body.classList.remove('cp-boot-ready');
         document.body.removeAttribute('data-cp-boot-ready');
+      }
+      const loader = document.getElementById('loader');
+      if (loader && visibleSecurityGate()) {
+        loader.classList.remove('hidden');
+        loader.classList.add('cp-loader-parked');
       }
     } catch (e) { }
   }
@@ -278,7 +276,6 @@
   }
 
   // Promote redesign stylesheet from media=print → all without blocking first paint.
-  // (index.html loads it as print so it does not count as render-blocking.)
   try {
     const applyRedesign = () => {
       const link = document.getElementById('cp-redesign-css');
