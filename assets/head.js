@@ -52,9 +52,7 @@
       const text = document.getElementById('loader-text');
       const desired = message || 'Đang xử lý...';
       if (text && text.textContent !== desired) text.textContent = desired;
-      if (loader) {
-        loader.classList.remove('hidden', 'cp-loader-parked', 'is-progress');
-      }
+      if (loader) loader.classList.remove('hidden', 'cp-loader-parked', 'is-progress');
     };
 
     manager.hideGlobal = function stableHideGlobal(force) {
@@ -131,11 +129,16 @@
     if (bootReleased) return;
     try {
       const loader = document.getElementById('loader');
-      const loaderYielded = loader && (
-        loader.classList.contains('hidden') || loader.classList.contains('cp-loader-parked')
-      );
-      // Fail closed: the loader may yield only when a real security gate exists.
-      if (loaderYielded && visibleSecurityGate()) releaseBootShell('security-gate');
+      if (!loader || !visibleSecurityGate()) return;
+
+      // hideGlobal may win the race a few milliseconds before the async gate insert.
+      // Convert that hidden state to parked as soon as the gate enters the DOM so
+      // Lighthouse and real users see one deterministic security handoff.
+      if (loader.classList.contains('hidden')) {
+        loader.classList.remove('hidden');
+        loader.classList.add('cp-loader-parked');
+      }
+      if (loader.classList.contains('cp-loader-parked')) releaseBootShell('security-gate');
     } catch (e) { }
   }
 
