@@ -42,6 +42,16 @@ function categoryScore(report, id) {
   return score;
 }
 
+function metricsItem(report) {
+  const item = report.audits
+    && report.audits.metrics
+    && report.audits.metrics.details
+    && report.audits.metrics.details.items
+    && report.audits.metrics.details.items[0];
+  if (!item) throw new Error('Lighthouse report missing metrics details');
+  return item;
+}
+
 function isBrowserInstallMetadata(item) {
   if (item.resourceType === 'Manifest') return true;
   try {
@@ -52,20 +62,20 @@ function isBrowserInstallMetadata(item) {
   }
 }
 
-function initialNetworkBudget(report, fcpMs) {
+function initialNetworkBudget(report, observedFcpMs) {
   const items = report.audits
     && report.audits['network-requests']
     && report.audits['network-requests'].details
     && report.audits['network-requests'].details.items;
   if (!Array.isArray(items)) throw new Error('Lighthouse report missing network-requests details');
 
-  // rendererStartTime is milliseconds from navigation start. Count only
-  // application resources submitted by FCP. Manifest/favicon/install icons are
-  // browser chrome/PWA metadata, not part of the security-gate render path; they
-  // are reported separately instead of silently consuming the UI request budget.
+  // rendererStartTime and observedFirstContentfulPaint are both measured in the
+  // observed navigation clock. The scored FCP audit is a simulated metric under
+  // Lighthouse throttling and must never be compared to observed request times.
+  // Doing so falsely counted post-paint modal warmers as first-frame requests.
   const startedByFcp = items.filter((item) => {
     const start = Number(item.rendererStartTime);
-    return Number.isFinite(start) && start <= fcpMs;
+    return Number.isFinite(start) && start <= observedFcpMs;
   });
   const metadata = startedByFcp.filter(isBrowserInstallMetadata);
   const initial = startedByFcp.filter((item) => !isBrowserInstallMetadata(item));
@@ -97,18 +107,24 @@ if (files.length < 3) {
 
 const runs = files.map((name) => {
   const report = JSON.parse(fs.readFileSync(path.join(REPORT_DIR, name), 'utf8'));
+  const metrics = metricsItem(report);
   const fcp = numericAudit(report, 'first-contentful-paint');
+  const observedFcp = Number(metrics.observedFirstContentfulPaint);
+  if (!Number.isFinite(observedFcp)) {
+    throw new Error(`${name}: Lighthouse metrics missing observedFirstContentfulPaint`);
+  }
   const run = {
     name,
     performance: categoryScore(report, 'performance'),
     accessibility: categoryScore(report, 'accessibility'),
     bestPractices: categoryScore(report, 'best-practices'),
     fcp,
+    observedFcp,
     lcp: numericAudit(report, 'largest-contentful-paint'),
     tbt: numericAudit(report, 'total-blocking-time'),
     cls: numericAudit(report, 'cumulative-layout-shift'),
   };
-  Object.assign(run, initialNetworkBudget(report, fcp));
+  Object.assign(run, initialNetworkBudget(report, observedFcp));
   return run;
 });
 
@@ -150,6 +166,7 @@ for (const run of runs) {
     `- ${run.name}`,
     `perf=${(run.performance * 100).toFixed(0)}`,
     `FCP=${fmtMs(run.fcp)}`,
+    `observedFCP=${fmtMs(run.observedFcp)}`,
     `LCP=${fmtMs(run.lcp)}`,
     `TBT=${fmtMs(run.tbt)}`,
     `CLS=${run.cls.toFixed(4)}`,
