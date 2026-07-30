@@ -23,9 +23,9 @@
     return;
   }
 
-  // Primary gates are mutually exclusive at cold start. Loading only the gate
-  // implied by local activation/PIN state removes four network competitors from
-  // the first-paint path without changing checkSecurity() or any gate markup.
+  // CRITICAL cold path: exactly one mutually-exclusive primary security gate.
+  // Loading only the gate implied by local activation/PIN state removes four
+  // network competitors without changing checkSecurity() or any gate markup.
   var PRIMARY_SECURITY = [
     'screen-lock',
     'setup-lock-modal',
@@ -116,8 +116,21 @@
     root.insertAdjacentHTML('beforeend', html + '\n');
   }
 
-  function initModalIcons(modal) {
-    if (!modal) return;
+  // Kept as a named regression contract: every deferred fragment is scanned only
+  // inside its inserted subtree, never by a document-wide Lucide pass.
+  function initDeferredModalIcons(id, modal) {
+    if (DEFERRED.indexOf(id) < 0 || !modal) return;
+    try {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons({ root: modal });
+      }
+    } catch (e) { }
+  }
+
+  // Remaining security fragments arrive after bootstrap's primary-gate scan and
+  // therefore need the same scoped initialization when their warm request lands.
+  function initSecurityModalIcons(id, modal) {
+    if (SECURITY.indexOf(id) < 0 || !modal) return;
     try {
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         window.lucide.createIcons({ root: modal });
@@ -155,9 +168,8 @@
         var modal = document.getElementById(id);
         if (modal) {
           loaded[id] = true;
-          // Safe for both early and late fragments. If Lucide has not loaded yet,
-          // bootstrap scans the primary gate; later fragments are scanned here.
-          initModalIcons(modal);
+          initSecurityModalIcons(id, modal);
+          initDeferredModalIcons(id, modal);
         }
         delete inflight[id];
         return !!loaded[id];
