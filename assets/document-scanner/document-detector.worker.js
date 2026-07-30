@@ -1,14 +1,23 @@
 /**
  * document-detector.worker.js — edge/quad detection off the main thread.
- * Expects document-geometry.js via importScripts (classic worker).
+ *
+ * The same detectQuad implementation is exported in Node so CI exercises the
+ * production detector against PNG fixtures instead of testing known coordinates.
  */
-/* global DocumentGeometry */
 'use strict';
 
-(function () {
-  var base = self.location.href.replace(/[^/]+(?:\?.*)?$/, '');
-  var q = self.location.search || '';
-  importScripts(base + 'document-geometry.js' + q);
+var DocumentGeometryRef = (function loadGeometry() {
+  if (typeof module !== 'undefined' && module.exports) {
+    // Node fixture tests.
+    return require('./document-geometry.js');
+  }
+  if (typeof self !== 'undefined' && typeof importScripts === 'function') {
+    var base = self.location.href.replace(/[^/]+(?:\?.*)?$/, '');
+    var q = self.location.search || '';
+    importScripts(base + 'document-geometry.js' + q);
+    return self.DocumentGeometry;
+  }
+  return (typeof globalThis !== 'undefined') ? globalThis.DocumentGeometry : null;
 })();
 
 function toGray(data, w, h) {
@@ -19,13 +28,15 @@ function toGray(data, w, h) {
   return gray;
 }
 
-/** Simple local contrast stretch (tile-ish via global histogram stretch). */
+/** Histogram contrast normalization for the preview-sized luma plane. */
 function equalize(gray) {
   var hist = new Uint32Array(256);
-  var i, n = gray.length;
+  var i;
+  var n = gray.length;
   for (i = 0; i < n; i++) hist[gray[i]]++;
   var cdf = new Uint32Array(256);
-  var sum = 0, minCdf = 0;
+  var sum = 0;
+  var minCdf = 0;
   for (i = 0; i < 256; i++) {
     sum += hist[i];
     cdf[i] = sum;
@@ -114,20 +125,28 @@ function findContours(bin, w, h) {
     for (var x = 1; x < w - 1; x++) {
       var start = y * w + x;
       if (!bin[start] || visited[start]) continue;
-      // only start at left-edge transitions to limit noise
+      // Only start at left-edge transitions to limit noise.
       if (bin[start - 1]) continue;
       var pts = [];
-      var cx = x, cy = y, dir = 0, guard = 0;
+      var cx = x;
+      var cy = y;
+      var dir = 0;
+      var guard = 0;
       do {
         pts.push({ x: cx, y: cy });
         visited[cy * w + cx] = 1;
         var found = false;
         for (var k = 0; k < 8; k++) {
           var nd = (dir + k) % 8;
-          var nx = cx + dirs[nd][0], ny = cy + dirs[nd][1];
+          var nx = cx + dirs[nd][0];
+          var ny = cy + dirs[nd][1];
           if (nx <= 0 || ny <= 0 || nx >= w - 1 || ny >= h - 1) continue;
           if (bin[ny * w + nx]) {
-            cx = nx; cy = ny; dir = (nd + 6) % 8; found = true; break;
+            cx = nx;
+            cy = ny;
+            dir = (nd + 6) % 8;
+            found = true;
+            break;
           }
         }
         if (!found) break;
@@ -142,16 +161,20 @@ function findContours(bin, w, h) {
 function simplifyContour(pts, epsilon) {
   if (pts.length < 3) return pts;
   function perpDist(p, a, b) {
-    var dx = b.x - a.x, dy = b.y - a.y;
+    var dx = b.x - a.x;
+    var dy = b.y - a.y;
     var len2 = dx * dx + dy * dy || 1;
     var t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
-    var projx = a.x + t * dx, projy = a.y + t * dy;
+    var projx = a.x + t * dx;
+    var projy = a.y + t * dy;
     return Math.hypot(p.x - projx, p.y - projy);
   }
   function rdp(points, eps) {
     if (points.length < 3) return points;
-    var maxD = 0, idx = 0;
-    var a = points[0], b = points[points.length - 1];
+    var maxD = 0;
+    var idx = 0;
+    var a = points[0];
+    var b = points[points.length - 1];
     for (var i = 1; i < points.length - 1; i++) {
       var d = perpDist(points[i], a, b);
       if (d > maxD) { maxD = d; idx = i; }
@@ -167,7 +190,7 @@ function simplifyContour(pts, epsilon) {
 }
 
 function approxQuad(pts) {
-  if (!pts || pts.length < 4) return null;
+  if (!pts || pts.length < 4 || !DocumentGeometryRef) return null;
   var peri = 0;
   for (var i = 0; i < pts.length; i++) {
     var j = (i + 1) % pts.length;
@@ -175,21 +198,22 @@ function approxQuad(pts) {
   }
   var simp = simplifyContour(pts, Math.max(2, peri * 0.02));
   if (simp.length === 4) return simp;
-  // If not exactly 4, take convex-ish extreme points
+  // If not exactly 4, take the four directional extreme points.
   if (simp.length > 4) {
-    var ordered = DocumentGeometry.orderCorners([
+    return DocumentGeometryRef.orderCorners([
       simp.reduce(function (a, p) { return (!a || p.x + p.y < a.x + a.y) ? p : a; }, null),
       simp.reduce(function (a, p) { return (!a || -p.x + p.y < -a.x + a.y) ? p : a; }, null),
       simp.reduce(function (a, p) { return (!a || -p.x - p.y < -a.x - a.y) ? p : a; }, null),
       simp.reduce(function (a, p) { return (!a || p.x - p.y < a.x - a.y) ? p : a; }, null),
     ]);
-    return ordered;
   }
   return null;
 }
 
 function detectQuad(imageData) {
-  var w = imageData.width, h = imageData.height;
+  if (!imageData || !imageData.data || !DocumentGeometryRef) return null;
+  var w = imageData.width;
+  var h = imageData.height;
   var gray = equalize(toGray(imageData.data, w, h));
   var edges = morphClose(sobelMag(gray, w, h), w, h);
   var contours = findContours(edges, w, h);
@@ -197,43 +221,59 @@ function detectQuad(imageData) {
   for (var i = 0; i < contours.length; i++) {
     var quad = approxQuad(contours[i]);
     if (!quad) continue;
-    var scored = DocumentGeometry.scoreQuad(quad, w, h);
+    var scored = DocumentGeometryRef.scoreQuad(quad, w, h);
     if (!scored) continue;
     if (!best || scored.score > best.score) best = scored;
   }
   return best;
 }
 
-self.onmessage = function (ev) {
-  var msg = ev.data || {};
-  if (msg.type !== 'detect') return;
-  try {
-    var imageData = msg.imageData;
-    if (!imageData || !imageData.data) {
-      self.postMessage({ type: 'detect-result', id: msg.id, ok: false });
-      return;
-    }
-    // Ensure TypedArray (structured clone may give Array)
-    if (!(imageData.data instanceof Uint8ClampedArray)) {
-      imageData = {
+var api = {
+  detectQuad: detectQuad,
+  toGray: toGray,
+  equalize: equalize,
+  sobelMag: sobelMag,
+  morphClose: morphClose,
+  findContours: findContours,
+  simplifyContour: simplifyContour,
+  approxQuad: approxQuad,
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = api;
+}
+
+if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
+  self.onmessage = function (ev) {
+    var msg = ev.data || {};
+    if (msg.type !== 'detect') return;
+    try {
+      var imageData = msg.imageData;
+      if (!imageData || !imageData.data) {
+        self.postMessage({ type: 'detect-result', id: msg.id, ok: false });
+        return;
+      }
+      if (!(imageData.data instanceof Uint8ClampedArray)) {
+        imageData = {
+          width: imageData.width,
+          height: imageData.height,
+          data: new Uint8ClampedArray(imageData.data),
+        };
+      }
+      var result = detectQuad(imageData);
+      self.postMessage({
+        type: 'detect-result',
+        id: msg.id,
+        ok: !!result,
+        corners: result ? result.corners : null,
+        score: result ? result.score : 0,
+        areaRatio: result ? result.areaRatio : 0,
+        edgeTouch: result ? result.edgeTouch : false,
         width: imageData.width,
         height: imageData.height,
-        data: new Uint8ClampedArray(imageData.data),
-      };
+      });
+    } catch (e) {
+      self.postMessage({ type: 'detect-result', id: msg.id, ok: false, error: String(e && e.message || e) });
     }
-    var result = detectQuad(imageData);
-    self.postMessage({
-      type: 'detect-result',
-      id: msg.id,
-      ok: !!result,
-      corners: result ? result.corners : null,
-      score: result ? result.score : 0,
-      areaRatio: result ? result.areaRatio : 0,
-      edgeTouch: result ? result.edgeTouch : false,
-      width: imageData.width,
-      height: imageData.height,
-    });
-  } catch (e) {
-    self.postMessage({ type: 'detect-result', id: msg.id, ok: false, error: String(e && e.message || e) });
-  }
-};
+  };
+}
