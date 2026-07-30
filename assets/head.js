@@ -22,4 +22,18 @@
   } catch (e) {
     // Never break app boot due to console plumbing.
   }
+
+  // Promote redesign stylesheet from media=print → all without blocking first paint.
+  // (index.html loads it as print so it does not count as render-blocking.)
+  try {
+    const applyRedesign = () => {
+      const link = document.getElementById('cp-redesign-css');
+      if (link && link.media !== 'all') link.media = 'all';
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyRedesign, { once: true });
+    } else {
+      applyRedesign();
+    }
+  } catch (e) { }
 })();

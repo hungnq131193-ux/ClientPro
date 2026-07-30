@@ -522,9 +522,49 @@ test('ĐVHC: refreshIcons phải scope lucide.createIcons theo root màn hình',
   const src = read('assets/dvhc-lookup/dvhc_ui.js');
   const body = fnBody(src, 'refreshIcons');
   assert.ok(/createIcons\(\s*\{\s*root/.test(body),
-    'refreshIcons: createIcons phải nhận { root } — unscoped chỉ dành cho boot (10_bootstrap.js)');
+    'refreshIcons: createIcons phải nhận { root }');
   assert.ok(/screen-dvhc-lookup/.test(body),
     'refreshIcons: cần fallback root #screen-dvhc-lookup khi screenEl chưa dựng');
+});
+
+test('boot: lucide.createIcons lúc bootstrap phải scope theo root (không quét cả document)', () => {
+  const boot = read('assets/10_bootstrap.js');
+  assert.ok(/createIcons\(\s*\{\s*root/.test(boot),
+    '10_bootstrap.js: createIcons phải nhận { root } cho gate/dashboard');
+  assert.ok(!/window\.lucide\.createIcons\(\s*\)/.test(boot.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')),
+    '10_bootstrap.js: không còn createIcons() không scope trên đường boot chính');
+});
+
+test('modals: critical security gates load trước; business modals không chặn boot', () => {
+  const load = read('assets/ui/load_modals.js');
+  assert.ok(/ModalLoader/.test(load), 'load_modals.js phải expose ModalLoader');
+  assert.ok(/CRITICAL/.test(load) && /DEFERRED/.test(load), 'phải tách CRITICAL vs DEFERRED');
+  assert.ok(/activation-modal/.test(load) && /camera-modal/.test(load));
+  const boot = read('assets/10_bootstrap.js');
+  assert.ok(/criticalReady|__clientpro_modals_ready/.test(boot),
+    'bootstrap chỉ chờ criticalReady / __clientpro_modals_ready');
+  assert.ok(!/__clientpro_modals_all_ready/.test(boot),
+    'bootstrap không được chờ allReady (business modals)');
+});
+
+test('camera: compressionProfile document chỉ đổi nén — encrypt + transaction giữ fail-closed', () => {
+  const src = read('assets/08_images_camera.js');
+  const body = fnBody(src, 'saveImageToDB');
+  assert.ok(/compressionProfile/.test(body), 'saveImageToDB phải đọc compressionProfile từ opts');
+  assert.ok(/compressImage\([^,]+,\s*async/.test(body) || /compressImage\(enhancedBase64/.test(body));
+  assert.ok(/encryptImageData\(compressed\)/.test(body), 'vẫn mã hóa compressed trước khi ghi');
+  assert.ok(/_looksEncrypted\(storedData\)/.test(body), 'fail-closed ciphertext check giữ nguyên');
+  assert.ok(/imgTx\.oncomplete/.test(body) && /imgTx\.onerror/.test(body) && /imgTx\.onabort/.test(body));
+});
+
+test('document-scanner: không gửi frame lên mạng; cleanup khi khóa/ẩn trang', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  assert.ok(!/fetch\s*\(/.test(scan.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')),
+    'document-scanner.js không được fetch mạng');
+  assert.ok(/terminate\(/.test(scan), 'phải terminate worker khi cleanup');
+  assert.ok(/pagehide|visibilitychange|clientpro:locked/.test(scan),
+    'cleanup khi ẩn trang / khóa app');
+  assert.ok(/Worker\(/.test(scan), 'detector chạy bằng Worker');
 });
 
 test('nhóm ổn định B #8: put-wrapper trong 2 migration của 02_security.js phải reject cả onabort', () => {

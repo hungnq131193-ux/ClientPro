@@ -1,0 +1,171 @@
+/* ClientPro feature CSS — camera / document scanner / gallery polish.
+   Loaded on demand (ModalLoader.ensureFeatureCss) — not on cold-start path.
+   Selectors moved as-is from redesign camera block + scanner UI. */
+
+/* --- Camera: nút đóng dưới notch, cụm chụp trên home indicator --- */
+#camera-modal [data-action="closeCamera"] {
+  top: calc(2rem + var(--sat, 0px)) !important;
+  right: calc(1.5rem + var(--sar, 0px)) !important;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#camera-modal .absolute.bottom-10,
+#camera-modal .cp-cam-controls {
+  bottom: calc(2.5rem + var(--sab, 0px)) !important;
+}
+
+/* --- Document scanner overlay --- */
+#camera-modal.cp-scan-mode {
+  background: #000;
+}
+#camera-modal .cp-scan-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+#camera-modal .cp-scan-overlay canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+#camera-modal .cp-scan-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(1.25rem + var(--sat, 0px));
+  transform: translateX(-50%);
+  z-index: 3;
+  max-width: min(92vw, 22rem);
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.35;
+  pointer-events: none;
+}
+#camera-modal .cp-cam-mode-toggle {
+  position: absolute;
+  left: calc(1rem + var(--sal, 0px));
+  top: calc(1.25rem + var(--sat, 0px));
+  z-index: 4;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+#camera-modal .cp-cam-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.25rem;
+  z-index: 4;
+  padding: 0 1rem;
+}
+#camera-modal .cp-cam-shutter {
+  width: 5rem;
+  height: 5rem;
+  min-width: 44px;
+  min-height: 44px;
+  background: #fff;
+  border-radius: 999px;
+  border: 4px solid #d1d5db;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+#camera-modal .cp-cam-shutter:active {
+  transform: scale(0.95);
+}
+#camera-modal .cp-cam-shutter[disabled] {
+  opacity: 0.55;
+}
+
+/* Review sheet after document capture */
+#doc-scan-review {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  background: #0b1220;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--sat, 0px);
+  padding-bottom: var(--sab, 0px);
+}
+#doc-scan-review.hidden {
+  display: none !important;
+}
+#doc-scan-review .cp-review-stage {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+#doc-scan-review .cp-review-stage img,
+#doc-scan-review .cp-review-stage canvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  touch-action: none;
+}
+#doc-scan-review .cp-review-corners {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+#doc-scan-review .cp-review-handle {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  background: rgba(0, 123, 255, 0.85);
+  pointer-events: auto;
+  touch-action: none;
+}
+#doc-scan-review .cp-review-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.75rem 0.75rem calc(0.75rem + var(--sab, 0px));
+  background: rgba(15, 23, 42, 0.96);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+#doc-scan-review .cp-review-actions button {
+  min-height: 44px;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+#doc-scan-review .cp-review-actions button.cp-primary {
+  background: var(--accent-gradient, linear-gradient(135deg, #0ea5e9, #0369a1));
+  border-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #camera-modal .cp-cam-shutter,
+  #doc-scan-review .cp-review-handle {
+    transition: none !important;
+  }
+}

@@ -1,5 +1,9 @@
 /* Font Be Vietnam Pro tự host: khai báo @font-face nằm ở assets/css/fonts.css (nạp từ index.html). */
 
+/* From former app.patch.css — force .hidden to win over display utilities. */
+.hidden { display: none !important; }
+[hidden] { display: none !important; }
+
 :root {
   --app-height: 100dvh;
   /* Token bo góc dùng chung (card/chip/modal) — E2 polish v1.0.5 */

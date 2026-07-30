@@ -20,19 +20,29 @@ function parseMoneyToNumber(str) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // Ensure modal partials are present before any UX/security flows attempt to open them.
-  // (load_modals.js is async; this await keeps behavior consistent with the previous sync XHR.)
+  // Critical security-gate modals only — business modals load idle / on demand.
+  // (load_modals.js is async; this await keeps gate UX consistent.)
   try {
-    if (window.__clientpro_modals_ready && typeof window.__clientpro_modals_ready.then === "function") {
+    const ready = (window.ModalLoader && typeof window.ModalLoader.criticalReady === "function")
+      ? window.ModalLoader.criticalReady()
+      : window.__clientpro_modals_ready;
+    if (ready && typeof ready.then === "function") {
       // Safety timeout: never block boot forever if a partial fails to load.
       await Promise.race([
-        window.__clientpro_modals_ready,
+        ready,
         new Promise((resolve) => setTimeout(resolve, 3000)),
       ]);
     }
   } catch (e) {
     console.warn("[ClientPro] Modals preload warning:", e);
   }
+
+  // UX: trạng thái ngắn trên loader trước khi gate hiện.
+  try {
+    const lt = typeof getEl === "function" ? getEl("loader-text") : null;
+    if (lt) lt.textContent = "Đang chuẩn bị dữ liệu trên thiết bị";
+  } catch (e) { }
+
   // Khởi tạo tầng chuẩn hóa lỗi & loading (module 19). An toàn nếu thiếu file.
   try { if (window.LoadingManager && typeof window.LoadingManager.init === "function") window.LoadingManager.init(); } catch (e) { }
   // Global error handling: bắt window.onerror + unhandledrejection ngay từ đầu để
@@ -63,10 +73,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (ld && securityGateShown) ld.classList.add("hidden");
   } catch (e) { }
 
-  // Không để lỗi vendor icon chặn toàn bộ boot — nếu throw ở đây,
-  // IndexedDB không bao giờ được mở và app đứng im.
+  // Scope icon scan to visible security gate / dashboard — không quét toàn document lúc boot.
   try {
-    if (window.lucide && typeof window.lucide.createIcons === "function") window.lucide.createIcons();
+    if (window.lucide && typeof window.lucide.createIcons === "function") {
+      const roots = ["screen-lock", "setup-lock-modal", "activation-modal", "customer-list", "loader"]
+        .map((id) => (typeof getEl === "function" ? getEl(id) : document.getElementById(id)))
+        .filter(Boolean);
+      roots.forEach((root) => {
+        try { window.lucide.createIcons({ root }); } catch (e) { }
+      });
+    }
   } catch (e) { }
   const setAppHeight = () =>
     document.documentElement.style.setProperty(
@@ -91,8 +107,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   setTheme(savedTheme);
   updateDashboardDateTicker();
-  // 🌤 Khởi động thời tiết
-  try { if (typeof initWeather === "function") initWeather(); } catch (e) { }
+  // 🌤 Thời tiết / trình bày: sau first paint (idle) — không trì hoãn DB/AuthGate.
+  const scheduleIdle = (fn) => {
+    try {
+      if (typeof requestIdleCallback === "function") requestIdleCallback(() => { try { fn(); } catch (e) { } }, { timeout: 2000 });
+      else setTimeout(() => { try { fn(); } catch (e) { } }, 1);
+    } catch (e) { try { fn(); } catch (err) { } }
+  };
+  scheduleIdle(() => {
+    try { if (typeof initWeather === "function") initWeather(); } catch (e) { }
+  });
 
   // Vì gate hiện trước khi DB mở xong, luồng mở khóa (validatePin) await promise này
   // để migration/primeFieldCache/loadCustomers không chạy khi db còn undefined.

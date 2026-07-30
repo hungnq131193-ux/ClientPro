@@ -1,6 +1,6 @@
 // ClientPro Service Worker — offline-first cache and update lifecycle.
 // Bump version when changing static assets or cache behavior.
-const VERSION = 'v1.4.8';
+const VERSION = 'v1.5.0';
 // Cache generation identifier. Bump for every major public release.
 const CACHE_EPOCH = 'genesis';
 const STATIC_CACHE = `clientpro-${CACHE_EPOCH}-static-${VERSION}`;
@@ -20,7 +20,7 @@ const META_HEADER = 'sw-cache-time';
 
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
-const ASSET_V = 'AUTOBACKUP_FIX_20260729';
+const ASSET_V = 'DOCSCAN_PERF_20260730';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -49,8 +49,8 @@ const STATIC_ASSETS = [
 
   // Tailwind (self-host) — có ?v= để khớp index.html, tránh CSS stale sau deploy
   `./assets/css/tailwind.clientpro.css?v=${ASSET_V}`,
-  `./assets/css/app.patch.css?v=${ASSET_V}`,
   `./assets/css/redesign.clientpro.css?v=${ASSET_V}`,
+  `./assets/css/features.css?v=${ASSET_V}`,
   `./assets/styles.css?v=${ASSET_V}`,
   `./assets/head.js?v=${ASSET_V}`,
   `./assets/pwa.js?v=${ASSET_V}`,
@@ -96,6 +96,12 @@ const STATIC_ASSETS = [
   `./assets/data/dvhc/dvhc.v1.json?v=${ASSET_V}`,
 
   `./assets/ui/load_modals.js?v=${ASSET_V}`,
+
+  // Document scanner (lazy at camera open; precached for offline)
+  `./assets/document-scanner/document-geometry.js?v=${ASSET_V}`,
+  `./assets/document-scanner/document-image-enhance.js?v=${ASSET_V}`,
+  `./assets/document-scanner/document-scanner.js?v=${ASSET_V}`,
+  `./assets/document-scanner/document-detector.worker.js?v=${ASSET_V}`,
 
   './assets/ui/modals/screen-lock.html',
   './assets/ui/modals/setup-lock-modal.html',

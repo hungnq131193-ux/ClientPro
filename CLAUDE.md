@@ -183,8 +183,10 @@ assets/pdf-toolkit/*.js   PDF Toolkit (utils/core/ui + tool modules; lazy-loaded
 assets/dvhc-lookup/*.js   Tra cứu sáp nhập ĐVHC (utils/data/ui; lazy-loaded, see §9)
 assets/data/dvhc/         Dữ liệu ĐVHC offline (dvhc.v1.json + README nguồn)
 scripts/build-dvhc-data.mjs  Sinh lại dữ liệu ĐVHC từ nguồn mở (chạy tay)
-assets/ui/load_modals.js  Loads the modal HTML fragments
+assets/ui/load_modals.js  Critical security-gate modals first; business modals idle / ModalLoader.ensure
 assets/ui/modals/*.html   Modal fragments (activation, lock, backup, camera, etc.)
+assets/document-scanner/  Document detect/crop/enhance (lazy with camera; SW precached)
+assets/css/features.css   Camera / scanner feature CSS (lazy with camera)
 assets/vendor/            Self-hosted deps (crypto-js, lucide, maplibre, supercluster, pdf-lib, pdf.js, jszip)
 assets/fonts/             Self-hosted fonts (Be Vietnam Pro only)
 assets/styles.css, css/   App CSS (styles.css + css/{fonts,tailwind.clientpro,app.patch,redesign.clientpro,pdf-toolkit,dvhc-lookup}.css)
@@ -621,16 +623,20 @@ Capture/store/view/select/share photos tied to a `customerId`/`assetId`.
   ends are wrapped: the `img.onload` body, and `toDataURL` inside `adjustAndCheck`
   itself — later iterations are re-armed through `setTimeout` and therefore run
   outside the `onload` try/catch. Every failure path still calls `cb`.
+- Optional `opts.compressionProfile: "document"` only changes the compression
+  ladder (max edge 2400 px, JPEG floor 0.84, shrink dimensions before dropping
+  quality). The `encryptImageData` → write-transaction path is unchanged.
 - `closeLightbox` (`04_ui_common.js`) removes the lightbox `<img>` `src` and clears
   `currentImageBase64` — hiding the overlay alone leaves a decrypted data URL in RAM.
 
 ### Primary files
 `assets/08_images_camera.js`, `assets/ui/modals/camera-modal.html`;
-`closeLightbox` lives in `assets/04_ui_common.js`.
+`closeLightbox` lives in `assets/04_ui_common.js`. Document scan UI lives under
+`assets/document-scanner/` (see Document scanner).
 
 ### Public entry points
-`capturePhoto()`, gallery/lightbox actions, `shareSelectedImages()`,
-`deleteSelectedImages()`.
+`capturePhoto()`, `tryOpenCamera()` (lazy-loads scanner), gallery/lightbox actions,
+`shareSelectedImages()`, `deleteSelectedImages()`.
 
 ### Read source code only when
 Debugging capture/gallery or verifying encryption of image data.
@@ -638,11 +644,41 @@ Debugging capture/gallery or verifying encryption of image data.
 ### Required tests when changed
 `npm test` (`tests/image-save-fail-closed.test.js`, which runs the real
 `08_images_camera.js` in a sandbox via `tests/helpers/load-images.js`,
-`tests/image-migration-autolock.test.js`, plus the image tripwires in
-`tests/regressions.test.js`), relevant e2e.
+`tests/image-migration-autolock.test.js`, `tests/document-scanner.test.js`, plus the image tripwires in
+`tests/regressions.test.js`), relevant e2e (`e2e/document-scanner.spec.js`).
 
 ### Must not affect
 Crypto schema, IndexedDB stores.
+
+## Document scanner
+
+### Purpose
+On-device document edge detection, perspective crop, light enhance, and review
+before the existing `saveImageToDB` path. Default camera mode is **Quét giấy tờ**;
+**Ảnh thường** keeps the legacy full-frame capture.
+
+### Core invariants
+- Pre-encryption only: detect → warp → enhance → JPEG → `saveImageToDB(..., { compressionProfile: "document" })`. Never change the encrypt/IDB write block.
+- No OCR, no OpenCV.js, no cloud vision. Frames never leave the device; do not log base64/blobs.
+- Detection runs in `document-detector.worker.js` (Web Worker). Cleanup on close / auto-lock / `pagehide`: stop tracks, terminate worker, revoke object URLs, clear review buffers. Locked session cancels without saving.
+- Outward ~1% safety margin on quads; reject auto-capture when an edge touches the frame; re-detect on the still; if still detect fails, open manual corner review (no guessed crop).
+- Lazy-loaded with camera (`features.css` + scanner scripts); full SW precache for offline. Not on the cold-start path.
+
+### Primary files
+`assets/document-scanner/document-scanner.js`, `document-detector.worker.js`,
+`document-geometry.js`, `document-image-enhance.js`, `assets/css/features.css`,
+`assets/ui/modals/camera-modal.html`.
+
+### Public entry points
+`window.DocumentScanner.open/close/toggleMode/capture`; wired through
+`tryOpenCamera` / `capturePhoto` / `toggleCameraScanMode`.
+
+### Required tests when changed
+`tests/document-scanner.test.js`, scanner tripwires in `tests/regressions.test.js`,
+`e2e/document-scanner.spec.js`.
+
+### Must not affect
+Crypto, IndexedDB schema, Drive upload, backup.
 
 ## Google Drive integration
 
@@ -1048,9 +1084,13 @@ Keep the precache list and the `?v=` tags in `index.html` in lockstep with
 
 Static screens live in `index.html`; modal fragments live in
 `assets/ui/modals/*.html` and are injected by `assets/ui/load_modals.js`
-(`clientpro:modals-loaded` fires when done). Dynamic DOM is built with the safe
-`el()` helper and `textContent` — never `innerHTML` with dynamic data. Icons are
-Lucide (self-hosted). Buttons wire behavior through `data-action`.
+(`clientpro:modals-critical-loaded` after security gates; `clientpro:modals-loaded`
+after business modals). Bootstrap awaits only critical gates via
+`ModalLoader.criticalReady()` / `__clientpro_modals_ready`. Openers call
+`ModalLoader.ensure(id)` so an early tap never finds a missing modal. Dynamic DOM
+is built with the safe `el()` helper and `textContent` — never `innerHTML` with
+dynamic data. Icons are Lucide (self-hosted). Buttons wire behavior through
+`data-action`.
 
 ### Screen slide contract
 
@@ -1070,8 +1110,8 @@ paint an opaque background instead.
 Render paths must scope the icon scan: `lucide.createIcons({ root: <container> })`
 — an unscoped call re-creates every `[data-lucide]` icon in the whole document.
 This applies to any path that re-renders on input, not only screen opens (the DVHC
-Lookup search box is one such caller). The unscoped call is reserved for boot
-(`10_bootstrap.js`).
+Lookup search box is one such caller). Boot (`10_bootstrap.js`) also scopes to the
+visible security gate / dashboard roots — it must not scan the whole document.
 
 ## Theme
 

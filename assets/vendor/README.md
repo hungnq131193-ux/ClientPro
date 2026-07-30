@@ -28,4 +28,6 @@ xử lý file trong Bộ công cụ PDF — không tải lúc boot app. Các fil
 `pdf.js` worker trỏ tới `pdf.worker.min.mjs` cục bộ (không gọi mạng để tải worker).
 
 Font tự host tại `../fonts/` (Be Vietnam Pro — SIL OFL 1.1, subset latin/vietnamese,
-khai báo trong `../css/fonts.css`).
+khai báo trong `../css/fonts.css`). Inventory + SHA-256: `../fonts/README.md`.
+Cold-start chỉ preload 2 file weight 400 (latin + vietnamese); các weight còn lại
+tải theo `unicode-range` khi UI cần. Không có official variable font cho family này.

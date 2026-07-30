@@ -410,13 +410,56 @@ function formatLink(link) {
 }
 
 // ============================================================
-// CAMERA WRAPPER (直接 gọi không cần lazy load)
+// CAMERA WRAPPER — ensure modal + document-scanner before open
 // ============================================================
 
-// Camera: Gọi trực tiếp camera function
-function tryOpenCamera(mode) {
+let __docScanLoadPromise = null;
+function __ensureDocumentScanner() {
+    if (window.DocumentScanner) return Promise.resolve(true);
+    if (__docScanLoadPromise) return __docScanLoadPromise;
+    const v = (typeof LAZY_MODULES_V !== 'undefined' && LAZY_MODULES_V) ? LAZY_MODULES_V : '';
+    const vq = v ? `?v=${v}` : '';
+    __docScanLoadPromise = (async () => {
+        if (window.ModalLoader) {
+            try { await window.ModalLoader.ensureFeatureCss(); } catch (e) { }
+            try { await window.ModalLoader.ensure('camera-modal'); } catch (e) { }
+        }
+        const load = (src) => new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src + vq;
+            s.onload = () => resolve(true);
+            s.onerror = () => reject(new Error('script ' + src));
+            document.head.appendChild(s);
+        });
+        await load('assets/document-scanner/document-geometry.js');
+        await load('assets/document-scanner/document-image-enhance.js');
+        await load('assets/document-scanner/document-scanner.js');
+        return !!window.DocumentScanner;
+    })().catch((err) => {
+        __docScanLoadPromise = null;
+        try {
+            ErrorHandler.showError('NETWORK', 'Không tải được máy quét giấy tờ. Thử lại.', err);
+        } catch (e) { }
+        return false;
+    });
+    return __docScanLoadPromise;
+}
+
+// Camera: Gọi trực tiếp camera function (sau khi nạp scanner lần đầu)
+async function tryOpenCamera(mode) {
     try {
-        // Call actual tryOpenCamera from 08_images_camera.js
+        const btn = document.querySelector(`[data-action="tryOpenCamera"][data-arg="${mode}"]`) ||
+            document.querySelector('[data-action="tryOpenCamera"]');
+        if (btn && window.LoadingManager && !window.DocumentScanner) {
+            try { LoadingManager.showButtonLoading(btn); } catch (e) { }
+        }
+        try {
+            await __ensureDocumentScanner();
+        } finally {
+            if (btn && window.LoadingManager) {
+                try { LoadingManager.hideButtonLoading(btn); } catch (e) { }
+            }
+        }
         if (typeof window._tryOpenCameraReal === 'function') {
             window._tryOpenCameraReal(mode);
         } else {
