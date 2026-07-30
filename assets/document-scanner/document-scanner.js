@@ -117,19 +117,26 @@
     }
     var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, cw, ch);
-    if (!corners || corners.length !== 4) return;
-    var sx = cw / w, sy = ch / h;
+    if (!corners || corners.length !== 4 || !w || !h) return;
+    // <video class="object-cover"> uses uniform scale + center crop — not independent sx/sy.
+    var scale = Math.max(cw / w, ch / h);
+    var offsetX = (cw - w * scale) / 2;
+    var offsetY = (ch - h * scale) / 2;
+    function mapPoint(p) {
+      return { x: offsetX + p.x * scale, y: offsetY + p.y * scale };
+    }
+    var mapped = corners.map(mapPoint);
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.95)';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(corners[0].x * sx, corners[0].y * sy);
-    for (var i = 1; i < 4; i++) ctx.lineTo(corners[i].x * sx, corners[i].y * sy);
+    ctx.moveTo(mapped[0].x, mapped[0].y);
+    for (var i = 1; i < 4; i++) ctx.lineTo(mapped[i].x, mapped[i].y);
     ctx.closePath();
     ctx.stroke();
     ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
     for (i = 0; i < 4; i++) {
       ctx.beginPath();
-      ctx.arc(corners[i].x * sx, corners[i].y * sy, 6, 0, Math.PI * 2);
+      ctx.arc(mapped[i].x, mapped[i].y, 6, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -336,6 +343,16 @@
     }
     if (seq !== state.seq || !state.active || (modal && modal.classList.contains('hidden'))) {
       try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { }
+      return;
+    }
+    if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
+      try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { }
+      cleanupAll();
+      return;
+    }
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { }
+      cleanupAll();
       return;
     }
     state.stream = stream;
@@ -739,15 +756,32 @@
   }
 
   async function capturePhotoMode() {
-    // Legacy full-frame capture path
+    // Legacy full-frame capture path — same session gates as captureDocument.
+    if (!state.active) return;
     if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
       cleanupAll();
       return;
     }
+    var captureSeq = state.seq;
+    state.busy = true;
     try {
       var bitmap = await takeHighResBitmap();
+      if (captureSeq !== state.seq || !state.active) {
+        try { bitmap && bitmap.close && bitmap.close(); } catch (e) { }
+        if (captureSeq === state.seq) state.busy = false;
+        return;
+      }
+      if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) {
+        try { bitmap && bitmap.close && bitmap.close(); } catch (e) { }
+        cleanupAll();
+        return;
+      }
       var pack = bitmapToImageData(bitmap);
       try { bitmap.close && bitmap.close(); } catch (e) { }
+      if (captureSeq !== state.seq || !state.active) {
+        if (captureSeq === state.seq) state.busy = false;
+        return;
+      }
       var dataUrl = pack.canvas.toDataURL('image/jpeg', 1.0);
       var snap = state.snapshot || {};
       cleanupAll();

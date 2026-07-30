@@ -573,6 +573,29 @@ test('modals: ensure(id) chèn HTML trước khi resolve — không trả raw fe
   assert.ok(!/inflight\[id\]\s*=\s*fetch\(url\)\s*\n\s*\.then\(function \(res\)/.test(load)
     || /insertHtml/.test(load.slice(load.indexOf('function fetchModal'))),
     'inflight phải gắn với đường insert');
+  // all_ready must NOT eagerly call loadDeferred via criticalPromise.then(loadDeferred).
+  assert.ok(!/__clientpro_modals_all_ready\s*=\s*criticalPromise\.then/.test(load),
+    '__clientpro_modals_all_ready không được criticalPromise.then(loadDeferred) — phá idle defer');
+  assert.ok(/scheduleIdle\(function \(\) \{ loadDeferred\(\); \}\)/.test(load),
+    'business modals chỉ warm qua idle callback');
+});
+
+test('camera open: hủy sau lazy-load nếu khóa/ẩn; photo-mode revalidate sau await', () => {
+  const ui = read('assets/04_ui_common.js');
+  assert.ok(/__cameraOpenAttemptSeq/.test(ui) && /__cameraOpenStillAllowed/.test(ui),
+    'tryOpenCamera phải có token hủy sau await lazy-load');
+  const tryBody = fnBody(ui, 'tryOpenCamera');
+  assert.ok(/__cameraOpenStillAllowed\(attempt\)/.test(tryBody),
+    'sau ensureDocumentScanner phải chặn mở nếu attempt hết hiệu lực');
+  assert.ok(/clientpro:locked|visibilitychange/.test(ui),
+    'lock/hide phải invalidate pending camera open');
+
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const photo = fnBody(scan, 'capturePhotoMode');
+  assert.ok(/captureSeq/.test(photo) && /isAppUnlocked/.test(photo),
+    'capturePhotoMode phải re-check session/unlock sau takeHighResBitmap');
+  assert.ok(/Math\.max\(\s*cw\s*\/\s*w\s*,\s*ch\s*\/\s*h\s*\)/.test(fnBody(scan, 'drawOverlay')),
+    'drawOverlay phải map theo object-cover (max scale), không sx/sy độc lập');
 });
 
 test('document-scanner: review layout sau khi unhide; still-fail bỏ preview corners; session gate', () => {

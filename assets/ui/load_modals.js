@@ -130,9 +130,17 @@
   });
 
   window.__clientpro_modals_ready = criticalPromise;
-  window.__clientpro_modals_all_ready = criticalPromise.then(function () {
-    return loadDeferred();
-  });
+  // Lazy thenable: do NOT call loadDeferred() when assigning this export — that would
+  // start all business-modal fetches as soon as critical settles and defeat idle deferral.
+  // Only load when someone actually awaits / .then()s this value (or idle fires above).
+  window.__clientpro_modals_all_ready = {
+    then: function (onFulfilled, onRejected) {
+      return loadDeferred().then(onFulfilled, onRejected);
+    },
+    catch: function (onRejected) {
+      return loadDeferred().catch(onRejected);
+    },
+  };
 
   window.ModalLoader = {
     /** Ensure a modal DOM id is present before opening it. */

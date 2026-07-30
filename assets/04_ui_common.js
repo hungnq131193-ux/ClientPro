@@ -414,6 +414,32 @@ function formatLink(link) {
 // ============================================================
 
 let __docScanLoadPromise = null;
+/** Bumped to cancel in-flight tryOpenCamera after lock / hide / newer tap. */
+let __cameraOpenAttemptSeq = 0;
+
+function __invalidatePendingCameraOpen() {
+    __cameraOpenAttemptSeq++;
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') __invalidatePendingCameraOpen();
+});
+document.addEventListener('clientpro:locked', __invalidatePendingCameraOpen);
+window.addEventListener('pagehide', __invalidatePendingCameraOpen);
+
+function __cameraOpenStillAllowed(attempt) {
+    if (attempt !== __cameraOpenAttemptSeq) return false;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return false;
+    if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) return false;
+    try {
+        const lock = document.getElementById('screen-lock');
+        if (lock && !lock.classList.contains('hidden')) return false;
+        const act = document.getElementById('activation-modal');
+        if (act && !act.classList.contains('hidden')) return false;
+    } catch (e) { }
+    return true;
+}
+
 function __ensureDocumentScanner() {
     if (window.DocumentScanner) return Promise.resolve(true);
     if (__docScanLoadPromise) return __docScanLoadPromise;
@@ -447,6 +473,7 @@ function __ensureDocumentScanner() {
 
 // Camera: Gọi trực tiếp camera function (sau khi nạp scanner lần đầu)
 async function tryOpenCamera(mode) {
+    const attempt = ++__cameraOpenAttemptSeq;
     try {
         const btn = document.querySelector(`[data-action="tryOpenCamera"][data-arg="${mode}"]`) ||
             document.querySelector('[data-action="tryOpenCamera"]');
@@ -460,6 +487,8 @@ async function tryOpenCamera(mode) {
                 try { LoadingManager.hideButtonLoading(btn); } catch (e) { }
             }
         }
+        // Lazy-load may finish after lock / hide / a newer tap — do not open camera then.
+        if (!__cameraOpenStillAllowed(attempt)) return;
         if (typeof window._tryOpenCameraReal === 'function') {
             window._tryOpenCameraReal(mode);
         } else {
