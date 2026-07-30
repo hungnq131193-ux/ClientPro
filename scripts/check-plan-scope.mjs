@@ -32,6 +32,27 @@ function section(text, start, end) {
   return text.slice(a, b + end.length);
 }
 
+function functionSpan(text, name) {
+  const re = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
+  const match = re.exec(text);
+  if (!match) throw new Error(`Cannot locate function ${name}`);
+  const open = text.indexOf('{', match.index);
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') {
+      depth--;
+      if (depth === 0) return { start: match.index, open, end: i + 1 };
+    }
+  }
+  throw new Error(`Cannot close function ${name}`);
+}
+
+function withoutFunction(text, name) {
+  const span = functionSpan(text, name);
+  return text.slice(0, span.start) + `/* protected adapter:${name} */` + text.slice(span.end);
+}
+
 const changed = git(['diff', '--name-only', `${BASE}...HEAD`])
   .trim()
   .split(/\r?\n/)
@@ -57,6 +78,7 @@ const fullyAllowed = new Set([
   'assets/styles.css',
   'assets/css/app.patch.css',
   'assets/css/features.css',
+  'assets/css/fonts.css',
   'assets/fonts/README.md',
   'assets/ui/load_modals.js',
   'assets/ui/modals/camera-modal.html',
@@ -113,14 +135,34 @@ for (const prefix of ['assets/pdf-toolkit/', 'assets/dvhc-lookup/', 'assets/data
   same('03_map.js có thay đổi ngoài MAPLIBRE_V', stripWhitespaceEnd(normalize(at(BASE, 'assets/03_map.js'))), stripWhitespaceEnd(normalize(current('assets/03_map.js'))));
 }
 
-// Customer adapter: only make openModal await the lazy add-modal fragment.
+// Customer adapter: every byte outside openModal stays locked. Inside openModal,
+// remove only the lazy-fragment prologue and map the modal variable back to the
+// original DOM expression before comparing the business form initialization.
 {
   const base = at(BASE, 'assets/05_customers.js');
-  let now = current('assets/05_customers.js');
-  now = now.replace('async function openModal() {', 'function openModal() {');
-  now = now.replace(/\n    \/\/ Nút empty-state[\s\S]*?\n    if \(!modal\) return;\n/, '\n');
-  now = now.replace("    modal.classList.remove('hidden');", "    getEl('add-modal').classList.remove('hidden');");
-  same('05_customers.js có thay đổi ngoài lazy-modal adapter', stripWhitespaceEnd(base), stripWhitespaceEnd(now));
+  const now = current('assets/05_customers.js');
+  same(
+    '05_customers.js có thay đổi ngoài openModal adapter',
+    stripWhitespaceEnd(withoutFunction(base, 'openModal')),
+    stripWhitespaceEnd(withoutFunction(now, 'openModal')),
+  );
+
+  const baseSpan = functionSpan(base, 'openModal');
+  const nowSpan = functionSpan(now, 'openModal');
+  const baseFn = base.slice(baseSpan.start, baseSpan.end);
+  let nowFn = now.slice(nowSpan.start, nowSpan.end);
+  const businessAnchor = '    // Vô hiệu hóa lượt decrypt sửa-hồ-sơ còn treo';
+  const businessAt = nowFn.indexOf(businessAnchor);
+  if (businessAt < 0) {
+    errors.push('05_customers.js openModal thiếu phần business initialization gốc');
+  } else {
+    nowFn = 'function openModal() {\n' + nowFn.slice(businessAt);
+    nowFn = nowFn.replace("    modal.classList.remove('hidden');", "    getEl('add-modal').classList.remove('hidden');");
+    same('05_customers.js openModal thay đổi ngoài lazy-modal prologue', stripWhitespaceEnd(baseFn), stripWhitespaceEnd(nowFn));
+  }
+  if (!/ModalLoader\.ensure\('add-modal'\)/.test(now.slice(nowSpan.start, nowSpan.end))) {
+    errors.push('05_customers.js openModal phải await ModalLoader.ensure(add-modal)');
+  }
 }
 
 // Asset adapters: ensure deferred modal DOM exists before the existing handlers.
