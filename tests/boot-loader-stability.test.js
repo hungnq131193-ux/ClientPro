@@ -23,7 +23,7 @@ function fnBody(src, name) {
   assert.fail(`Không cắt được function ${name}`);
 }
 
-test('boot loader: giữ contentful paint thật nhưng không rewrite text node khi đã ẩn', () => {
+test('boot loader: giữ contentful paint thật, park sau gate và không rewrite khi ẩn', () => {
   const css = read('assets/css/fonts.css');
   const head = read('assets/head.js');
 
@@ -37,10 +37,18 @@ test('boot loader: giữ contentful paint thật nhưng không rewrite text node
     'chỉ thay loader copy khi thông điệp thực sự đổi');
   assert.match(stabilize, /manager\.hideGlobal\s*=\s*function stableHideGlobal/,
     'hideGlobal phải được ổn định trước bootstrap');
+  assert.match(stabilize, /visibleSecurityGate\(\)[\s\S]*classList\.add\('cp-loader-parked'\)/,
+    'security gate phải park loader thay vì xóa LCP candidate');
   const hideStart = stabilize.indexOf('manager.hideGlobal');
   const hidePart = stabilize.slice(hideStart);
   assert.doesNotMatch(hidePart, /textContent\s*=/,
-    'hideGlobal không được thay textContent của node đã ẩn');
+    'hideGlobal không được thay textContent của node đã ẩn/parked');
+
+  const sync = fnBody(head, 'syncBootShell');
+  assert.match(sync, /classList\.contains\('hidden'\)[\s\S]*classList\.remove\('hidden'\)[\s\S]*classList\.add\('cp-loader-parked'\)/,
+    'observer phải đóng race hide trước khi security fragment được chèn');
+  assert.match(sync, /cp-loader-parked[\s\S]*releaseBootShell\('security-gate'\)/,
+    'chỉ release boot sau khi loader đã parked ổn định');
   assert.match(head, /watchLoadingManagerExport\(\)/,
     'head.js phải intercept export LoadingManager trước bootstrap');
 });
@@ -52,6 +60,8 @@ test('boot/theme: release marker bền qua body.className và bị thu hồi khi
   const close = fnBody(head, 'closeBusinessShellForGate');
 
   assert.match(release, /setAttribute\('data-cp-boot-ready',\s*'1'\)/);
+  assert.match(release, /reason\s*===\s*'unlocked'[\s\S]*classList\.add\('hidden'\)/,
+    'unlock phải gỡ loader parked trước khi lộ business shell');
   assert.match(close, /removeAttribute\('data-cp-boot-ready'\)/);
   assert.match(css, /body:not\(\[data-cp-boot-ready="1"\]\)/,
     'critical CSS phải dựa vào marker không bị setTheme xóa');
