@@ -47,6 +47,71 @@
     }
   }
 
+  /**
+   * LoadingManager used to replace #loader-text after hiding the overlay. The node
+   * was no longer visible, but Lighthouse Lantern attributed that late DOM paint to
+   * the original loader copy and held it as LCP for ~3.7s. Keep the initial node
+   * stable: update copy only when a visible loading operation actually needs a new
+   * message, and never rewrite hidden text during hideGlobal().
+   */
+  function stabilizeLoadingManager(manager) {
+    if (!manager || manager.__cpStableLoaderText) return false;
+    const initialText = document.getElementById('loader-text');
+    if (initialText && initialText.textContent) {
+      manager._originalLoaderText = initialText.textContent;
+    }
+
+    manager.showGlobal = function stableShowGlobal(message) {
+      this._globalCount++;
+      const loader = document.getElementById('loader');
+      const text = document.getElementById('loader-text');
+      const desired = message || 'Đang xử lý...';
+      if (text && text.textContent !== desired) text.textContent = desired;
+      if (loader) {
+        loader.classList.remove('hidden');
+        loader.classList.remove('is-progress');
+      }
+    };
+
+    manager.hideGlobal = function stableHideGlobal(force) {
+      if (force) this._globalCount = 0;
+      else this._globalCount = Math.max(0, this._globalCount - 1);
+      if (this._globalCount > 0) return;
+      const loader = document.getElementById('loader');
+      if (loader) {
+        loader.classList.add('hidden');
+        loader.classList.remove('is-progress');
+      }
+      // Do not mutate #loader-text while hidden. The next showGlobal/showProgress
+      // call sets its required message before making the overlay visible again.
+      this._setProgressBar(null);
+    };
+
+    manager.__cpStableLoaderText = true;
+    return true;
+  }
+
+  // head.js executes before 19_error_loading.js. Intercept its global export so the
+  // stabilized methods are installed before bootstrap can call hideGlobal().
+  function watchLoadingManagerExport() {
+    if (window.LoadingManager) return stabilizeLoadingManager(window.LoadingManager);
+    try {
+      let current;
+      Object.defineProperty(window, 'LoadingManager', {
+        configurable: true,
+        enumerable: true,
+        get() { return current; },
+        set(value) {
+          current = value;
+          stabilizeLoadingManager(current);
+        },
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function releaseBootShell(reason) {
     if (bootReleased) return;
     const body = document.body;
@@ -161,6 +226,7 @@
   }
 
   function bindBootObserver() {
+    stabilizeLoadingManager(window.LoadingManager);
     syncBootShell();
     installScannerOpenGuard();
     try {
@@ -203,6 +269,7 @@
   });
   window.addEventListener('pagehide', function () { scannerOpenEpoch++; });
 
+  watchLoadingManagerExport();
   bindScannerScriptObserver();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bindBootObserver, { once: true });
