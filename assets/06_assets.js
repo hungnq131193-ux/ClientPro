@@ -350,11 +350,29 @@ function renderAssets() {
     if (mapAnchor) mapAnchor.setAttribute('href', mapLink);
 
     const editBtn = el.querySelector('[data-asset-action="edit"]');
-    if (editBtn) editBtn.addEventListener("click", () => openEditAssetModal(index));
+    if (editBtn) editBtn.addEventListener("click", async () => {
+      if (window.ModalLoader && typeof window.ModalLoader.ensure === "function") {
+        try { await window.ModalLoader.ensure("asset-modal"); } catch (e) { }
+      }
+      if (!getEl("asset-modal")) {
+        ErrorHandler.showError("NETWORK", "Không tải được biểu mẫu tài sản. Vui lòng thử lại.");
+        return;
+      }
+      openEditAssetModal(index);
+    });
     const deleteBtn = el.querySelector('[data-asset-action="delete"]');
     if (deleteBtn) deleteBtn.addEventListener("click", () => deleteAsset(index));
     const referenceBtn = el.querySelector('[data-asset-action="reference"]');
-    if (referenceBtn) referenceBtn.addEventListener("click", () => referenceAssetPrice(index));
+    if (referenceBtn) referenceBtn.addEventListener("click", async () => {
+      if (window.ModalLoader && typeof window.ModalLoader.ensure === "function") {
+        try { await window.ModalLoader.ensure("ref-price-modal"); } catch (e) { }
+      }
+      if (!getEl("ref-price-modal")) {
+        ErrorHandler.showError("NETWORK", "Không tải được bảng giá tham khảo. Vui lòng thử lại.");
+        return;
+      }
+      referenceAssetPrice(index);
+    });
     const galleryBtn = el.querySelector('[data-asset-action="gallery"]');
     if (galleryBtn) galleryBtn.addEventListener("click", () => openAssetGallery(asset.id, decName, index));
     frag.appendChild(el);
@@ -621,4 +639,3 @@ function openGuideModal() {
 function closeGuideModal() {
   getEl("guide-modal").classList.add("hidden");
 }
-

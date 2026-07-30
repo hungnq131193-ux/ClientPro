@@ -24,7 +24,8 @@
     active: false,
     worker: null,
     detectId: 0,
-    detectInFlight: false, // backpressure: one worker detect at a time
+    previewDetectInFlight: false,
+    previewDetectId: 0,
     lastCorners: null,
     stableSince: 0,
     history: [],
@@ -148,12 +149,17 @@
   function onWorkerMessage(ev) {
     var msg = ev.data || {};
     if (msg.type !== 'detect-result') return;
-    // Any completed detect (even stale) frees the slot so the loop can post again.
-    state.detectInFlight = false;
-    if (msg.id !== state.detectId) return;
-    if (!state.active || state.mode !== 'document' || state.busy) return;
+    // Preview detection is single-flight. Clear the gate for the exact request
+    // before any stale/session checks so a slow device can submit the next frame
+    // instead of accumulating work in the Worker queue.
+    if (msg.id === state.previewDetectId) {
+      state.previewDetectInFlight = false;
+      state.previewDetectId = 0;
+    }
     var meta = state.detectMeta && state.detectMeta[msg.id];
     if (state.detectMeta) delete state.detectMeta[msg.id];
+    if (msg.id !== state.detectId) return;
+    if (!state.active || state.mode !== 'document' || state.busy) return;
     if (!msg.ok || !msg.corners) {
       state.history = [];
       state.lastCorners = null;
@@ -226,11 +232,7 @@
   }
 
   function requestDetect() {
-    if (!state.active || state.mode !== 'document' || state.busy) return;
-    // Wait for the current worker result before posting another frame — otherwise
-    // every reply arrives after detectId has advanced and is discarded while the
-    // queue (and RAM) grow on slow devices.
-    if (state.detectInFlight) return;
+    if (!state.active || state.mode !== 'document' || state.busy || state.previewDetectInFlight) return;
     var sample = samplePreviewFrame();
     if (!sample) return;
     // Quick lighting check on main thread (cheap downsample already)
@@ -250,16 +252,23 @@
     var id = ++state.detectId;
     if (!state.detectMeta) state.detectMeta = Object.create(null);
     state.detectMeta[id] = { sharpOk: sharpOk };
-    state.detectInFlight = true;
-    worker.postMessage({
-      type: 'detect',
-      id: id,
-      imageData: {
-        width: sample.imageData.width,
-        height: sample.imageData.height,
-        data: sample.imageData.data,
-      },
-    });
+    state.previewDetectInFlight = true;
+    state.previewDetectId = id;
+    try {
+      worker.postMessage({
+        type: 'detect',
+        id: id,
+        imageData: {
+          width: sample.imageData.width,
+          height: sample.imageData.height,
+          data: sample.imageData.data,
+        },
+      });
+    } catch (e) {
+      state.previewDetectInFlight = false;
+      state.previewDetectId = 0;
+      delete state.detectMeta[id];
+    }
   }
 
   function loopDetect() {
@@ -396,13 +405,23 @@
       try { state.worker.terminate(); } catch (e) { }
       state.worker = null;
     }
+    state.previewDetectInFlight = false;
+    state.previewDetectId = 0;
   }
 
   function closeReview() {
     var rev = document.getElementById('doc-scan-review');
     if (rev) rev.classList.add('hidden');
-    // Drop plaintext review backing store — hiding alone leaves full-res pixels
-    // readable via canvas.toDataURL() behind the lock screen.
+    if (state.review && state.review.objectUrl) {
+      try { URL.revokeObjectURL(state.review.objectUrl); } catch (e) { }
+    }
+    // The review contains a full-resolution plaintext document. Hiding the
+    // overlay is not cleanup: clear both the JS buffer and the canvas backing
+    // store so lock/cancel/save leaves no readable pixels in the DOM.
+    if (state.review && state.review.imageData && state.review.imageData.data
+      && typeof state.review.imageData.data.fill === 'function') {
+      try { state.review.imageData.data.fill(0); } catch (e) { }
+    }
     var canvas = document.getElementById('cp-review-canvas');
     if (canvas) {
       try {
@@ -413,17 +432,12 @@
       } catch (e) { }
       canvas.width = 0;
       canvas.height = 0;
-      try { canvas.style.width = ''; canvas.style.height = ''; } catch (e) { }
+      canvas.style.width = '';
+      canvas.style.height = '';
     }
     var handles = document.getElementById('cp-review-corners');
     if (handles) {
       while (handles.firstChild) handles.removeChild(handles.firstChild);
-    }
-    if (state.review && state.review.objectUrl) {
-      try { URL.revokeObjectURL(state.review.objectUrl); } catch (e) { }
-    }
-    if (state.review && state.review.imageData && state.review.imageData.data) {
-      try { state.review.imageData.data.fill(0); } catch (e) { }
     }
     state.review = null;
   }
@@ -433,8 +447,9 @@
     state.seq = (state.seq || 0) + 1;
     state.active = false;
     state.busy = false;
-    state.detectInFlight = false;
     state.detectMeta = Object.create(null);
+    state.previewDetectInFlight = false;
+    state.previewDetectId = 0;
     stopLoop();
     cleanupStreamOnly();
     terminateWorker();
@@ -851,5 +866,10 @@
     if (document.visibilityState === 'hidden') cleanupAll();
   });
   window.addEventListener('pagehide', function () { cleanupAll(); });
+  // 04_ui_common observes the real security-gate DOM lifecycle. It emits this
+  // for both ordinary lock and server-side revocation (activation gate).
+  // clearMasterKeyMaterial also dispatches clientpro:locked when a real session
+  // was cleared — listen for both so cleanup cannot miss a race before the gate paints.
+  document.addEventListener('clientpro:security-gate-shown', function () { cleanupAll(); });
   document.addEventListener('clientpro:locked', function () { cleanupAll(); });
 })();
