@@ -1,7 +1,7 @@
 // Load HTML partials for modals (async fetch, no sync XHR)
 // Cold start inserts only the security gate required by the current local state.
-// Remaining security modals warm after first paint; business modals warm at idle
-// or load on demand through ModalLoader.ensure(id).
+// Remaining surfaces load on demand. Business modals may warm sequentially only
+// after a successful unlock, so activation/lock first paint has no modal batch.
 //
 // ensure(id) ALWAYS resolves only after that modal's HTML is inserted (or failed).
 // Never hand back a raw fetch promise from a batch that inserts later.
@@ -24,15 +24,14 @@
   }
 
   // CRITICAL cold path: exactly one mutually-exclusive primary security gate.
-  // Loading only the gate implied by local activation/PIN state removes four
-  // network competitors without changing checkSecurity() or any gate markup.
   var PRIMARY_SECURITY = [
     'screen-lock',
     'setup-lock-modal',
     'activation-modal',
   ];
 
-  // These are security surfaces but never required to produce the first frame.
+  // These security surfaces are always available through ensure(id), but are not
+  // speculative cold-start requests.
   var AUX_SECURITY = [
     'forgot-pin-modal',
     'biometric-setup-modal',
@@ -61,8 +60,7 @@
   var inflight = Object.create(null);
 
   // load_modals.js executes before 01_config.js, so capture the version from this
-  // script's own ?v= token while document.currentScript still points at it. This
-  // keeps the first security-fragment request identical to the SW precache URL.
+  // script's own ?v= token while document.currentScript still points at it.
   var loaderAssetVersion = (function () {
     try {
       var script = document.currentScript;
@@ -116,8 +114,8 @@
     root.insertAdjacentHTML('beforeend', html + '\n');
   }
 
-  // Kept as a named regression contract: every deferred fragment is scanned only
-  // inside its inserted subtree, never by a document-wide Lucide pass.
+  // Named regression contract: deferred fragments are scanned only inside the
+  // inserted subtree, never by a document-wide Lucide pass.
   function initDeferredModalIcons(id, modal) {
     if (DEFERRED.indexOf(id) < 0 || !modal) return;
     try {
@@ -127,14 +125,20 @@
     } catch (e) { }
   }
 
-  // Remaining security fragments arrive after bootstrap's primary-gate scan and
-  // therefore need the same scoped initialization when their warm request lands.
   function initSecurityModalIcons(id, modal) {
     if (SECURITY.indexOf(id) < 0 || !modal) return;
     try {
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         window.lucide.createIcons({ root: modal });
       }
+    } catch (e) { }
+  }
+
+  function dispatchSecurityLoaded(detail) {
+    try {
+      document.dispatchEvent(new CustomEvent('clientpro:modals-critical-loaded', {
+        detail: detail || {},
+      }));
     } catch (e) { }
   }
 
@@ -170,6 +174,9 @@
           loaded[id] = true;
           initSecurityModalIcons(id, modal);
           initDeferredModalIcons(id, modal);
+          if (SECURITY.indexOf(id) >= 0) {
+            dispatchSecurityLoaded({ inserted: id, complete: false });
+          }
         }
         delete inflight[id];
         return !!loaded[id];
@@ -189,77 +196,32 @@
     });
   }
 
-  function scheduleIdle(fn) {
+  function scheduleIdle(fn, timeout) {
     if (typeof requestIdleCallback === 'function') {
-      requestIdleCallback(function () { fn(); }, { timeout: 2500 });
+      requestIdleCallback(function () { fn(); }, { timeout: timeout || 2500 });
     } else {
       setTimeout(fn, 1);
     }
   }
 
-  function scheduleAfterFirstPaint(fn) {
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () { fn(); });
-      });
-    } else {
-      setTimeout(fn, 32);
-    }
-  }
-
-  // Two rAF callbacks are not a reliable proof of FCP when render-blocking CSS is
-  // still being processed under mobile throttling. Observe the browser's actual
-  // first-contentful-paint entry, then enqueue warm traffic. The fallback preserves
-  // behaviour on older browsers without PerformanceObserver.
-  function afterFirstContentfulPaint(fn) {
-    var finished = false;
-    var observer = null;
-    var fallback = null;
-
-    function run() {
-      if (finished) return;
-      finished = true;
-      if (observer) {
-        try { observer.disconnect(); } catch (e) { }
-      }
-      if (fallback) clearTimeout(fallback);
-      scheduleAfterFirstPaint(fn);
-    }
-
-    try {
-      if (typeof performance !== 'undefined'
-        && typeof performance.getEntriesByName === 'function'
-        && performance.getEntriesByName('first-contentful-paint').length) {
-        run();
+  // Warm one fragment per idle slice. This prevents a slow phone from parsing and
+  // inserting eight modal trees in one long task.
+  function warmSequential(ids, onDone) {
+    var queue = ids.slice();
+    function next() {
+      if (!queue.length) {
+        if (typeof onDone === 'function') onDone(true);
         return;
       }
-      if (typeof PerformanceObserver === 'function') {
-        observer = new PerformanceObserver(function (list) {
-          var entries = list.getEntries();
-          for (var i = 0; i < entries.length; i++) {
-            if (entries[i].name === 'first-contentful-paint') {
-              run();
-              break;
-            }
-          }
+      scheduleIdle(function () {
+        var id = queue.shift();
+        fetchModal(id).then(function () {
+          // Yield both the main thread and network queue between fragments.
+          setTimeout(next, 80);
         });
-        observer.observe({ type: 'paint', buffered: true });
-        // Fail-open for engines that expose PerformanceObserver but not paint
-        // entries. This is deliberately later than the locked FCP budget.
-        fallback = setTimeout(run, 2200);
-        return;
-      }
-    } catch (e) { }
-
-    scheduleAfterFirstPaint(fn);
-  }
-
-  function dispatchSecurityLoaded(detail) {
-    try {
-      document.dispatchEvent(new CustomEvent('clientpro:modals-critical-loaded', {
-        detail: detail || {},
-      }));
-    } catch (e) { }
+      }, 4000);
+    }
+    next();
   }
 
   var initialSecurityId = initialSecurityModalId();
@@ -268,6 +230,8 @@
     return ok;
   });
 
+  // Explicit all-security readiness remains available to callers/tests, but no
+  // longer starts speculatively while activation or lock is on screen.
   var securityPromise = null;
   function loadRemainingSecurity() {
     if (!securityPromise) {
@@ -279,6 +243,7 @@
     return securityPromise;
   }
 
+  // Explicit all-business readiness. User action paths continue to use ensure(id).
   var deferredPromise = null;
   function loadDeferred() {
     if (!deferredPromise) {
@@ -290,18 +255,20 @@
     return deferredPromise;
   }
 
-  // Security transitions (activation → PIN setup, forgot PIN, biometric) should be
-  // ready before a human can act, but never compete with the measured first frame.
-  criticalPromise.then(function () {
-    afterFirstContentfulPaint(function () { loadRemainingSecurity(); });
-  });
-
-  // Business modals warm only after measured FCP AND during idle time.
-  criticalPromise.then(function () {
-    afterFirstContentfulPaint(function () {
-      scheduleIdle(function () { loadDeferred(); });
-    });
-  });
+  // Business warming is useful only after data is unlocked. Delay it beyond the
+  // unlock transition, then parse one fragment per idle slice. A direct early tap
+  // still wins immediately through ensure(id) and shares the same inflight promise.
+  var deferredWarmStarted = false;
+  function startDeferredWarmAfterUnlock() {
+    if (deferredWarmStarted) return;
+    deferredWarmStarted = true;
+    setTimeout(function () {
+      warmSequential(DEFERRED, function () {
+        try { document.dispatchEvent(new CustomEvent('clientpro:modals-loaded')); } catch (e) { }
+      });
+    }, 2000);
+  }
+  document.addEventListener('clientpro:unlocked', startDeferredWarmAfterUnlock, { once: true });
 
   window.__clientpro_modals_ready = criticalPromise;
   try {
@@ -335,7 +302,6 @@
       if (ALL.indexOf(id) >= 0) return fetchModal(id);
       return Promise.resolve(false);
     },
-    // Required gate only: bootstrap no longer waits for five security fragments.
     criticalReady: function () {
       return criticalPromise;
     },
@@ -368,6 +334,47 @@
       };
     })(),
   };
+
+  // Activation's next surface is setup-lock-modal. Intercept only while that
+  // fragment is absent, show immediate busy feedback, then call the unchanged
+  // activation logic after insertion. This closes the fastest-tap race without a
+  // speculative setup request on cold start.
+  var activationEnsureInFlight = false;
+  document.addEventListener('click', function (ev) {
+    var target = ev.target && ev.target.closest
+      ? ev.target.closest('[data-action="activateApp"]')
+      : null;
+    if (!target || document.getElementById('setup-lock-modal')) return;
+
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    if (activationEnsureInFlight) return;
+    activationEnsureInFlight = true;
+    target.disabled = true;
+    target.setAttribute('aria-busy', 'true');
+
+    window.ModalLoader.ensure('setup-lock-modal').then(function (ok) {
+      if (!ok || typeof window.activateApp !== 'function') {
+        try {
+          if (window.ErrorHandler) {
+            window.ErrorHandler.showError('NETWORK', 'Không tải được màn hình tạo PIN. Vui lòng thử lại.');
+          }
+        } catch (e) { }
+        return false;
+      }
+      return window.activateApp();
+    }).catch(function (e) {
+      try {
+        if (window.ErrorHandler) {
+          window.ErrorHandler.showError('NETWORK', 'Không tải được màn hình tạo PIN. Vui lòng thử lại.', e);
+        }
+      } catch (err) { }
+    }).finally(function () {
+      activationEnsureInFlight = false;
+      target.disabled = false;
+      target.removeAttribute('aria-busy');
+    });
+  }, true);
 
   // Some non-delegated callbacks (notably the customer empty state) call
   // openModal() directly. Guard the function itself so every path waits for the
