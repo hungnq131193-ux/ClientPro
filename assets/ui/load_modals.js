@@ -50,7 +50,32 @@
   // inflight[id] = Promise that resolves AFTER insert (or failure) — never raw fetch.
   var inflight = Object.create(null);
 
+  // load_modals.js executes before 01_config.js, so capture the version from this
+  // script's own ?v= token while document.currentScript still points at it. This
+  // keeps the first critical security-fragment requests identical to SW precache
+  // URLs instead of briefly falling back to unversioned, immutable requests.
+  var loaderAssetVersion = (function () {
+    try {
+      var script = document.currentScript;
+      if (!script) {
+        var scripts = document.getElementsByTagName('script');
+        for (var i = scripts.length - 1; i >= 0; i--) {
+          if ((scripts[i].src || '').indexOf('assets/ui/load_modals.js') >= 0) {
+            script = scripts[i];
+            break;
+          }
+        }
+      }
+      var src = script && script.src ? script.src : '';
+      var match = /[?&]v=([^&#]+)/.exec(src);
+      return match && match[1] ? decodeURIComponent(match[1]) : '';
+    } catch (e) {
+      return '';
+    }
+  })();
+
   function assetVersion() {
+    if (loaderAssetVersion) return loaderAssetVersion;
     try {
       if (typeof LAZY_MODULES_V !== 'undefined' && LAZY_MODULES_V) return String(LAZY_MODULES_V);
     } catch (e) { }
@@ -206,12 +231,7 @@
       var cssPromise = null;
       return function () {
         if (cssPromise) return cssPromise;
-        var href = 'assets/css/features.css';
-        try {
-          if (typeof LAZY_MODULES_V !== 'undefined' && LAZY_MODULES_V) {
-            href += '?v=' + LAZY_MODULES_V;
-          }
-        } catch (e) { }
+        var href = versionedUrl('assets/css/features.css');
         cssPromise = new Promise(function (resolve) {
           if (document.querySelector('link[data-cp-features-css]')) {
             resolve(true);
