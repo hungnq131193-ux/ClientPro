@@ -283,16 +283,30 @@
     bindBootObserver();
   }
 
-  // Promote redesign stylesheet from media=print → all without blocking first paint.
+  // Promote deferred stylesheets from media=print → all without blocking first paint.
+  // Tailwind + app styles + the redesign layer all ship as preload + media=print so
+  // the boot loader (LCP element) paints from the render-blocking fonts.css + inline
+  // critical CSS. Promote each the moment its sheet is parsed (link.sheet is non-null)
+  // so the security gate is styled as early as possible; fall back to load/DCL.
   try {
-    const applyRedesign = () => {
-      const link = document.getElementById('cp-redesign-css');
-      if (link && link.media !== 'all') link.media = 'all';
+    const DEFERRED_STYLE_IDS = ['cp-fonts-css', 'cp-tailwind-css', 'cp-styles-css', 'cp-redesign-css'];
+    const promote = (link) => { if (link && link.media !== 'all') link.media = 'all'; };
+    const promoteAll = () => {
+      DEFERRED_STYLE_IDS.forEach((id) => {
+        const link = document.getElementById(id);
+        if (!link || link.media === 'all') return;
+        // Already downloaded/parsed → apply now (no re-block). Otherwise apply on load.
+        if (link.sheet) promote(link);
+        else link.addEventListener('load', () => promote(link), { once: true });
+      });
     };
+    promoteAll();
+    // Safety net: ensure everything is applied by DOMContentLoaded even if a load
+    // event was missed (e.g. the sheet finished between the check and the listener).
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', applyRedesign, { once: true });
-    } else {
-      applyRedesign();
+      document.addEventListener('DOMContentLoaded', () => {
+        DEFERRED_STYLE_IDS.forEach((id) => promote(document.getElementById(id)));
+      }, { once: true });
     }
   } catch (e) { }
 })();
