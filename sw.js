@@ -103,19 +103,21 @@ const STATIC_ASSETS = [
   `./assets/document-scanner/document-scanner.js?v=${ASSET_V}`,
   `./assets/document-scanner/document-detector.worker.js?v=${ASSET_V}`,
 
-  './assets/ui/modals/screen-lock.html',
-  './assets/ui/modals/setup-lock-modal.html',
-  './assets/ui/modals/activation-modal.html',
-  './assets/ui/modals/forgot-pin-modal.html',
-  './assets/ui/modals/biometric-setup-modal.html',
-  './assets/ui/modals/add-modal.html',
-  './assets/ui/modals/asset-modal.html',
-  './assets/ui/modals/guide-modal.html',
-  './assets/ui/modals/approve-modal.html',
-  './assets/ui/modals/ref-price-modal.html',
-  './assets/ui/modals/donate-modal.html',
-  './assets/ui/modals/camera-modal.html',
-  './assets/ui/modals/backup-manager-modal.html',
+  // Modal fragments — versioned to match load_modals.js fetch (?v=ASSET_V) so a
+  // 1.4.x→1.5.x upgrade cannot serve a stale camera-modal from the old SW cache.
+  `./assets/ui/modals/screen-lock.html?v=${ASSET_V}`,
+  `./assets/ui/modals/setup-lock-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/activation-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/forgot-pin-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/biometric-setup-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/add-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/asset-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/guide-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/approve-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/ref-price-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/donate-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/camera-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/backup-manager-modal.html?v=${ASSET_V}`,
 
   // Font woff2 (self-host) — precache để chữ hiển thị đúng khi offline.
   // Chỉ còn Be Vietnam Pro subset latin + vietnamese (đã bỏ latin-ext và toàn bộ

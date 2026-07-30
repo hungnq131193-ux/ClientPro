@@ -478,11 +478,23 @@
   }
 
   function bitmapToImageData(bitmap) {
+    // Cap retained still resolution early. ImageCapture.takePhoto() often returns
+    // 8–12 MP; keeping multiple full-res RGBA buffers (canvas + ImageData + review
+    // copy + redetect temp) can OOM mid-range phones. Document compress / warp
+    // already target ≤2400px long side — match that ceiling here.
+    var STILL_MAX_LONG_SIDE = 2400;
+    var srcW = bitmap.width;
+    var srcH = bitmap.height;
+    var longSide = Math.max(srcW, srcH) || 1;
+    var scale = longSide > STILL_MAX_LONG_SIDE ? (STILL_MAX_LONG_SIDE / longSide) : 1;
+    var w = Math.max(1, Math.round(srcW * scale));
+    var h = Math.max(1, Math.round(srcH * scale));
     var c = document.createElement('canvas');
-    c.width = bitmap.width; c.height = bitmap.height;
+    c.width = w;
+    c.height = h;
     var ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(bitmap, 0, 0);
-    return { canvas: c, ctx: ctx, imageData: ctx.getImageData(0, 0, c.width, c.height) };
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    return { canvas: c, ctx: ctx, imageData: ctx.getImageData(0, 0, w, h) };
   }
 
   function imageDataToJpegDataUrl(imageData, quality) {
@@ -495,7 +507,7 @@
     return c.toDataURL('image/jpeg', quality == null ? 0.92 : quality);
   }
 
-  async function redetectOnStill(imageData) {
+  async function redetectOnStill(imageData, sourceCanvas) {
     return new Promise(function (resolve) {
       var worker = ensureWorker();
       var id = ++state.detectId;
@@ -507,10 +519,19 @@
       var c = document.createElement('canvas');
       c.width = w; c.height = h;
       var ctx = c.getContext('2d', { willReadFrequently: true });
-      var tmp = document.createElement('canvas');
-      tmp.width = imageData.width; tmp.height = imageData.height;
-      tmp.getContext('2d').putImageData(new ImageData(imageData.data, imageData.width, imageData.height), 0, 0);
-      ctx.drawImage(tmp, 0, 0, w, h);
+      // Prefer the already-decoded canvas — never rebuild a second full-res
+      // canvas just to downscale for the worker.
+      if (sourceCanvas) {
+        ctx.drawImage(sourceCanvas, 0, 0, w, h);
+      } else {
+        var tmp = document.createElement('canvas');
+        tmp.width = imageData.width; tmp.height = imageData.height;
+        tmp.getContext('2d').putImageData(
+          new ImageData(imageData.data, imageData.width, imageData.height),
+          0, 0
+        );
+        ctx.drawImage(tmp, 0, 0, w, h);
+      }
       var small = ctx.getImageData(0, 0, w, h);
       function onMsg(ev) {
         var msg = ev.data || {};
@@ -558,7 +579,7 @@
 
       // Preview corners are only a hint — still must re-detect on the high-res image.
       // If still detection fails, discard preview coords (different aspect → guessed crop).
-      var stillCorners = await redetectOnStill(pack.imageData);
+      var stillCorners = await redetectOnStill(pack.imageData, pack.canvas);
       if (captureSeq !== state.seq || !state.active) {
         abandonCapture();
         return;
@@ -608,15 +629,19 @@
     var imgCanvas = document.getElementById('cp-review-canvas');
     imgCanvas.width = imageData.width;
     imgCanvas.height = imageData.height;
+    // Own one RGBA buffer — putImageData + state.review share it (no second clone).
+    var owned = (imageData.data instanceof Uint8ClampedArray)
+      ? imageData.data
+      : new Uint8ClampedArray(imageData.data);
     imgCanvas.getContext('2d').putImageData(
-      new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height),
+      new ImageData(owned, imageData.width, imageData.height),
       0, 0
     );
     state.review = {
       imageData: {
         width: imageData.width,
         height: imageData.height,
-        data: new Uint8ClampedArray(imageData.data),
+        data: owned,
       },
       corners: corners.map(function (p) { return { x: p.x, y: p.y }; }),
       rotation: 0,

@@ -634,6 +634,27 @@ test('modals: fragment deferred được khởi tạo Lucide theo đúng modal v
     'khởi tạo icon phải chạy sau khi fragment đã được chèn vào DOM');
 });
 
+test('modals: fetch + SW precache cùng ?v=ASSET_V (không stale camera-modal khi upgrade SW)', () => {
+  const load = read('assets/ui/load_modals.js');
+  assert.ok(/function versionedUrl\(/.test(load) && /versionedUrl\(path\)/.test(fnBody(load, 'fetchModal')),
+    'fetchModal phải request fragment qua versionedUrl');
+  assert.ok(/LAZY_MODULES_V|ASSET_V/.test(fnBody(load, 'assetVersion')),
+    'version lấy từ LAZY_MODULES_V/ASSET_V');
+
+  const sw = read('sw.js');
+  const assetV = (sw.match(/ASSET_V\s*=\s*'([^']+)'/) || [])[1];
+  assert.ok(assetV, 'phải đọc được ASSET_V');
+  for (const id of [
+    'camera-modal', 'add-modal', 'asset-modal', 'screen-lock', 'backup-manager-modal',
+  ]) {
+    assert.ok(sw.includes(`./assets/ui/modals/${id}.html?v=\${ASSET_V}`)
+      || sw.includes(`./assets/ui/modals/${id}.html?v=${assetV}`),
+      `precache phải version ${id}.html để khớp fetch`);
+  }
+  assert.ok(!/^\s*'\.\/assets\/ui\/modals\/camera-modal\.html',?\s*$/m.test(sw),
+    'không còn precache camera-modal không version');
+});
+
 test('khách hàng trống: openModal tự ensure add-modal trước mọi DOM access', () => {
   const cust = read('assets/05_customers.js');
   const body = fnBody(cust, 'openModal');
@@ -742,6 +763,29 @@ test('document-scanner: preview detect single-flight và cleanup xóa plaintext 
     'closeReview phải giải phóng canvas backing store');
   assert.ok(/while\s*\(handles\.firstChild\)\s*handles\.removeChild/.test(close),
     'closeReview phải gỡ corner handles');
+});
+
+test('document-scanner: still capture giới hạn bộ nhớ — cap 2400px, không nhân đôi buffer full-res', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const toId = fnBody(scan, 'bitmapToImageData');
+  assert.ok(/STILL_MAX_LONG_SIDE\s*=\s*2400/.test(toId),
+    'bitmapToImageData phải cap long side 2400 (khớp compress/warp document)');
+  assert.ok(/drawImage\(\s*bitmap\s*,\s*0\s*,\s*0\s*,\s*w\s*,\s*h\s*\)/.test(toId),
+    'phải scale trực tiếp từ bitmap, không giữ full-res rồi mới crop');
+
+  const redetect = fnBody(scan, 'redetectOnStill');
+  assert.ok(/sourceCanvas/.test(redetect) && /drawImage\(\s*sourceCanvas/.test(redetect),
+    'redetectOnStill phải downscale từ canvas sẵn có, không dựng temp full-res mặc định');
+
+  const open = fnBody(scan, 'openReview');
+  assert.ok(/var\s+owned\s*=/.test(open) && /data:\s*owned/.test(open),
+    'openReview phải giữ một buffer RGBA owned — không clone lần 2 vào state.review');
+  assert.ok(!/new Uint8ClampedArray\(\s*imageData\.data\s*\)[\s\S]*new Uint8ClampedArray\(\s*imageData\.data\s*\)/.test(open),
+    'openReview không được clone imageData.data hai lần');
+
+  const capture = fnBody(scan, 'captureDocument');
+  assert.ok(/redetectOnStill\(\s*pack\.imageData\s*,\s*pack\.canvas\s*\)/.test(capture),
+    'captureDocument phải truyền pack.canvas vào redetectOnStill');
 });
 
 test('camera/scanner: lifecycle khóa dựa trên security gate + clientpro:locked', () => {

@@ -667,6 +667,9 @@ before the existing `saveImageToDB` path. Default camera mode is **Quét giấy 
 - No OCR, no OpenCV.js, no cloud vision. Frames never leave the device; do not log base64/blobs.
 - Detection runs in `document-detector.worker.js` (Web Worker), with at most one
   preview detection in flight so slow devices cannot accumulate stale frames.
+  Still capture caps retained resolution at 2400px long side (matches document
+  compress/warp); `redetectOnStill` downscales from the existing canvas (no
+  second full-res buffer); `openReview` reuses one owned RGBA buffer.
   Cleanup on close / auto-lock / activation revocation / `pagehide`: stop tracks,
   terminate worker, revoke object URLs, zero the plaintext review buffer, release
   the canvas backing store, and remove corner handles. `04_ui_common.js` observes
@@ -1399,12 +1402,12 @@ precache list, `MAPLIBRE_V`, and `LAZY_MODULES_V` must use the same `ASSET_V`.
 ## HTTP caching (vercel.json)
 
 `vercel.json` also sets `Cache-Control` on top of the same contract: `immutable`
-for `/assets/**/*.js|css` and `/assets/data/**` (every request URL carries the
-`?v=ASSET_V` buster — enforced above), one week for `/assets/fonts/**` and the
+for `/assets/**/*.js|css`, `/assets/data/**`, and `/assets/ui/modals/**`
+(every request URL carries the `?v=ASSET_V` buster — `load_modals.js` and the
+SW precache list stay in lockstep), one week for `/assets/fonts/**` and the
 root PNG/`favicon.ico` (referenced unversioned; binary-stable), and explicit
-`must-revalidate` for `sw.js` and the modal fragments (`load_modals.js` fetches
-them without `?v=`). `index.html`/`manifest.json` keep the Vercel default
-(`max-age=0, must-revalidate`). Never mark an unversioned mutable path
+`must-revalidate` for `sw.js`. `index.html`/`manifest.json` keep the Vercel
+default (`max-age=0, must-revalidate`). Never mark an unversioned mutable path
 `immutable`; a new asset path must either carry the buster or stay revalidated.
 
 ## Test architecture
