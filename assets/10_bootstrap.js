@@ -37,10 +37,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.warn("[ClientPro] Modals preload warning:", e);
   }
 
-  // UX: trạng thái ngắn trên loader trước khi gate hiện.
+  // UX: trạng thái ngắn trên loader trước khi gate hiện. index.html already
+  // contains this copy; do not replace the text node with the same value after
+  // deferred scripts finish, because that late repaint can become the LCP event.
   try {
     const lt = typeof getEl === "function" ? getEl("loader-text") : null;
-    if (lt) lt.textContent = "Đang chuẩn bị dữ liệu trên thiết bị";
+    const nextText = "Đang chuẩn bị dữ liệu trên thiết bị";
+    if (lt && lt.textContent.trim() !== nextText) lt.textContent = nextText;
   } catch (e) { }
 
   // Khởi tạo tầng chuẩn hóa lỗi & loading (module 19). An toàn nếu thiếu file.
