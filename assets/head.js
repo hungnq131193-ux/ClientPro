@@ -103,15 +103,12 @@
   }
 
   function releaseBootShell(reason) {
-    if (bootReleased) return;
     const body = document.body;
     if (!body) return;
-    bootReleased = true;
-    body.classList.add('cp-boot-ready');
-    body.setAttribute('data-cp-boot-ready', '1');
 
-    // A parked loader is retained only while a security gate owns the viewport.
-    // Once the app is unlocked, remove it from layout before revealing business UI.
+    // Security-gate handoff may already have marked bootReleased. Unlock must still
+    // remove the parked full-screen loader before any early return, otherwise the
+    // dashboard is technically ready but remains covered by z=250 indefinitely.
     if (reason === 'unlocked') {
       const loader = document.getElementById('loader');
       if (loader) {
@@ -119,6 +116,14 @@
         loader.classList.add('hidden');
       }
     }
+
+    if (bootReleased) {
+      if (reason === 'unlocked') window.__clientproBootReadyReason = 'unlocked';
+      return;
+    }
+    bootReleased = true;
+    body.classList.add('cp-boot-ready');
+    body.setAttribute('data-cp-boot-ready', '1');
     try {
       performance.mark('clientpro-boot-ready');
       window.__clientproBootReadyReason = reason || 'unknown';
