@@ -11,21 +11,33 @@
  *
  * External app CSS remains render-blocking for layout correctness, but the first
  * styled frame must not lay out the complete dashboard behind the security gate.
- * That previously caused every Be Vietnam Pro weight used anywhere in the app to
- * enter the cold-load font queue and allowed a late font swap to become the LCP.
- *
- * `head.js` releases cp-boot-ready only after a real security gate is visible (or
- * the app emits clientpro:unlocked). While a gate is visible, :has keeps the
- * business shell out of layout. Browsers without :has retain the existing overlay
- * behaviour; the default boot guard still remains fail-closed.
+ * Only known business surfaces are suppressed: dynamic system overlays such as
+ * ClientProConfirm and onboarding retain their existing lifecycle/stacking rules.
+ * `head.js` releases cp-boot-ready after a real security gate or unlock.
  */
-body:not(.cp-boot-ready) > :not(#loader):not(#ui-modals-root):not(script),
+body:not(.cp-boot-ready) > :is(
+  .app-container,
+  [id^="screen-"],
+  #cust-selection-bar,
+  #selection-bar,
+  #menu-overlay,
+  #settings-menu,
+  #lightbox
+),
 body:has(#ui-modals-root #screen-lock:not(.hidden),
          #ui-modals-root #setup-lock-modal:not(.hidden),
          #ui-modals-root #activation-modal:not(.hidden),
          #ui-modals-root #forgot-pin-modal:not(.hidden),
          #ui-modals-root #biometric-setup-modal:not(.hidden))
-  > :not(#loader):not(#ui-modals-root):not(script) {
+  > :is(
+    .app-container,
+    [id^="screen-"],
+    #cust-selection-bar,
+    #selection-bar,
+    #menu-overlay,
+    #settings-menu,
+    #lightbox
+  ) {
   display: none !important;
 }
 
