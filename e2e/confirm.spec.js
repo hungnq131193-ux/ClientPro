@@ -48,3 +48,28 @@ test('confirm chồng confirm: promise cũ resolve(false), chỉ một overlay, 
   expect(result.p2, 'Escape phải cancel confirm đang mở').toEqual({ resolved: true, value: false });
   expect(result.p3, 'Confirm sau đó vẫn hoạt động (Đồng ý)').toEqual({ resolved: true, value: true });
 });
+
+// Regression: confirm cũ được gỡ ĐỒNG BỘ khi bị thay — KHÔNG có cửa sổ animation nào
+// tồn tại 2 .cp-confirm-overlay (trợ năng / thao tác chọn nhầm hộp cũ).
+test('confirm chồng confirm: không bao giờ có 2 overlay cùng lúc (đo NGAY, không chờ)', async ({ page }) => {
+  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => typeof window.showConfirm === 'function');
+
+  const counts = await page.evaluate(async () => {
+    const seen = [];
+    window.showConfirm('A?', { title: 'A' });
+    // Đo NGAY sau khi mở confirm thứ 2, không chờ animation thoát của confirm 1.
+    window.showConfirm('B?', { title: 'B' });
+    seen.push(document.querySelectorAll('.cp-confirm-overlay').length);
+    window.showConfirm('C?', { title: 'C' });
+    seen.push(document.querySelectorAll('.cp-confirm-overlay').length);
+    // Sau một frame vẫn phải là 1.
+    await new Promise((r) => requestAnimationFrame(() => r()));
+    seen.push(document.querySelectorAll('.cp-confirm-overlay').length);
+    return seen;
+  });
+
+  for (const c of counts) {
+    expect(c, 'Không được tồn tại 2 .cp-confirm-overlay cùng lúc').toBe(1);
+  }
+});

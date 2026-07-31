@@ -307,3 +307,67 @@ test('privacy: xóa hồ sơ dọn sạch dữ liệu khách hàng khỏi DOM', 
   expect(total).toBe(0);
   expect(await page.evaluate(() => window.__noReloadMarker === true)).toBeTruthy();
 });
+
+// v1.5.2 race: đóng hồ sơ rồi mở hồ sơ khác thật nhanh. Trong lúc màn hồ sơ cũ còn
+// đang trượt ra, màn nền (danh sách) PHẢI vẫn inert — không cho tap mở hồ sơ mới để
+// rồi callback đóng cũ null/scrub mất trạng thái hồ sơ vừa mở. Sau khi đóng xong, mở
+// hồ sơ khác vẫn hiển thị đúng dữ liệu (không bị lẫn/null).
+test('race: đóng hồ sơ đang trượt giữ nền inert; mở hồ sơ khác sau đó vẫn đúng dữ liệu', async ({ page }) => {
+  await page.addInitScript((env) => {
+    localStorage.setItem('app_activated', 'true');
+    localStorage.setItem('app_employee_id', 'TEST');
+    localStorage.setItem('app_pin', env);
+    localStorage.setItem('app_crypto_schema_v', '2');
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 5, completedAt: Date.now() }));
+    const o = sessionStorage.getItem.bind(sessionStorage);
+    sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
+  }, PIN_ENVELOPE);
+
+  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+
+  // Tạo 2 khách hàng A, B (mỗi lần tạo app tự mở hồ sơ -> đóng lại).
+  for (const [name, phone] of [['KH Race A', '0900000021'], ['KH Race B', '0900000022']]) {
+    await page.click('#btn-quick-add');
+    await page.waitForSelector('#add-modal', { state: 'visible' });
+    await page.fill('#new-name', name);
+    await page.fill('#new-phone', phone);
+    await page.click('[data-action="saveCustomer"]');
+    await page.waitForSelector('#add-modal', { state: 'hidden', timeout: 10_000 });
+    await page.waitForFunction(() => !document.getElementById('screen-folder').classList.contains('translate-x-full'));
+    await page.click('#screen-folder [data-action="closeFolder"]');
+    await page.waitForFunction(() => document.getElementById('screen-folder').classList.contains('translate-x-full'));
+  }
+
+  // Mở danh sách, mở hồ sơ A.
+  await page.click('[data-action="openCustomerList"][data-arg="pending"]');
+  await page.waitForSelector('#screen-customer-list', { state: 'visible' });
+  await expect(page.locator('.cust-card')).toHaveCount(2, { timeout: 10_000 });
+  await page.locator('.cust-card', { hasText: 'KH Race A' }).click();
+  await page.waitForFunction(() => !document.getElementById('screen-folder').classList.contains('translate-x-full'));
+  await expect(page.locator('#folder-customer-name')).toHaveText('KH Race A');
+
+  // Bấm đóng — NGAY khi animation bắt đầu, màn danh sách nền phải vẫn inert.
+  await page.click('#screen-folder [data-action="closeFolder"]');
+  const bgInertDuringSlide = await page.evaluate(() => {
+    const list = document.getElementById('screen-customer-list');
+    const folder = document.getElementById('screen-folder');
+    // folder mới bắt đầu trượt (đã có translate-x-full), animation chưa kết thúc.
+    return { listInert: !!(list && list.inert), folderSliding: folder.classList.contains('translate-x-full') };
+  });
+  expect(bgInertDuringSlide.folderSliding, 'folder phải đang trượt ra').toBeTruthy();
+  expect(bgInertDuringSlide.listInert, 'màn nền phải vẫn inert trong lúc hồ sơ cũ đang trượt').toBeTruthy();
+
+  // Sau khi đóng xong: state sạch (folder scrub) rồi nền mới interactive lại.
+  await page.waitForFunction(() => {
+    const list = document.getElementById('screen-customer-list');
+    return list && !list.inert && (document.getElementById('folder-customer-name').textContent || '') === '';
+  }, undefined, { timeout: 10_000 });
+
+  // Mở hồ sơ B -> hiển thị đúng B (không bị null/lẫn với A).
+  await page.locator('.cust-card', { hasText: 'KH Race B' }).click();
+  await page.waitForFunction(() => !document.getElementById('screen-folder').classList.contains('translate-x-full'));
+  await expect(page.locator('#folder-customer-name')).toHaveText('KH Race B');
+});
