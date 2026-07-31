@@ -191,6 +191,14 @@
       return;
     }
     drawOverlay(corners, msg.width, msg.height);
+    // Low-confidence candidates are useful placement guidance, but must not
+    // accumulate stability or trigger an automatic still capture.
+    if ((msg.score || 0) < 0.62) {
+      setHint(HINTS.needCorners);
+      state.stableSince = 0;
+      state.lastCorners = corners;
+      return;
+    }
     // Blurry preview: keep overlay for guidance, but never advance stability / auto-capture.
     if (meta && meta.sharpOk === false) {
       setHint(HINTS.blurry);
@@ -560,7 +568,18 @@
         var msg = ev.data || {};
         if (msg.type !== 'detect-result' || msg.id !== id) return;
         worker.removeEventListener('message', onMsg);
-        if (!msg.ok || !msg.corners) { resolve(null); return; }
+        // A frame-touch or weak still result is not a safe crop. Open the
+        // manual-corner review instead of turning the frame/internal table into
+        // a guessed document boundary.
+        if (
+          !msg.ok ||
+          !msg.corners ||
+          msg.edgeTouch ||
+          (msg.score || 0) < 0.58
+        ) {
+          resolve(null);
+          return;
+        }
         resolve(Geom.scaleCorners(msg.corners, w, h, imageData.width, imageData.height));
       }
       worker.addEventListener('message', onMsg);

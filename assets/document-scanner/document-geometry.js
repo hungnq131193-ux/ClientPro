@@ -17,10 +17,48 @@
   /** Order corners TL → TR → BR → BL. */
   function orderCorners(pts) {
     if (!pts || pts.length !== 4) return null;
-    var sorted = pts.slice().sort(function (a, b) { return a.y - b.y; });
-    var top = sorted.slice(0, 2).sort(function (a, b) { return a.x - b.x; });
-    var bot = sorted.slice(2, 4).sort(function (a, b) { return a.x - b.x; });
-    return [top[0], top[1], bot[1], bot[0]];
+    var cx = 0;
+    var cy = 0;
+    var seen = Object.create(null);
+    for (var i = 0; i < 4; i++) {
+      var point = pts[i];
+      if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+      var key = point.x + ':' + point.y;
+      if (seen[key]) return null;
+      seen[key] = true;
+      cx += point.x;
+      cy += point.y;
+    }
+    cx /= 4;
+    cy /= 4;
+
+    // Angle ordering keeps the ring valid under strong perspective/rotation,
+    // where splitting the two smallest y values can put a side across the quad.
+    var ordered = pts.slice().sort(function (a, b) {
+      return Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx);
+    });
+    var start = 0;
+    for (i = 1; i < 4; i++) {
+      if (
+        ordered[i].x + ordered[i].y < ordered[start].x + ordered[start].y ||
+        (
+          ordered[i].x + ordered[i].y === ordered[start].x + ordered[start].y &&
+          ordered[i].x < ordered[start].x
+        )
+      ) start = i;
+    }
+    ordered = ordered.slice(start).concat(ordered.slice(0, start));
+
+    // In image coordinates (y grows downward), TL→TR→BR→BL has positive area.
+    var signed = 0;
+    for (i = 0; i < 4; i++) {
+      var next = (i + 1) % 4;
+      signed += ordered[i].x * ordered[next].y - ordered[next].x * ordered[i].y;
+    }
+    if (signed < 0) {
+      ordered = [ordered[0], ordered[3], ordered[2], ordered[1]];
+    }
+    return ordered;
   }
 
   function polygonArea(pts) {
@@ -78,7 +116,10 @@
 
     var margin = 0;
     var edgeTouch = false;
-    var pad = Math.max(2, Math.min(imgW, imgH) * 0.01);
+    // A detector edge within ~1.5% of the frame is indistinguishable from an
+    // object-cover/frame boundary at preview resolution. Flag it so auto-capture
+    // never accepts a clipped page and interior candidates can win.
+    var pad = Math.max(2, Math.min(imgW, imgH) * 0.015);
     for (var k = 0; k < 4; k++) {
       var p = ordered[k];
       if (p.x <= pad || p.y <= pad || p.x >= imgW - pad || p.y >= imgH - pad) edgeTouch = true;
