@@ -36,7 +36,9 @@ test('B5: confirm mới phải đóng confirm cũ qua cleanup chính thức (kh�
   const src = read('assets/19_error_loading.js');
   assert.ok(src.includes('_activeConfirmClose'), 'Phải có tham chiếu cleanup của confirm đang mở');
   const body = fnBody(src, 'ClientProConfirm');
-  assert.ok(/_activeConfirmClose\s*\(false\)/.test(body), 'Confirm bị thay thế phải resolve(false) qua cleanup');
+  // Chấp nhận cờ immediate tùy chọn: _activeConfirmClose(false) hoặc (false, true) —
+  // cả hai vẫn resolve(false) qua cleanup (không remove() trần làm treo promise).
+  assert.ok(/_activeConfirmClose\s*\(false\b/.test(body), 'Confirm bị thay thế phải resolve(false) qua cleanup');
   assert.ok(!/querySelectorAll\(['"]\.cp-confirm-overlay['"]\)[\s\S]{0,80}\.remove\(\)/.test(body),
     'Không được chỉ remove() overlay cũ — Promise sẽ treo vĩnh viễn');
 });

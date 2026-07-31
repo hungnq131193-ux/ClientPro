@@ -203,6 +203,60 @@ function closeLightbox() {
     currentImageBase64 = null;
 }
 
+// Wipe every rendered customer field from #screen-folder once the profile screen has
+// finished sliding off-screen (close or post-delete). The screen is only transform-
+// hidden, never removed, so without this the name/phone/CCCD/notes/limit/assets and
+// call-Zalo links would linger in the DOM. Pure DOM cleanup — does not touch
+// IndexedDB, crypto, or the record shape; openFolder re-renders everything on reopen.
+function clearCustomerFolderView() {
+    try {
+        const nameEl = getEl('folder-customer-name'); if (nameEl) nameEl.textContent = '';
+        const avatarEl = getEl('folder-avatar'); if (avatarEl) avatarEl.textContent = '?';
+        const phoneEl = getEl('info-phone'); if (phoneEl) phoneEl.textContent = '--';
+        const cccdEl = getEl('info-cccd'); if (cccdEl) cccdEl.textContent = '--';
+        const createdEl = getEl('info-created'); if (createdEl) createdEl.textContent = '';
+        const notesEl = getEl('info-notes'); if (notesEl) notesEl.value = '';
+        const badge = getEl('detail-status-badge');
+        if (badge) { badge.textContent = ''; badge.removeAttribute('class'); }
+        const callBtn = getEl('btn-detail-call');
+        if (callBtn) callBtn.href = (typeof getTelLink === 'function') ? getTelLink('') : '#';
+        const zaloBtn = getEl('btn-detail-zalo');
+        if (zaloBtn) { zaloBtn.href = (typeof getZaloLink === 'function') ? getZaloLink('') : '#'; zaloBtn.onclick = null; }
+        const imgArea = getEl('content-images'); if (imgArea) { imgArea.innerHTML = ''; imgArea.scrollTop = 0; }
+        const assetArea = getEl('content-assets'); if (assetArea) { assetArea.innerHTML = ''; assetArea.scrollTop = 0; }
+        const driveArea = getEl('drive-status-area');
+        if (driveArea) { driveArea.innerHTML = ''; driveArea.classList.add('hidden'); }
+        // Notes edit mode is DOM state on #info-notes; reset it so a half-finished edit of
+        // the closed profile cannot leak into the next one (mirrors exitNotesEditMode).
+        const notesEdit = getEl('info-notes'); if (notesEdit) notesEdit.readOnly = true;
+        const editBtn = getEl('btn-edit-notes'); if (editBtn) editBtn.classList.remove('hidden');
+        const saveBtn = getEl('btn-save-notes'); if (saveBtn) saveBtn.classList.add('hidden');
+        // Invalidate any in-flight work still keyed to the closed profile: the openFolder
+        // lazy-decrypt (guarded by window.__openFolderSeq) and the asset-gallery image load
+        // (guarded by currentAssetId). Without this, a decrypt/gallery job from the profile
+        // just closed could repaint the folder after it was scrubbed.
+        try { window.__openFolderSeq = (window.__openFolderSeq || 0) + 1; } catch (e) { }
+        if (typeof currentAssetId !== 'undefined') currentAssetId = null;
+        if (typeof selectedImages !== 'undefined' && selectedImages && typeof selectedImages.clear === 'function') selectedImages.clear();
+        if (typeof isSelectionMode !== 'undefined') isSelectionMode = false;
+        if (typeof updateSelectionUI === 'function') updateSelectionUI();
+    } catch (e) { }
+}
+// closeFolder (05_customers.js) nulls currentCustomerId/Data and slides the folder out;
+// this scrubs the rendered DOM once that slide completes. For deletes, closeFolder runs
+// only after the IndexedDB transaction commits, so the DOM is cleared only when durable.
+// Guard on the folder still being off-screen: if a new profile was opened in the same
+// tick the scrub must not wipe it (belt-and-suspenders — the slide layer already keeps
+// the background inert until the close settles, so no re-open can race in mid-animation).
+document.addEventListener('clientpro:screen-slid-out', (ev) => {
+    try {
+        if (!ev || !ev.detail || ev.detail.id !== 'screen-folder') return;
+        const folder = getEl('screen-folder');
+        if (folder && !folder.classList.contains('translate-x-full')) return; // đã mở lại
+        clearCustomerFolderView();
+    } catch (e) { }
+});
+
 let currentCustomerId = null; let currentCustomerData = null; let currentAssetId = null;
 
 // =======================
@@ -451,6 +505,24 @@ function __bindCameraSecurityGateObserver() {
             detail: { id: gate.id },
         }));
     };
+    // Symmetric to gateShown. A gate can be opened from the menu on an already-unlocked
+    // session (setup-lock / biometric-setup); opening it parked the loader + cleared
+    // data-cp-boot-ready (head.js closeBusinessShellForGate), and closing it never
+    // dispatches clientpro:unlocked. Publish one lifecycle event so head.js can restore
+    // the business shell (UI layer only). Also scrub the gate's own PIN / employee-code
+    // inputs so no recovery secret lingers in the DOM after it is dismissed.
+    const gateHidden = (gate) => {
+        try {
+            if (gate.id === 'setup-lock-modal' || gate.id === 'biometric-setup-modal') {
+                gate.querySelectorAll('input').forEach((input) => { input.value = ''; });
+                const note = gate.querySelector('#setup-pin-note');
+                if (note) { note.classList.add('hidden'); note.textContent = ''; }
+            }
+        } catch (e) { }
+        document.dispatchEvent(new CustomEvent('clientpro:security-gate-hidden', {
+            detail: { id: gate.id },
+        }));
+    };
 
     gates.forEach((gate) => {
         const visible = !gate.classList.contains('hidden');
@@ -463,6 +535,7 @@ function __bindCameraSecurityGateObserver() {
             const gate = record.target;
             const visible = !gate.classList.contains('hidden');
             if (visible && !wasVisible.get(gate)) gateShown(gate);
+            else if (!visible && wasVisible.get(gate)) gateHidden(gate);
             wasVisible.set(gate, visible);
         });
     });

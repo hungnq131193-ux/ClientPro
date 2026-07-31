@@ -242,7 +242,16 @@ source before relying on it):
   `clientpro:locked`. Camera/scanner cleanup also listens for
   `clientpro:security-gate-shown` (emitted when a security-gate DOM node
   becomes visible) so in-foreground revocation is covered even before the
-  gate paints or if a listener only watches the gate.
+  gate paints or if a listener only watches the gate. The same observer emits the
+  symmetric `clientpro:security-gate-hidden` when a gate transitions visible→hidden
+  (and scrubs the `setup-lock-modal` / `biometric-setup-modal` inputs so no PIN /
+  employee-code lingers). `head.js` (`restoreBusinessShellAfterGate`) uses it to
+  restore the parked loader + `data-cp-boot-ready` that opening the gate on an
+  already-unlocked session (Security setup / biometric setup from the menu) had torn
+  down via `closeBusinessShellForGate` — **UI layer only, never a synthetic
+  `clientpro:unlocked`**, and only when `isAppUnlocked()` is true and no gate remains.
+  Closing such a gate never dispatches `clientpro:unlocked`, so without this the
+  parked loader would cover the dashboard forever.
 - Namespace entry points such as `PdfToolkit.open()`, `BiometricUnlock.openSetup()`,
   `DriveBackup.performNow()`, `OnboardingTour.replay()`.
 
@@ -583,7 +592,13 @@ A customer record (`keyPath: "id"`) carries at least: identity/contact fields
 (`name`, `phone`, `cccd`), `notes`, `creditLimit`, `driveLink`, a status used to
 split "approved" vs "pending", a `cryptoV` marker, and related assets. Sensitive
 fields are stored encrypted (see Encryption). Treat the exact shape as defined by
-`05_customers.js` + `02_security.js`; do not redesign it.
+`05_customers.js` + `02_security.js`; do not redesign it. Because `#screen-folder`
+is only transform-hidden, closing (or deleting) a profile scrubs its rendered DOM
+via `clearCustomerFolderView` (`04_ui_common.js`), triggered by the
+`clientpro:screen-slid-out` event that `slideScreenOut` fires once the folder has
+slid off-screen — no name/phone/CCCD/notes/limit/asset/call-Zalo link may survive
+in the DOM after close. `deleteCurrentCustomer` still commits the IndexedDB
+transaction **before** `closeFolder`, so the scrub only runs once the delete is durable.
 
 ## Collateral (asset) data model (contract level)
 
@@ -1144,6 +1159,17 @@ normalized to this rule). Do not put `backdrop-filter` on an animating
 `.app-container` (it forces a full-screen re-blur every frame); screen roots
 paint an opaque background instead.
 
+Because screens are only transform-hidden (never `display:none`), off-screen and
+covered screens would otherwise stay in the accessibility tree and expose duplicate
+controls/data to a screen reader and to DOM locators. `syncScreenA11y`
+(`assets/00_globals.js`), called from `slideScreenIn`/`slideScreenOut`, keeps only
+the topmost on-screen `.app-container` interactive (highest z-index, then DOM order)
+and marks every other screen `inert` + `aria-hidden="true"`. It **defers to ModalA11y
+while a security gate is open** (that helper owns background isolation then), so the
+two never fight. Lazy screens (`#screen-pdf-toolkit`, `#screen-dvhc-lookup`) are
+isolated by the same sweep once they slide in/out. This is a11y state only — it must
+not toggle `hidden`/`display` or change the slide timing.
+
 Render paths must scope the icon scan: `lucide.createIcons({ root: <container> })`
 — an unscoped call re-creates every `[data-lucide]` icon in the whole document.
 This applies to any path that re-renders on input, not only screen opens (the DVHC
@@ -1250,7 +1276,12 @@ Anything else — these are shared infrastructure; the tour must not modify them
 ## Confirm / standard modal
 
 Use `showConfirm(...)` for confirmations (renders the `.cp-confirm-*` overlay).
-Never use native dialogs.
+Never use native dialogs. At most one `.cp-confirm-overlay` may exist: a new
+confirm closes any active one via `_activeConfirmClose(false, true)` (resolve
+false + remove immediately), and also removes any orphan still animate-out after
+Escape/Hủy (`_activeConfirmOverlay` — cleanup clears `_activeConfirmClose` at
+once but `afterEnd` may leave the node ~400ms). Do not bare
+`querySelectorAll('.cp-confirm-overlay').remove()`.
 
 ## DOM safety
 

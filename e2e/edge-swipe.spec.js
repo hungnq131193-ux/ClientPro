@@ -110,9 +110,15 @@ test('tap sát mép phải vào card vẫn mở hồ sơ; tap giữa card cũng 
     () => !document.getElementById('screen-folder').classList.contains('translate-x-full'),
     undefined, { timeout: 5_000 }
   );
-  // Đóng lại rồi tap giữa card.
+  // Đóng lại rồi tap giữa card. Chờ đóng HẲN: nền (danh sách) bị khóa (inert) trong
+  // lúc hồ sơ đang trượt ra để chống race đóng/mở nhanh, nên phải đợi animation kết
+  // thúc (nền interactive lại) rồi mới tap — không thì touch bị bỏ qua.
   await page.click('#screen-folder [data-action="closeFolder"]');
-  await page.waitForFunction(() => document.getElementById('screen-folder').classList.contains('translate-x-full'));
+  await page.waitForFunction(() => {
+    const folder = document.getElementById('screen-folder');
+    const list = document.getElementById('screen-customer-list');
+    return folder.classList.contains('translate-x-full') && list && !list.inert;
+  });
   await touchTap(page, box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForFunction(
     () => !document.getElementById('screen-folder').classList.contains('translate-x-full'),

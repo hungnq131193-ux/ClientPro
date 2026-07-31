@@ -608,12 +608,25 @@
   // chỉ remove() overlay sẽ để Promise treo vĩnh viễn và leak keydown listener,
   // làm kẹt mọi cờ in-flight của caller đang await.
   let _activeConfirmClose = null;
+  // Overlay đang mở HOẶC đang animate-out sau Escape/Hủy. cleanup(false) xóa
+  // _activeConfirmClose ngay nhưng overlay còn tới ~400ms (afterEnd) — confirm tiếp
+  // theo dùng tham chiếu này để gỡ orphan, tránh 2 .cp-confirm-overlay và click
+  // nhầm nút của hộp cũ (promise mới không resolve).
+  let _activeConfirmOverlay = null;
   function ClientProConfirm(message, opts) {
     opts = opts || {};
     return new Promise((resolve) => {
       // Tránh chồng nhiều hộp thoại: confirm cũ được hủy như khi người dùng bấm Hủy.
       if (_activeConfirmClose) {
-        try { _activeConfirmClose(false); } catch (e) {}
+        // Confirm cũ bị thay ngay: đóng qua cleanup (vẫn resolve(false), không treo) rồi
+        // gỡ overlay NGAY (immediate) — không để cửa sổ animation nào tồn tại 2 .cp-confirm-overlay.
+        try { _activeConfirmClose(false, true); } catch (e) {}
+      }
+      // Escape/Hủy đã resolve + xóa _activeConfirmClose, nhưng overlay cũ có thể còn
+      // animate-out. Gỡ orphan trước khi gắn overlay mới (không querySelectorAll trần).
+      if (_activeConfirmOverlay) {
+        try { _activeConfirmOverlay.remove(); } catch (e) {}
+        _activeConfirmOverlay = null;
       }
       _confirmOpen = true;
 
@@ -665,16 +678,28 @@
       dialog.appendChild(actions);
       overlay.appendChild(dialog);
       document.body.appendChild(overlay);
+      _activeConfirmOverlay = overlay;
 
       let settled = false;
-      function cleanup(result) {
+      function cleanup(result, immediate) {
         if (settled) return;
         settled = true;
         _confirmOpen = false;
         if (_activeConfirmClose === cleanup) _activeConfirmClose = null;
         document.removeEventListener('keydown', onKey, true);
         overlay.classList.remove('cp-confirm-in');
-        afterEnd(overlay, () => { try { overlay.remove(); } catch (e) {} });
+        // Bị confirm khác thay thế -> gỡ NGAY (immediate) để không chồng overlay; tự đóng
+        // bình thường -> animate-out qua afterEnd. Promise luôn resolve ở cả hai nhánh.
+        // Giữ _activeConfirmOverlay khi animate-out để confirm tiếp theo gỡ được orphan.
+        if (immediate) {
+          try { overlay.remove(); } catch (e) {}
+          if (_activeConfirmOverlay === overlay) _activeConfirmOverlay = null;
+        } else {
+          afterEnd(overlay, () => {
+            try { overlay.remove(); } catch (e) {}
+            if (_activeConfirmOverlay === overlay) _activeConfirmOverlay = null;
+          });
+        }
         resolve(result);
       }
       _activeConfirmClose = cleanup;
