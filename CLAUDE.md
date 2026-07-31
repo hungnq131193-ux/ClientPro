@@ -1276,7 +1276,12 @@ Anything else — these are shared infrastructure; the tour must not modify them
 ## Confirm / standard modal
 
 Use `showConfirm(...)` for confirmations (renders the `.cp-confirm-*` overlay).
-Never use native dialogs.
+Never use native dialogs. At most one `.cp-confirm-overlay` may exist: a new
+confirm closes any active one via `_activeConfirmClose(false, true)` (resolve
+false + remove immediately), and also removes any orphan still animate-out after
+Escape/Hủy (`_activeConfirmOverlay` — cleanup clears `_activeConfirmClose` at
+once but `afterEnd` may leave the node ~400ms). Do not bare
+`querySelectorAll('.cp-confirm-overlay').remove()`.
 
 ## DOM safety
 

@@ -147,8 +147,16 @@ test('confirm: thay confirm cũ gỡ overlay NGAY qua cleanup (không 2 .cp-conf
     'confirm bị thay phải đóng qua cleanup với cờ immediate');
   assert.match(body, /function cleanup\(result,\s*immediate\)/,
     'cleanup phải nhận cờ immediate');
-  assert.match(body, /if \(immediate\) \{ try \{ overlay\.remove\(\); \} catch \(e\) \{\} \}\s*\n\s*else afterEnd/,
+  assert.match(err, /let _activeConfirmOverlay\s*=\s*null/,
+    'phải giữ tham chiếu overlay đang mở/animate-out (Escape/Hủy xóa _activeConfirmClose sớm)');
+  assert.match(body, /if \(_activeConfirmOverlay\)[\s\S]{0,120}_activeConfirmOverlay\.remove\(\)/,
+    'confirm mới phải gỡ orphan overlay còn animate-out sau Escape/Hủy');
+  assert.match(body, /_activeConfirmOverlay\s*=\s*overlay/,
+    'phải gán _activeConfirmOverlay khi gắn overlay mới');
+  assert.match(body, /if \(immediate\)[\s\S]{0,200}else[\s\S]{0,200}afterEnd/,
     'immediate -> remove ngay; ngược lại -> animate-out qua afterEnd');
+  assert.match(body, /if \(_activeConfirmOverlay === overlay\) _activeConfirmOverlay = null/,
+    'sau remove/afterEnd phải xóa tham chiếu orphan');
   assert.doesNotMatch(body, /querySelectorAll\(['"]\.cp-confirm-overlay['"]\)[\s\S]{0,80}\.remove\(\)/,
     'không được remove() overlay ngoài cleanup (tripwire B5)');
 });

@@ -131,16 +131,21 @@ for (const prefix of ['assets/pdf-toolkit/', 'assets/dvhc-lookup/', 'assets/data
 }
 
 // 19_error_loading.js (shared LoadingManager/ErrorHandler/confirm infra): the only
-// approved change is the confirm-overlay dedup — remove the replaced confirm's overlay
-// synchronously so two .cp-confirm-overlay never coexist. After stripping that exact
-// block the file must equal the locked baseline.
+// approved change is the confirm-overlay dedup — (1) remove a replaced confirm's
+// overlay synchronously so two .cp-confirm-overlay never coexist, and (2) track the
+// animate-out overlay after Escape/Hủy so the next confirm can remove that orphan
+// without a bare querySelectorAll(...).remove(). After stripping those exact blocks
+// the file must equal the locked baseline.
 {
   const base = at(BASE, 'assets/19_error_loading.js');
   let now = current('assets/19_error_loading.js');
+  now = now.replace(/\n  \/\/ Overlay đang mở HOẶC đang animate-out[\s\S]*?let _activeConfirmOverlay = null;/, '');
   now = now.replace(/\n        \/\/ Confirm cũ bị thay ngay[\s\S]*?2 \.cp-confirm-overlay\./, '');
   now = now.replace('_activeConfirmClose(false, true)', '_activeConfirmClose(false)');
+  now = now.replace(/\n      \/\/ Escape\/Hủy đã resolve[\s\S]*?_activeConfirmOverlay = null;\n      \}/, '');
+  now = now.replace(/\n      _activeConfirmOverlay = overlay;/, '');
   now = now.replace('function cleanup(result, immediate) {', 'function cleanup(result) {');
-  now = now.replace(/\n        \/\/ Bị confirm khác thay thế[\s\S]*?else afterEnd\(overlay, \(\) => \{ try \{ overlay\.remove\(\); \} catch \(e\) \{\} \}\);/,
+  now = now.replace(/\n        \/\/ Bị confirm khác thay thế[\s\S]*?else \{\n          afterEnd\(overlay, \(\) => \{\n            try \{ overlay\.remove\(\); \} catch \(e\) \{\}\n            if \(_activeConfirmOverlay === overlay\) _activeConfirmOverlay = null;\n          \}\);\n        \}/,
     "\n        afterEnd(overlay, () => { try { overlay.remove(); } catch (e) {} });");
   same('19_error_loading.js có thay đổi ngoài confirm-overlay dedup', stripWhitespaceEnd(base), stripWhitespaceEnd(now));
 }
