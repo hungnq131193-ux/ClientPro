@@ -215,3 +215,95 @@ test('B4: creditLimit + asset.name mã hóa at rest, UI hiển thị plaintext',
   // UI danh sách TSBĐ hiển thị plaintext (không ciphertext, không kẹt fallback).
   await expect(page.locator('#content-assets .asset-name').first()).toHaveText('Nhà đất B4 50m²');
 });
+
+// v1.5.2: sau khi XÓA hồ sơ, DOM #screen-folder không được giữ lại bất kỳ dữ liệu KH
+// nào (tên/SĐT/CCCD/tài sản/link gọi-Zalo) — và transaction phải commit trước khi đóng.
+test('privacy: xóa hồ sơ dọn sạch dữ liệu khách hàng khỏi DOM', async ({ page }) => {
+  await page.addInitScript((env) => {
+    localStorage.setItem('app_activated', 'true');
+    localStorage.setItem('app_employee_id', 'TEST');
+    localStorage.setItem('app_pin', env);
+    localStorage.setItem('app_crypto_schema_v', '2');
+    localStorage.setItem('clientpro_onboarding_done', JSON.stringify({ version: 5, completedAt: Date.now() }));
+    const o = sessionStorage.getItem.bind(sessionStorage);
+    sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
+  }, PIN_ENVELOPE);
+
+  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
+  for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
+  await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
+
+  // Tạo KH có tên + SĐT + CCCD.
+  await page.click('#btn-quick-add');
+  await page.waitForSelector('#add-modal', { state: 'visible' });
+  await page.fill('#new-name', 'KH Riêng Tư Xoá');
+  await page.fill('#new-phone', '0911222333');
+  await page.fill('#new-cccd', '001099055044');
+  await page.click('[data-action="saveCustomer"]');
+  await page.waitForSelector('#add-modal', { state: 'hidden', timeout: 10_000 });
+  await page.waitForFunction(() => !document.getElementById('screen-folder').classList.contains('translate-x-full'));
+
+  // Thêm một TSBĐ để có nội dung trong tab TSBĐ.
+  await page.click('#tab-btn-assets');
+  await page.click('[data-action="openAssetModal"]');
+  await page.waitForSelector('#asset-modal', { state: 'visible' });
+  await page.fill('#asset-name', 'Nhà đất riêng tư 80m²');
+  await page.click('#btn-save-asset');
+  await page.waitForSelector('#asset-modal', { state: 'hidden', timeout: 10_000 });
+  await expect(page.locator('#content-assets .asset-name').first()).toHaveText('Nhà đất riêng tư 80m²');
+
+  // Xóa hồ sơ (không reload).
+  await page.evaluate(() => { window.__noReloadMarker = true; });
+  await page.click('[data-action="deleteCurrentCustomer"]');
+  await page.waitForSelector('.cp-confirm-overlay', { state: 'visible' });
+  await page.click('.cp-confirm-overlay .cp-confirm-ok');
+
+  // Chờ màn hồ sơ trượt ra VÀ scrub chạy xong (finishClose chạy sau transition,
+  // muộn hơn thời điểm translate-x-full được thêm) — poll tới khi DOM đã sạch.
+  await page.waitForFunction(() => {
+    const folder = document.getElementById('screen-folder');
+    if (!folder || !folder.classList.contains('translate-x-full')) return false;
+    const name = (document.getElementById('folder-customer-name') || {}).textContent || '';
+    const assets = (document.getElementById('content-assets') || {}).innerHTML || '';
+    return name === '' && assets === '';
+  }, undefined, { timeout: 10_000 });
+
+  // DOM #screen-folder không còn dữ liệu KH vừa xóa.
+  const dom = await page.evaluate(() => {
+    const folder = document.getElementById('screen-folder');
+    const txt = folder ? folder.textContent : '';
+    const call = document.getElementById('btn-detail-call');
+    const zalo = document.getElementById('btn-detail-zalo');
+    return {
+      txt,
+      name: (document.getElementById('folder-customer-name') || {}).textContent || '',
+      phone: (document.getElementById('info-phone') || {}).textContent || '',
+      cccd: (document.getElementById('info-cccd') || {}).textContent || '',
+      assets: (document.getElementById('content-assets') || {}).innerHTML || '',
+      callHref: call ? call.getAttribute('href') : null,
+      zaloHref: zalo ? zalo.getAttribute('href') : null,
+      folderInert: !!(folder && folder.inert),
+      folderAria: folder ? folder.getAttribute('aria-hidden') : null,
+    };
+  });
+  expect(dom.txt).not.toContain('KH Riêng Tư Xoá');
+  expect(dom.txt).not.toContain('0911222333');
+  expect(dom.txt).not.toContain('001099055044');
+  expect(dom.txt).not.toContain('Nhà đất riêng tư 80m²');
+  expect(dom.name).toBe('');
+  expect(dom.assets).toBe('');
+  expect(dom.callHref).toBe('#');
+  expect(dom.zaloHref).toBe('#');
+  expect(dom.folderInert, '#screen-folder phải inert sau khi đóng').toBeTruthy();
+  expect(dom.folderAria).toBe('true');
+
+  // Database thật sự trống — chứng minh commit-before-close.
+  const total = await page.evaluate(async () => new Promise((r) => {
+    const rq = db.transaction(['customers']).objectStore('customers').count();
+    rq.onsuccess = (e) => r(e.target.result);
+    rq.onerror = () => r(-1);
+  }));
+  expect(total).toBe(0);
+  expect(await page.evaluate(() => window.__noReloadMarker === true)).toBeTruthy();
+});
