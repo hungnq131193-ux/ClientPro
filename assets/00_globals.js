@@ -252,12 +252,56 @@
           catch (e) { setTimeout(fn, 0); }
         }
 
+        // Security gates own background isolation while open (ModalA11y in 04_ui_common.js).
+        // Keep the id set here in sync with that helper's SECURITY_GATE_IDS.
+        const SCREEN_A11Y_GATE_IDS = [
+          'screen-lock', 'activation-modal', 'setup-lock-modal',
+          'forgot-pin-modal', 'biometric-setup-modal',
+        ];
+
+        // Off-screen / covered slide screens must leave the accessibility tree. Screens
+        // are shown or hidden purely by the slide transform (translate-x-full) — never
+        // display:none (see the Screen slide contract) — so a screen-reader and DOM
+        // locators would otherwise see every screen's controls at once. inert +
+        // aria-hidden isolate all but the topmost on-screen .app-container. The top
+        // screen is the on-screen container with the highest stacking (z-index, then
+        // DOM order); it stays interactive, everything else is inert.
+        function syncScreenA11y() {
+          try {
+            // While a security gate is open, ModalA11y owns inert/aria-hidden isolation;
+            // do not fight it (it records and later restores each sibling's prior state).
+            for (const id of SCREEN_A11Y_GATE_IDS) {
+              const g = document.getElementById(id);
+              if (g && !g.classList.contains('hidden')) return;
+            }
+            const screens = document.querySelectorAll('.app-container');
+            if (!screens.length) return;
+            let top = null;
+            let topScore = -Infinity;
+            screens.forEach((s, i) => {
+              if (s.classList.contains('translate-x-full')) return; // off-screen
+              let z = 0;
+              try { z = parseInt(getComputedStyle(s).zIndex, 10); } catch (e) {}
+              if (!Number.isFinite(z)) z = 0;
+              const score = z * 100000 + i; // z-index first, DOM order as tiebreak
+              if (score >= topScore) { topScore = score; top = s; }
+            });
+            if (!top) return; // dashboard is never translate-x-full, so this is defensive
+            screens.forEach((s) => {
+              const active = s === top;
+              try { s.inert = !active; } catch (e) {}
+              s.setAttribute('aria-hidden', active ? 'false' : 'true');
+            });
+          } catch (e) {}
+        }
+
         function slideScreenIn(el) {
           if (!el) return;
           el.classList.add('is-sliding');
           nextFrame(() => {
             el.classList.remove('translate-x-full');
-            afterTransition(el, () => el.classList.remove('is-sliding'));
+            syncScreenA11y();
+            afterTransition(el, () => { el.classList.remove('is-sliding'); syncScreenA11y(); });
           });
         }
 
@@ -266,13 +310,35 @@
             if (typeof cb === 'function') cb();
             return;
           }
+          const screenId = el.id || '';
           el.classList.add('is-sliding');
           el.classList.add('translate-x-full');
+          syncScreenA11y();
           afterTransition(el, () => {
             el.classList.remove('is-sliding');
+            syncScreenA11y();
             if (typeof cb === 'function') cb();
+            // One lifecycle event when a screen has finished sliding off-screen, so an
+            // owning module can scrub its rendered content (e.g. clearing a closed
+            // customer profile's DOM). Fires after the transition — same timing as cb.
+            try { document.dispatchEvent(new CustomEvent('clientpro:screen-slid-out', { detail: { id: screenId } })); } catch (e) {}
           });
         }
+
+        // Set the initial isolation once the dashboard is revealed, and again whenever a
+        // security gate closes on an unlocked session (ModalA11y restores the gate's own
+        // isolation; this reasserts the topmost-screen state for the slide layer).
+        // clientpro:unlocked is dispatched by completeUnlockDataLoad *before* validatePin
+        // hides #screen-lock, so a synchronous sync here would still see the lock gate and
+        // bail. Defer it one turn so the off-screen static screens are isolated once the
+        // gate is truly gone. security-gate-hidden already fires after the modal is hidden.
+        function deferScreenA11y() {
+          try { setTimeout(syncScreenA11y, 0); } catch (e) { syncScreenA11y(); }
+        }
+        try {
+          document.addEventListener('clientpro:unlocked', deferScreenA11y);
+          document.addEventListener('clientpro:security-gate-hidden', syncScreenA11y);
+        } catch (e) {}
 
         function afterTransition(el, cb, ms = UI_SLIDE_MS) {
           let done = false;

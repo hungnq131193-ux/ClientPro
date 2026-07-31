@@ -270,6 +270,29 @@
   }
   document.addEventListener('clientpro:locked', closeBusinessShellForGate);
   document.addEventListener('clientpro:security-gate-shown', closeBusinessShellForGate);
+
+  // Symmetric counterpart to closeBusinessShellForGate. A security gate can be opened
+  // from the menu on an already-unlocked session (Security setup, biometric setup).
+  // Opening it fires clientpro:security-gate-shown → closeBusinessShellForGate, which
+  // clears data-cp-boot-ready and parks the loader (z=250) over the business shell.
+  // Closing such a gate never dispatches clientpro:unlocked — the session was never
+  // locked — so without this handler the parked loader would cover the dashboard
+  // forever. Restore the UI layer only (no unlock lifecycle, no clientpro:unlocked),
+  // and act only when the session is genuinely unlocked and no gate remains: a real
+  // lock/revoke keeps isAppUnlocked() false and its own gate visible.
+  function restoreBusinessShellAfterGate() {
+    try {
+      if (typeof window.isAppUnlocked === 'function' && !window.isAppUnlocked()) return;
+      if (visibleSecurityGate()) return;
+      const loader = document.getElementById('loader');
+      if (loader) {
+        loader.classList.remove('cp-loader-parked');
+        loader.classList.add('hidden');
+      }
+      releaseBootShell('gate-closed');
+    } catch (e) { }
+  }
+  document.addEventListener('clientpro:security-gate-hidden', restoreBusinessShellAfterGate);
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'hidden') scannerOpenEpoch++;
   });
