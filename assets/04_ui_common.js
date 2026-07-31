@@ -226,6 +226,17 @@ function clearCustomerFolderView() {
         const assetArea = getEl('content-assets'); if (assetArea) { assetArea.innerHTML = ''; assetArea.scrollTop = 0; }
         const driveArea = getEl('drive-status-area');
         if (driveArea) { driveArea.innerHTML = ''; driveArea.classList.add('hidden'); }
+        // Notes edit mode is DOM state on #info-notes; reset it so a half-finished edit of
+        // the closed profile cannot leak into the next one (mirrors exitNotesEditMode).
+        const notesEdit = getEl('info-notes'); if (notesEdit) notesEdit.readOnly = true;
+        const editBtn = getEl('btn-edit-notes'); if (editBtn) editBtn.classList.remove('hidden');
+        const saveBtn = getEl('btn-save-notes'); if (saveBtn) saveBtn.classList.add('hidden');
+        // Invalidate any in-flight work still keyed to the closed profile: the openFolder
+        // lazy-decrypt (guarded by window.__openFolderSeq) and the asset-gallery image load
+        // (guarded by currentAssetId). Without this, a decrypt/gallery job from the profile
+        // just closed could repaint the folder after it was scrubbed.
+        try { window.__openFolderSeq = (window.__openFolderSeq || 0) + 1; } catch (e) { }
+        if (typeof currentAssetId !== 'undefined') currentAssetId = null;
         if (typeof selectedImages !== 'undefined' && selectedImages && typeof selectedImages.clear === 'function') selectedImages.clear();
         if (typeof isSelectionMode !== 'undefined') isSelectionMode = false;
         if (typeof updateSelectionUI === 'function') updateSelectionUI();
@@ -234,9 +245,15 @@ function clearCustomerFolderView() {
 // closeFolder (05_customers.js) nulls currentCustomerId/Data and slides the folder out;
 // this scrubs the rendered DOM once that slide completes. For deletes, closeFolder runs
 // only after the IndexedDB transaction commits, so the DOM is cleared only when durable.
+// Guard on the folder still being off-screen: if a new profile was opened in the same
+// tick the scrub must not wipe it (belt-and-suspenders — the slide layer already keeps
+// the background inert until the close settles, so no re-open can race in mid-animation).
 document.addEventListener('clientpro:screen-slid-out', (ev) => {
     try {
-        if (ev && ev.detail && ev.detail.id === 'screen-folder') clearCustomerFolderView();
+        if (!ev || !ev.detail || ev.detail.id !== 'screen-folder') return;
+        const folder = getEl('screen-folder');
+        if (folder && !folder.classList.contains('translate-x-full')) return; // đã mở lại
+        clearCustomerFolderView();
     } catch (e) { }
 });
 

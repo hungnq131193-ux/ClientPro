@@ -313,15 +313,23 @@
           const screenId = el.id || '';
           el.classList.add('is-sliding');
           el.classList.add('translate-x-full');
-          syncScreenA11y();
+          // Take the closing screen out of the a11y tree immediately, but DO NOT run the
+          // full topmost sweep yet: that would un-inert the screen underneath while the old
+          // one is still sliding, letting a fast tap open a new profile whose state the
+          // close callback then nulls. The background stays inert for the whole animation;
+          // the real topmost screen is re-activated only in afterTransition, after cb + the
+          // scrub have run.
+          try { el.inert = true; el.setAttribute('aria-hidden', 'true'); } catch (e) {}
           afterTransition(el, () => {
             el.classList.remove('is-sliding');
-            syncScreenA11y();
             if (typeof cb === 'function') cb();
             // One lifecycle event when a screen has finished sliding off-screen, so an
             // owning module can scrub its rendered content (e.g. clearing a closed
             // customer profile's DOM). Fires after the transition — same timing as cb.
             try { document.dispatchEvent(new CustomEvent('clientpro:screen-slid-out', { detail: { id: screenId } })); } catch (e) {}
+            // Re-activate the real topmost screen only now — the background becomes
+            // interactive after the close has fully settled, never mid-animation.
+            syncScreenA11y();
           });
         }
 

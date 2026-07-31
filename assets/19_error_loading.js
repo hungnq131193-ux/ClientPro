@@ -613,7 +613,9 @@
     return new Promise((resolve) => {
       // Tránh chồng nhiều hộp thoại: confirm cũ được hủy như khi người dùng bấm Hủy.
       if (_activeConfirmClose) {
-        try { _activeConfirmClose(false); } catch (e) {}
+        // Confirm cũ bị thay ngay: đóng qua cleanup (vẫn resolve(false), không treo) rồi
+        // gỡ overlay NGAY (immediate) — không để cửa sổ animation nào tồn tại 2 .cp-confirm-overlay.
+        try { _activeConfirmClose(false, true); } catch (e) {}
       }
       _confirmOpen = true;
 
@@ -667,14 +669,17 @@
       document.body.appendChild(overlay);
 
       let settled = false;
-      function cleanup(result) {
+      function cleanup(result, immediate) {
         if (settled) return;
         settled = true;
         _confirmOpen = false;
         if (_activeConfirmClose === cleanup) _activeConfirmClose = null;
         document.removeEventListener('keydown', onKey, true);
         overlay.classList.remove('cp-confirm-in');
-        afterEnd(overlay, () => { try { overlay.remove(); } catch (e) {} });
+        // Bị confirm khác thay thế -> gỡ NGAY (immediate) để không chồng overlay; tự đóng
+        // bình thường -> animate-out qua afterEnd. Promise luôn resolve ở cả hai nhánh.
+        if (immediate) { try { overlay.remove(); } catch (e) {} }
+        else afterEnd(overlay, () => { try { overlay.remove(); } catch (e) {} });
         resolve(result);
       }
       _activeConfirmClose = cleanup;

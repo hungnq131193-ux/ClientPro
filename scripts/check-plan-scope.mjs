@@ -97,6 +97,7 @@ const narrowExceptions = new Set([
   'assets/05_customers.js',
   'assets/06_assets.js',
   'assets/11_edge_back_swipe.js',
+  'assets/19_error_loading.js',
 ]);
 
 for (const file of changed) {
@@ -127,6 +128,21 @@ for (const prefix of ['assets/pdf-toolkit/', 'assets/dvhc-lookup/', 'assets/data
   now = now.replace(/\n  const hadSession = !!\(masterKey \|\| masterCryptoKey\);/, '');
   now = now.replace(/\n  \/\/ Báo phiên đã khóa[\s\S]*?\n  if \(hadSession\) \{\n    try \{ document\.dispatchEvent\(new CustomEvent\("clientpro:locked"\)\); \} catch \(e\) \{\}\n  \}/, '');
   same('02_security.js có thay đổi ngoài lifecycle hook đã duyệt', stripWhitespaceEnd(base), stripWhitespaceEnd(now));
+}
+
+// 19_error_loading.js (shared LoadingManager/ErrorHandler/confirm infra): the only
+// approved change is the confirm-overlay dedup — remove the replaced confirm's overlay
+// synchronously so two .cp-confirm-overlay never coexist. After stripping that exact
+// block the file must equal the locked baseline.
+{
+  const base = at(BASE, 'assets/19_error_loading.js');
+  let now = current('assets/19_error_loading.js');
+  now = now.replace(/\n        \/\/ Confirm cũ bị thay ngay[\s\S]*?2 \.cp-confirm-overlay\./, '');
+  now = now.replace('_activeConfirmClose(false, true)', '_activeConfirmClose(false)');
+  now = now.replace('function cleanup(result, immediate) {', 'function cleanup(result) {');
+  now = now.replace(/\n        \/\/ Bị confirm khác thay thế[\s\S]*?else afterEnd\(overlay, \(\) => \{ try \{ overlay\.remove\(\); \} catch \(e\) \{\} \}\);/,
+    "\n        afterEnd(overlay, () => { try { overlay.remove(); } catch (e) {} });");
+  same('19_error_loading.js có thay đổi ngoài confirm-overlay dedup', stripWhitespaceEnd(base), stripWhitespaceEnd(now));
 }
 
 // Map may only receive the release cache/version token.
