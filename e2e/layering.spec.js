@@ -31,6 +31,12 @@ async function unlock(page) {
 
 test('loader phủ trên business modal đang mở (Backup Manager)', async ({ page }) => {
   await unlock(page);
+  // Business fragments are intentionally demand-loaded. The layering assertion
+  // must exercise the real loader contract rather than rely on speculative warmup.
+  await expect.poll(
+    () => page.evaluate(() => window.ModalLoader.ensure('backup-manager-modal')),
+    { timeout: 10_000 }
+  ).toBe(true);
   const res = await page.evaluate(() => {
     // Mở Backup Manager modal rồi bật global loader.
     const modal = document.getElementById('backup-manager-modal');

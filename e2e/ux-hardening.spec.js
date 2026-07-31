@@ -97,6 +97,30 @@ test('danh sách: không còn nút Chọn trên toolbar; long-press vào selecti
 });
 
 // ---------- Form ----------
+test('empty-state tải add-modal theo nhu cầu và hiển thị đầy đủ icon', async ({ page }) => {
+  // Chặn riêng idle warmer của modal để tái hiện thao tác sớm trước khi fragment
+  // nghiệp vụ được preload; các idle task bootstrap khác vẫn chạy bình thường.
+  await page.addInitScript(() => {
+    const schedule = window.setTimeout.bind(window);
+    window.requestIdleCallback = (callback, options) => {
+      if (options && options.timeout === 2500) return 1;
+      return schedule(() => callback({ didTimeout: false, timeRemaining: () => 50 }), 0);
+    };
+  });
+  await seedAndUnlock(page);
+
+  await page.click('[data-action="openCustomerList"][data-arg="pending"]');
+  await page.waitForSelector('#screen-customer-list', { state: 'visible' });
+  const addEmpty = page.locator('#customer-list .cp-state-action', { hasText: 'Thêm khách hàng' });
+  await expect(addEmpty).toBeVisible();
+  await expect(page.locator('#add-modal')).toHaveCount(0);
+
+  // Đây là callback động gọi openModal() trực tiếp, không đi qua withModal.
+  await addEmpty.click();
+  await page.waitForSelector('#add-modal', { state: 'visible', timeout: 10_000 });
+  await expect(page.locator('#add-modal svg.lucide-x')).toHaveCount(1);
+});
+
 test('form khách hàng: nút Hủy chỉ đóng modal, không tạo record', async ({ page }) => {
   await seedAndUnlock(page);
   await page.click('#btn-quick-add');
@@ -171,6 +195,12 @@ test('tham khảo giá: pending/success/failed hiển thị đúng, không lộ 
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   });
   await page.goto('/index.html', { waitUntil: 'networkidle' });
+  // This test calls showRefModal directly, so explicitly satisfy the production
+  // demand-load contract instead of depending on speculative business warmup.
+  await expect.poll(
+    () => page.evaluate(() => window.ModalLoader.ensure('ref-price-modal')),
+    { timeout: 10_000 }
+  ).toBe(true);
   await page.waitForSelector('#ref-price-modal', { state: 'attached', timeout: 10_000 });
 
   const sample = [{ valuation: 1000, assetName: 'Tài sản A', customerName: 'Khách C', area: 120, width: 5, distance: 3250, straight: 3250 }];

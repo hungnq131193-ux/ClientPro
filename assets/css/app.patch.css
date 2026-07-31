@@ -1,5 +1,2 @@
-/* ClientPro patch: ensure state-driven visibility works even if elements also carry display utilities.
-   Tailwind's .hidden can lose to other display utilities depending on generated order.
-   Force hidden to always win to prevent stacked toolbars/overlays across screens. */
-.hidden { display: none !important; }
-[hidden] { display: none !important; }
+/* app.patch.css rules now live at the top of assets/styles.css (cold-start CSS split). */
+/* This file is intentionally empty and is no longer linked from index.html. */

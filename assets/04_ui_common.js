@@ -410,13 +410,140 @@ function formatLink(link) {
 }
 
 // ============================================================
-// CAMERA WRAPPER (直接 gọi không cần lazy load)
+// CAMERA WRAPPER — ensure modal + document-scanner before open
 // ============================================================
 
-// Camera: Gọi trực tiếp camera function
-function tryOpenCamera(mode) {
+let __docScanLoadPromise = null;
+/** Bumped to cancel in-flight tryOpenCamera after lock / hide / newer tap. */
+let __cameraOpenAttemptSeq = 0;
+const __cameraSecurityGateIds = [
+    'screen-lock',
+    'activation-modal',
+    'setup-lock-modal',
+    'forgot-pin-modal',
+    'biometric-setup-modal',
+];
+let __cameraSecurityGateObserver = null;
+
+function __invalidatePendingCameraOpen() {
+    __cameraOpenAttemptSeq++;
+}
+
+/**
+ * Security code exposes lock / activation through the real gate DOM, not a
+ * synthetic "clientpro:locked" event. Observe those gates once they are loaded
+ * and publish one lifecycle event that camera/scanner cleanup can trust.
+ */
+function __bindCameraSecurityGateObserver() {
+    if (__cameraSecurityGateObserver) {
+        __cameraSecurityGateObserver.disconnect();
+        __cameraSecurityGateObserver = null;
+    }
+    const gates = __cameraSecurityGateIds
+        .map((id) => document.getElementById(id))
+        .filter(Boolean);
+    if (!gates.length || typeof MutationObserver === 'undefined') return;
+
+    const wasVisible = new Map();
+    const gateShown = (gate) => {
+        __invalidatePendingCameraOpen();
+        document.dispatchEvent(new CustomEvent('clientpro:security-gate-shown', {
+            detail: { id: gate.id },
+        }));
+    };
+
+    gates.forEach((gate) => {
+        const visible = !gate.classList.contains('hidden');
+        wasVisible.set(gate, visible);
+        if (visible) gateShown(gate);
+    });
+
+    __cameraSecurityGateObserver = new MutationObserver((records) => {
+        records.forEach((record) => {
+            const gate = record.target;
+            const visible = !gate.classList.contains('hidden');
+            if (visible && !wasVisible.get(gate)) gateShown(gate);
+            wasVisible.set(gate, visible);
+        });
+    });
+    gates.forEach((gate) => {
+        __cameraSecurityGateObserver.observe(gate, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+    });
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') __invalidatePendingCameraOpen();
+});
+document.addEventListener('clientpro:modals-critical-loaded', __bindCameraSecurityGateObserver);
+document.addEventListener('clientpro:locked', __invalidatePendingCameraOpen);
+window.addEventListener('pagehide', __invalidatePendingCameraOpen);
+__bindCameraSecurityGateObserver();
+
+function __cameraOpenStillAllowed(attempt) {
+    if (attempt !== __cameraOpenAttemptSeq) return false;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return false;
+    if (typeof isAppUnlocked === 'function' && !isAppUnlocked()) return false;
     try {
-        // Call actual tryOpenCamera from 08_images_camera.js
+        for (const id of __cameraSecurityGateIds) {
+            const gate = document.getElementById(id);
+            if (gate && !gate.classList.contains('hidden')) return false;
+        }
+    } catch (e) { }
+    return true;
+}
+
+function __ensureDocumentScanner() {
+    if (window.DocumentScanner) return Promise.resolve(true);
+    if (__docScanLoadPromise) return __docScanLoadPromise;
+    const v = (typeof LAZY_MODULES_V !== 'undefined' && LAZY_MODULES_V) ? LAZY_MODULES_V : '';
+    const vq = v ? `?v=${v}` : '';
+    __docScanLoadPromise = (async () => {
+        if (window.ModalLoader) {
+            try { await window.ModalLoader.ensureFeatureCss(); } catch (e) { }
+            try { await window.ModalLoader.ensure('camera-modal'); } catch (e) { }
+        }
+        const load = (src) => new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src + vq;
+            s.onload = () => resolve(true);
+            s.onerror = () => reject(new Error('script ' + src));
+            document.head.appendChild(s);
+        });
+        await load('assets/document-scanner/document-geometry.js');
+        await load('assets/document-scanner/document-image-enhance.js');
+        await load('assets/document-scanner/document-scanner.js');
+        return !!window.DocumentScanner;
+    })().catch((err) => {
+        __docScanLoadPromise = null;
+        try {
+            ErrorHandler.showError('NETWORK', 'Không tải được máy quét giấy tờ. Thử lại.', err);
+        } catch (e) { }
+        return false;
+    });
+    return __docScanLoadPromise;
+}
+
+// Camera: Gọi trực tiếp camera function (sau khi nạp scanner lần đầu)
+async function tryOpenCamera(mode) {
+    // Chụp token trước khi nạp; lock/hide/tap mới bump token — không mở sau màn khóa.
+    const attempt = ++__cameraOpenAttemptSeq;
+    try {
+        const btn = document.querySelector(`[data-action="tryOpenCamera"][data-arg="${mode}"]`) ||
+            document.querySelector('[data-action="tryOpenCamera"]');
+        if (btn && window.LoadingManager && !window.DocumentScanner) {
+            try { LoadingManager.showButtonLoading(btn); } catch (e) { }
+        }
+        try {
+            await __ensureDocumentScanner();
+        } finally {
+            if (btn && window.LoadingManager) {
+                try { LoadingManager.hideButtonLoading(btn); } catch (e) { }
+            }
+        }
+        if (!__cameraOpenStillAllowed(attempt)) return;
         if (typeof window._tryOpenCameraReal === 'function') {
             window._tryOpenCameraReal(mode);
         } else {
@@ -450,12 +577,20 @@ const ModalA11y = (function () {
     let lastFocused = null;
     let isolationTouches = null; // [{ el, hadInert, ariaHidden }] khi security gate mở
 
-    function isOverlay(el) {
-        return el instanceof HTMLElement && el.classList.contains('fixed') && el.classList.contains('inset-0');
+    // #loader is a full-screen boot/loading surface (.fixed.inset-0) but NOT a
+    // dialog: it has no focusable controls and head.js "parks" it visible behind a
+    // security gate on lock. Treating it as a modal makes its class toggles run
+    // activate()/deactivate(), which would release a security gate's background
+    // isolation the moment the loader re-parks. Exclude it from the modal lifecycle
+    // entirely (it is already isolation-exempt).
+    function isModalOverlay(el) {
+        return el instanceof HTMLElement && el.id !== 'loader'
+            && el.classList.contains('fixed') && el.classList.contains('inset-0');
     }
+    function isOverlay(el) { return isModalOverlay(el); }
     function isVisible(el) { return !!el && !el.classList.contains('hidden'); }
     function isSecurityGate(el) { return !!(el && el.id && SECURITY_GATE_IDS[el.id]); }
-    function overlays() { return Array.from(document.querySelectorAll('.fixed.inset-0')); }
+    function overlays() { return Array.from(document.querySelectorAll('.fixed.inset-0')).filter(isModalOverlay); }
     function topVisible() {
         const vis = overlays().filter(isVisible);
         return vis.length ? vis[vis.length - 1] : null;

@@ -533,11 +533,11 @@ function loadAssetImages(id) {
     };
 }
 
-function compressImage(base64, cb) {
+function compressImage(base64, cb, profile) {
   const img = new Image();
   img.onload = () => {
     try {
-      _compressLoaded(img, base64, cb);
+      _compressLoaded(img, base64, cb, profile);
     } catch (e) {
       // Canvas throw (tainted / hết bộ nhớ) không được để Promise của
       // saveImageToDB treo mãi: trả ảnh gốc y như nhánh img.onerror.
@@ -554,12 +554,13 @@ function compressImage(base64, cb) {
   img.src = base64;
 }
 
-function _compressLoaded(img, base64, cb) {
+function _compressLoaded(img, base64, cb, profile) {
+  const isDoc = profile === 'document';
   let w = img.width;
   let h = img.height;
 
-  // Cho phép max ~2200px để chữ vẫn rất nét
-  const maxDim = 2200;
+  // Ảnh thường: max ~2200px. Giấy tờ: cho phép 2400px để giữ nét chữ nhỏ.
+  const maxDim = isDoc ? 2400 : 2200;
   if (w > h && w > maxDim) {
     h = (h * maxDim) / w;
     w = maxDim;
@@ -574,11 +575,13 @@ function _compressLoaded(img, base64, cb) {
   const ctx = cvs.getContext("2d");
 
   // Filter nhẹ (không quá tay để khỏi mờ chữ)
-  ctx.filter = "contrast(1.03) brightness(1.01)";
+  ctx.filter = isDoc ? "none" : "contrast(1.03) brightness(1.01)";
   ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
 
-  // Bắt đầu với chất lượng khá cao
-  let q = 0.9;
+  // Ảnh thường: bắt đầu 0.9, sàn 0.5. Giấy tờ: bắt đầu 0.94, sàn 0.84 —
+  // nếu vẫn lớn thì giảm kích thước, không hạ quality tới 0.5.
+  let q = isDoc ? 0.94 : 0.9;
+  const minQ = isDoc ? 0.84 : 0.5;
 
   // Mục tiêu: 500–700KB
   const MAX_BYTES = 700 * 1024;
@@ -591,6 +594,21 @@ function _compressLoaded(img, base64, cb) {
   const MAX_STEPS = 24;
   let steps = 0;
   let lastDir = 0; // -1 = vừa giảm quality, +1 = vừa tăng
+
+  function redrawScaled(scale) {
+    const nw = Math.max(32, Math.round(cvs.width * scale));
+    const nh = Math.max(32, Math.round(cvs.height * scale));
+    const tmp = document.createElement("canvas");
+    tmp.width = nw;
+    tmp.height = nh;
+    tmp.getContext("2d").drawImage(cvs, 0, 0, nw, nh);
+    cvs.width = nw;
+    cvs.height = nh;
+    // Resizing canvas resets the 2d context — get a fresh one.
+    const ctx2 = cvs.getContext("2d");
+    ctx2.filter = "none";
+    ctx2.drawImage(tmp, 0, 0);
+  }
 
   function adjustAndCheck() {
     // try/catch phải nằm Ở ĐÂY, không chỉ ở img.onload: các vòng sau được hẹn lại
@@ -616,7 +634,14 @@ function _compressLoaded(img, base64, cb) {
     // Nếu > 700KB → giảm chất lượng xuống
     if (sizeBytes > MAX_BYTES) {
       // Hết room giảm, hoặc vòng trước vừa TĂNG (dao động) → chốt bản này.
-      if (q <= 0.5 || lastDir === 1) {
+      if (q <= minQ || lastDir === 1) {
+        if (isDoc && sizeBytes > MAX_BYTES && Math.min(cvs.width, cvs.height) > 900) {
+          // Giấy tờ: giảm kích thước từng bước thay vì hạ quality dưới sàn.
+          redrawScaled(0.9);
+          lastDir = -1;
+          setTimeout(adjustAndCheck, 0);
+          return;
+        }
         cb(dataUrl);
         return;
       }
@@ -678,7 +703,10 @@ function saveImageToDB(rawBase64, opts) {
 
     getEl("loader-text").textContent = "Đang lưu ảnh...";
 
-    // Nén và Lưu vào Database (mã hóa at-rest trước khi ghi)
+    // Nén và Lưu vào Database (mã hóa at-rest trước khi ghi).
+    // compressionProfile chỉ ảnh hưởng bước nén phía trên — khối mã hóa + transaction
+    // bên dưới giữ nguyên hành vi fail-closed hiện tại.
+    const compressionProfile = (opts && opts.compressionProfile) || 'photo';
     compressImage(enhancedBase64, async (compressed) => {
       // FAIL-CLOSED trước khi mở transaction: encryptImageData (02_security.js) là
       // fail-open ở tầng crypto — mất masterKey thì nó TRẢ NGUYÊN data URL. Nuốt lỗi
@@ -766,7 +794,7 @@ function saveImageToDB(rawBase64, opts) {
       };
       imgTx.onerror = imgTxFail;
       imgTx.onabort = imgTxFail;
-    });
+    }, compressionProfile);
   });
 }
 function _readFileAsDataURL(file) {
@@ -835,11 +863,34 @@ function _stopCameraStream() {
 // stream mới được gán, và stream về "muộn" (modal đã đóng / có request mới hơn)
 // bị dừng ngay thay vì chạy ngầm.
 let __cameraOpenSeq = 0;
+let __cameraOpenInFlight = false;
 async function _tryOpenCameraReal(mode) {
   captureMode = mode;
   const seq = ++__cameraOpenSeq;
+  if (__cameraOpenInFlight) return;
+  __cameraOpenInFlight = true;
   try {
-    getEl("camera-modal").classList.remove("hidden");
+    // Prefer document scanner session (defaults to Quét giấy tờ).
+    if (window.DocumentScanner && typeof window.DocumentScanner.open === 'function') {
+      try {
+        await window.DocumentScanner.open(mode, seq);
+        return;
+      } catch (e) {
+        // Fall through to legacy getUserMedia / native input.
+      }
+    }
+    if (window.ModalLoader) {
+      try {
+        await window.ModalLoader.ensure('camera-modal');
+        await window.ModalLoader.ensureFeatureCss();
+      } catch (e) { }
+    }
+    const modal = getEl("camera-modal");
+    if (!modal) {
+      getEl(mode === "profile" ? "native-camera-profile" : "native-camera-asset").click();
+      return;
+    }
+    modal.classList.remove("hidden");
     _stopCameraStream();
     const newStream = await navigator.mediaDevices.getUserMedia({
       video: {
@@ -848,7 +899,7 @@ async function _tryOpenCameraReal(mode) {
         height: { min: 720, ideal: 1080, max: 1440 },
       },
     });
-    if (seq !== __cameraOpenSeq || getEl("camera-modal").classList.contains("hidden")) {
+    if (seq !== __cameraOpenSeq || modal.classList.contains("hidden")) {
       // Đã có request mới hơn hoặc user đóng camera trong lúc chờ cấp quyền.
       try { newStream.getTracks().forEach((t) => t.stop()); } catch (e) { }
       return;
@@ -857,16 +908,35 @@ async function _tryOpenCameraReal(mode) {
     getEl("camera-feed").srcObject = newStream;
   } catch {
     if (seq !== __cameraOpenSeq) return;
-    getEl("camera-modal").classList.add("hidden");
+    const m = getEl("camera-modal");
+    if (m) m.classList.add("hidden");
     getEl(
       mode === "profile" ? "native-camera-profile" : "native-camera-asset"
     ).click();
+  } finally {
+    __cameraOpenInFlight = false;
   }
 }
 function closeCamera() {
+  if (window.DocumentScanner && typeof window.DocumentScanner.close === 'function') {
+    try { window.DocumentScanner.close(); } catch (e) { }
+  }
   const m = getEl("camera-modal");
   if (m) m.classList.add("hidden");
   _stopCameraStream();
+  // Also stop scanner-owned stream if any.
+  try {
+    if (window.__cpCameraStream) {
+      window.__cpCameraStream.getTracks().forEach((t) => t.stop());
+      window.__cpCameraStream = null;
+    }
+  } catch (e) { }
+}
+
+function toggleCameraScanMode() {
+  if (window.DocumentScanner && typeof window.DocumentScanner.toggleMode === 'function') {
+    window.DocumentScanner.toggleMode();
+  }
 }
 
 // RIÊNG TƯ + PIN: camera không được chạy ngầm khi app bị che/khóa máy/chuyển tab.
@@ -877,6 +947,12 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", () => closeCamera());
 // CHỤP ẢNH TỪ CAMERA
 async function capturePhoto() {
+  if (window.DocumentScanner && window.DocumentScanner.isActive && window.DocumentScanner.isActive()) {
+    try { window.DocumentScanner.capture(); } catch (e) {
+      try { ErrorHandler.showError('CAMERA', undefined, e); } catch (_) { }
+    }
+    return;
+  }
   // finally đảm bảo camera luôn tắt kể cả khi drawImage/toDataURL/save ném lỗi
   // (video chưa sẵn sàng...) — không để track chạy ngầm, đèn camera sáng mãi.
   try {

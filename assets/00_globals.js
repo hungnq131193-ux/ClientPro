@@ -301,17 +301,26 @@
         // tường minh từng action trong 2 bảng dưới đây.
         // =======================
         (function () {
+          async function withModal(id, fn) {
+            try {
+              if (window.ModalLoader && typeof window.ModalLoader.ensure === 'function') {
+                await window.ModalLoader.ensure(id);
+              }
+            } catch (e) { }
+            return fn();
+          }
+
           const CLICK_ACTIONS = {
             // --- 0 tham số ---
             toggleMenu: () => toggleMenu(),
             toggleMap: () => toggleMap(),
-            openModal: () => openModal(),
+            openModal: () => withModal('add-modal', () => openModal()),
             closeBackupManager: () => closeBackupManager(),
             uploadToGoogleDrive: () => uploadToGoogleDrive(),
             uploadAssetToDrive: () => uploadAssetToDrive(),
             toggleSelectionMode: () => toggleSelectionMode(),
             toggleDashboardDriveConfig: () => toggleDashboardDriveConfig(),
-            toggleCustomerStatus: () => toggleCustomerStatus(),
+            toggleCustomerStatus: () => withModal('approve-modal', () => toggleCustomerStatus()),
             toggleCustSelectionMode: () => toggleCustSelectionMode(),
             shareSelectedImages: () => shareSelectedImages(),
             shareOpenedImage: () => shareOpenedImage(),
@@ -323,15 +332,15 @@
             saveCustomer: () => saveCustomer(),
             saveAsset: () => saveAsset(),
             refreshWeather: () => refreshWeather(),
-            openSecuritySetup: () => openSecuritySetup(),
-            openGuideModal: () => openGuideModal(),
-            openEditCustomerModal: () => openEditCustomerModal(),
-            openDonateModal: () => openDonateModal(),
-            openBackupManager: () => openBackupManager(),
-            openAssetModal: () => openAssetModal(),
+            openSecuritySetup: () => withModal('setup-lock-modal', () => openSecuritySetup()),
+            openGuideModal: () => withModal('guide-modal', () => openGuideModal()),
+            openEditCustomerModal: () => withModal('add-modal', () => openEditCustomerModal()),
+            openDonateModal: () => withModal('donate-modal', () => openDonateModal()),
+            openBackupManager: () => withModal('backup-manager-modal', () => openBackupManager()),
+            openAssetModal: () => withModal('asset-modal', () => openAssetModal()),
             locateMe: () => locateMe(),
             getCurrentGPS: () => getCurrentGPS(),
-            forgotPin: () => forgotPin(),
+            forgotPin: () => withModal('forgot-pin-modal', () => forgotPin()),
             deleteSelectedImages: () => deleteSelectedImages(),
             deleteSelectedCustomers: () => deleteSelectedCustomers(),
             deleteOpenedImage: () => deleteOpenedImage(),
@@ -355,6 +364,7 @@
             backspacePin: () => backspacePin(),
             checkRecovery: () => checkRecovery(),
             capturePhoto: () => capturePhoto(),
+            toggleCameraScanMode: () => toggleCameraScanMode(),
             activateApp: () => activateApp(),
             reconnectDriveFolder: () => reconnectDriveFolder(),
             reconnectAssetDriveFolder: () => reconnectAssetDriveFolder(),
@@ -373,7 +383,7 @@
             // --- namespace ---
             'DriveBackup.performNow': () => DriveBackup.performNow(),
             'CloudTransferUI.showTab': (el) => CloudTransferUI.showTab(el.dataset.arg),
-            'BiometricUnlock.openSetup': () => BiometricUnlock.openSetup(),
+            'BiometricUnlock.openSetup': () => withModal('biometric-setup-modal', () => BiometricUnlock.openSetup()),
             'BiometricUnlock.closeSetup': () => BiometricUnlock.closeSetup(),
             'BiometricUnlock.confirmEnable': () => BiometricUnlock.confirmEnable(),
             'BiometricUnlock.requestDisable': () => BiometricUnlock.requestDisable(),

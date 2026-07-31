@@ -21,6 +21,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Plan scope compares the PR against locked baseline c4264af.
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,22 +33,25 @@ jobs:
       - name: Validate JSON files
         run: |
           python3 -m json.tool manifest.json > /dev/null
-          python3 -m json.tool vercel.json  > /dev/null
+          python3 -m json.tool vercel.json > /dev/null
+          python3 -m json.tool lighthouserc.json > /dev/null
 
       - name: Check JavaScript syntax
         run: |
           node --check sw.js
-          find assets scripts -name '*.js' -o -name '*.mjs' | xargs -n1 node --check
+          find assets scripts tests e2e -name '*.js' -o -name '*.mjs' | xargs -n1 node --check
 
       - name: Verify version single-source (package.json → manifest/sw/pwa/README)
         run: node scripts/sync-version.mjs --check
 
-      # Debug scaffold + cache-buster + self-host policy — cùng script để dev chạy local được.
       - name: Verify repo policy (debug scaffold / cache-buster / self-host)
         run: node scripts/check-policy.mjs
 
+      - name: Verify locked implementation scope
+        run: node scripts/check-plan-scope.mjs
+
   tests:
-    name: Automated tests (crypto & data integrity)
+    name: Automated tests (crypto, data integrity, detector fixtures)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -58,16 +64,15 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      # Không cần `npm install`: bộ test chạy bằng test runner tích hợp của Node
-      # (node --test) + node:crypto (WebCrypto) + crypto-js.min.js self-host sẵn.
-      # Không thêm dependency, không thêm asset -> không đụng versioning/cache-buster.
+      # Runtime remains zero-dependency. Unit tests use Node built-ins and the
+      # production detector core exported by document-detector.worker.js.
       - name: Run test suite (Node built-in runner)
         run: node --test 'tests/**/*.test.js'
 
   e2e:
-    name: E2E + a11y + Lighthouse (Playwright/axe/LHCI)
+    name: E2E + a11y + offline scanner + Lighthouse gates
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -78,8 +83,6 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      # Cache npm + Chromium theo package-lock.json (CI tooling only;
-      # app shipped vẫn zero-dependency runtime).
       - name: Cache npm
         uses: actions/cache@v4
         with:
@@ -92,24 +95,21 @@ jobs:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      # devDeps CHỈ cho CI (Playwright/axe/Lighthouse). App shipped vẫn zero-dependency.
-      # `npm ci` + package-lock.json đã commit để dependency test không trôi.
       - name: Install CI test tooling
         run: npm ci --no-audit --no-fund
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run Playwright E2E + axe a11y
+      - name: Run Playwright E2E + axe a11y + offline service-worker path
         run: npx playwright test
 
-      # Gate: a11y + best-practices (error); performance vẫn warn một release.
-      - name: Lighthouse CI (a11y + best-practices gate; perf cảnh báo)
+      - name: Lighthouse CI hard floor
         run: npx lhci autorun
 
-      # .lighthouseci/ là thư mục ẩn — upload-artifact@v4 bỏ qua hidden files
-      # trừ khi bật include-hidden-files. Tách upload để mất LHCI không bị
-      # che bởi playwright-report/ đã có sẵn.
+      - name: Verify locked Lighthouse release budget
+        run: node scripts/check-lighthouse-budget.mjs
+
       - name: Verify Lighthouse output present
         if: always()
         run: test -n "$(find .lighthouseci -type f -print -quit)"

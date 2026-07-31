@@ -106,6 +106,24 @@ test('A1: onStart (touchstart) không được preventDefault — chỉ claim ge
   assert.ok(/clearSwipeNoselect/.test(end), 'onEnd phải gỡ chặn text selection');
 });
 
+test('edge back: review giấy tờ đóng qua DocumentScanner trước camera/screen và được track history', () => {
+  const src = read('assets/11_edge_back_swipe.js');
+  const back = fnBody(src, 'runBackAction');
+  const reviewIdx = back.indexOf("isVisibleModal('doc-scan-review')");
+  const cameraIdx = back.indexOf("isVisibleModal('camera-modal')");
+  const folderIdx = back.indexOf("isVisibleSlide('screen-folder')");
+  assert.ok(reviewIdx >= 0 && cameraIdx > reviewIdx && folderIdx > reviewIdx,
+    'doc-scan-review phải được ưu tiên đóng trước camera và screen bên dưới');
+  assert.ok(/DocumentScanner\.close\(\)/.test(back.slice(reviewIdx, cameraIdx)),
+    'back ở review phải đi qua DocumentScanner.close để dọn stream/worker/plaintext');
+
+  const trackedStart = src.indexOf('const TRACKED_MODAL_IDS');
+  const trackedEnd = src.indexOf('];', trackedStart);
+  assert.ok(trackedStart >= 0 && trackedEnd > trackedStart);
+  assert.ok(src.slice(trackedStart, trackedEnd).includes("'doc-scan-review'"),
+    'doc-scan-review phải tham gia history depth tracking');
+});
+
 test('B9: openCustomerList phải xóa ô tìm kiếm và hủy debounce đang chờ', () => {
   const cust = read('assets/05_customers.js');
   const body = fnBody(cust, 'openCustomerList');
@@ -165,6 +183,25 @@ test('nhóm ổn định A #2: referenceAssetPrice có seq guard cho lần rende
   assert.ok(/seq\s*!==\s*__refPriceSeq/.test(ref), 'Callback phải kiểm seq trước khi ghi DOM/mở modal');
   const close = fnBody(src, 'closeRefModal');
   assert.ok(/__refPriceSeq\+\+/.test(close), 'Đóng modal phải tăng seq để hủy kết quả về muộn');
+});
+
+test('assets: nút động phải ensure modal trước khi gọi handler trực tiếp', () => {
+  const src = read('assets/06_assets.js');
+  const render = fnBody(src, 'renderAssets');
+  const ensureAsset = render.indexOf('ModalLoader.ensure("asset-modal")');
+  const openEdit = render.indexOf('openEditAssetModal(index)');
+  const ensureRef = render.indexOf('ModalLoader.ensure("ref-price-modal")');
+  const openRef = render.indexOf('referenceAssetPrice(index)');
+  assert.ok(ensureAsset >= 0 && openEdit > ensureAsset,
+    'nút Sửa phải await ensure asset-modal trước openEditAssetModal');
+  assert.ok(ensureRef >= 0 && openRef > ensureRef,
+    'nút Tham khảo giá phải await ensure ref-price-modal trước referenceAssetPrice');
+  assert.ok(/await\s+window\.ModalLoader\.ensure\("asset-modal"\)/.test(render)
+    && /await\s+window\.ModalLoader\.ensure\("ref-price-modal"\)/.test(render),
+  'hai dynamic handler phải chờ ensure hoàn tất, không chạy song song với fetch modal');
+  assert.ok(/if\s*\(!getEl\("asset-modal"\)\)/.test(render)
+    && /if\s*\(!getEl\("ref-price-modal"\)\)/.test(render),
+  'ensure thất bại phải dừng trước khi handler dereference modal');
 });
 
 test('nhóm ổn định A #3/#6: transaction ghi phải wire đủ onabort (guard không được treo vĩnh viễn)', () => {
@@ -522,9 +559,330 @@ test('ĐVHC: refreshIcons phải scope lucide.createIcons theo root màn hình',
   const src = read('assets/dvhc-lookup/dvhc_ui.js');
   const body = fnBody(src, 'refreshIcons');
   assert.ok(/createIcons\(\s*\{\s*root/.test(body),
-    'refreshIcons: createIcons phải nhận { root } — unscoped chỉ dành cho boot (10_bootstrap.js)');
+    'refreshIcons: createIcons phải nhận { root }');
   assert.ok(/screen-dvhc-lookup/.test(body),
     'refreshIcons: cần fallback root #screen-dvhc-lookup khi screenEl chưa dựng');
+});
+
+test('boot: lucide.createIcons lúc bootstrap phải scope theo root (không quét cả document)', () => {
+  const boot = read('assets/10_bootstrap.js');
+  assert.ok(/createIcons\(\s*\{\s*root/.test(boot),
+    '10_bootstrap.js: createIcons phải nhận { root } cho gate/dashboard');
+  assert.ok(!/window\.lucide\.createIcons\(\s*\)/.test(boot.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')),
+    '10_bootstrap.js: không còn createIcons() không scope trên đường boot chính');
+});
+
+test('modals: critical security gates load trước; business modals không chặn boot', () => {
+  const load = read('assets/ui/load_modals.js');
+  assert.ok(/ModalLoader/.test(load), 'load_modals.js phải expose ModalLoader');
+  assert.ok(/CRITICAL/.test(load) && /DEFERRED/.test(load), 'phải tách CRITICAL vs DEFERRED');
+  assert.ok(/activation-modal/.test(load) && /camera-modal/.test(load));
+  const boot = read('assets/10_bootstrap.js');
+  assert.ok(/criticalReady|__clientpro_modals_ready/.test(boot),
+    'bootstrap chỉ chờ criticalReady / __clientpro_modals_ready');
+  assert.ok(!/__clientpro_modals_all_ready/.test(boot),
+    'bootstrap không được chờ allReady (business modals)');
+});
+
+test('camera: compressionProfile document chỉ đổi nén — encrypt + transaction giữ fail-closed', () => {
+  const src = read('assets/08_images_camera.js');
+  const body = fnBody(src, 'saveImageToDB');
+  assert.ok(/compressionProfile/.test(body), 'saveImageToDB phải đọc compressionProfile từ opts');
+  assert.ok(
+    /compressImage\(\s*enhancedBase64\s*,\s*async\s*\([^)]*\)\s*=>[\s\S]*?,\s*compressionProfile\s*\)/.test(body)
+      || /compressImage\([^;]+compressionProfile\s*\)/.test(body),
+    'compressImage phải nhận compressionProfile làm đối số thứ 3'
+  );
+  assert.ok(/encryptImageData\(compressed\)/.test(body), 'vẫn mã hóa compressed trước khi ghi');
+  assert.ok(/_looksEncrypted\(storedData\)/.test(body), 'fail-closed ciphertext check giữ nguyên');
+  assert.ok(/imgTx\.oncomplete/.test(body) && /imgTx\.onerror/.test(body) && /imgTx\.onabort/.test(body));
+});
+
+test('modals: ensure(id) chèn HTML trước khi resolve — không trả raw fetch của group', () => {
+  const load = read('assets/ui/load_modals.js');
+  assert.ok(/function fetchModal\(/.test(load), 'phải có fetchModal');
+  // ensure phải gọi fetchModal (insert-then-resolve), không trả Promise.all group.
+  const ensureBody = load.slice(load.indexOf('ensure: function'));
+  assert.ok(/return fetchModal\(id\)/.test(ensureBody), 'ensure phải await fetchModal(id)');
+  assert.ok(/Insert THIS modal immediately|insertHtml\(html\)/.test(load),
+    'fetchModal phải insert ngay khi response về');
+  // loadGroup không được gán inflight = raw fetch text-only.
+  assert.ok(!/inflight\[id\]\s*=\s*fetch\(url\)\s*\n\s*\.then\(function \(res\)/.test(load)
+    || /insertHtml/.test(load.slice(load.indexOf('function fetchModal'))),
+    'inflight phải gắn với đường insert');
+  // all_ready must NOT eagerly call loadDeferred via criticalPromise.then(loadDeferred).
+  assert.ok(!/__clientpro_modals_all_ready\s*=\s*criticalPromise\.then/.test(load),
+    '__clientpro_modals_all_ready không được criticalPromise.then(loadDeferred) — phá idle defer');
+  assert.ok(/scheduleIdle\(function \(\) \{ loadDeferred\(\); \}\)/.test(load),
+    'business modals chỉ warm qua idle callback');
+});
+
+test('modals: fragment deferred được khởi tạo Lucide theo đúng modal vừa chèn', () => {
+  const load = read('assets/ui/load_modals.js');
+  const fetchBody = fnBody(load, 'fetchModal');
+  const iconBody = fnBody(load, 'initDeferredModalIcons');
+
+  assert.ok(/DEFERRED\.indexOf\(id\)\s*<\s*0/.test(iconBody),
+    'không quét lại critical gates trên cold-start');
+  assert.ok(/window\.lucide\.createIcons\(\s*\{\s*root:\s*modal\s*\}\s*\)/.test(iconBody),
+    'modal deferred phải được scan icon theo chính subtree vừa chèn');
+  assert.ok(!/window\.lucide\.createIcons\(\s*\)/.test(iconBody),
+    'không được gọi Lucide không scope');
+  const insertIdx = fetchBody.indexOf('insertHtml(html)');
+  const iconIdx = fetchBody.indexOf('initDeferredModalIcons(id, modal)');
+  assert.ok(insertIdx >= 0 && iconIdx > insertIdx,
+    'khởi tạo icon phải chạy sau khi fragment đã được chèn vào DOM');
+});
+
+test('modals: fetch + SW precache cùng ?v=ASSET_V (không stale camera-modal khi upgrade SW)', () => {
+  const load = read('assets/ui/load_modals.js');
+  assert.ok(/function versionedUrl\(/.test(load) && /versionedUrl\(path\)/.test(fnBody(load, 'fetchModal')),
+    'fetchModal phải request fragment qua versionedUrl');
+  assert.ok(/LAZY_MODULES_V|ASSET_V/.test(fnBody(load, 'assetVersion')),
+    'version lấy từ LAZY_MODULES_V/ASSET_V');
+
+  const sw = read('sw.js');
+  const assetV = (sw.match(/ASSET_V\s*=\s*'([^']+)'/) || [])[1];
+  assert.ok(assetV, 'phải đọc được ASSET_V');
+  for (const id of [
+    'camera-modal', 'add-modal', 'asset-modal', 'screen-lock', 'backup-manager-modal',
+  ]) {
+    assert.ok(sw.includes(`./assets/ui/modals/${id}.html?v=\${ASSET_V}`)
+      || sw.includes(`./assets/ui/modals/${id}.html?v=${assetV}`),
+      `precache phải version ${id}.html để khớp fetch`);
+  }
+  assert.ok(!/^\s*'\.\/assets\/ui\/modals\/camera-modal\.html',?\s*$/m.test(sw),
+    'không còn precache camera-modal không version');
+});
+
+test('khách hàng trống: openModal tự ensure add-modal trước mọi DOM access', () => {
+  const cust = read('assets/05_customers.js');
+  const body = fnBody(cust, 'openModal');
+  const firstLookup = body.indexOf("getEl('add-modal')");
+  const ensureIdx = body.indexOf("ModalLoader.ensure('add-modal')");
+  const secondLookup = body.indexOf("getEl('add-modal')", firstLookup + 1);
+  const openIdx = body.indexOf("modal.classList.remove('hidden')");
+
+  assert.ok(firstLookup >= 0 && ensureIdx > firstLookup,
+    'openModal phải kiểm tra fragment trước khi gọi loader');
+  assert.ok(secondLookup > ensureIdx,
+    'openModal phải lấy lại fragment sau khi await loader');
+  assert.ok(openIdx > secondLookup,
+    'không được dereference modal trước khi ensure hoàn tất');
+  assert.ok(/if\s*\(\s*!modal\s*\)\s*return/.test(body),
+    'fetch lỗi phải fail closed thay vì dereference null');
+});
+
+test('camera open: hủy sau lazy-load nếu khóa/ẩn; photo-mode revalidate sau await', () => {
+  const ui = read('assets/04_ui_common.js');
+  assert.ok(/__cameraOpenAttemptSeq/.test(ui) && /__cameraOpenStillAllowed/.test(ui),
+    'tryOpenCamera phải có token hủy sau await lazy-load');
+  const tryBody = fnBody(ui, 'tryOpenCamera');
+  assert.ok(/__cameraOpenStillAllowed\(attempt\)/.test(tryBody),
+    'sau ensureDocumentScanner phải chặn mở nếu attempt hết hiệu lực');
+  assert.ok(/visibilitychange/.test(ui)
+    && /clientpro:security-gate-shown/.test(ui)
+    && /MutationObserver/.test(fnBody(ui, '__bindCameraSecurityGateObserver')),
+  'ẩn trang và security gate thật phải invalidate pending camera open');
+
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const photo = fnBody(scan, 'capturePhotoMode');
+  assert.ok(/captureSeq/.test(photo) && /isAppUnlocked/.test(photo),
+    'capturePhotoMode phải re-check session/unlock sau takeHighResBitmap');
+  assert.ok(/Math\.max\(\s*cw\s*\/\s*w\s*,\s*ch\s*\/\s*h\s*\)/.test(fnBody(scan, 'drawOverlay')),
+    'drawOverlay phải map theo object-cover (max scale), không sx/sy độc lập');
+});
+
+test('document-scanner: review layout sau khi unhide; still-fail bỏ preview corners; session gate', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const openReview = fnBody(scan, 'openReview');
+  const ensureReview = fnBody(scan, 'ensureReviewDom');
+  const unhideIdx = openReview.search(/classList\.remove\(\s*['"]hidden['"]\s*\)/);
+  const layoutIdx = openReview.search(/layoutReviewHandles\s*\(/);
+  assert.ok(unhideIdx >= 0 && layoutIdx >= 0 && unhideIdx < layoutIdx,
+    'openReview phải bỏ hidden TRƯỚC layoutReviewHandles');
+  assert.ok(/className\s*=\s*['"]fixed inset-0 hidden['"]/.test(ensureReview),
+    'review động phải theo overlay contract .fixed.inset-0 của ModalA11y');
+  assert.ok(/data-action['"]\s*,\s*['"]closeCamera['"]/.test(ensureReview),
+    'nút Đóng phải dùng close action để Escape đi qua cleanup scanner đầy đủ');
+  assert.ok(/ModalA11y\.observeAll\(\)/.test(ensureReview),
+    'review tạo sau bootstrap phải đăng ký lại với ModalA11y');
+
+  const capture = fnBody(scan, 'captureDocument');
+  assert.ok(/stillCorners/.test(capture), 'captureDocument phải redetect trên ảnh tĩnh');
+  assert.ok(/captureSeq\s*!==\s*state\.seq/.test(capture), 'phải chặn session cũ sau await');
+  assert.ok(/isAppUnlocked/.test(capture), 'phải re-check unlocked trước openReview');
+  // Preview corners không được giữ khi still fail — chỉ stillCorners hoặc inset thủ công.
+  assert.ok(!/corners\s*=\s*Geom\.scaleCorners\(\s*state\.lastCorners/.test(capture),
+    'không scale preview corners làm crop khi còn đường still-detect');
+
+  const cleanup = fnBody(scan, 'cleanupAll');
+  assert.ok(/state\.seq\s*=/.test(cleanup), 'cleanupAll phải bump seq để hủy capture đang bay');
+
+  // openSession chờ ensureLibs/ModalLoader; cleanupAll giữa chừng bump state.seq. Phải
+  // phát hiện điều đó TRƯỚC khi khôi phục state/getUserMedia, nếu không camera mở sau màn khóa.
+  const openSess = fnBody(scan, 'openSession');
+  assert.ok(/seqAtEntry\s*=\s*state\.seq/.test(openSess),
+    'openSession phải chụp seq baseline trước các await');
+  const seqGuardIdx = openSess.search(/state\.seq\s*!==\s*seqAtEntry/);
+  const gumIdx = openSess.search(/getUserMedia\s*\(/);
+  assert.ok(seqGuardIdx >= 0 && gumIdx >= 0 && seqGuardIdx < gumIdx,
+    'openSession phải re-check seq (phát hiện cleanupAll) TRƯỚC getUserMedia');
+  assert.ok(/isAppUnlocked/.test(openSess.slice(0, gumIdx)),
+    'openSession phải re-check unlocked trước getUserMedia');
+  // Token phiên phải đơn điệu từ một nguồn (nextSessionToken), KHÔNG gán seq ngoài
+  // (vd __cameraOpenSeq của caller) — nếu không token có thể trùng phiên đã bỏ.
+  assert.ok(/nextSessionToken\(\)/.test(openSess) && /state\.seq\s*=\s*mySeq\b/.test(openSess),
+    'openSession phải mint token từ nextSessionToken(), không gán counter ngoài');
+  assert.ok(!/state\.seq\s*=\s*seq\b/.test(openSess),
+    'openSession không được gán state.seq từ tham số seq bên ngoài');
+  assert.ok(/state\.seq\s*=\s*nextSessionToken\(\)/.test(cleanup),
+    'cleanupAll phải bump seq qua nextSessionToken() (cùng nguồn đơn điệu)');
+
+  assert.ok(/sharpOk/.test(scan) && /HINTS\.blurry/.test(scan),
+    'frame mờ phải gắn sharpOk=false và chặn auto-capture');
+  assert.ok(/abandonCapture|captureSeq === state\.seq\)\s*state\.busy\s*=\s*false/.test(capture),
+    'early-abort sau await phải nhả busy nếu vẫn là chủ session');
+});
+
+test('document-scanner: không gửi frame lên mạng; cleanup khi khóa/ẩn trang', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  assert.ok(!/fetch\s*\(/.test(scan.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')),
+    'document-scanner.js không được fetch mạng');
+  assert.ok(/terminate\(/.test(scan), 'phải terminate worker khi cleanup');
+  assert.ok(/pagehide/.test(scan) && /visibilitychange/.test(scan)
+    && /clientpro:security-gate-shown/.test(scan),
+  'cleanup khi ẩn trang / security gate thật được hiện');
+  assert.ok(/Worker\(/.test(scan), 'detector chạy bằng Worker');
+});
+
+test('document-scanner: preview detect single-flight và cleanup xóa plaintext review', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const request = fnBody(scan, 'requestDetect');
+  const inFlightGuard = request.indexOf('state.previewDetectInFlight');
+  const sample = request.indexOf('samplePreviewFrame()');
+  const arm = request.indexOf('state.previewDetectInFlight = true');
+  const post = request.indexOf('worker.postMessage');
+  assert.ok(inFlightGuard >= 0 && sample > inFlightGuard,
+    'phải chặn trước khi sample frame mới nếu Worker còn một preview đang chạy');
+  assert.ok(arm >= 0 && post > arm,
+    'phải arm single-flight gate trước khi postMessage');
+
+  const receive = fnBody(scan, 'onWorkerMessage');
+  assert.ok(/msg\.id\s*===\s*state\.previewDetectId/.test(receive)
+    && /state\.previewDetectInFlight\s*=\s*false/.test(receive),
+  'chỉ response đúng request mới được nhả preview gate');
+  const cleanup = fnBody(scan, 'cleanupAll');
+  assert.ok(/state\.previewDetectInFlight\s*=\s*false/.test(cleanup),
+    'cleanup session phải nhả preview gate');
+
+  const close = fnBody(scan, 'closeReview');
+  assert.ok(/imageData\.data\.fill\(0\)/.test(close),
+    'closeReview phải zero JS plaintext image buffer');
+  assert.ok(/canvas\.width\s*=\s*0/.test(close) && /canvas\.height\s*=\s*0/.test(close),
+    'closeReview phải giải phóng canvas backing store');
+  assert.ok(/while\s*\(handles\.firstChild\)\s*handles\.removeChild/.test(close),
+    'closeReview phải gỡ corner handles');
+});
+
+test('document-scanner: still capture giới hạn bộ nhớ — cap 2400px, không nhân đôi buffer full-res', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const toId = fnBody(scan, 'bitmapToImageData');
+  assert.ok(/STILL_MAX_LONG_SIDE\s*=\s*2400/.test(toId),
+    'bitmapToImageData phải cap long side 2400 (khớp compress/warp document)');
+  assert.ok(/drawImage\(\s*bitmap\s*,\s*0\s*,\s*0\s*,\s*w\s*,\s*h\s*\)/.test(toId),
+    'phải scale trực tiếp từ bitmap, không giữ full-res rồi mới crop');
+
+  const redetect = fnBody(scan, 'redetectOnStill');
+  assert.ok(/sourceCanvas/.test(redetect) && /drawImage\(\s*sourceCanvas/.test(redetect),
+    'redetectOnStill phải downscale từ canvas sẵn có, không dựng temp full-res mặc định');
+
+  const open = fnBody(scan, 'openReview');
+  assert.ok(/var\s+owned\s*=/.test(open) && /data:\s*owned/.test(open),
+    'openReview phải giữ một buffer RGBA owned — không clone lần 2 vào state.review');
+  assert.ok(!/new Uint8ClampedArray\(\s*imageData\.data\s*\)[\s\S]*new Uint8ClampedArray\(\s*imageData\.data\s*\)/.test(open),
+    'openReview không được clone imageData.data hai lần');
+
+  const capture = fnBody(scan, 'captureDocument');
+  assert.ok(/redetectOnStill\(\s*pack\.imageData\s*,\s*pack\.canvas\s*\)/.test(capture),
+    'captureDocument phải truyền pack.canvas vào redetectOnStill');
+});
+
+test('camera/scanner: lifecycle khóa dựa trên security gate + clientpro:locked', () => {
+  const ui = read('assets/04_ui_common.js');
+  const bind = fnBody(ui, '__bindCameraSecurityGateObserver');
+  for (const id of [
+    'screen-lock',
+    'activation-modal',
+    'setup-lock-modal',
+    'forgot-pin-modal',
+    'biometric-setup-modal',
+  ]) {
+    assert.ok(ui.includes(`'${id}'`), `camera gate observer thiếu #${id}`);
+  }
+  assert.ok(/new CustomEvent\('clientpro:security-gate-shown'/.test(bind),
+    'gate observer phải phát lifecycle event thật');
+  assert.ok(/addEventListener\(\s*['"]clientpro:locked['"]/.test(ui),
+    'pending camera-open cũng lắng nghe clientpro:locked (clearMasterKeyMaterial phát khi có session)');
+  const scan = read('assets/document-scanner/document-scanner.js');
+  assert.ok(/addEventListener\(\s*['"]clientpro:security-gate-shown['"][\s\S]{0,100}cleanupAll/.test(scan),
+    'scanner phải cleanup khi lifecycle security gate được phát');
+  assert.ok(/addEventListener\(\s*['"]clientpro:locked['"][\s\S]{0,100}cleanupAll/.test(scan),
+    'scanner cũng cleanup trên clientpro:locked (trước khi gate paint)');
+});
+
+test('document-scanner: overlay map qua object-cover; photo-mode re-check session sau await', () => {
+  const scan = read('assets/document-scanner/document-scanner.js');
+  const draw = fnBody(scan, 'drawOverlay');
+  assert.ok(/Math\.max\(\s*cw\s*\/\s*w\s*,\s*ch\s*\/\s*h\s*\)/.test(draw),
+    'drawOverlay phải dùng object-cover scale max(cw/w, ch/h), không kéo giãn x/y riêng');
+  assert.ok(!/var\s+sx\s*=\s*cw\s*\/\s*w\s*,\s*sy\s*=\s*ch\s*\/\s*h/.test(draw),
+    'drawOverlay không được nhân độc lập cw/w và ch/h');
+
+  const photo = fnBody(scan, 'capturePhotoMode');
+  assert.ok(/captureSeq\s*=\s*state\.seq/.test(photo),
+    'capturePhotoMode phải chụp captureSeq trước await');
+  assert.ok(/captureSeq\s*!==\s*state\.seq/.test(photo),
+    'capturePhotoMode phải re-check session sau await bitmap trước khi dựng frame/lưu');
+  assert.ok(/isAppUnlocked/.test(photo),
+    'capturePhotoMode phải re-check unlocked sau await');
+});
+
+test('lock lifecycle: clearMasterKeyMaterial phát clientpro:locked khi vừa có session', () => {
+  const sec = read('assets/02_security.js');
+  const body = fnBody(sec, 'clearMasterKeyMaterial');
+  assert.ok(/hadSession/.test(body) && /clientpro:locked/.test(body),
+    'clearMasterKeyMaterial phải dispatch clientpro:locked khi vừa xóa session thật');
+});
+
+test('camera: tryOpenCamera hủy nếu app khóa/ẩn trong lúc lazy-load scanner', () => {
+  const ui = read('assets/04_ui_common.js');
+  const body = fnBody(ui, 'tryOpenCamera');
+  assert.ok(/__cameraOpenAttemptSeq/.test(body) || /\+\+__cameraOpenAttemptSeq/.test(body),
+    'tryOpenCamera phải chụp attempt seq trước khi nạp scanner');
+  assert.ok(/__cameraOpenStillAllowed\(attempt\)/.test(body),
+    'sau lazy-load phải gọi __cameraOpenStillAllowed trước khi mở');
+  const still = fnBody(ui, '__cameraOpenStillAllowed');
+  assert.ok(/isAppUnlocked\(\)/.test(still) && /visibilityState\s*===\s*['"]hidden['"]/.test(still),
+    '__cameraOpenStillAllowed phải kiểm tra khóa/ẩn');
+  const openIdx = body.search(/_tryOpenCameraReal\(/);
+  const guardIdx = body.search(/__cameraOpenStillAllowed\(attempt\)/);
+  assert.ok(guardIdx >= 0 && openIdx >= 0 && guardIdx < openIdx,
+    'phải chặn attempt cũ TRƯỚC khi gọi _tryOpenCameraReal');
+});
+
+test('modals: __clientpro_modals_all_ready lazy — không eager gọi loadDeferred lúc init', () => {
+  const load = read('assets/ui/load_modals.js');
+  // Không được có eager `criticalPromise.then(...loadDeferred...)` gán thẳng vào
+  // window.__clientpro_modals_all_ready (ngoài getter) — nó sẽ nạp 8 modal nghiệp
+  // vụ ngay khi critical settle, tranh chấp cold-start.
+  assert.ok(/Object\.defineProperty\(\s*window\s*,\s*['"]__clientpro_modals_all_ready['"]/.test(load),
+    '__clientpro_modals_all_ready phải là getter lazy (Object.defineProperty)');
+  assert.ok(!/window\.__clientpro_modals_all_ready\s*=\s*criticalPromise\.then/.test(load),
+    'không được gán eager criticalPromise.then(loadDeferred) vào window.__clientpro_modals_all_ready');
+  // Idle warmer vẫn phải còn để hâm nóng ngoài đường cold-start.
+  assert.ok(/scheduleIdle\(function\s*\(\)\s*\{\s*loadDeferred\(\);?\s*\}\)/.test(load),
+    'phải giữ idle warmer gọi loadDeferred ngoài critical path');
 });
 
 test('nhóm ổn định B #8: put-wrapper trong 2 migration của 02_security.js phải reject cả onabort', () => {

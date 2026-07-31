@@ -7,7 +7,11 @@
 let __refPriceSeq = 0;
 let __refRoadInFlight = null; // { key, seq } của request đường bộ đang chạy
 
-function referenceAssetPrice(assetIndex) {
+async function referenceAssetPrice(assetIndex) {
+  // Modal nghiệp vụ lazy — ensure trước khi đụng DOM (nút Edit/Tham khảo gọi trực tiếp).
+  if (window.ModalLoader && typeof window.ModalLoader.ensure === 'function') {
+    try { await window.ModalLoader.ensure('ref-price-modal'); } catch (e) { }
+  }
   // 1. Lấy tài sản đang chọn
   const targetAsset = currentCustomerData.assets[assetIndex];
 
@@ -346,11 +350,29 @@ function renderAssets() {
     if (mapAnchor) mapAnchor.setAttribute('href', mapLink);
 
     const editBtn = el.querySelector('[data-asset-action="edit"]');
-    if (editBtn) editBtn.addEventListener("click", () => openEditAssetModal(index));
+    if (editBtn) editBtn.addEventListener("click", async () => {
+      if (window.ModalLoader && typeof window.ModalLoader.ensure === "function") {
+        try { await window.ModalLoader.ensure("asset-modal"); } catch (e) { }
+      }
+      if (!getEl("asset-modal")) {
+        ErrorHandler.showError("NETWORK", "Không tải được biểu mẫu tài sản. Vui lòng thử lại.");
+        return;
+      }
+      openEditAssetModal(index);
+    });
     const deleteBtn = el.querySelector('[data-asset-action="delete"]');
     if (deleteBtn) deleteBtn.addEventListener("click", () => deleteAsset(index));
     const referenceBtn = el.querySelector('[data-asset-action="reference"]');
-    if (referenceBtn) referenceBtn.addEventListener("click", () => referenceAssetPrice(index));
+    if (referenceBtn) referenceBtn.addEventListener("click", async () => {
+      if (window.ModalLoader && typeof window.ModalLoader.ensure === "function") {
+        try { await window.ModalLoader.ensure("ref-price-modal"); } catch (e) { }
+      }
+      if (!getEl("ref-price-modal")) {
+        ErrorHandler.showError("NETWORK", "Không tải được bảng giá tham khảo. Vui lòng thử lại.");
+        return;
+      }
+      referenceAssetPrice(index);
+    });
     const galleryBtn = el.querySelector('[data-asset-action="gallery"]');
     if (galleryBtn) galleryBtn.addEventListener("click", () => openAssetGallery(asset.id, decName, index));
     frag.appendChild(el);
@@ -383,8 +405,14 @@ function openAssetModal() {
   getEl("asset-year").value = "";
 }
 async function openEditAssetModal(index) {
+  // Modal nghiệp vụ lazy — ensure trước khi getEl("asset-modal").
+  if (window.ModalLoader && typeof window.ModalLoader.ensure === 'function') {
+    try { await window.ModalLoader.ensure('asset-modal'); } catch (e) { }
+  }
   // Hiện modal
-  getEl("asset-modal").classList.remove("hidden");
+  const modal = getEl("asset-modal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
 
   // Lấy tài sản đang chọn — SNAPSHOT trước await, không đọc lại currentCustomerData
   // sống sau khi decrypt xong.
@@ -611,4 +639,3 @@ function openGuideModal() {
 function closeGuideModal() {
   getEl("guide-modal").classList.add("hidden");
 }
-

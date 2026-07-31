@@ -1,1 +1,15 @@
-<div id="camera-modal" class="fixed inset-0 z-[200] bg-black hidden flex flex-col"><video id="camera-feed" class="flex-1 w-full object-cover" autoplay playsinline webkit-playsinline muted></video><div class="absolute bottom-10 left-0 right-0 flex justify-center"><button data-action="capturePhoto" aria-label="Chụp ảnh" class="w-20 h-20 bg-white rounded-full border-4 border-gray-300 shadow-2xl active:scale-95 transition-transform ring-4 ring-white/20"></button></div><button data-action="closeCamera" aria-label="Đóng máy ảnh" class="absolute top-8 right-6 text-white p-2 bg-black/20 rounded-full backdrop-blur"><i data-lucide="x" class="w-8 h-8"></i></button><canvas id="camera-canvas" class="hidden"></canvas></div>
+<div id="camera-modal" class="fixed inset-0 z-[200] bg-black hidden flex flex-col cp-scan-mode" role="dialog" aria-modal="true" aria-label="Máy ảnh">
+  <video id="camera-feed" class="flex-1 w-full object-cover" autoplay playsinline webkit-playsinline muted></video>
+  <div id="cp-scan-hint" class="cp-scan-hint" aria-live="polite">Đưa đủ 4 góc giấy tờ vào khung</div>
+  <button type="button" id="cp-cam-mode-toggle" class="cp-cam-mode-toggle" data-action="toggleCameraScanMode" aria-pressed="true">Ảnh thường</button>
+  <div id="cp-scan-overlay" class="cp-scan-overlay" aria-hidden="true">
+    <canvas id="cp-scan-overlay-canvas"></canvas>
+  </div>
+  <div class="cp-cam-controls absolute bottom-10 left-0 right-0 flex justify-center">
+    <button data-action="capturePhoto" aria-label="Chụp ảnh" class="cp-cam-shutter w-20 h-20 bg-white rounded-full border-4 border-gray-300 shadow-2xl active:scale-95 transition-transform ring-4 ring-white/20"></button>
+  </div>
+  <button data-action="closeCamera" aria-label="Đóng máy ảnh" class="absolute top-8 right-6 text-white p-2 bg-black/20 rounded-full backdrop-blur">
+    <i data-lucide="x" class="w-8 h-8"></i>
+  </button>
+  <canvas id="camera-canvas" class="hidden"></canvas>
+</div>

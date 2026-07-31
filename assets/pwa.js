@@ -6,8 +6,9 @@
 //   SW mới chờ theo lifecycle chuẩn. Khi phát hiện bản mới đang chờ,
 //   hiện banner "Đã có bản cập nhật" — chỉ khi NGƯỜI DÙNG bấm "Cập nhật"
 //   mới gửi SKIP_WAITING và reload MỘT lần sau controllerchange.
-//   Người dùng không bao giờ mất nội dung đang nhập vì app tự reload,
-//   và không bao giờ có mixed-version HTML/asset.
+// - Lần cài SW đầu tiên không được tranh băng thông với security gate/cold paint:
+//   bắt đầu sau unlock, hoặc fallback sau 15 giây nếu user ở lâu tại activation.
+//   PWA đã có controller vẫn kiểm tra update ở idle sau first paint.
 // ============================================================
 
 (function () {
@@ -18,13 +19,15 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v1.4.8';
+  var SW_BUILD = 'v1.5.0';
 
   window.__swUpdatePending = false;
 
   // Người dùng đã bấm "Cập nhật" -> được phép reload 1 lần khi SW mới nhận quyền.
   var userRequestedUpdate = false;
   var didReload = false;
+  var registrationStarted = false;
+  var fallbackTimer = null;
 
   function removeUpdateBanner() {
     var b = document.getElementById("sw-update-banner");
@@ -86,7 +89,13 @@
     document.body.appendChild(banner);
   }
 
-  window.addEventListener("load", async () => {
+  async function registerServiceWorker() {
+    if (registrationStarted) return;
+    registrationStarted = true;
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = null;
+    }
     try {
       const reg = await navigator.serviceWorker.register("./sw.js?v=" + encodeURIComponent(SW_BUILD));
 
@@ -120,6 +129,36 @@
       });
     } catch (err) {
       console.warn("Lỗi Service Worker:", err);
+    }
+  }
+
+  function scheduleInstalledAppUpdateCheck() {
+    var run = function () { registerServiceWorker(); };
+    try {
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(run, { timeout: 2500 });
+      } else {
+        setTimeout(run, 1);
+      }
+    } catch (e) {
+      setTimeout(run, 1);
+    }
+  }
+
+  function scheduleFirstInstall() {
+    // Explicit unlock is the preferred trigger: first paint and security work are
+    // complete, and the user can benefit from the offline package afterward.
+    document.addEventListener('clientpro:unlocked', registerServiceWorker, { once: true });
+    // Activation/setup screens may remain open for a while. Install eventually,
+    // but outside Lighthouse/cold-start and without requiring user interaction.
+    fallbackTimer = setTimeout(registerServiceWorker, 15000);
+  }
+
+  window.addEventListener("load", function () {
+    if (navigator.serviceWorker.controller) {
+      scheduleInstalledAppUpdateCheck();
+    } else {
+      scheduleFirstInstall();
     }
   });
 })();
