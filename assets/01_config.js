@@ -1,7 +1,7 @@
 // Cache-buster cho các module lazy-load (PDF Toolkit / DVHC — xem LazyModules
 // trong 00_globals.js). PHẢI bằng ASSET_V trong sw.js để request rơi trúng
 // precache (CI check-policy + tests/pwa.test.js kiểm tra).
-const LAZY_MODULES_V = 'DOCSCAN_PERF_20260730';
+const LAZY_MODULES_V = 'DOCSCAN_ACCURACY_20260731';
 
 // --- WEATHER CONFIG (Open-Meteo: không cần API key) ---
 const WEATHER_STORAGE_KEY = 'app_weather_cache_v1';

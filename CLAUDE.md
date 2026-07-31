@@ -667,6 +667,19 @@ before the existing `saveImageToDB` path. Default camera mode is **Quét giấy 
 - No OCR, no OpenCV.js, no cloud vision. Frames never leave the device; do not log base64/blobs.
 - Detection runs in `document-detector.worker.js` (Web Worker), with at most one
   preview detection in flight so slow devices cannot accumulate stale frames.
+  The dependency-free detector is a bounded classical-CV pipeline: Gaussian
+  luma blur → non-max-suppressed Sobel gradients → dual-threshold hysteresis →
+  linear-time connected components → convex hull/RDP quad candidates, with an
+  Otsu bright/dark region fallback for page edges joined to desk texture. Every
+  accepted side must have oriented source-gradient evidence, and a weighted
+  line fit refines all four intersections before crop. Never restore the old
+  Moore-neighbour contour walk: on textured frames it could revisit a chain
+  until the `w*h` guard for many separate starts and take seconds. Component
+  traversal must enqueue each pixel at most once and retain at most two hull
+  extremes per image row.
+  Preview candidates below confidence `0.62` may guide the outline but must not
+  advance stability/auto-capture. Still candidates below `0.58` or touching the
+  frame are discarded into manual-corner review; never scale or crop them.
   Still capture caps retained resolution at 2400px long side (matches document
   compress/warp); `redetectOnStill` downscales from the existing canvas (no
   second full-res buffer); `openReview` reuses one owned RGBA buffer.
@@ -698,8 +711,8 @@ before the existing `saveImageToDB` path. Default camera mode is **Quét giấy 
 `tryOpenCamera` / `capturePhoto` / `toggleCameraScanMode`.
 
 ### Required tests when changed
-`tests/document-scanner.test.js`, scanner tripwires in `tests/regressions.test.js`,
-`e2e/document-scanner.spec.js`.
+`tests/document-detector-fixtures.test.js`, `tests/document-scanner.test.js`,
+scanner tripwires in `tests/regressions.test.js`, `e2e/document-scanner.spec.js`.
 
 ### Must not affect
 Crypto, IndexedDB schema, Drive upload, backup.

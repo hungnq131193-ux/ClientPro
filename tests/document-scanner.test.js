@@ -29,6 +29,28 @@ test('DocumentGeometry: orderCorners TL-TR-BR-BL', () => {
   assert.ok(o[3].y >= o[0].y);
 });
 
+test('DocumentGeometry: orderCorners keeps a valid ring under strong rotation', () => {
+  const diamond = [
+    { x: 320, y: 40 },
+    { x: 590, y: 240 },
+    { x: 320, y: 450 },
+    { x: 55, y: 240 },
+  ];
+  const ordered = Geom.orderCorners([
+    diamond[2],
+    diamond[0],
+    diamond[3],
+    diamond[1],
+  ]);
+  assert.ok(ordered);
+  assert.equal(Geom.isConvexQuad(ordered), true);
+  assert.ok(Geom.polygonArea(ordered) > 100_000);
+  for (let i = 0; i < 4; i++) {
+    const side = Geom.dist(ordered[i], ordered[(i + 1) % 4]);
+    assert.ok(side > 250, 'corner order must not draw a diagonal through the page');
+  }
+});
+
 test('DocumentGeometry: scoreQuad accepts clear rectangle, rejects tiny', () => {
   const good = [
     { x: 80, y: 60 },
@@ -152,6 +174,23 @@ test('fixtures: synthetic document PNGs exist and are valid', () => {
     assert.equal(buf[2], 0x4e);
     assert.equal(buf[3], 0x47);
   }
+});
+
+test('still re-detect rejects weak or frame-touch crops before scaling corners', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'assets/document-scanner/document-scanner.js'),
+    'utf8'
+  );
+  const redetect = source.slice(
+    source.indexOf('async function redetectOnStill'),
+    source.indexOf('async function captureDocument')
+  );
+  assert.match(redetect, /msg\.edgeTouch/);
+  assert.match(redetect, /\(msg\.score \|\| 0\) < 0\.58/);
+  assert.ok(
+    redetect.indexOf('msg.edgeTouch') < redetect.indexOf('Geom.scaleCorners'),
+    'unsafe still verdict must be rejected before any crop coordinates are returned'
+  );
 });
 
 // Optional canvas-based detector smoke when node-canvas is present.
