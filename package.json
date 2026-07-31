@@ -1,6 +1,6 @@
 {
   "name": "clientpro",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "private": true,
   "description": "ClientPro — PWA mobile-first quản lý khách hàng và tài sản bảo đảm, privacy-first, offline-first, mã hóa tại thiết bị và zero-dependency lúc runtime.",
   "license": "SEE LICENSE IN LICENSE",
