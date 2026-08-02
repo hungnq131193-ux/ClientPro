@@ -21,39 +21,21 @@ const META_HEADER = 'sw-cache-time';
 // App shell (same-origin) – phải khớp CHÍNH XÁC URL mà index.html request
 // (cache.match phân biệt query string, precache URL lệch token là dead weight).
 const ASSET_V = 'SECURITY_A11Y_20260731';
-const STATIC_ASSETS = [
+const CRITICAL_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './favicon.ico',
-  './icon-192.png',
-  './icon-512.png',
-  './icon-192-maskable.png',
-  './icon-512-maskable.png',
 
-  // Vendor (self-host, không còn CDN ngoài)
+  // Cold-start shell: crypto, icons, CSS và code nghiệp vụ luôn phải đủ bộ.
   `./assets/vendor/lucide.min.js?v=${ASSET_V}`,
   `./assets/vendor/crypto-js.min.js?v=${ASSET_V}`,
-  `./assets/vendor/maplibre-gl.js?v=${ASSET_V}`,
-  `./assets/vendor/maplibre-gl.css?v=${ASSET_V}`,
-  `./assets/vendor/supercluster.min.js?v=${ASSET_V}`,
-
-  // Vendor PDF Toolkit (self-host, lazy-load lúc runtime nhưng precache để dùng offline)
-  `./assets/vendor/pdf-lib.min.js?v=${ASSET_V}`,
-  `./assets/vendor/jszip.min.js?v=${ASSET_V}`,
-  `./assets/vendor/pdf.min.mjs?v=${ASSET_V}`,
-  `./assets/vendor/pdf.worker.min.mjs?v=${ASSET_V}`,
-
-  // Fonts (self-host; woff2 được request từ fonts.css nên KHÔNG có query)
   `./assets/css/fonts.css?v=${ASSET_V}`,
-
-  // Tailwind (self-host) — có ?v= để khớp index.html, tránh CSS stale sau deploy
   `./assets/css/tailwind.clientpro.css?v=${ASSET_V}`,
   `./assets/css/redesign.clientpro.css?v=${ASSET_V}`,
-  `./assets/css/features.css?v=${ASSET_V}`,
   `./assets/styles.css?v=${ASSET_V}`,
   `./assets/head.js?v=${ASSET_V}`,
   `./assets/pwa.js?v=${ASSET_V}`,
+  `./assets/ui/load_modals.js?v=${ASSET_V}`,
 
   `./assets/00_globals.js?v=${ASSET_V}`,
   `./assets/01_config.js?v=${ASSET_V}`,
@@ -79,6 +61,45 @@ const STATIC_ASSETS = [
   `./assets/18_biometric_unlock.js?v=${ASSET_V}`,
   `./assets/19_error_loading.js?v=${ASSET_V}`,
 
+  // Năm cổng bảo mật phải có ngay ở cold start.
+  `./assets/ui/modals/screen-lock.html?v=${ASSET_V}`,
+  `./assets/ui/modals/setup-lock-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/activation-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/forgot-pin-modal.html?v=${ASSET_V}`,
+  `./assets/ui/modals/biometric-setup-modal.html?v=${ASSET_V}`,
+];
+
+const DEFERRED_ASSETS = [
+  // App identity + fonts được dùng sau khi shell đã có thể khởi động.
+  './favicon.ico',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-192-maskable.png',
+  './icon-512-maskable.png',
+  './assets/fonts/be-vietnam-pro-400-latin.woff2',
+  './assets/fonts/be-vietnam-pro-400-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-500-latin.woff2',
+  './assets/fonts/be-vietnam-pro-500-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-600-latin.woff2',
+  './assets/fonts/be-vietnam-pro-600-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-700-latin.woff2',
+  './assets/fonts/be-vietnam-pro-700-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-800-latin.woff2',
+  './assets/fonts/be-vietnam-pro-800-vietnamese.woff2',
+  './assets/fonts/be-vietnam-pro-900-latin.woff2',
+  './assets/fonts/be-vietnam-pro-900-vietnamese.woff2',
+
+  // Vendor lazy-load (map + PDF Toolkit), vẫn top-up dần để hội tụ offline đầy đủ.
+  `./assets/vendor/maplibre-gl.js?v=${ASSET_V}`,
+  `./assets/vendor/maplibre-gl.css?v=${ASSET_V}`,
+  `./assets/vendor/supercluster.min.js?v=${ASSET_V}`,
+  `./assets/vendor/pdf-lib.min.js?v=${ASSET_V}`,
+  `./assets/vendor/jszip.min.js?v=${ASSET_V}`,
+  `./assets/vendor/pdf.min.mjs?v=${ASSET_V}`,
+  `./assets/vendor/pdf.worker.min.mjs?v=${ASSET_V}`,
+
+  `./assets/css/features.css?v=${ASSET_V}`,
+
   // PDF Toolkit — module độc lập (xử lý file trên thiết bị, hoạt động offline)
   `./assets/css/pdf-toolkit.css?v=${ASSET_V}`,
   `./assets/pdf-toolkit/pdf_toolkit_utils.js?v=${ASSET_V}`,
@@ -95,21 +116,13 @@ const STATIC_ASSETS = [
   `./assets/dvhc-lookup/dvhc_ui.js?v=${ASSET_V}`,
   `./assets/data/dvhc/dvhc.v1.json?v=${ASSET_V}`,
 
-  `./assets/ui/load_modals.js?v=${ASSET_V}`,
-
   // Document scanner (lazy at camera open; precached for offline)
   `./assets/document-scanner/document-geometry.js?v=${ASSET_V}`,
   `./assets/document-scanner/document-image-enhance.js?v=${ASSET_V}`,
   `./assets/document-scanner/document-scanner.js?v=${ASSET_V}`,
   `./assets/document-scanner/document-detector.worker.js?v=${ASSET_V}`,
 
-  // Modal fragments — versioned to match load_modals.js fetch (?v=ASSET_V) so a
-  // 1.4.x→1.5.x upgrade cannot serve a stale camera-modal from the old SW cache.
-  `./assets/ui/modals/screen-lock.html?v=${ASSET_V}`,
-  `./assets/ui/modals/setup-lock-modal.html?v=${ASSET_V}`,
-  `./assets/ui/modals/activation-modal.html?v=${ASSET_V}`,
-  `./assets/ui/modals/forgot-pin-modal.html?v=${ASSET_V}`,
-  `./assets/ui/modals/biometric-setup-modal.html?v=${ASSET_V}`,
+  // Modal nghiệp vụ lazy-load; URL vẫn versioned để không nhận fragment cũ.
   `./assets/ui/modals/add-modal.html?v=${ASSET_V}`,
   `./assets/ui/modals/asset-modal.html?v=${ASSET_V}`,
   `./assets/ui/modals/guide-modal.html?v=${ASSET_V}`,
@@ -118,23 +131,71 @@ const STATIC_ASSETS = [
   `./assets/ui/modals/donate-modal.html?v=${ASSET_V}`,
   `./assets/ui/modals/camera-modal.html?v=${ASSET_V}`,
   `./assets/ui/modals/backup-manager-modal.html?v=${ASSET_V}`,
-
-  // Font woff2 (self-host) — precache để chữ hiển thị đúng khi offline.
-  // Chỉ còn Be Vietnam Pro subset latin + vietnamese (đã bỏ latin-ext và toàn bộ
-  // Inter khỏi fonts.css — font hiển thị thực tế luôn là Be Vietnam Pro).
-  './assets/fonts/be-vietnam-pro-400-latin.woff2',
-  './assets/fonts/be-vietnam-pro-400-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-500-latin.woff2',
-  './assets/fonts/be-vietnam-pro-500-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-600-latin.woff2',
-  './assets/fonts/be-vietnam-pro-600-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-700-latin.woff2',
-  './assets/fonts/be-vietnam-pro-700-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-800-latin.woff2',
-  './assets/fonts/be-vietnam-pro-800-vietnamese.woff2',
-  './assets/fonts/be-vietnam-pro-900-latin.woff2',
-  './assets/fonts/be-vietnam-pro-900-vietnamese.woff2',
 ];
+
+// Danh sách đầy đủ vẫn là nguồn chung cho activate top-up và unit test.
+const STATIC_ASSETS = [...CRITICAL_ASSETS, ...DEFERRED_ASSETS];
+const CRITICAL_CHUNK_SIZE = 10;
+const DEFERRED_CONCURRENCY = 6;
+
+function _precacheRequest(url) {
+  return new Request(url, { cache: 'reload' });
+}
+
+async function _retryOnce(operation) {
+  try {
+    return await operation();
+  } catch (firstError) {
+    return operation();
+  }
+}
+
+async function _cacheCriticalAssets(cache) {
+  for (let i = 0; i < CRITICAL_ASSETS.length; i += CRITICAL_CHUNK_SIZE) {
+    const requests = CRITICAL_ASSETS
+      .slice(i, i + CRITICAL_CHUNK_SIZE)
+      .map(_precacheRequest);
+    await _retryOnce(() => cache.addAll(requests));
+  }
+}
+
+async function _cacheDeferredAssets(cache, urls, phase) {
+  let failed = 0;
+  for (let i = 0; i < urls.length; i += DEFERRED_CONCURRENCY) {
+    const batch = urls.slice(i, i + DEFERRED_CONCURRENCY);
+    const results = await Promise.allSettled(batch.map((url) => (
+      _retryOnce(() => cache.add(_precacheRequest(url)))
+    )));
+    failed += results.filter((result) => result.status === 'rejected').length;
+  }
+  if (failed > 0) {
+    console.warn(`[ClientPro SW] ${phase}: chưa cache được ${failed}/${urls.length} asset; tiếp tục best-effort.`);
+  }
+  return failed;
+}
+
+function _absoluteAssetUrl(value) {
+  const raw = typeof value === 'string' ? value : value && value.url;
+  try {
+    const base = self.location.href || `${self.location.origin}/`;
+    return new URL(raw, base).href;
+  } catch (e) {
+    return String(raw || '');
+  }
+}
+
+async function _topUpStaticAssets() {
+  try {
+    const cache = await caches.open(STATIC_CACHE);
+    const present = new Set((await cache.keys()).map(_absoluteAssetUrl));
+    const missing = STATIC_ASSETS.filter((url) => !present.has(_absoluteAssetUrl(url)));
+    if (missing.length > 0) {
+      await _cacheDeferredAssets(cache, missing, 'activate top-up');
+    }
+  } catch (e) {
+    console.warn('[ClientPro SW] activate top-up bỏ qua do Cache Storage/network lỗi.');
+  }
+}
 
 self.addEventListener('install', (event) => {
   // KHÔNG skipWaiting() ở install: SW mới chờ theo lifecycle chuẩn (đóng hết
@@ -144,9 +205,10 @@ self.addEventListener('install', (event) => {
   // chủ động kích hoạt sớm qua message SKIP_WAITING bên dưới (hook có-đồng-thuận).
   event.waitUntil((async () => {
     const cache = await caches.open(STATIC_CACHE);
-    // cache:'reload' giúp lấy bản mới nhất, tránh dính cache HTTP cũ khi deploy lại
-    const reqs = STATIC_ASSETS.map((url) => new Request(url, { cache: 'reload' }));
-    await cache.addAll(reqs);
+    // Critical fail-closed theo chunk; deferred best-effort để một file lazy lỗi
+    // không làm mất toàn bộ khả năng offline của phiên cài đặt.
+    await _cacheCriticalAssets(cache);
+    await _cacheDeferredAssets(cache, DEFERRED_ASSETS, 'install');
   })());
 });
 
@@ -189,6 +251,9 @@ self.addEventListener('activate', (event) => {
     ]);
 
     await self.clients.claim();
+    // Hội tụ cache về đủ bề mặt offline sau một lần install chập chờn. Helper này
+    // luôn best-effort, nên activate không thất bại chỉ vì asset lazy còn thiếu.
+    await _topUpStaticAssets();
   })());
 });
 
