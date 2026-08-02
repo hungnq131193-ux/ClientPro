@@ -1123,12 +1123,13 @@ Installable PWA with offline app shell.
   one retry each, and failures are best-effort. After `clients.claim()`, activate
   top-ups every missing `STATIC_ASSETS` entry with the same deferred helper. Since
   activate is one-shot, the page also sends `TOP_UP_STATIC_ASSETS` after
-  `clientpro:unlocked` and `online`; the SW deduplicates concurrent requests. Do
-  not trigger top-up eagerly inside registration/controllerchange because its
-  background fetches can keep navigation non-idle on slow devices. A deferred miss
-  must converge after connectivity returns or the next unlock without waiting for
-  another SW generation. Never collapse this back into one all-or-nothing `addAll`
-  over the full list.
+  `clientpro:unlocked` and on `online` only while that unlocked lifecycle remains
+  active; the SW deduplicates concurrent requests. Do not trigger top-up eagerly
+  inside registration/controllerchange or from a cold-navigation `online` event,
+  because its background fetches can keep navigation non-idle on slow devices. A
+  deferred miss must converge after connectivity returns or the next unlock
+  without waiting for another SW generation. Never collapse this back into one
+  all-or-nothing `addAll` over the full list.
 - Cache names: `clientpro-genesis-{static,runtime-so,runtime-cdn,runtime-tile}-<VERSION>`.
 - `ASSET_V` (cache-buster) must equal every `?v=` in `index.html`, `MAPLIBRE_V`,
   and `LAZY_MODULES_V`.

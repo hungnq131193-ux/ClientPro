@@ -28,6 +28,7 @@
   var didReload = false;
   var registrationStarted = false;
   var fallbackTimer = null;
+  var staticTopUpUnlocked = false;
 
   function requestStaticAssetTopUp() {
     try {
@@ -161,11 +162,19 @@
     fallbackTimer = setTimeout(registerServiceWorker, 15000);
   }
 
-  // Cơ hội retry có chủ đích: unlock thật và lúc mạng vừa trở lại. Không gọi từ
-  // register/controllerchange vì fetch nền lúc navigation làm `networkidle` không
-  // ổn định trên thiết bị chậm. SW tự dedupe nếu hai tín hiệu đến gần nhau.
-  document.addEventListener('clientpro:unlocked', requestStaticAssetTopUp);
-  window.addEventListener('online', requestStaticAssetTopUp);
+  // Cơ hội retry có chủ đích: unlock thật và lúc mạng vừa trở lại TRONG một phiên
+  // đã mở. `online` có thể bắn ngay khi cold navigation nên phải gác bằng lifecycle
+  // security; nếu không fetch nền làm navigation không-idle trên thiết bị chậm.
+  document.addEventListener('clientpro:unlocked', function () {
+    staticTopUpUnlocked = true;
+    requestStaticAssetTopUp();
+  });
+  document.addEventListener('clientpro:locked', function () {
+    staticTopUpUnlocked = false;
+  });
+  window.addEventListener('online', function () {
+    if (staticTopUpUnlocked) requestStaticAssetTopUp();
+  });
 
   window.addEventListener("load", function () {
     if (navigator.serviceWorker.controller) {

@@ -54,10 +54,12 @@ test('pwa.js + sw.js: deferred top-up được thử lại sau unlock/online, kh
   const sw = stripComments(read('sw.js'));
   assert.ok(/postMessage\(\s*\{\s*type:\s*["']TOP_UP_STATIC_ASSETS/.test(pwa),
     'Trang phải gửi message top-up cho SW đang điều khiển');
-  assert.ok(/addEventListener\(\s*["']clientpro:unlocked["']\s*,\s*requestStaticAssetTopUp/.test(pwa),
+  assert.ok(/addEventListener\(\s*["']clientpro:unlocked["'][\s\S]*staticTopUpUnlocked\s*=\s*true[\s\S]*requestStaticAssetTopUp\(\)/.test(pwa),
     'Unlock phải tạo một cơ hội top-up mới');
-  assert.ok(/addEventListener\(\s*["']online["']\s*,\s*requestStaticAssetTopUp/.test(pwa),
-    'Mạng trở lại phải tạo một cơ hội top-up mới');
+  assert.ok(/addEventListener\(\s*["']clientpro:locked["'][\s\S]*staticTopUpUnlocked\s*=\s*false/.test(pwa),
+    'Lock phải thu hồi quyền chạy online top-up');
+  assert.ok(/addEventListener\(\s*["']online["'][\s\S]*if\s*\(staticTopUpUnlocked\)\s*requestStaticAssetTopUp\(\)/.test(pwa),
+    'Mạng trở lại chỉ top-up sau khi app đã mở khóa, không trong cold navigation');
   assert.ok(/TOP_UP_STATIC_ASSETS/.test(sw) && /_requestStaticTopUp/.test(sw),
     'SW phải xử lý message top-up qua helper có dedupe');
 
