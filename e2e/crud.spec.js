@@ -26,7 +26,7 @@ test('mở khóa PIN + tạo khách hàng -> IndexedDB lưu AES-GCM và giải m
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
 
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
 
   // Màn khóa hiển thị -> nhập PIN 6 số qua bàn phím.
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
@@ -80,7 +80,7 @@ test('B9/B8: mở lại danh sách reset tìm kiếm; xóa KH không reload, dan
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
 
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
@@ -160,7 +160,7 @@ test('B4: creditLimit + asset.name mã hóa at rest, UI hiển thị plaintext',
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
 
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
@@ -229,7 +229,7 @@ test('privacy: xóa hồ sơ dọn sạch dữ liệu khách hàng khỏi DOM', 
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
 
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
@@ -323,7 +323,7 @@ test('race: đóng hồ sơ đang trượt giữ nền inert; mở hồ sơ khá
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
 
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });

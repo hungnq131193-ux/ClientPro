@@ -19,7 +19,7 @@
   // IMPORTANT (GitHub Pages / aggressive HTTP caches):
   // Register SW with a build query so browsers reliably fetch the latest sw.js.
   // Keep this in sync with sw.js VERSION.
-  var SW_BUILD = 'v1.5.2';
+  var SW_BUILD = 'v1.5.3';
 
   window.__swUpdatePending = false;
 
@@ -28,6 +28,14 @@
   var didReload = false;
   var registrationStarted = false;
   var fallbackTimer = null;
+  var staticTopUpUnlocked = false;
+
+  function requestStaticAssetTopUp() {
+    try {
+      var controller = navigator.serviceWorker.controller;
+      if (controller) controller.postMessage({ type: "TOP_UP_STATIC_ASSETS" });
+    } catch (e) { }
+  }
 
   function removeUpdateBanner() {
     var b = document.getElementById("sw-update-banner");
@@ -153,6 +161,20 @@
     // but outside Lighthouse/cold-start and without requiring user interaction.
     fallbackTimer = setTimeout(registerServiceWorker, 15000);
   }
+
+  // Cơ hội retry có chủ đích: unlock thật và lúc mạng vừa trở lại TRONG một phiên
+  // đã mở. `online` có thể bắn ngay khi cold navigation nên phải gác bằng lifecycle
+  // security; nếu không fetch nền làm navigation không-idle trên thiết bị chậm.
+  document.addEventListener('clientpro:unlocked', function () {
+    staticTopUpUnlocked = true;
+    requestStaticAssetTopUp();
+  });
+  document.addEventListener('clientpro:locked', function () {
+    staticTopUpUnlocked = false;
+  });
+  window.addEventListener('online', function () {
+    if (staticTopUpUnlocked) requestStaticAssetTopUp();
+  });
 
   window.addEventListener("load", function () {
     if (navigator.serviceWorker.controller) {

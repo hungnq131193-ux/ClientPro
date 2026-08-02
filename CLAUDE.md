@@ -176,6 +176,9 @@ playwright.config.js      Playwright e2e config (mobile profile + static server)
 lighthouserc.json         Lighthouse CI config
 scripts/sync-version.mjs  Sync/verify semver + ASSET_V across manifest/sw/pwa/README
 scripts/check-policy.mjs  Repo policy checks (debug scaffold / cache-buster / self-host) — CI + local
+scripts/check-lighthouse-budget.mjs  Release-locked Lighthouse budget gate (e2e CI)
+scripts/serve-ci.mjs      Compression-aware static server used by lighthouserc.json
+docs/perf/                Cold-start performance baseline + release budget
 .nvmrc                    Node version for CI (node-version-file) and local dev
 assets/00…19_*.js, pwa.js Business modules, in dependency order (see §9)
 assets/head.js            Early head-level setup
@@ -413,10 +416,24 @@ Turn a valid PIN into an in-RAM master key and load data.
   seal it over the only envelopes that open the existing data. Every legitimate
   entry (first-time setup, 4→6 digit upgrade, post-recovery, post-reactivation)
   already has a key installed.
+- `saveSecuritySetup` builds the sealed employee ID plus `PIN_KEY`/`SEC_KEY` in
+  RAM, then commits them synchronously through `_commitSecuritySetupState`.
+  `_commitEnvelopePair` still verifies read-back, writes `SEC_KEY` before
+  `PIN_KEY`, and verifies `SEC_KEY` again. Any failure restores PIN, SEC, sealed
+  employee ID, legacy plaintext employee ID, and `__employeeIdPlain` from one
+  snapshot before reporting `ErrorHandler.showError('STORAGE', …)`. Rollback via
+  `_restoreEnvelopeSnapshot` stays best-effort (must not mask the original commit
+  error) but logs `ErrorHandler.logError` on write failure or read-back mismatch.
+  The quota message is used only for a real `QuotaExceededError`; other
+  storage/read-back failures get a generic actionable message. A half-written,
+  mismatched-identity, or silent update is forbidden.
 - The same "re-check after every await" rule applies to the employee code: it is
   the recovery secret, so `saveSecuritySetup` and `checkRecovery` seal it first
-  and only assign `__employeeIdPlain` once the session is confirmed alive —
-  otherwise a locked session gets its recovery secret back in RAM.
+  and only assign `__employeeIdPlain` once the session is confirmed alive.
+  `_writeSealedEmployeeId` must capture both `__keyGeneration` and the CryptoKey,
+  then re-check them after its encrypt/decrypt verification await and immediately
+  before `_setItemVerified`; otherwise a stale session can persist an identity
+  envelope that the replacement session cannot decrypt.
 
 ### Primary files
 `assets/02_security.js`.
@@ -478,7 +495,8 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
   plaintext back (`decryptFieldAsync` repopulating `__fieldPlainCache`). Guarded
   sites: `_installMasterKey`, `_gcmEncryptField`, `decryptFieldAsync`,
   `decryptCustomerSummaryAsync`, KDATA/transfer-key acquisition,
-  `primeFieldCache`, `runEmployeeIdSealMigrationIfNeeded`, the legacy migration,
+  `primeFieldCache`, `_writeSealedEmployeeId`,
+  `runEmployeeIdSealMigrationIfNeeded`, the legacy migration,
   and customer summary/search/list caches in `05_customers.js`. Network responses
   that can write secrets or revoke a session must also prove they still belong to
   the same identity/generation before applying their result.
@@ -585,6 +603,11 @@ Crypto schema, backup format.
 All business data is owned by the user and stored on the device. Clearing site
 data deletes IndexedDB. There is no server-side authoritative copy; cloud actions
 are user-initiated backups only.
+
+Because IndexedDB is the only authoritative business-data copy,
+`10_bootstrap.js` asks for `navigator.storage.persist()` once after
+`clientpro:unlocked`, and only after `navigator.storage.persisted()` returns
+false. Denial/errors are non-blocking and a new page load may try again.
 
 ## Customer data model (contract level)
 
@@ -1100,6 +1123,22 @@ Installable PWA with offline app shell.
 ### Core invariants
 - `install` does not force activation; `activate` keeps only the current
   allowlisted caches.
+- Precache install is two-tier: critical cold-start assets use `cache.addAll` in
+  chunks of 10 with one retry (short backoff) and fail closed; deferred/lazy
+  assets use individual `cache.add` calls through bounded `Promise.allSettled`
+  batches (concurrency 6), one retry each with the same backoff, and failures are
+  best-effort. After `clients.claim()`, activate **kicks off** a missing-asset
+  top-up but must **not await** it: fetch handlers are not dispatched while the
+  worker is still activating, so a hung deferred top-up on a flaky network would
+  stall the first navigation after an update. Since activate is one-shot, the page
+  also sends `TOP_UP_STATIC_ASSETS` after `clientpro:unlocked` and on `online`
+  only while that unlocked lifecycle remains active; the SW deduplicates
+  concurrent requests. Do not trigger top-up eagerly inside
+  registration/controllerchange or from a cold-navigation `online` event, because
+  its background fetches can keep navigation non-idle on slow devices. A deferred
+  miss must converge after connectivity returns or the next unlock without waiting
+  for another SW generation. Never collapse this back into one all-or-nothing
+  `addAll` over the full list.
 - Cache names: `clientpro-genesis-{static,runtime-so,runtime-cdn,runtime-tile}-<VERSION>`.
 - `ASSET_V` (cache-buster) must equal every `?v=` in `index.html`, `MAPLIBRE_V`,
   and `LAZY_MODULES_V`.
@@ -1309,7 +1348,9 @@ This is an absolute rule. Static, developer-authored HTML fragments are loaded v
 
 Static markup uses `data-action` registered in `00_globals.js`. Dynamically
 created elements attach listeners in JS (e.g. `el(..., { on: { click } })` or
-direct `addEventListener`). No inline `onclick`.
+direct `addEventListener`). No inline `onclick`. `dispatch` must route both
+synchronous throws and asynchronous handler rejections through the same
+`ErrorHandler.logError` + `ErrorHandler.showError` path.
 
 ## localStorage / sessionStorage
 
@@ -1466,9 +1507,14 @@ are tracked by the **vendor inventory** in `assets/vendor/README.md` (name,
 version, license, npm source URL, SHA-256), enforced by
 `scripts/check-policy.mjs`.
 
-Lighthouse CI (`lighthouserc.json`): `accessibility` and `best-practices` are
-`error` gates; `performance` remains `warn` for this release (mobile headless
-variance). Artifacts: upload `.lighthouseci/` separately with
+The `static-checks` CI job runs checkout, Node setup, JSON validation, JavaScript
+syntax checks, version single-source verification, and the durable repository
+policy check. It has no release-plan-specific baseline/scope gate.
+
+Lighthouse CI (`lighthouserc.json`): `accessibility`, `best-practices`, and the
+`performance` hard floor are `error` gates; the release-locked median/floor and
+metric budgets are enforced by `scripts/check-lighthouse-budget.mjs`. Artifacts:
+upload `.lighthouseci/` separately with
 `include-hidden-files: true` (dot-dir) and fail if empty; Playwright report is a
 separate upload.
 
@@ -1489,16 +1535,22 @@ error-log redaction
 (`tests/key-generation-race.test.js`, `tests/session-generation-hardening.test.js`,
 `tests/master-key-install-race.test.js` — the last one drives the real
 `saveSecuritySetup`/`checkRecovery`/`validatePin` through
-`loadSecurity({ dom: true })`), PWA, SW routing, regressions, menu, repository
-hygiene (screenshot policy), PDF Toolkit pure utils, and DVHC Lookup utils +
-data integrity. Add unit tests for pure logic you change.
+`loadSecurity({ dom: true })`), PWA, SW routing, two-tier install/activate top-up
+(`tests/sw-install.test.js`, using the real `sw.js` through
+`tests/helpers/load-sw.js`), regressions, menu, repository hygiene (screenshot
+policy), PDF Toolkit pure utils, and DVHC Lookup utils + data integrity. Add unit
+tests for pure logic you change.
 
 ## E2E test
 
 `npm run test:e2e` (Playwright, mobile Pixel 5 profile, static python server).
 Specs cover a11y, autolock, confirm, CRUD, edge-swipe, layering, offline, PDF
-Toolkit, DVHC Lookup, smoke, UX hardening, and onboarding. Tests must assert real behavior, not
-just CSS classes.
+Toolkit, DVHC Lookup, smoke, UX hardening, and onboarding. Tests must assert real
+behavior, not just CSS classes. Do not navigate with `waitUntil: 'networkidle'`:
+the service worker intentionally precaches in the background, so network-idle is
+not an application-ready signal and creates false 30-second flakes. Navigate with
+`domcontentloaded`/`load`, then wait for the exact selector, controller, promise,
+or function the scenario requires.
 
 ## Release process
 

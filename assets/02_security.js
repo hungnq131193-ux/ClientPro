@@ -54,17 +54,43 @@ function _resolveEmployeeId() {
   try { return (localStorage.getItem(EMPLOYEE_KEY) || "").trim(); } catch (e) { return ""; }
 }
 
+/** Dựng sealed mã NV trong RAM và tự mở lại xác minh; chưa chạm localStorage. */
+async function _sealEmployeeIdForCommit(emp) {
+  const val = String(emp || "").trim();
+  if (!val || !masterCryptoKey) throw new Error("EMPLOYEE_SEAL_FAILED");
+  const sealed = await _gcmEncryptField(val);
+  try {
+    if ((await _gcmDecryptField(sealed)) !== val) {
+      throw new Error("EMPLOYEE_SEAL_FAILED");
+    }
+  } catch (e) {
+    __fieldPlainCache.delete(sealed);
+    throw e;
+  }
+  return sealed;
+}
+
 /** Seal mã NV dưới masterKey → ghi → đọc lại xác minh (mẫu _writeCachedKdata). */
 async function _writeSealedEmployeeId(emp) {
-  const val = String(emp || "").trim();
-  if (!val || !masterCryptoKey) return false;
+  // `_sealEmployeeIdForCommit` có hai await (encrypt + decrypt verify). Một lần
+  // lock/revoke/cài khóa khác có thể rơi vào await thứ hai, sau khi encrypt đã
+  // tự kiểm generation. Chụp cả generation + key và kiểm lại NGAY trước lệnh
+  // ghi đồng bộ để ciphertext của phiên cũ không bao giờ đè identity trên đĩa.
+  const writeGeneration = __keyGeneration;
+  const writeCryptoKey = masterCryptoKey;
+  const writeMasterKey = masterKey;
+  const writeKeyAlive = () => writeGeneration === __keyGeneration
+    && writeCryptoKey === masterCryptoKey
+    && writeMasterKey === masterKey
+    && !!writeMasterKey;
+  let sealed = "";
   try {
-    const sealed = await _gcmEncryptField(val);
-    localStorage.setItem(EMPLOYEE_SEALED_KEY, sealed);
-    const back = localStorage.getItem(EMPLOYEE_SEALED_KEY) || "";
-    if (back !== sealed) return false;
-    return (await _gcmDecryptField(back)) === val;
+    sealed = await _sealEmployeeIdForCommit(emp);
+    if (!writeKeyAlive()) throw new Error("STALE_KEY_GENERATION");
+    _setItemVerified(EMPLOYEE_SEALED_KEY, sealed);
+    return true;
   } catch (e) {
+    if (sealed) __fieldPlainCache.delete(sealed);
     return false;
   }
 }
@@ -1067,6 +1093,100 @@ async function _migrateDriveToken(legacyKey, migrationGen, unlockAttempt) {
   return true;
 }
 
+function _isQuotaExceededStorageError(error) {
+  if (!error) return false;
+  if (error.storageQuotaExceeded === true) return true;
+  const name = String(error.name || "");
+  const code = Number(error.code);
+  return name === "QuotaExceededError"
+    || name === "NS_ERROR_DOM_QUOTA_REACHED"
+    || code === 22
+    || code === 1014;
+}
+
+/** Giữ lại loại lỗi gốc để UI không báo nhầm mọi lỗi storage thành hết quota. */
+function _normalizeEnvelopeWriteError(error) {
+  if (error && error.message === "ENVELOPE_WRITE_FAILED") return error;
+  const normalized = new Error("ENVELOPE_WRITE_FAILED");
+  normalized.storageQuotaExceeded = _isQuotaExceededStorageError(error);
+  normalized.storageErrorName = error && error.name ? String(error.name) : "";
+  return normalized;
+}
+
+/** Ghi localStorage rồi đọc lại ngay; mọi lỗi đều được chuẩn hóa fail-closed. */
+function _setItemVerified(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    if (localStorage.getItem(key) !== value) throw new Error("ENVELOPE_WRITE_FAILED");
+  } catch (e) {
+    throw _normalizeEnvelopeWriteError(e);
+  }
+}
+
+/** Xóa localStorage rồi đọc lại xác minh — plaintext recovery không được sót lại. */
+function _removeItemVerified(key) {
+  try {
+    localStorage.removeItem(key);
+    if (localStorage.getItem(key) !== null) throw new Error("ENVELOPE_WRITE_FAILED");
+  } catch (e) {
+    throw _normalizeEnvelopeWriteError(e);
+  }
+}
+
+/** Commit cặp envelope theo cùng kỷ luật với bước finalize migration: SEC trước PIN. */
+function _commitEnvelopePair(pinEnvelope, secEnvelope) {
+  try {
+    _setItemVerified(SEC_KEY, secEnvelope);
+    _setItemVerified(PIN_KEY, pinEnvelope);
+    if (localStorage.getItem(SEC_KEY) !== secEnvelope) {
+      throw new Error("ENVELOPE_WRITE_FAILED");
+    }
+  } catch (e) {
+    throw _normalizeEnvelopeWriteError(e);
+  }
+}
+
+/**
+ * Commit đồng bộ toàn bộ trạng thái recovery: sealed mã NV, cặp SEC/PIN và việc
+ * xóa plaintext. Caller chụp/khôi phục snapshot nếu bất kỳ bước nào thất bại.
+ */
+function _commitSecuritySetupState(pinEnvelope, secEnvelope, employeeEnvelope) {
+  try {
+    _setItemVerified(EMPLOYEE_SEALED_KEY, employeeEnvelope);
+    _commitEnvelopePair(pinEnvelope, secEnvelope);
+    if (localStorage.getItem(EMPLOYEE_SEALED_KEY) !== employeeEnvelope) {
+      throw new Error("ENVELOPE_WRITE_FAILED");
+    }
+    _removeItemVerified(EMPLOYEE_KEY);
+  } catch (e) {
+    throw _normalizeEnvelopeWriteError(e);
+  }
+}
+
+function _securitySetupStorageMessage(error) {
+  if (_isQuotaExceededStorageError(error)) {
+    return "Không lưu được thiết lập bảo mật: bộ nhớ thiết bị đã đầy. Hãy giải phóng dung lượng (ví dụ xóa gói thôn/TDP trong Tra cứu ĐVHC) rồi thử lại.";
+  }
+  return "Không hoàn tất được việc mã hóa và lưu thiết lập bảo mật. Hãy kiểm tra quyền lưu trữ hoặc chế độ riêng tư, rồi thử lại.";
+}
+
+/** Rollback best-effort: tuyệt đối không để lỗi khôi phục che lỗi commit ban đầu. */
+function _restoreEnvelopeSnapshot(key, previousValue) {
+  try {
+    if (previousValue === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, previousValue);
+    const back = localStorage.getItem(key);
+    if (back !== previousValue) {
+      try {
+        ErrorHandler.logError("setup-envelope-rollback-mismatch", { key: String(key || "") });
+      } catch (_) { }
+    }
+  } catch (e) {
+    // Nuốt lỗi để caller vẫn báo STORAGE của commit gốc; chỉ ghi log để điều tra.
+    try { ErrorHandler.logError("setup-envelope-rollback", e); } catch (_) { }
+  }
+}
+
 /**
  * Chạy migration legacy nếu cần. Mọi lỗi đọc IDB, token hoặc đổi generation đều
  * dừng trước bước swap PIN/SEC/schema; stage được giữ nguyên để lần unlock sau resume.
@@ -1909,39 +2029,72 @@ async function saveSecuritySetup() {
     return;
   }
   const setupGeneration = __keyGeneration;
-  // Phiên còn đúng khóa vừa cài? PHẢI kiểm lại ngay trước MỖI lệnh ghi envelope —
-  // giữa _installMasterKey và hai lệnh seal còn một await (_writeSealedEmployeeId).
+  // Phiên còn đúng khóa vừa cài? PHẢI kiểm lại ngay trước commit đồng bộ cuối —
+  // giữa _installMasterKey và commit còn các await dựng ba sealed value trong RAM.
   const setupKeyAlive = () => setupGeneration === __keyGeneration && masterKey === mkForSetup;
-  // Mã NV: seal dưới masterKey TRƯỚC, chỉ nạp lại vào RAM sau khi chắc phiên còn sống —
-  // mã NV là secret khôi phục, gán nó sau khi clearMasterKeyMaterial() vừa dọn RAM là
-  // hồi sinh secret cho một phiên đã khóa/thu hồi.
-  let sealedEmp = false;
+
+  // Snapshot phải gồm cả danh tính recovery. SEC cũ chỉ mở bằng mã NV cũ; rollback
+  // riêng PIN/SEC mà để sealed/RAM mã NV mới sẽ làm đường khôi phục không còn dùng được.
+  let prevPin;
+  let prevSec;
+  let prevEmployeeSealed;
+  let prevEmployeePlain;
+  const prevEmployeeRam = __employeeIdPlain;
   try {
-    sealedEmp = await _writeSealedEmployeeId(ans);
-  } catch (e) {}
-  if (!setupKeyAlive()) {
-    ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc thiết lập. Vui lòng mở khóa lại rồi lưu thiết lập.");
+    prevPin = localStorage.getItem(PIN_KEY);
+    prevSec = localStorage.getItem(SEC_KEY);
+    prevEmployeeSealed = localStorage.getItem(EMPLOYEE_SEALED_KEY);
+    prevEmployeePlain = localStorage.getItem(EMPLOYEE_KEY);
+  } catch (e) {
+    try { ErrorHandler.logError("setup-security-snapshot", e); } catch (_) { }
+    ErrorHandler.showError('STORAGE', _securitySetupStorageMessage(e));
     _releaseUnlockLoading(myUnlockAttempt);
     return;
   }
-  __employeeIdPlain = ans;
-  if (sealedEmp) localStorage.removeItem(EMPLOYEE_KEY);
+
   const btn = getEl("setup-save-btn");
   const btnLabel = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Đang mã hóa..."; }
+  let commitAttempted = false;
+  let employeeEnvelope = "";
   try {
-    const pinEnvelope = await sealMasterKey(pin, mkForSetup);
-    const secEnvelope = await sealMasterKey(ans, mkForSetup);
-    // Kiểm LẦN CUỐI sau await sealMasterKey: hai envelope đã dựng xong trong RAM,
-    // chỉ ghi khi phiên vẫn là phiên đã sinh ra chúng. Ghi một nửa cũng không được:
-    // PIN_KEY và SEC_KEY phải luôn niêm phong CÙNG một masterKey.
-    if (!setupKeyAlive()) {
-      ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc thiết lập. Vui lòng mở khóa lại rồi lưu thiết lập.");
+    try {
+      // Dựng cả ba giá trị trong RAM. Không mutation employee storage/RAM trước
+      // commit: nếu SEC/PIN lỗi, danh tính recovery cũ phải còn nguyên vẹn.
+      employeeEnvelope = await _sealEmployeeIdForCommit(ans);
+      const pinEnvelope = await sealMasterKey(pin, mkForSetup);
+      const secEnvelope = await sealMasterKey(ans, mkForSetup);
+      // Kiểm LẦN CUỐI sau mọi await; từ guard đến hết helper chỉ có thao tác đồng bộ.
+      if (!setupKeyAlive()) {
+        ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc thiết lập. Vui lòng mở khóa lại rồi lưu thiết lập.");
+        _releaseUnlockLoading(myUnlockAttempt);
+        return;
+      }
+      commitAttempted = true;
+      _commitSecuritySetupState(pinEnvelope, secEnvelope, employeeEnvelope);
+    } catch (e) {
+      // _gcmEncryptField seed cache để render field đồng bộ; ciphertext chưa commit
+      // không được giữ recovery secret mới trong RAM sau khi thao tác thất bại.
+      if (employeeEnvelope) __fieldPlainCache.delete(employeeEnvelope);
+      if (commitAttempted) {
+        // Khôi phục cả bốn key và RAM: SEC snapshot luôn đi cùng identity snapshot.
+        _restoreEnvelopeSnapshot(EMPLOYEE_SEALED_KEY, prevEmployeeSealed);
+        _restoreEnvelopeSnapshot(EMPLOYEE_KEY, prevEmployeePlain);
+        _restoreEnvelopeSnapshot(PIN_KEY, prevPin);
+        _restoreEnvelopeSnapshot(SEC_KEY, prevSec);
+        __employeeIdPlain = prevEmployeeRam;
+      }
+      try { ErrorHandler.logError("setup-security-commit", e); } catch (_) { }
+      if (!setupKeyAlive()) {
+        ErrorHandler.showError('AUTH', "Phiên đã kết thúc trong lúc thiết lập. Vui lòng mở khóa lại rồi lưu thiết lập.");
+      } else {
+        ErrorHandler.showError('STORAGE', _securitySetupStorageMessage(e));
+      }
       _releaseUnlockLoading(myUnlockAttempt);
       return;
     }
-    localStorage.setItem(PIN_KEY, pinEnvelope);
-    localStorage.setItem(SEC_KEY, secEnvelope);
+    // Chỉ đổi identity RAM sau khi sealed employee + SEC/PIN đã commit đủ bộ.
+    __employeeIdPlain = ans;
     // PIN đã đổi TRÊN ĐĨA -> enrollment sinh trắc học cũ (mã hóa PIN cũ) hết hợp lệ
     // ngay tại đây. Phải hủy ngay sau lệnh ghi envelope, KHÔNG gắn vào chốt vé/UI ở
     // cuối hàm: nếu phiên chết giữa pipeline dài phía dưới thì PIN mới vẫn đã lưu,

@@ -136,6 +136,22 @@ test('B9: openCustomerList phải xóa ô tìm kiếm và hủy debounce đang c
   assert.ok(/debounced\.cancel\s*=/.test(globals), 'debounce() phải có .cancel()');
 });
 
+test('bootstrap: listener tìm kiếm phải gắn trước await đầu tiên', () => {
+  const src = read('assets/10_bootstrap.js');
+  const helper = fnBody(src, 'initCustomerSearchInput');
+  assert.ok(/searchInput\.addEventListener\(["']input["']/.test(helper),
+    'Helper bootstrap phải gắn input listener cho tìm kiếm');
+  assert.ok(/dataset\.searchBound/.test(helper),
+    'Helper phải idempotent để không gắn trùng listener');
+
+  const start = src.indexOf('document.addEventListener("DOMContentLoaded", async () =>');
+  assert.ok(start !== -1, 'Không tìm thấy DOMContentLoaded bootstrap');
+  const firstAwait = src.indexOf('await ', start);
+  const initAt = src.indexOf('initCustomerSearchInput();', start);
+  assert.ok(initAt > start && firstAwait > initAt,
+    'Search listener phải được gắn trước await modal/bootstrap đầu tiên');
+});
+
 test('item 7: overlay cloud không dùng z-index >1000 (chỉ onboarding được phép >=1000)', () => {
   for (const p of ['assets/14_cloud_transfer.js', 'assets/13_ui_select_customers.js']) {
     const src = read(p);
@@ -572,6 +588,40 @@ test('boot: lucide.createIcons lúc bootstrap phải scope theo root (không qu�
     '10_bootstrap.js: createIcons phải nhận { root } cho gate/dashboard');
   assert.ok(!/window\.lucide\.createIcons\(\s*\)/.test(boot.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')),
     '10_bootstrap.js: không còn createIcons() không scope trên đường boot chính');
+});
+
+test('IndexedDB: chỉ xin persistent storage sau unlock và sau khi persisted() trả false', () => {
+  const boot = read('assets/10_bootstrap.js');
+  const body = fnBody(boot, 'requestPersistentStorage');
+  const persistedAt = body.indexOf('storage.persisted()');
+  const persistAt = body.indexOf('storage.persist()');
+  assert.ok(persistedAt !== -1 && persistAt > persistedAt,
+    'Phải await persisted() trước khi gọi persist()');
+  assert.ok(/if\s*\(await storage\.persisted\(\)\)\s*return/.test(body),
+    'Đã persistent thì phải thoát, không xin lại');
+
+  const listenerStart = boot.indexOf('document.addEventListener("clientpro:unlocked"');
+  const bootStart = boot.indexOf('document.addEventListener("DOMContentLoaded"');
+  assert.ok(listenerStart !== -1 && listenerStart < bootStart,
+    'Phải đăng ký request persistent storage trên clientpro:unlocked');
+  const listener = boot.slice(listenerStart, bootStart);
+  assert.ok(/requestPersistentStorage\(\)/.test(listener) && /once:\s*true/.test(listener),
+    'Listener unlock phải gọi helper đúng một lần mỗi page load');
+  assert.ok(!/requestPersistentStorage\(\)/.test(boot.slice(bootStart)),
+    'Không được gọi request persistent storage trực tiếp trong boot');
+});
+
+test('data-action dispatch bắt cả rejection của handler async', () => {
+  const globals = read('assets/00_globals.js');
+  const body = fnBody(globals, 'dispatch');
+  assert.ok(/const result\s*=\s*handler\(target, ev\)/.test(body),
+    'dispatch phải giữ kết quả handler để nhận diện thenable');
+  assert.ok(/typeof result\.then\s*===\s*['"]function['"]/.test(body)
+    && /Promise\.resolve\(result\)\.catch/.test(body),
+  'dispatch phải gắn catch cho rejection bất đồng bộ');
+  const report = fnBody(globals, 'reportDispatchError');
+  assert.ok(/ErrorHandler\.logError/.test(report) && /ErrorHandler\.showError\(['"]UNKNOWN['"]/.test(report),
+    'Lỗi async phải đi qua đúng ErrorHandler như lỗi đồng bộ');
 });
 
 test('modals: critical security gates load trước; business modals không chặn boot', () => {
@@ -1053,24 +1103,81 @@ test('mọi caller của _installMasterKey phải bắt lỗi cài khóa', () =>
   assert.ok(seen >= 4, `Phải còn đủ các caller _installMasterKey (thấy ${seen})`);
 });
 
-test('saveSecuritySetup: mọi lệnh ghi PIN_KEY/SEC_KEY phải sau một kiểm tra phiên còn sống', () => {
-  const body = fnBody(read('assets/02_security.js'), 'saveSecuritySetup');
-  for (const key of ['localStorage.setItem(PIN_KEY', 'localStorage.setItem(SEC_KEY']) {
-    let from = 0;
-    let seen = 0;
-    for (;;) {
-      const at = body.indexOf(key, from);
-      if (at === -1) break;
-      seen++;
-      from = at + key.length;
-      const before = body.slice(0, at);
-      const lastGuard = before.lastIndexOf('setupKeyAlive()');
-      assert.ok(lastGuard !== -1, `Phải kiểm tra setupKeyAlive() trước ${key}`);
-      assert.ok(!/\bawait\s+[A-Za-z_(]/.test(before.slice(lastGuard)),
-        `Có await giữa setupKeyAlive() và ${key} — khe cho auto-lock ghi đè envelope`);
-    }
-    assert.ok(seen > 0, `Không tìm thấy lệnh ghi ${key}`);
-  }
+test('saveSecuritySetup: commit security state sau guard, rollback cả envelope + identity', () => {
+  const src = read('assets/02_security.js');
+  const body = fnBody(src, 'saveSecuritySetup');
+  const commitCall = '_commitSecuritySetupState(pinEnvelope, secEnvelope, employeeEnvelope)';
+  const commitAt = body.indexOf(commitCall);
+  assert.ok(commitAt !== -1, 'saveSecuritySetup phải commit envelope và identity qua một helper đồng bộ');
+  const beforeCommit = body.slice(0, commitAt);
+  const lastGuard = beforeCommit.lastIndexOf('setupKeyAlive()');
+  assert.ok(lastGuard !== -1, 'Phải kiểm tra setupKeyAlive() trước commit security state');
+  assert.ok(!/\bawait\s+[A-Za-z_(]/.test(beforeCommit.slice(lastGuard)),
+    'Không được có await giữa setupKeyAlive() và _commitSecuritySetupState');
+
+  const commitBranchEnd = body.indexOf('// Chỉ đổi identity RAM', commitAt);
+  const commitBranch = body.slice(commitAt, commitBranchEnd);
+  assert.ok(/catch\s*\(e\)/.test(commitBranch), 'Commit security state phải có nhánh catch');
+  assert.ok(/_restoreEnvelopeSnapshot\(PIN_KEY, prevPin\)/.test(commitBranch)
+    && /_restoreEnvelopeSnapshot\(SEC_KEY, prevSec\)/.test(commitBranch),
+  'Lỗi commit phải rollback cả PIN_KEY và SEC_KEY về snapshot');
+  assert.ok(/_restoreEnvelopeSnapshot\(EMPLOYEE_SEALED_KEY, prevEmployeeSealed\)/.test(commitBranch)
+    && /_restoreEnvelopeSnapshot\(EMPLOYEE_KEY, prevEmployeePlain\)/.test(commitBranch)
+    && /__employeeIdPlain\s*=\s*prevEmployeeRam/.test(commitBranch)
+    && /__fieldPlainCache\.delete\(employeeEnvelope\)/.test(commitBranch),
+  'Lỗi commit phải rollback sealed/plaintext/RAM identity và dọn prepared cache đi cùng SEC snapshot');
+  assert.ok(/ErrorHandler\.showError\(['"]STORAGE['"]/.test(commitBranch),
+    'Lỗi commit phải hiện thông báo STORAGE cho người dùng');
+  assert.ok(/_releaseUnlockLoading\(myUnlockAttempt\)[\s\S]*return;/.test(commitBranch),
+    'Lỗi commit phải nhả UI và dừng trước biometric/pipeline unlock');
+
+  const verified = fnBody(src, '_setItemVerified');
+  const setAt = verified.indexOf('localStorage.setItem(key, value)');
+  const readAt = verified.indexOf('localStorage.getItem(key)');
+  assert.ok(setAt !== -1 && readAt > setAt,
+    '_setItemVerified phải đọc lại giá trị sau khi ghi');
+  assert.ok(/ENVELOPE_WRITE_FAILED/.test(verified), 'Ghi/lệch read-back phải fail-closed');
+
+  const pair = fnBody(src, '_commitEnvelopePair');
+  const secAt = pair.indexOf('_setItemVerified(SEC_KEY, secEnvelope)');
+  const pinAt = pair.indexOf('_setItemVerified(PIN_KEY, pinEnvelope)');
+  const secVerifyAt = pair.lastIndexOf('localStorage.getItem(SEC_KEY)');
+  assert.ok(secAt !== -1 && pinAt > secAt && secVerifyAt > pinAt,
+    '_commitEnvelopePair phải ghi SEC trước PIN rồi verify lại SEC');
+
+  const securityCommit = fnBody(src, '_commitSecuritySetupState');
+  const employeeAt = securityCommit.indexOf('_setItemVerified(EMPLOYEE_SEALED_KEY, employeeEnvelope)');
+  const pairAt = securityCommit.indexOf('_commitEnvelopePair(pinEnvelope, secEnvelope)');
+  const removePlainAt = securityCommit.indexOf('_removeItemVerified(EMPLOYEE_KEY)');
+  assert.ok(employeeAt !== -1 && pairAt > employeeAt && removePlainAt > pairAt,
+    'Security commit phải verify sealed employee, commit SEC/PIN, rồi mới xóa plaintext');
+
+  const employeeSeal = fnBody(src, '_sealEmployeeIdForCommit');
+  assert.ok(!/localStorage\.(?:setItem|removeItem)/.test(employeeSeal),
+    'Bước seal employee trước guard chỉ được dựng trong RAM, không mutation storage');
+  const employeeWrite = fnBody(src, '_writeSealedEmployeeId');
+  const employeeSealAt = employeeWrite.indexOf('await _sealEmployeeIdForCommit(emp)');
+  const employeeGuardAt = employeeWrite.indexOf('if (!writeKeyAlive())', employeeSealAt);
+  const employeeWriteAt = employeeWrite.indexOf('_setItemVerified(EMPLOYEE_SEALED_KEY, sealed)');
+  assert.ok(/writeGeneration\s*=\s*__keyGeneration/.test(employeeWrite)
+    && /writeCryptoKey\s*=\s*masterCryptoKey/.test(employeeWrite),
+  '_writeSealedEmployeeId phải chụp generation + CryptoKey trước await');
+  assert.ok(employeeSealAt !== -1 && employeeGuardAt > employeeSealAt && employeeWriteAt > employeeGuardAt,
+    '_writeSealedEmployeeId phải kiểm lại generation/key sau verify, ngay trước lệnh ghi');
+  const employeeRamAt = body.indexOf('__employeeIdPlain = ans');
+  assert.ok(employeeRamAt > commitAt,
+    'Chỉ được đổi employee identity trong RAM sau khi commit storage thành công');
+
+  const storageMessage = fnBody(src, '_securitySetupStorageMessage');
+  assert.ok(/_isQuotaExceededStorageError/.test(storageMessage) && /quyền lưu trữ|riêng tư/.test(storageMessage),
+    'Thông báo storage phải phân biệt quota với lỗi quyền/read-back khác');
+
+  const restore = fnBody(src, '_restoreEnvelopeSnapshot');
+  assert.ok(/setup-envelope-rollback/.test(restore) && /ErrorHandler\.logError/.test(restore),
+    'Rollback best-effort phải logError khi setItem/removeItem thất bại');
+  assert.ok(/setup-envelope-rollback-mismatch/.test(restore),
+    'Rollback phải log khi read-back không khớp snapshot');
+
   // Envelope phải niêm phong biến cục bộ đã chốt, không đọc lại global sau await.
   assert.ok(/sealMasterKey\(pin,\s*mkForSetup\)/.test(body) && /sealMasterKey\(ans,\s*mkForSetup\)/.test(body),
     'Phải seal bằng masterKey đã chốt (mkForSetup), không đọc lại biến global sau await');
@@ -1251,8 +1358,8 @@ test('saveSecuritySetup: đóng modal / báo thành công phải sau chốt vé 
   // sinh trắc học hỏng im lặng dù đổi PIN đã thành công.
   const bioAt = body.indexOf('onPinChanged()');
   assert.ok(bioAt !== -1, 'saveSecuritySetup phải hủy enrollment sinh trắc học khi đổi PIN');
-  const secWriteAt = body.indexOf('localStorage.setItem(SEC_KEY');
-  assert.ok(secWriteAt !== -1 && bioAt > secWriteAt,
+  const envelopeCommitAt = body.indexOf('_commitSecuritySetupState(pinEnvelope, secEnvelope, employeeEnvelope)');
+  assert.ok(envelopeCommitAt !== -1 && bioAt > envelopeCommitAt,
     'onPinChanged phải nằm SAU lệnh ghi envelope');
   assert.ok(bioAt < guardAt,
     'onPinChanged phải nằm TRƯỚC chốt vé — nó gắn với lệnh ghi đĩa, không gắn với UI');

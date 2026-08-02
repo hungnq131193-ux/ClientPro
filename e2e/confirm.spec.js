@@ -5,7 +5,7 @@
 const { test, expect } = require('@playwright/test');
 
 test('confirm chồng confirm: promise cũ resolve(false), chỉ một overlay, Escape hoạt động', async ({ page }) => {
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.showConfirm === 'function');
 
   const result = await page.evaluate(async () => {
@@ -59,7 +59,7 @@ test('confirm chồng confirm: promise cũ resolve(false), chỉ một overlay, 
 // Regression: confirm cũ được gỡ ĐỒNG BỘ khi bị thay — KHÔNG có cửa sổ animation nào
 // tồn tại 2 .cp-confirm-overlay (trợ năng / thao tác chọn nhầm hộp cũ).
 test('confirm chồng confirm: không bao giờ có 2 overlay cùng lúc (đo NGAY, không chờ)', async ({ page }) => {
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.showConfirm === 'function');
 
   const counts = await page.evaluate(async () => {
@@ -85,7 +85,7 @@ test('confirm chồng confirm: không bao giờ có 2 overlay cùng lúc (đo NG
 // animate-out. Confirm mở ngay sau đó phải gỡ orphan — không 2 overlay, nút Đồng ý
 // của hộp MỚI resolve được (không click nhầm nút hộp cũ đã settled).
 test('Escape rồi mở confirm mới ngay: chỉ 1 overlay, Đồng ý resolve', async ({ page }) => {
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.showConfirm === 'function');
 
   const result = await page.evaluate(async () => {
@@ -125,7 +125,7 @@ test('Escape rồi mở confirm mới ngay: chỉ 1 overlay, Đồng ý resolve'
 
 // Cùng race nhưng đóng bằng nút Hủy (không phải Escape).
 test('Hủy rồi mở confirm mới ngay: chỉ 1 overlay, Đồng ý resolve', async ({ page }) => {
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.showConfirm === 'function');
 
   const result = await page.evaluate(async () => {

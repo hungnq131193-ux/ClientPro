@@ -39,7 +39,7 @@ async function seedNewUserAndUnlock(page) {
     };
   }, [PIN_ENVELOPE]);
 
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const digit of PIN) {
     await page.click(`[data-action="enterPin"][data-arg="${digit}"]`);

@@ -1,6 +1,6 @@
 /* Font Be Vietnam Pro tự host: khai báo @font-face nằm ở assets/css/fonts.css (nạp từ index.html). */
 
-/* From former app.patch.css — force .hidden to win over display utilities. */
+/* Force .hidden to win over display utilities. */
 .hidden { display: none !important; }
 [hidden] { display: none !important; }
 

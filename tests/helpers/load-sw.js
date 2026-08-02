@@ -38,10 +38,12 @@ class FakeResponse {
 
 class FakeRequest {
   constructor(url, opts) {
-    this.url = String(url);
-    this.method = (opts && opts.method) || 'GET';
-    this.mode = (opts && opts.mode) || 'cors';
-    this.destination = (opts && opts.destination) || '';
+    const source = url instanceof FakeRequest ? url : null;
+    this.url = source ? source.url : String(url);
+    this.method = (opts && opts.method) || (source && source.method) || 'GET';
+    this.mode = (opts && opts.mode) || (source && source.mode) || 'cors';
+    this.destination = (opts && opts.destination) || (source && source.destination) || '';
+    this.cache = (opts && opts.cache) || (source && source.cache) || 'default';
   }
 }
 
@@ -53,12 +55,20 @@ class FakeCache {
   async put(req, res) { this._m.set(FakeCache._key(req), res.clone ? res.clone() : res); }
   async delete(req) { return this._m.delete(FakeCache._key(req)); }
   async keys() { return [...this._m.keys()].map((u) => new FakeRequest(u)); }
+  async add(req) {
+    const res = await this._storage._fetch(req);
+    if (!res || !res.ok) throw new Error('add failed: ' + FakeCache._key(req));
+    await this.put(req, res);
+  }
   async addAll(reqs) {
+    // Cache.addAll thật chỉ commit sau khi mọi request trong batch đều thành công.
+    const loaded = [];
     for (const r of reqs) {
       const res = await this._storage._fetch(r);
       if (!res || !res.ok) throw new Error('addAll failed: ' + FakeCache._key(r));
-      await this.put(r, res);
+      loaded.push([r, res]);
     }
+    for (const [r, res] of loaded) await this.put(r, res);
   }
 }
 
@@ -97,7 +107,7 @@ function loadSW() {
   });
 
   const self = {
-    location: { origin: 'https://app.local' },
+    location: { origin: 'https://app.local', href: 'https://app.local/sw.js' },
     registration: {},
     addEventListener: (ev, fn) => { listeners[ev] = fn; },
     skipWaiting: () => { self.__skipWaitingCalled = true; },
@@ -122,6 +132,10 @@ function loadSW() {
   vm.createContext(ctx);
   vm.runInContext(src, ctx, { filename: 'sw.js' });
 
+  const criticalAssets = vm.runInContext('[...CRITICAL_ASSETS]', ctx);
+  const deferredAssets = vm.runInContext('[...DEFERRED_ASSETS]', ctx);
+  const staticAssets = vm.runInContext('[...STATIC_ASSETS]', ctx);
+
   // Trích hằng số cache name từ nguồn để test không hard-code.
   const version = (src.match(/VERSION\s*=\s*'([^']+)'/) || [])[1];
   const names = {};
@@ -141,6 +155,9 @@ function loadSW() {
     fetchLog,
     names,
     version,
+    criticalAssets,
+    deferredAssets,
+    staticAssets,
     setNetwork: (fn) => { networkFn = fn; },
     Request: FakeRequest,
     Response: FakeResponse,
@@ -155,6 +172,28 @@ function loadSW() {
       };
       listeners.fetch(event);
       return responded; // null nếu SW không intercept
+    },
+    dispatchInstall() {
+      const pending = [];
+      listeners.install({ waitUntil: (p) => { pending.push(Promise.resolve(p)); } });
+      return Promise.all(pending).then(() => undefined);
+    },
+    dispatchActivate() {
+      const pending = [];
+      listeners.activate({ waitUntil: (p) => { pending.push(Promise.resolve(p)); } });
+      return Promise.all(pending).then(() => undefined);
+    },
+    // Activate kick-off top-up mà không await; helper này chờ promise nền (nếu có).
+    waitForStaticTopUp() {
+      return vm.runInContext('Promise.resolve(__staticTopUpInFlight)', ctx);
+    },
+    dispatchMessage(data) {
+      const pending = [];
+      listeners.message({
+        data,
+        waitUntil: (p) => { pending.push(Promise.resolve(p)); },
+      });
+      return Promise.all(pending).then(() => undefined);
     },
   };
 }

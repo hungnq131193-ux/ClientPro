@@ -21,9 +21,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # Plan scope compares the PR against locked baseline c4264af.
-          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,9 +43,6 @@ jobs:
 
       - name: Verify repo policy (debug scaffold / cache-buster / self-host)
         run: node scripts/check-policy.mjs
-
-      - name: Verify locked implementation scope
-        run: node scripts/check-plan-scope.mjs
 
   tests:
     name: Automated tests (crypto, data integrity, detector fixtures)

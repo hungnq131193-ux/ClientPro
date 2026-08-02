@@ -38,7 +38,7 @@ async function seedAndUnlock(page, {
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, [PIN_ENVELOPE, markDone, TOUR_KEY, doneVersion, TOUR_PRERELEASE_KEY, prerelease]);
 
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
@@ -97,7 +97,7 @@ test('Finish đóng tour, lưu hoàn tất; reload KHÔNG tự hiện lại', as
   expect(done && done.version).toBe(5);
 
   // Reload: user đã hoàn tất -> không tự hiện lại.
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });

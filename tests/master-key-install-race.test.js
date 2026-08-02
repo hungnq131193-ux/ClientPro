@@ -94,6 +94,47 @@ test('_isStaleKeyInstall nhận đúng lỗi stale và bỏ qua lỗi khác', ()
   assert.equal(api._isStaleKeyInstall(null), false);
 });
 
+test('_writeSealedEmployeeId: đổi khóa trong await verify -> không ghi ciphertext của phiên cũ', async () => {
+  const { api, ctx, localStorage } = loadSecurity();
+  const originalMk = api.generateMasterKey();
+  const replacementMk = api.generateMasterKey();
+  await api.setMasterKey(originalMk);
+  localStorage.setItem('app_employee_id_sealed_v1', 'identity-before-race');
+
+  // Encrypt hoàn tất dưới khóa cũ. Ngay khi decrypt verify đã trả plaintext nhưng
+  // trước khi Promise tiếp tục tới setItem, một phiên khác cài khóa mới.
+  const subtle = ctx.crypto.subtle;
+  const realDecrypt = subtle.decrypt.bind(subtle);
+  let swapped = false;
+  ctx.crypto = {
+    getRandomValues: ctx.crypto.getRandomValues.bind(ctx.crypto),
+    subtle: {
+      importKey: subtle.importKey.bind(subtle),
+      encrypt: subtle.encrypt.bind(subtle),
+      decrypt: async (...args) => {
+        const out = await realDecrypt(...args);
+        if (!swapped) {
+          swapped = true;
+          await api.setMasterKey(replacementMk);
+        }
+        return out;
+      },
+      deriveKey: subtle.deriveKey ? subtle.deriveKey.bind(subtle) : undefined,
+      deriveBits: subtle.deriveBits ? subtle.deriveBits.bind(subtle) : undefined,
+      digest: subtle.digest.bind(subtle),
+    },
+  };
+
+  assert.equal(await api._writeSealedEmployeeId('NV-RACE'), false,
+    'helper phải fail-closed khi generation/key đổi trong verify');
+  assert.equal(swapped, true, 'test phải thực sự cài khóa mới trong khe await verify');
+  assert.equal(api.getMasterKey(), replacementMk, 'phiên mới phải giữ quyền sở hữu khóa');
+  assert.equal(localStorage.getItem('app_employee_id_sealed_v1'), 'identity-before-race',
+    'ciphertext identity của phiên cũ không được ghi đè snapshot trên đĩa');
+  assert.equal(api.fieldCacheSize(), 0,
+    'ciphertext chưa commit không được để lại recovery secret trong cache RAM');
+});
+
 // ---------------------------------------------------------------------------
 // 2. saveSecuritySetup — đường mất dữ liệu nặng nhất
 // ---------------------------------------------------------------------------
@@ -174,6 +215,122 @@ test('saveSecuritySetup: phiên còn sống -> vẫn niêm phong PIN_KEY/SEC_KEY
   assert.equal(fromSec, fromPin, 'PIN_KEY và SEC_KEY phải niêm phong CÙNG một masterKey');
   assert.notEqual(fromPin, 'null');
   assert.equal(dom.isHidden('setup-lock-modal'), true, 'thành công thì đóng modal');
+});
+
+test('saveSecuritySetup: QuotaExceededError ở lệnh envelope thứ hai rollback đủ và báo STORAGE', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  const existingMk = api.generateMasterKey();
+  await api.setMasterKey(existingMk);
+  const pinEnvelopeBefore = await api.sealMasterKey('111111', existingMk);
+  const secEnvelopeBefore = await api.sealMasterKey('NV001', existingMk);
+  localStorage.setItem('app_pin', pinEnvelopeBefore);
+  localStorage.setItem('app_sec_qa', secEnvelopeBefore);
+  api.setEmployeeIdRam('NV001');
+  assert.equal(await api._writeSealedEmployeeId('NV001'), true);
+  const employeeSealedBefore = localStorage.getItem('app_employee_id_sealed_v1');
+
+  dom.getEl('setup-pin').value = '222222';
+  dom.getEl('setup-answer').value = 'NV002';
+  dom.getEl('setup-lock-modal').classList.remove('hidden');
+
+  const shownErrors = [];
+  ctx.ErrorHandler.showError = (...args) => { shownErrors.push(args); };
+  let unlockedEvents = 0;
+  ctx.document.dispatchEvent = (event) => {
+    if (event && event.type === 'clientpro:unlocked') unlockedEvents++;
+    return true;
+  };
+  let biometricChanges = 0;
+  ctx.window.BiometricUnlock = { onPinChanged: () => { biometricChanges++; } };
+
+  const realSetItem = localStorage.setItem;
+  let envelopeWrites = 0;
+  localStorage.setItem = (key, value) => {
+    if (key === 'app_pin' || key === 'app_sec_qa') {
+      envelopeWrites++;
+      if (envelopeWrites === 2) {
+        const error = new Error('quota full');
+        error.name = 'QuotaExceededError';
+        throw error;
+      }
+    }
+    realSetItem(key, value);
+  };
+
+  await api.saveSecuritySetup();
+
+  assert.equal(localStorage.getItem('app_pin'), pinEnvelopeBefore,
+    'PIN_KEY phải quay về đúng snapshot cũ');
+  assert.equal(localStorage.getItem('app_sec_qa'), secEnvelopeBefore,
+    'SEC_KEY phải quay về đúng snapshot cũ');
+  assert.equal(localStorage.getItem('app_employee_id_sealed_v1'), employeeSealedBefore,
+    'Sealed mã NV phải quay về identity cũ đi cùng SEC_KEY cũ');
+  assert.equal(api.getEmployeeIdRam(), 'NV001',
+    'Mã NV trong RAM không được đổi khi commit thất bại');
+  assert.equal(api.fieldCacheSize(), 0,
+    'Prepared employee ciphertext thất bại không được giữ recovery secret mới trong cache RAM');
+  assert.equal(await api._readSealedEmployeeIdAsync(), 'NV001',
+    'Sealed identity khôi phục phải vẫn mở ra mã NV cũ');
+  const storageError = shownErrors.find(([category]) => category === 'STORAGE');
+  assert.ok(storageError,
+    'Người dùng phải thấy lỗi STORAGE thay vì rejection im lặng');
+  assert.match(storageError[1], /đầy/,
+    'QuotaExceededError phải hiện hướng dẫn giải phóng dung lượng');
+  assert.equal(dom.isHidden('setup-lock-modal'), false,
+    'Ghi thất bại phải giữ modal thiết lập mở');
+  assert.equal(dom.getEl('setup-save-btn').disabled, false,
+    'Khối finally phải bật lại nút Lưu');
+  assert.equal(unlockedEvents, 0,
+    'Không được chạy pipeline/phát clientpro:unlocked khi commit thất bại');
+  assert.equal(biometricChanges, 0,
+    'Không được hủy enrollment sinh trắc học khi PIN trên đĩa đã rollback');
+});
+
+test('saveSecuritySetup: lỗi storage không phải quota rollback identity và không báo nhầm bộ nhớ đầy', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  const existingMk = api.generateMasterKey();
+  await api.setMasterKey(existingMk);
+  const pinEnvelopeBefore = await api.sealMasterKey('111111', existingMk);
+  const secEnvelopeBefore = await api.sealMasterKey('NV001', existingMk);
+  localStorage.setItem('app_pin', pinEnvelopeBefore);
+  localStorage.setItem('app_sec_qa', secEnvelopeBefore);
+  api.setEmployeeIdRam('NV001');
+  assert.equal(await api._writeSealedEmployeeId('NV001'), true);
+  const employeeSealedBefore = localStorage.getItem('app_employee_id_sealed_v1');
+
+  dom.getEl('setup-pin').value = '222222';
+  dom.getEl('setup-answer').value = 'NV002';
+  dom.getEl('setup-lock-modal').classList.remove('hidden');
+  const shownErrors = [];
+  ctx.ErrorHandler.showError = (...args) => { shownErrors.push(args); };
+
+  const realSetItem = localStorage.setItem;
+  let failedOnce = false;
+  localStorage.setItem = (key, value) => {
+    if (key === 'app_sec_qa' && !failedOnce) {
+      failedOnce = true;
+      const error = new Error('storage blocked');
+      error.name = 'SecurityError';
+      throw error;
+    }
+    realSetItem(key, value);
+  };
+
+  await api.saveSecuritySetup();
+
+  assert.equal(localStorage.getItem('app_pin'), pinEnvelopeBefore);
+  assert.equal(localStorage.getItem('app_sec_qa'), secEnvelopeBefore);
+  assert.equal(localStorage.getItem('app_employee_id_sealed_v1'), employeeSealedBefore);
+  assert.equal(api.getEmployeeIdRam(), 'NV001');
+  const storageError = shownErrors.find(([category]) => category === 'STORAGE');
+  assert.ok(storageError, 'SecurityError phải được báo cho người dùng');
+  assert.match(storageError[1], /quyền lưu trữ|riêng tư/,
+    'Lỗi quyền storage phải có hướng dẫn phù hợp');
+  assert.doesNotMatch(storageError[1], /đầy/,
+    'Không được khẳng định bộ nhớ đầy khi nguyên nhân không phải quota');
+  assert.equal(dom.isHidden('setup-lock-modal'), false);
 });
 
 // ---------------------------------------------------------------------------

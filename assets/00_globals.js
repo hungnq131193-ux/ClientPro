@@ -481,6 +481,13 @@
             setCustomerSort: (el) => setCustomerSort(el.value),
           };
 
+          function reportDispatchError(name, error) {
+            if (window.ErrorHandler) {
+              ErrorHandler.logError('[data-action] Lỗi khi chạy ' + name, error);
+              ErrorHandler.showError('UNKNOWN', undefined, error);
+            } else { console.error('[data-action] Lỗi khi chạy', name, error); }
+          }
+
           function dispatch(map, ev) {
             const target = ev.target.closest && ev.target.closest('[data-action]');
             if (!target) return;
@@ -490,12 +497,13 @@
               console.warn('[data-action] Không tìm thấy handler cho:', name, target);
               return;
             }
-            try { handler(target, ev); }
-            catch (e) {
-              if (window.ErrorHandler) {
-                ErrorHandler.logError('[data-action] Lỗi khi chạy ' + name, e);
-                ErrorHandler.showError('UNKNOWN', undefined, e);
-              } else { console.error('[data-action] Lỗi khi chạy', name, e); }
+            try {
+              const result = handler(target, ev);
+              if (result && typeof result.then === 'function') {
+                Promise.resolve(result).catch((e) => reportDispatchError(name, e));
+              }
+            } catch (e) {
+              reportDispatchError(name, e);
             }
           }
 

@@ -49,6 +49,43 @@ test('pwa.js: cập nhật CHỈ khi người dùng đồng ý — banner mời 
   assert.ok(!/\.skipWaiting\s*\(/.test(pwa), 'Trang không được gọi skipWaiting() trực tiếp');
 });
 
+test('pwa.js + sw.js: deferred top-up được thử lại sau unlock/online, không chỉ activate', () => {
+  const pwa = stripComments(read('assets/pwa.js'));
+  const sw = stripComments(read('sw.js'));
+  assert.ok(/postMessage\(\s*\{\s*type:\s*["']TOP_UP_STATIC_ASSETS/.test(pwa),
+    'Trang phải gửi message top-up cho SW đang điều khiển');
+  assert.ok(/addEventListener\(\s*["']clientpro:unlocked["'][\s\S]*staticTopUpUnlocked\s*=\s*true[\s\S]*requestStaticAssetTopUp\(\)/.test(pwa),
+    'Unlock phải tạo một cơ hội top-up mới');
+  assert.ok(/addEventListener\(\s*["']clientpro:locked["'][\s\S]*staticTopUpUnlocked\s*=\s*false/.test(pwa),
+    'Lock phải thu hồi quyền chạy online top-up');
+  assert.ok(/addEventListener\(\s*["']online["'][\s\S]*if\s*\(staticTopUpUnlocked\)\s*requestStaticAssetTopUp\(\)/.test(pwa),
+    'Mạng trở lại chỉ top-up sau khi app đã mở khóa, không trong cold navigation');
+  assert.ok(/TOP_UP_STATIC_ASSETS/.test(sw) && /_requestStaticTopUp/.test(sw),
+    'SW phải xử lý message top-up qua helper có dedupe');
+  assert.ok(/void\s+_requestStaticTopUp\(\s*['"]activate top-up['"]\s*\)/.test(sw)
+    && !/await\s+_requestStaticTopUp\(\s*['"]activate top-up['"]\s*\)/.test(sw),
+  'Activate chỉ kick-off top-up; await sẽ giữ SW ở activating và stall mọi fetch');
+  assert.ok(/RETRY_BACKOFF_MS\s*=\s*\d+/.test(sw) && /await\s+_delay\(\s*RETRY_BACKOFF_MS\s*\)/.test(sw),
+    '_retryOnce phải backoff ngắn trước lần thử lại duy nhất');
+
+  const registrationPath = pwa.slice(
+    pwa.indexOf('async function registerServiceWorker'),
+    pwa.indexOf('function scheduleInstalledAppUpdateCheck')
+  );
+  assert.ok(registrationPath.length > 0, 'Không cắt được registration path');
+  assert.ok(!/requestStaticAssetTopUp\s*\(\)/.test(registrationPath),
+    'Không top-up eager trong register/controllerchange vì sẽ giữ navigation bận');
+});
+
+test('E2E PWA dùng readiness cụ thể, không chờ networkidle của precache nền', () => {
+  const specs = fs.readdirSync(path.join(ROOT, 'e2e')).filter((name) => name.endsWith('.spec.js'));
+  for (const name of specs) {
+    const src = read(`e2e/${name}`);
+    assert.ok(!/waitUntil\s*:\s*["']networkidle["']/.test(src),
+      `${name}: PWA có SW precache nền; dùng domcontentloaded/load rồi chờ selector/function cần thiết`);
+  }
+});
+
 test('sw.js: precache đủ shell + TẤT CẢ module JS nghiệp vụ (offline không thiếu file)', () => {
   const sw = read('sw.js');
 

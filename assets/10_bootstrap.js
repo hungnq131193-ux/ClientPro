@@ -19,7 +19,55 @@ function parseMoneyToNumber(str) {
   return parseInt(str.toString().replace(/\D/g, "")) || 0;
 }
 
+async function requestPersistentStorage() {
+  try {
+    const storage = typeof navigator !== "undefined" ? navigator.storage : null;
+    if (!storage || typeof storage.persisted !== "function" || typeof storage.persist !== "function") return;
+    if (await storage.persisted()) return;
+    await storage.persist();
+  } catch (e) { }
+}
+
+// IndexedDB là bản duy nhất của dữ liệu nghiệp vụ. Chỉ xin persistent storage
+// sau tương tác mở khóa thật; từ chối/lỗi sẽ được thử lại ở lần tải trang sau.
+document.addEventListener("clientpro:unlocked", () => {
+  requestPersistentStorage();
+}, { once: true });
+
+// Gắn listener tìm kiếm ngay khi DOM sẵn sàng, TRƯỚC mọi await của bootstrap.
+// Critical modal preload có thể chậm vài giây trên máy yếu; business screen chỉ
+// hiện sau unlock nhưng khi đó ô tìm kiếm phải phản hồi ngay lần gõ đầu tiên.
+function initCustomerSearchInput() {
+  const searchInput = typeof getEl === "function" ? getEl("search-input") : null;
+  if (!searchInput || searchInput.dataset.searchBound === "1") return;
+  searchInput.dataset.searchBound = "1";
+
+  const onSearchInput = (e) => loadCustomers(e.target.value);
+  window.__searchDebounced = (typeof debounce === "function") ? debounce(onSearchInput, 180) : onSearchInput;
+  searchInput.addEventListener("input", window.__searchDebounced);
+
+  // Nút × xóa nhanh ô tìm kiếm: hiện/ẩn tức thời khi gõ (loadCustomers đồng bộ lại
+  // cho các đường reset còn lại); bấm × = xóa query + load lại + giữ focus để gõ tiếp.
+  const searchClearBtn = getEl("search-clear-btn");
+  if (searchClearBtn) {
+    searchInput.addEventListener("input", (e) => {
+      searchClearBtn.classList.toggle("hidden", !e.target.value.trim());
+    });
+    searchClearBtn.addEventListener("click", () => {
+      searchInput.value = "";
+      searchClearBtn.classList.add("hidden");
+      if (window.__searchDebounced && typeof window.__searchDebounced.cancel === "function") {
+        window.__searchDebounced.cancel();
+      }
+      loadCustomers("");
+      searchInput.focus();
+    });
+  }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+  initCustomerSearchInput();
+
   // Critical security-gate modals only — business modals load idle / on demand.
   // (load_modals.js is async; this await keeps gate UX consistent.)
   try {
@@ -210,33 +258,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     try { if (window.ErrorHandler) ErrorHandler.logError("indexedDB.open failed", req.error); } catch (e) { }
     if (dbReadyResolve) dbReadyResolve();
   };
-  // Debounce search to avoid decrypt + render on every single keystroke (mượt hơn với danh sách lớn)
-  // Giữ reference toàn cục để openCustomerList() hủy được debounce đang chờ khi reset tìm kiếm.
-  const searchInput = typeof getEl === "function" ? getEl("search-input") : null;
-  if (searchInput) {
-    const onSearchInput = (e) => loadCustomers(e.target.value);
-    window.__searchDebounced = (typeof debounce === "function") ? debounce(onSearchInput, 180) : onSearchInput;
-    searchInput.addEventListener("input", window.__searchDebounced);
-
-    // Nút × xóa nhanh ô tìm kiếm: hiện/ẩn tức thời khi gõ (loadCustomers đồng bộ lại
-    // cho các đường reset còn lại); bấm × = xóa query + load lại + giữ focus để gõ tiếp.
-    const searchClearBtn = getEl("search-clear-btn");
-    if (searchClearBtn) {
-      searchInput.addEventListener("input", (e) => {
-        searchClearBtn.classList.toggle("hidden", !e.target.value.trim());
-      });
-      searchClearBtn.addEventListener("click", () => {
-        searchInput.value = "";
-        searchClearBtn.classList.add("hidden");
-        if (window.__searchDebounced && typeof window.__searchDebounced.cancel === "function") {
-          window.__searchDebounced.cancel();
-        }
-        loadCustomers("");
-        searchInput.focus();
-      });
-    }
-  }
-
   const lightbox = typeof getEl === "function" ? getEl("lightbox") : null;
   if (lightbox && typeof setupSwipe === "function") setupSwipe();
 });
