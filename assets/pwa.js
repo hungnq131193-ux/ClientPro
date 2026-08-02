@@ -106,10 +106,6 @@
     try {
       const reg = await navigator.serviceWorker.register("./sw.js?v=" + encodeURIComponent(SW_BUILD));
 
-      // Activate top-up có thể đã gặp đúng lúc mất mạng. Mỗi page load có
-      // controller là một cơ hội hội tụ tiếp, không cần chờ một SW generation mới.
-      requestStaticAssetTopUp();
-
       // Bản mới đã cài xong và đang chờ -> đánh dấu + mời cập nhật, không cưỡng bức.
       if (reg && reg.waiting && navigator.serviceWorker.controller) {
         window.__swUpdatePending = true;
@@ -133,7 +129,6 @@
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         window.__swUpdatePending = false;
         removeUpdateBanner();
-        requestStaticAssetTopUp();
         if (userRequestedUpdate && !didReload) {
           didReload = true;
           window.location.reload();
@@ -166,8 +161,9 @@
     fallbackTimer = setTimeout(registerServiceWorker, 15000);
   }
 
-  // Cơ hội retry có chủ đích: unlock thật và lúc mạng vừa trở lại. SW tự dedupe
-  // nếu các tín hiệu đến gần nhau, nên không tạo nhiều lượt tải song song.
+  // Cơ hội retry có chủ đích: unlock thật và lúc mạng vừa trở lại. Không gọi từ
+  // register/controllerchange vì fetch nền lúc navigation làm `networkidle` không
+  // ổn định trên thiết bị chậm. SW tự dedupe nếu hai tín hiệu đến gần nhau.
   document.addEventListener('clientpro:unlocked', requestStaticAssetTopUp);
   window.addEventListener('online', requestStaticAssetTopUp);
 

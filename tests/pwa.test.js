@@ -60,6 +60,14 @@ test('pwa.js + sw.js: deferred top-up được thử lại sau unlock/online, kh
     'Mạng trở lại phải tạo một cơ hội top-up mới');
   assert.ok(/TOP_UP_STATIC_ASSETS/.test(sw) && /_requestStaticTopUp/.test(sw),
     'SW phải xử lý message top-up qua helper có dedupe');
+
+  const registrationPath = pwa.slice(
+    pwa.indexOf('async function registerServiceWorker'),
+    pwa.indexOf('function scheduleInstalledAppUpdateCheck')
+  );
+  assert.ok(registrationPath.length > 0, 'Không cắt được registration path');
+  assert.ok(!/requestStaticAssetTopUp\s*\(\)/.test(registrationPath),
+    'Không top-up eager trong register/controllerchange vì sẽ giữ navigation bận');
 });
 
 test('sw.js: precache đủ shell + TẤT CẢ module JS nghiệp vụ (offline không thiếu file)', () => {
