@@ -19,6 +19,21 @@ function parseMoneyToNumber(str) {
   return parseInt(str.toString().replace(/\D/g, "")) || 0;
 }
 
+async function requestPersistentStorage() {
+  try {
+    const storage = typeof navigator !== "undefined" ? navigator.storage : null;
+    if (!storage || typeof storage.persisted !== "function" || typeof storage.persist !== "function") return;
+    if (await storage.persisted()) return;
+    await storage.persist();
+  } catch (e) { }
+}
+
+// IndexedDB là bản duy nhất của dữ liệu nghiệp vụ. Chỉ xin persistent storage
+// sau tương tác mở khóa thật; từ chối/lỗi sẽ được thử lại ở lần tải trang sau.
+document.addEventListener("clientpro:unlocked", () => {
+  requestPersistentStorage();
+}, { once: true });
+
 document.addEventListener("DOMContentLoaded", async () => {
   // Critical security-gate modals only — business modals load idle / on demand.
   // (load_modals.js is async; this await keeps gate UX consistent.)
