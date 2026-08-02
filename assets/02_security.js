@@ -1067,6 +1067,38 @@ async function _migrateDriveToken(legacyKey, migrationGen, unlockAttempt) {
   return true;
 }
 
+/** Ghi localStorage rồi đọc lại ngay; mọi lỗi đều được chuẩn hóa fail-closed. */
+function _setItemVerified(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    if (localStorage.getItem(key) !== value) throw new Error("ENVELOPE_WRITE_FAILED");
+  } catch (e) {
+    throw new Error("ENVELOPE_WRITE_FAILED");
+  }
+}
+
+/** Commit cặp envelope theo cùng kỷ luật với bước finalize migration: SEC trước PIN. */
+function _commitEnvelopePair(pinEnvelope, secEnvelope) {
+  try {
+    _setItemVerified(SEC_KEY, secEnvelope);
+    _setItemVerified(PIN_KEY, pinEnvelope);
+    if (localStorage.getItem(SEC_KEY) !== secEnvelope) {
+      throw new Error("ENVELOPE_WRITE_FAILED");
+    }
+  } catch (e) {
+    if (e && e.message === "ENVELOPE_WRITE_FAILED") throw e;
+    throw new Error("ENVELOPE_WRITE_FAILED");
+  }
+}
+
+/** Rollback best-effort: tuyệt đối không để lỗi khôi phục che lỗi commit ban đầu. */
+function _restoreEnvelopeSnapshot(key, previousValue) {
+  try {
+    if (previousValue === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, previousValue);
+  } catch (e) { }
+}
+
 /**
  * Chạy migration legacy nếu cần. Mọi lỗi đọc IDB, token hoặc đổi generation đều
  * dừng trước bước swap PIN/SEC/schema; stage được giữ nguyên để lần unlock sau resume.
@@ -1929,6 +1961,8 @@ async function saveSecuritySetup() {
   const btn = getEl("setup-save-btn");
   const btnLabel = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Đang mã hóa..."; }
+  const prevPin = localStorage.getItem(PIN_KEY);
+  const prevSec = localStorage.getItem(SEC_KEY);
   try {
     const pinEnvelope = await sealMasterKey(pin, mkForSetup);
     const secEnvelope = await sealMasterKey(ans, mkForSetup);
@@ -1940,8 +1974,16 @@ async function saveSecuritySetup() {
       _releaseUnlockLoading(myUnlockAttempt);
       return;
     }
-    localStorage.setItem(PIN_KEY, pinEnvelope);
-    localStorage.setItem(SEC_KEY, secEnvelope);
+    try {
+      _commitEnvelopePair(pinEnvelope, secEnvelope);
+    } catch (e) {
+      _restoreEnvelopeSnapshot(PIN_KEY, prevPin);
+      _restoreEnvelopeSnapshot(SEC_KEY, prevSec);
+      try { ErrorHandler.logError("setup-envelope-commit", e); } catch (_) { }
+      ErrorHandler.showError('STORAGE', "Không lưu được thiết lập bảo mật: bộ nhớ thiết bị đã đầy. Hãy giải phóng dung lượng (ví dụ xóa gói thôn/TDP trong Tra cứu ĐVHC) rồi thử lại.");
+      _releaseUnlockLoading(myUnlockAttempt);
+      return;
+    }
     // PIN đã đổi TRÊN ĐĨA -> enrollment sinh trắc học cũ (mã hóa PIN cũ) hết hợp lệ
     // ngay tại đây. Phải hủy ngay sau lệnh ghi envelope, KHÔNG gắn vào chốt vé/UI ở
     // cuối hàm: nếu phiên chết giữa pipeline dài phía dưới thì PIN mới vẫn đã lưu,
