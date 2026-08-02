@@ -427,8 +427,11 @@ Turn a valid PIN into an in-RAM master key and load data.
   or silent update is forbidden.
 - The same "re-check after every await" rule applies to the employee code: it is
   the recovery secret, so `saveSecuritySetup` and `checkRecovery` seal it first
-  and only assign `__employeeIdPlain` once the session is confirmed alive —
-  otherwise a locked session gets its recovery secret back in RAM.
+  and only assign `__employeeIdPlain` once the session is confirmed alive.
+  `_writeSealedEmployeeId` must capture both `__keyGeneration` and the CryptoKey,
+  then re-check them after its encrypt/decrypt verification await and immediately
+  before `_setItemVerified`; otherwise a stale session can persist an identity
+  envelope that the replacement session cannot decrypt.
 
 ### Primary files
 `assets/02_security.js`.
@@ -490,7 +493,8 @@ Encrypt sensitive fields and images at rest with AES-256-GCM.
   plaintext back (`decryptFieldAsync` repopulating `__fieldPlainCache`). Guarded
   sites: `_installMasterKey`, `_gcmEncryptField`, `decryptFieldAsync`,
   `decryptCustomerSummaryAsync`, KDATA/transfer-key acquisition,
-  `primeFieldCache`, `runEmployeeIdSealMigrationIfNeeded`, the legacy migration,
+  `primeFieldCache`, `_writeSealedEmployeeId`,
+  `runEmployeeIdSealMigrationIfNeeded`, the legacy migration,
   and customer summary/search/list caches in `05_customers.js`. Network responses
   that can write secrets or revoke a session must also prove they still belong to
   the same identity/generation before applying their result.

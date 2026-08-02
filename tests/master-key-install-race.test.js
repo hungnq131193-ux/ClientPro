@@ -94,6 +94,47 @@ test('_isStaleKeyInstall nhận đúng lỗi stale và bỏ qua lỗi khác', ()
   assert.equal(api._isStaleKeyInstall(null), false);
 });
 
+test('_writeSealedEmployeeId: đổi khóa trong await verify -> không ghi ciphertext của phiên cũ', async () => {
+  const { api, ctx, localStorage } = loadSecurity();
+  const originalMk = api.generateMasterKey();
+  const replacementMk = api.generateMasterKey();
+  await api.setMasterKey(originalMk);
+  localStorage.setItem('app_employee_id_sealed_v1', 'identity-before-race');
+
+  // Encrypt hoàn tất dưới khóa cũ. Ngay khi decrypt verify đã trả plaintext nhưng
+  // trước khi Promise tiếp tục tới setItem, một phiên khác cài khóa mới.
+  const subtle = ctx.crypto.subtle;
+  const realDecrypt = subtle.decrypt.bind(subtle);
+  let swapped = false;
+  ctx.crypto = {
+    getRandomValues: ctx.crypto.getRandomValues.bind(ctx.crypto),
+    subtle: {
+      importKey: subtle.importKey.bind(subtle),
+      encrypt: subtle.encrypt.bind(subtle),
+      decrypt: async (...args) => {
+        const out = await realDecrypt(...args);
+        if (!swapped) {
+          swapped = true;
+          await api.setMasterKey(replacementMk);
+        }
+        return out;
+      },
+      deriveKey: subtle.deriveKey ? subtle.deriveKey.bind(subtle) : undefined,
+      deriveBits: subtle.deriveBits ? subtle.deriveBits.bind(subtle) : undefined,
+      digest: subtle.digest.bind(subtle),
+    },
+  };
+
+  assert.equal(await api._writeSealedEmployeeId('NV-RACE'), false,
+    'helper phải fail-closed khi generation/key đổi trong verify');
+  assert.equal(swapped, true, 'test phải thực sự cài khóa mới trong khe await verify');
+  assert.equal(api.getMasterKey(), replacementMk, 'phiên mới phải giữ quyền sở hữu khóa');
+  assert.equal(localStorage.getItem('app_employee_id_sealed_v1'), 'identity-before-race',
+    'ciphertext identity của phiên cũ không được ghi đè snapshot trên đĩa');
+  assert.equal(api.fieldCacheSize(), 0,
+    'ciphertext chưa commit không được để lại recovery secret trong cache RAM');
+});
+
 // ---------------------------------------------------------------------------
 // 2. saveSecuritySetup — đường mất dữ liệu nặng nhất
 // ---------------------------------------------------------------------------

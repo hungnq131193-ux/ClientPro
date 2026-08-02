@@ -72,9 +72,21 @@ async function _sealEmployeeIdForCommit(emp) {
 
 /** Seal mã NV dưới masterKey → ghi → đọc lại xác minh (mẫu _writeCachedKdata). */
 async function _writeSealedEmployeeId(emp) {
+  // `_sealEmployeeIdForCommit` có hai await (encrypt + decrypt verify). Một lần
+  // lock/revoke/cài khóa khác có thể rơi vào await thứ hai, sau khi encrypt đã
+  // tự kiểm generation. Chụp cả generation + key và kiểm lại NGAY trước lệnh
+  // ghi đồng bộ để ciphertext của phiên cũ không bao giờ đè identity trên đĩa.
+  const writeGeneration = __keyGeneration;
+  const writeCryptoKey = masterCryptoKey;
+  const writeMasterKey = masterKey;
+  const writeKeyAlive = () => writeGeneration === __keyGeneration
+    && writeCryptoKey === masterCryptoKey
+    && writeMasterKey === masterKey
+    && !!writeMasterKey;
   let sealed = "";
   try {
     sealed = await _sealEmployeeIdForCommit(emp);
+    if (!writeKeyAlive()) throw new Error("STALE_KEY_GENERATION");
     _setItemVerified(EMPLOYEE_SEALED_KEY, sealed);
     return true;
   } catch (e) {

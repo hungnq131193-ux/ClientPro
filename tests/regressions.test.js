@@ -1139,6 +1139,15 @@ test('saveSecuritySetup: commit security state sau guard, rollback cả envelope
   const employeeSeal = fnBody(src, '_sealEmployeeIdForCommit');
   assert.ok(!/localStorage\.(?:setItem|removeItem)/.test(employeeSeal),
     'Bước seal employee trước guard chỉ được dựng trong RAM, không mutation storage');
+  const employeeWrite = fnBody(src, '_writeSealedEmployeeId');
+  const employeeSealAt = employeeWrite.indexOf('await _sealEmployeeIdForCommit(emp)');
+  const employeeGuardAt = employeeWrite.indexOf('if (!writeKeyAlive())', employeeSealAt);
+  const employeeWriteAt = employeeWrite.indexOf('_setItemVerified(EMPLOYEE_SEALED_KEY, sealed)');
+  assert.ok(/writeGeneration\s*=\s*__keyGeneration/.test(employeeWrite)
+    && /writeCryptoKey\s*=\s*masterCryptoKey/.test(employeeWrite),
+  '_writeSealedEmployeeId phải chụp generation + CryptoKey trước await');
+  assert.ok(employeeSealAt !== -1 && employeeGuardAt > employeeSealAt && employeeWriteAt > employeeGuardAt,
+    '_writeSealedEmployeeId phải kiểm lại generation/key sau verify, ngay trước lệnh ghi');
   const employeeRamAt = body.indexOf('__employeeIdPlain = ans');
   assert.ok(employeeRamAt > commitAt,
     'Chỉ được đổi employee identity trong RAM sau khi commit storage thành công');
