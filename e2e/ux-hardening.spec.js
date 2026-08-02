@@ -24,7 +24,7 @@ async function seedAndUnlock(page) {
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
@@ -194,7 +194,7 @@ test('tham khảo giá: pending/success/failed hiển thị đúng, không lộ 
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   });
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   // This test calls showRefModal directly, so explicitly satisfy the production
   // demand-load contract instead of depending on speculative business warmup.
   await expect.poll(
@@ -238,7 +238,7 @@ test('PIN: không có nút trống nhận focus; nút xóa có accessible name',
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   });
   await page.addInitScript((env) => { localStorage.setItem('app_pin', env); localStorage.setItem('app_crypto_schema_v', '2'); }, PIN_ENVELOPE);
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
 
   // Bàn phím có đúng 11 nút bấm (10 số + xóa); ô trống là <div>, không phải button.

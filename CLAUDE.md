@@ -1540,8 +1540,12 @@ tests for pure logic you change.
 
 `npm run test:e2e` (Playwright, mobile Pixel 5 profile, static python server).
 Specs cover a11y, autolock, confirm, CRUD, edge-swipe, layering, offline, PDF
-Toolkit, DVHC Lookup, smoke, UX hardening, and onboarding. Tests must assert real behavior, not
-just CSS classes.
+Toolkit, DVHC Lookup, smoke, UX hardening, and onboarding. Tests must assert real
+behavior, not just CSS classes. Do not navigate with `waitUntil: 'networkidle'`:
+the service worker intentionally precaches in the background, so network-idle is
+not an application-ready signal and creates false 30-second flakes. Navigate with
+`domcontentloaded`/`load`, then wait for the exact selector, controller, promise,
+or function the scenario requires.
 
 ## Release process
 

@@ -23,7 +23,7 @@ async function seedAndUnlock(page) {
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
@@ -78,7 +78,7 @@ test('PIN cũ vẫn mở khóa sau reload (đóng modal không đụng masterKey
   await page.waitForSelector('#setup-lock-modal', { state: 'hidden', timeout: 10_000 });
 
   // Reload → màn khóa lại → nhập đúng PIN cũ phải mở khóa được.
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });

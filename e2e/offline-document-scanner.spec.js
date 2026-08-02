@@ -15,7 +15,7 @@ test('document scanner shell and production worker execute from service-worker c
     };
   });
 
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => 'serviceWorker' in navigator);
 
   // First-install precache is intentionally deferred off cold start. This test
@@ -39,7 +39,7 @@ test('document scanner shell and production worker execute from service-worker c
 
   // A reload gives the active worker an unambiguous controlled navigation and
   // exercises the same offline app-shell path used by an installed PWA.
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   await expect(page.locator('#camera-modal')).toHaveCount(0);
 

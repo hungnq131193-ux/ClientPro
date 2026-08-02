@@ -72,6 +72,15 @@ test('pwa.js + sw.js: deferred top-up được thử lại sau unlock/online, kh
     'Không top-up eager trong register/controllerchange vì sẽ giữ navigation bận');
 });
 
+test('E2E PWA dùng readiness cụ thể, không chờ networkidle của precache nền', () => {
+  const specs = fs.readdirSync(path.join(ROOT, 'e2e')).filter((name) => name.endsWith('.spec.js'));
+  for (const name of specs) {
+    const src = read(`e2e/${name}`);
+    assert.ok(!/waitUntil\s*:\s*["']networkidle["']/.test(src),
+      `${name}: PWA có SW precache nền; dùng domcontentloaded/load rồi chờ selector/function cần thiết`);
+  }
+});
+
 test('sw.js: precache đủ shell + TẤT CẢ module JS nghiệp vụ (offline không thiếu file)', () => {
   const sw = read('sw.js');
 

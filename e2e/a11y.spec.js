@@ -23,8 +23,9 @@ test('axe: màn hình cổng bảo mật không có vi phạm CRITICAL', async (
     const orig = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : orig(k);
   });
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
-  await page.waitForTimeout(600); // chờ modal động (load_modals) nạp xong
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.ModalLoader && typeof window.ModalLoader.criticalReady === 'function');
+  await page.evaluate(() => window.ModalLoader.criticalReady());
 
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   const critical = results.violations.filter((v) => v.impact === 'critical');
@@ -246,7 +247,7 @@ test('axe: màn hình chính + modal thêm khách hàng không có vi phạm CRI
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });
@@ -277,7 +278,7 @@ test('axe: danh sách KH + hồ sơ + PDF Toolkit + Tra cứu ĐVHC không có v
     const o = sessionStorage.getItem.bind(sessionStorage);
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-lock', { state: 'visible', timeout: 10_000 });
   for (const d of PIN) await page.click(`[data-action="enterPin"][data-arg="${d}"]`);
   await page.waitForSelector('#screen-lock', { state: 'hidden', timeout: 10_000 });

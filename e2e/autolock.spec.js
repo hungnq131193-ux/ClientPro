@@ -38,7 +38,7 @@ test('ẩn app < 60s -> KHÔNG khóa; ẩn >= 60s -> khóa và mở lại đư�
     sessionStorage.getItem = (k) => (k && k.indexOf('clientpro_sw_reloaded_') === 0) ? '1' : o(k);
   }, PIN_ENVELOPE);
 
-  await page.goto('/index.html', { waitUntil: 'networkidle' });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await unlockWithPin(page);
 
   // 1) Ẩn rồi hiện lại ngay (< 60s): không được khóa (file picker/share/GPS/chuyển app nhanh).
