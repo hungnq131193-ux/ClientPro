@@ -184,17 +184,30 @@ function _absoluteAssetUrl(value) {
   }
 }
 
-async function _topUpStaticAssets() {
+async function _topUpStaticAssets(phase) {
   try {
     const cache = await caches.open(STATIC_CACHE);
     const present = new Set((await cache.keys()).map(_absoluteAssetUrl));
     const missing = STATIC_ASSETS.filter((url) => !present.has(_absoluteAssetUrl(url)));
     if (missing.length > 0) {
-      await _cacheDeferredAssets(cache, missing, 'activate top-up');
+      await _cacheDeferredAssets(cache, missing, phase);
     }
   } catch (e) {
-    console.warn('[ClientPro SW] activate top-up bỏ qua do Cache Storage/network lỗi.');
+    console.warn(`[ClientPro SW] ${phase} bỏ qua do Cache Storage/network lỗi.`);
   }
+}
+
+// Activate chỉ chạy một lần. Trang sẽ yêu cầu top-up lại sau unlock/online; gom
+// các tín hiệu đồng thời vào cùng một promise để không tải trùng cả danh sách.
+let __staticTopUpInFlight = null;
+function _requestStaticTopUp(phase) {
+  if (!__staticTopUpInFlight) {
+    const tracked = _topUpStaticAssets(phase).finally(() => {
+      if (__staticTopUpInFlight === tracked) __staticTopUpInFlight = null;
+    });
+    __staticTopUpInFlight = tracked;
+  }
+  return __staticTopUpInFlight;
 }
 
 self.addEventListener('install', (event) => {
@@ -217,6 +230,9 @@ self.addEventListener('message', (event) => {
   try {
     if (event && event.data && event.data.type === 'SKIP_WAITING') {
       self.skipWaiting();
+    } else if (event && event.data && event.data.type === 'TOP_UP_STATIC_ASSETS') {
+      const pending = _requestStaticTopUp('lifecycle top-up');
+      if (typeof event.waitUntil === 'function') event.waitUntil(pending);
     }
   } catch (e) { }
 });
@@ -253,7 +269,8 @@ self.addEventListener('activate', (event) => {
     await self.clients.claim();
     // Hội tụ cache về đủ bề mặt offline sau một lần install chập chờn. Helper này
     // luôn best-effort, nên activate không thất bại chỉ vì asset lazy còn thiếu.
-    await _topUpStaticAssets();
+    // Nếu mạng vẫn lỗi, trang sẽ gọi lại sau unlock/online thay vì kẹt vĩnh viễn.
+    await _requestStaticTopUp('activate top-up');
   })());
 });
 

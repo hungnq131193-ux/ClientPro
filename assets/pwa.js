@@ -29,6 +29,13 @@
   var registrationStarted = false;
   var fallbackTimer = null;
 
+  function requestStaticAssetTopUp() {
+    try {
+      var controller = navigator.serviceWorker.controller;
+      if (controller) controller.postMessage({ type: "TOP_UP_STATIC_ASSETS" });
+    } catch (e) { }
+  }
+
   function removeUpdateBanner() {
     var b = document.getElementById("sw-update-banner");
     if (b) { try { b.remove(); } catch (e) { } }
@@ -99,6 +106,10 @@
     try {
       const reg = await navigator.serviceWorker.register("./sw.js?v=" + encodeURIComponent(SW_BUILD));
 
+      // Activate top-up có thể đã gặp đúng lúc mất mạng. Mỗi page load có
+      // controller là một cơ hội hội tụ tiếp, không cần chờ một SW generation mới.
+      requestStaticAssetTopUp();
+
       // Bản mới đã cài xong và đang chờ -> đánh dấu + mời cập nhật, không cưỡng bức.
       if (reg && reg.waiting && navigator.serviceWorker.controller) {
         window.__swUpdatePending = true;
@@ -122,6 +133,7 @@
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         window.__swUpdatePending = false;
         removeUpdateBanner();
+        requestStaticAssetTopUp();
         if (userRequestedUpdate && !didReload) {
           didReload = true;
           window.location.reload();
@@ -153,6 +165,11 @@
     // but outside Lighthouse/cold-start and without requiring user interaction.
     fallbackTimer = setTimeout(registerServiceWorker, 15000);
   }
+
+  // Cơ hội retry có chủ đích: unlock thật và lúc mạng vừa trở lại. SW tự dedupe
+  // nếu các tín hiệu đến gần nhau, nên không tạo nhiều lượt tải song song.
+  document.addEventListener('clientpro:unlocked', requestStaticAssetTopUp);
+  window.addEventListener('online', requestStaticAssetTopUp);
 
   window.addEventListener("load", function () {
     if (navigator.serviceWorker.controller) {

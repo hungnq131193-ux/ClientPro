@@ -416,11 +416,15 @@ Turn a valid PIN into an in-RAM master key and load data.
   seal it over the only envelopes that open the existing data. Every legitimate
   entry (first-time setup, 4→6 digit upgrade, post-recovery, post-reactivation)
   already has a key installed.
-- `saveSecuritySetup` commits `PIN_KEY`/`SEC_KEY` only through
-  `_commitEnvelopePair`: verify read-back, write `SEC_KEY` before `PIN_KEY`, then
-  verify `SEC_KEY` again. Any write failure restores both keys from their snapshot
-  and reports `ErrorHandler.showError('STORAGE', …)`; a half-written or silent
-  envelope update is forbidden.
+- `saveSecuritySetup` builds the sealed employee ID plus `PIN_KEY`/`SEC_KEY` in
+  RAM, then commits them synchronously through `_commitSecuritySetupState`.
+  `_commitEnvelopePair` still verifies read-back, writes `SEC_KEY` before
+  `PIN_KEY`, and verifies `SEC_KEY` again. Any failure restores PIN, SEC, sealed
+  employee ID, legacy plaintext employee ID, and `__employeeIdPlain` from one
+  snapshot before reporting `ErrorHandler.showError('STORAGE', …)`. The quota
+  message is used only for a real `QuotaExceededError`; other storage/read-back
+  failures get a generic actionable message. A half-written, mismatched-identity,
+  or silent update is forbidden.
 - The same "re-check after every await" rule applies to the employee code: it is
   the recovery secret, so `saveSecuritySetup` and `checkRecovery` seal it first
   and only assign `__employeeIdPlain` once the session is confirmed alive —
@@ -1117,8 +1121,12 @@ Installable PWA with offline app shell.
   chunks of 10 with one retry and fail closed; deferred/lazy assets use individual
   `cache.add` calls through bounded `Promise.allSettled` batches (concurrency 6),
   one retry each, and failures are best-effort. After `clients.claim()`, activate
-  top-ups every missing `STATIC_ASSETS` entry with the same deferred helper.
-  Never collapse this back into one all-or-nothing `addAll` over the full list.
+  top-ups every missing `STATIC_ASSETS` entry with the same deferred helper. Since
+  activate is one-shot, the page also sends `TOP_UP_STATIC_ASSETS` after successful
+  registration, `clientpro:unlocked`, `online`, and `controllerchange`; the SW
+  deduplicates concurrent requests. A deferred miss must therefore converge after
+  connectivity returns without waiting for another SW generation. Never collapse
+  this back into one all-or-nothing `addAll` over the full list.
 - Cache names: `clientpro-genesis-{static,runtime-so,runtime-cdn,runtime-tile}-<VERSION>`.
 - `ASSET_V` (cache-buster) must equal every `?v=` in `index.html`, `MAPLIBRE_V`,
   and `LAZY_MODULES_V`.

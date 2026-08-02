@@ -1087,23 +1087,29 @@ test('mọi caller của _installMasterKey phải bắt lỗi cài khóa', () =>
   assert.ok(seen >= 4, `Phải còn đủ các caller _installMasterKey (thấy ${seen})`);
 });
 
-test('saveSecuritySetup: commit envelope sau guard, có verify + rollback + lỗi STORAGE', () => {
+test('saveSecuritySetup: commit security state sau guard, rollback cả envelope + identity', () => {
   const src = read('assets/02_security.js');
   const body = fnBody(src, 'saveSecuritySetup');
-  const commitAt = body.indexOf('_commitEnvelopePair(pinEnvelope, secEnvelope)');
-  assert.ok(commitAt !== -1, 'saveSecuritySetup phải ghi qua _commitEnvelopePair');
+  const commitCall = '_commitSecuritySetupState(pinEnvelope, secEnvelope, employeeEnvelope)';
+  const commitAt = body.indexOf(commitCall);
+  assert.ok(commitAt !== -1, 'saveSecuritySetup phải commit envelope và identity qua một helper đồng bộ');
   const beforeCommit = body.slice(0, commitAt);
   const lastGuard = beforeCommit.lastIndexOf('setupKeyAlive()');
-  assert.ok(lastGuard !== -1, 'Phải kiểm tra setupKeyAlive() trước commit envelope');
+  assert.ok(lastGuard !== -1, 'Phải kiểm tra setupKeyAlive() trước commit security state');
   assert.ok(!/\bawait\s+[A-Za-z_(]/.test(beforeCommit.slice(lastGuard)),
-    'Không được có await giữa setupKeyAlive() và _commitEnvelopePair');
+    'Không được có await giữa setupKeyAlive() và _commitSecuritySetupState');
 
-  const commitBranchEnd = body.indexOf('// PIN đã đổi TRÊN ĐĨA', commitAt);
+  const commitBranchEnd = body.indexOf('// Chỉ đổi identity RAM', commitAt);
   const commitBranch = body.slice(commitAt, commitBranchEnd);
-  assert.ok(/catch\s*\(e\)/.test(commitBranch), 'Commit envelope phải có nhánh catch');
+  assert.ok(/catch\s*\(e\)/.test(commitBranch), 'Commit security state phải có nhánh catch');
   assert.ok(/_restoreEnvelopeSnapshot\(PIN_KEY, prevPin\)/.test(commitBranch)
     && /_restoreEnvelopeSnapshot\(SEC_KEY, prevSec\)/.test(commitBranch),
   'Lỗi commit phải rollback cả PIN_KEY và SEC_KEY về snapshot');
+  assert.ok(/_restoreEnvelopeSnapshot\(EMPLOYEE_SEALED_KEY, prevEmployeeSealed\)/.test(commitBranch)
+    && /_restoreEnvelopeSnapshot\(EMPLOYEE_KEY, prevEmployeePlain\)/.test(commitBranch)
+    && /__employeeIdPlain\s*=\s*prevEmployeeRam/.test(commitBranch)
+    && /__fieldPlainCache\.delete\(employeeEnvelope\)/.test(commitBranch),
+  'Lỗi commit phải rollback sealed/plaintext/RAM identity và dọn prepared cache đi cùng SEC snapshot');
   assert.ok(/ErrorHandler\.showError\(['"]STORAGE['"]/.test(commitBranch),
     'Lỗi commit phải hiện thông báo STORAGE cho người dùng');
   assert.ok(/_releaseUnlockLoading\(myUnlockAttempt\)[\s\S]*return;/.test(commitBranch),
@@ -1122,6 +1128,24 @@ test('saveSecuritySetup: commit envelope sau guard, có verify + rollback + lỗ
   const secVerifyAt = pair.lastIndexOf('localStorage.getItem(SEC_KEY)');
   assert.ok(secAt !== -1 && pinAt > secAt && secVerifyAt > pinAt,
     '_commitEnvelopePair phải ghi SEC trước PIN rồi verify lại SEC');
+
+  const securityCommit = fnBody(src, '_commitSecuritySetupState');
+  const employeeAt = securityCommit.indexOf('_setItemVerified(EMPLOYEE_SEALED_KEY, employeeEnvelope)');
+  const pairAt = securityCommit.indexOf('_commitEnvelopePair(pinEnvelope, secEnvelope)');
+  const removePlainAt = securityCommit.indexOf('_removeItemVerified(EMPLOYEE_KEY)');
+  assert.ok(employeeAt !== -1 && pairAt > employeeAt && removePlainAt > pairAt,
+    'Security commit phải verify sealed employee, commit SEC/PIN, rồi mới xóa plaintext');
+
+  const employeeSeal = fnBody(src, '_sealEmployeeIdForCommit');
+  assert.ok(!/localStorage\.(?:setItem|removeItem)/.test(employeeSeal),
+    'Bước seal employee trước guard chỉ được dựng trong RAM, không mutation storage');
+  const employeeRamAt = body.indexOf('__employeeIdPlain = ans');
+  assert.ok(employeeRamAt > commitAt,
+    'Chỉ được đổi employee identity trong RAM sau khi commit storage thành công');
+
+  const storageMessage = fnBody(src, '_securitySetupStorageMessage');
+  assert.ok(/_isQuotaExceededStorageError/.test(storageMessage) && /quyền lưu trữ|riêng tư/.test(storageMessage),
+    'Thông báo storage phải phân biệt quota với lỗi quyền/read-back khác');
 
   // Envelope phải niêm phong biến cục bộ đã chốt, không đọc lại global sau await.
   assert.ok(/sealMasterKey\(pin,\s*mkForSetup\)/.test(body) && /sealMasterKey\(ans,\s*mkForSetup\)/.test(body),
@@ -1303,7 +1327,7 @@ test('saveSecuritySetup: đóng modal / báo thành công phải sau chốt vé 
   // sinh trắc học hỏng im lặng dù đổi PIN đã thành công.
   const bioAt = body.indexOf('onPinChanged()');
   assert.ok(bioAt !== -1, 'saveSecuritySetup phải hủy enrollment sinh trắc học khi đổi PIN');
-  const envelopeCommitAt = body.indexOf('_commitEnvelopePair(pinEnvelope, secEnvelope)');
+  const envelopeCommitAt = body.indexOf('_commitSecuritySetupState(pinEnvelope, secEnvelope, employeeEnvelope)');
   assert.ok(envelopeCommitAt !== -1 && bioAt > envelopeCommitAt,
     'onPinChanged phải nằm SAU lệnh ghi envelope');
   assert.ok(bioAt < guardAt,

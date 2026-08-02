@@ -49,6 +49,19 @@ test('pwa.js: cập nhật CHỈ khi người dùng đồng ý — banner mời 
   assert.ok(!/\.skipWaiting\s*\(/.test(pwa), 'Trang không được gọi skipWaiting() trực tiếp');
 });
 
+test('pwa.js + sw.js: deferred top-up được thử lại sau unlock/online, không chỉ activate', () => {
+  const pwa = stripComments(read('assets/pwa.js'));
+  const sw = stripComments(read('sw.js'));
+  assert.ok(/postMessage\(\s*\{\s*type:\s*["']TOP_UP_STATIC_ASSETS/.test(pwa),
+    'Trang phải gửi message top-up cho SW đang điều khiển');
+  assert.ok(/addEventListener\(\s*["']clientpro:unlocked["']\s*,\s*requestStaticAssetTopUp/.test(pwa),
+    'Unlock phải tạo một cơ hội top-up mới');
+  assert.ok(/addEventListener\(\s*["']online["']\s*,\s*requestStaticAssetTopUp/.test(pwa),
+    'Mạng trở lại phải tạo một cơ hội top-up mới');
+  assert.ok(/TOP_UP_STATIC_ASSETS/.test(sw) && /_requestStaticTopUp/.test(sw),
+    'SW phải xử lý message top-up qua helper có dedupe');
+});
+
 test('sw.js: precache đủ shell + TẤT CẢ module JS nghiệp vụ (offline không thiếu file)', () => {
   const sw = read('sw.js');
 

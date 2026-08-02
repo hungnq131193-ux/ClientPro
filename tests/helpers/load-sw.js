@@ -183,6 +183,14 @@ function loadSW() {
       listeners.activate({ waitUntil: (p) => { pending.push(Promise.resolve(p)); } });
       return Promise.all(pending).then(() => undefined);
     },
+    dispatchMessage(data) {
+      const pending = [];
+      listeners.message({
+        data,
+        waitUntil: (p) => { pending.push(Promise.resolve(p)); },
+      });
+      return Promise.all(pending).then(() => undefined);
+    },
   };
 }
 

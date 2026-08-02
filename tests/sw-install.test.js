@@ -91,3 +91,28 @@ test('SW activate: top-up lại asset deferred còn thiếu trong STATIC_CACHE',
   assert.equal(sw.fetchLog.filter((url) => url === missing).length, 1,
     'Top-up chỉ fetch mục thực sự còn thiếu');
 });
+
+test('SW lifecycle: asset lỗi cả install/activate vẫn được top-up khi mạng trở lại', async () => {
+  const sw = loadSW();
+  const missing = sw.deferredAssets.find((url) => url.includes('/vendor/pdf-lib.min.js'));
+  let offlineForAsset = true;
+  sw.setNetwork((request) => {
+    if (requestUrl(request) === missing && offlineForAsset) throw new Error('still offline');
+    return new FakeResponse('asset', { status: 200 });
+  });
+
+  await sw.dispatchInstall();
+  await sw.dispatchActivate();
+  const cache = await sw.caches.open(sw.names.STATIC_CACHE);
+  assert.equal(await cache.match(new FakeRequest(missing)), undefined,
+    'Asset lỗi qua activate phải còn được nhận diện là thiếu');
+
+  offlineForAsset = false;
+  sw.fetchLog.length = 0;
+  await sw.dispatchMessage({ type: 'TOP_UP_STATIC_ASSETS' });
+
+  assert.ok(await cache.match(new FakeRequest(missing)),
+    'Message lifecycle phải nạp bù sau khi mạng trở lại');
+  assert.equal(sw.fetchLog.filter((url) => url === missing).length, 1,
+    'Retry lifecycle chỉ fetch mục còn thiếu');
+});
