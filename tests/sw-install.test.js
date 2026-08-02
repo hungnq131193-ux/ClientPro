@@ -86,10 +86,44 @@ test('SW activate: top-up lại asset deferred còn thiếu trong STATIC_CACHE',
   sw.fetchLog.length = 0;
 
   await sw.dispatchActivate();
+  // Activate không còn await top-up (tránh stall fetch khi activating).
+  await sw.waitForStaticTopUp();
 
-  assert.ok(await cache.match(new FakeRequest(missing)), 'Activate phải nạp bù asset còn thiếu');
+  assert.ok(await cache.match(new FakeRequest(missing)), 'Activate phải kick-off nạp bù asset còn thiếu');
   assert.equal(sw.fetchLog.filter((url) => url === missing).length, 1,
     'Top-up chỉ fetch mục thực sự còn thiếu');
+});
+
+test('SW activate: waitUntil không bị top-up deferred treo khi mạng chập chờn', async () => {
+  const sw = loadSW();
+  const missing = sw.deferredAssets.find((url) => url.includes('/vendor/pdf-lib.min.js'));
+  assert.ok(missing, 'Cần một deferred asset để mô phỏng top-up treo');
+
+  // Install ổn định trước, rồi làm top-up activate treo vĩnh viễn trên một URL.
+  sw.setNetwork(() => new FakeResponse('asset', { status: 200 }));
+  await sw.dispatchInstall();
+  const cache = await sw.caches.open(sw.names.STATIC_CACHE);
+  await cache.delete(new FakeRequest(missing));
+
+  let resolveHang;
+  const hang = new Promise((resolve) => { resolveHang = resolve; });
+  sw.setNetwork((request) => {
+    if (requestUrl(request) === missing) return hang.then(() => new FakeResponse('asset', { status: 200 }));
+    return new FakeResponse('asset', { status: 200 });
+  });
+
+  const activateStarted = Date.now();
+  await sw.dispatchActivate();
+  const activateMs = Date.now() - activateStarted;
+  assert.ok(activateMs < 200,
+    'Activate phải xong nhanh dù top-up deferred đang treo (không await top-up)');
+  assert.equal(await cache.match(new FakeRequest(missing)), undefined,
+    'Top-up treo chưa được phép coi là đã cache');
+
+  resolveHang();
+  await sw.waitForStaticTopUp();
+  assert.ok(await cache.match(new FakeRequest(missing)),
+    'Top-up nền vẫn hội tụ sau khi activate đã xong');
 });
 
 test('SW lifecycle: asset lỗi cả install/activate vẫn được top-up khi mạng trở lại', async () => {
@@ -103,6 +137,7 @@ test('SW lifecycle: asset lỗi cả install/activate vẫn được top-up khi 
 
   await sw.dispatchInstall();
   await sw.dispatchActivate();
+  await sw.waitForStaticTopUp();
   const cache = await sw.caches.open(sw.names.STATIC_CACHE);
   assert.equal(await cache.match(new FakeRequest(missing)), undefined,
     'Asset lỗi qua activate phải còn được nhận diện là thiếu');

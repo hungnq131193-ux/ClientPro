@@ -1175,7 +1175,16 @@ function _restoreEnvelopeSnapshot(key, previousValue) {
   try {
     if (previousValue === null) localStorage.removeItem(key);
     else localStorage.setItem(key, previousValue);
-  } catch (e) { }
+    const back = localStorage.getItem(key);
+    if (back !== previousValue) {
+      try {
+        ErrorHandler.logError("setup-envelope-rollback-mismatch", { key: String(key || "") });
+      } catch (_) { }
+    }
+  } catch (e) {
+    // Nuốt lỗi để caller vẫn báo STORAGE của commit gốc; chỉ ghi log để điều tra.
+    try { ErrorHandler.logError("setup-envelope-rollback", e); } catch (_) { }
+  }
 }
 
 /**

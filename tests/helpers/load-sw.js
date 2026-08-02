@@ -183,6 +183,10 @@ function loadSW() {
       listeners.activate({ waitUntil: (p) => { pending.push(Promise.resolve(p)); } });
       return Promise.all(pending).then(() => undefined);
     },
+    // Activate kick-off top-up mà không await; helper này chờ promise nền (nếu có).
+    waitForStaticTopUp() {
+      return vm.runInContext('Promise.resolve(__staticTopUpInFlight)', ctx);
+    },
     dispatchMessage(data) {
       const pending = [];
       listeners.message({

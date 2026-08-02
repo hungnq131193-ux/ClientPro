@@ -62,6 +62,11 @@ test('pwa.js + sw.js: deferred top-up được thử lại sau unlock/online, kh
     'Mạng trở lại chỉ top-up sau khi app đã mở khóa, không trong cold navigation');
   assert.ok(/TOP_UP_STATIC_ASSETS/.test(sw) && /_requestStaticTopUp/.test(sw),
     'SW phải xử lý message top-up qua helper có dedupe');
+  assert.ok(/void\s+_requestStaticTopUp\(\s*['"]activate top-up['"]\s*\)/.test(sw)
+    && !/await\s+_requestStaticTopUp\(\s*['"]activate top-up['"]\s*\)/.test(sw),
+  'Activate chỉ kick-off top-up; await sẽ giữ SW ở activating và stall mọi fetch');
+  assert.ok(/RETRY_BACKOFF_MS\s*=\s*\d+/.test(sw) && /await\s+_delay\(\s*RETRY_BACKOFF_MS\s*\)/.test(sw),
+    '_retryOnce phải backoff ngắn trước lần thử lại duy nhất');
 
   const registrationPath = pwa.slice(
     pwa.indexOf('async function registerServiceWorker'),

@@ -421,10 +421,12 @@ Turn a valid PIN into an in-RAM master key and load data.
   `_commitEnvelopePair` still verifies read-back, writes `SEC_KEY` before
   `PIN_KEY`, and verifies `SEC_KEY` again. Any failure restores PIN, SEC, sealed
   employee ID, legacy plaintext employee ID, and `__employeeIdPlain` from one
-  snapshot before reporting `ErrorHandler.showError('STORAGE', …)`. The quota
-  message is used only for a real `QuotaExceededError`; other storage/read-back
-  failures get a generic actionable message. A half-written, mismatched-identity,
-  or silent update is forbidden.
+  snapshot before reporting `ErrorHandler.showError('STORAGE', …)`. Rollback via
+  `_restoreEnvelopeSnapshot` stays best-effort (must not mask the original commit
+  error) but logs `ErrorHandler.logError` on write failure or read-back mismatch.
+  The quota message is used only for a real `QuotaExceededError`; other
+  storage/read-back failures get a generic actionable message. A half-written,
+  mismatched-identity, or silent update is forbidden.
 - The same "re-check after every await" rule applies to the employee code: it is
   the recovery secret, so `saveSecuritySetup` and `checkRecovery` seal it first
   and only assign `__employeeIdPlain` once the session is confirmed alive.
@@ -1122,18 +1124,21 @@ Installable PWA with offline app shell.
 - `install` does not force activation; `activate` keeps only the current
   allowlisted caches.
 - Precache install is two-tier: critical cold-start assets use `cache.addAll` in
-  chunks of 10 with one retry and fail closed; deferred/lazy assets use individual
-  `cache.add` calls through bounded `Promise.allSettled` batches (concurrency 6),
-  one retry each, and failures are best-effort. After `clients.claim()`, activate
-  top-ups every missing `STATIC_ASSETS` entry with the same deferred helper. Since
-  activate is one-shot, the page also sends `TOP_UP_STATIC_ASSETS` after
-  `clientpro:unlocked` and on `online` only while that unlocked lifecycle remains
-  active; the SW deduplicates concurrent requests. Do not trigger top-up eagerly
-  inside registration/controllerchange or from a cold-navigation `online` event,
-  because its background fetches can keep navigation non-idle on slow devices. A
-  deferred miss must converge after connectivity returns or the next unlock
-  without waiting for another SW generation. Never collapse this back into one
-  all-or-nothing `addAll` over the full list.
+  chunks of 10 with one retry (short backoff) and fail closed; deferred/lazy
+  assets use individual `cache.add` calls through bounded `Promise.allSettled`
+  batches (concurrency 6), one retry each with the same backoff, and failures are
+  best-effort. After `clients.claim()`, activate **kicks off** a missing-asset
+  top-up but must **not await** it: fetch handlers are not dispatched while the
+  worker is still activating, so a hung deferred top-up on a flaky network would
+  stall the first navigation after an update. Since activate is one-shot, the page
+  also sends `TOP_UP_STATIC_ASSETS` after `clientpro:unlocked` and on `online`
+  only while that unlocked lifecycle remains active; the SW deduplicates
+  concurrent requests. Do not trigger top-up eagerly inside
+  registration/controllerchange or from a cold-navigation `online` event, because
+  its background fetches can keep navigation non-idle on slow devices. A deferred
+  miss must converge after connectivity returns or the next unlock without waiting
+  for another SW generation. Never collapse this back into one all-or-nothing
+  `addAll` over the full list.
 - Cache names: `clientpro-genesis-{static,runtime-so,runtime-cdn,runtime-tile}-<VERSION>`.
 - `ASSET_V` (cache-buster) must equal every `?v=` in `index.html`, `MAPLIBRE_V`,
   and `LAZY_MODULES_V`.

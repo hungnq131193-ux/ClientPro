@@ -1172,6 +1172,12 @@ test('saveSecuritySetup: commit security state sau guard, rollback cả envelope
   assert.ok(/_isQuotaExceededStorageError/.test(storageMessage) && /quyền lưu trữ|riêng tư/.test(storageMessage),
     'Thông báo storage phải phân biệt quota với lỗi quyền/read-back khác');
 
+  const restore = fnBody(src, '_restoreEnvelopeSnapshot');
+  assert.ok(/setup-envelope-rollback/.test(restore) && /ErrorHandler\.logError/.test(restore),
+    'Rollback best-effort phải logError khi setItem/removeItem thất bại');
+  assert.ok(/setup-envelope-rollback-mismatch/.test(restore),
+    'Rollback phải log khi read-back không khớp snapshot');
+
   // Envelope phải niêm phong biến cục bộ đã chốt, không đọc lại global sau await.
   assert.ok(/sealMasterKey\(pin,\s*mkForSetup\)/.test(body) && /sealMasterKey\(ans,\s*mkForSetup\)/.test(body),
     'Phải seal bằng masterKey đã chốt (mkForSetup), không đọc lại biến global sau await');

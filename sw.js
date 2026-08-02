@@ -142,10 +142,19 @@ function _precacheRequest(url) {
   return new Request(url, { cache: 'reload' });
 }
 
+// Backoff ngắn trước lần retry duy nhất: trên mạng chập chờn, retry tức thì thường
+// lỗi tiếp ngay; 250ms đủ để tránh double-fail vô ích mà không kéo dài install.
+const RETRY_BACKOFF_MS = 250;
+
+function _delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function _retryOnce(operation) {
   try {
     return await operation();
   } catch (firstError) {
+    await _delay(RETRY_BACKOFF_MS);
     return operation();
   }
 }
@@ -267,10 +276,11 @@ self.addEventListener('activate', (event) => {
     ]);
 
     await self.clients.claim();
-    // Hội tụ cache về đủ bề mặt offline sau một lần install chập chờn. Helper này
-    // luôn best-effort, nên activate không thất bại chỉ vì asset lazy còn thiếu.
-    // Nếu mạng vẫn lỗi, trang sẽ gọi lại sau unlock/online thay vì kẹt vĩnh viễn.
-    await _requestStaticTopUp('activate top-up');
+    // KHÔNG await top-up ở đây. Spec: fetch event không được dispatch khi worker
+    // còn activating — top-up deferred (~60 URL × retry) trên mạng treo/captive
+    // portal sẽ giữ mọi navigation chờ đúng lúc app vừa cập nhật. Kick-off nền;
+    // pwa.js gửi TOP_UP_STATIC_ASSETS sau unlock/online để hội tụ tiếp.
+    void _requestStaticTopUp('activate top-up');
   })());
 });
 
