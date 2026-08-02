@@ -136,6 +136,22 @@ test('B9: openCustomerList phải xóa ô tìm kiếm và hủy debounce đang c
   assert.ok(/debounced\.cancel\s*=/.test(globals), 'debounce() phải có .cancel()');
 });
 
+test('bootstrap: listener tìm kiếm phải gắn trước await đầu tiên', () => {
+  const src = read('assets/10_bootstrap.js');
+  const helper = fnBody(src, 'initCustomerSearchInput');
+  assert.ok(/searchInput\.addEventListener\(["']input["']/.test(helper),
+    'Helper bootstrap phải gắn input listener cho tìm kiếm');
+  assert.ok(/dataset\.searchBound/.test(helper),
+    'Helper phải idempotent để không gắn trùng listener');
+
+  const start = src.indexOf('document.addEventListener("DOMContentLoaded", async () =>');
+  assert.ok(start !== -1, 'Không tìm thấy DOMContentLoaded bootstrap');
+  const firstAwait = src.indexOf('await ', start);
+  const initAt = src.indexOf('initCustomerSearchInput();', start);
+  assert.ok(initAt > start && firstAwait > initAt,
+    'Search listener phải được gắn trước await modal/bootstrap đầu tiên');
+});
+
 test('item 7: overlay cloud không dùng z-index >1000 (chỉ onboarding được phép >=1000)', () => {
   for (const p of ['assets/14_cloud_transfer.js', 'assets/13_ui_select_customers.js']) {
     const src = read(p);
