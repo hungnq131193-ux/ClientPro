@@ -176,6 +176,58 @@ test('saveSecuritySetup: phiên còn sống -> vẫn niêm phong PIN_KEY/SEC_KEY
   assert.equal(dom.isHidden('setup-lock-modal'), true, 'thành công thì đóng modal');
 });
 
+test('saveSecuritySetup: QuotaExceededError ở lệnh envelope thứ hai rollback đủ và báo STORAGE', async () => {
+  const { api, ctx, localStorage, dom } = loadSecurity({ dom: true });
+
+  const existingMk = api.generateMasterKey();
+  await api.setMasterKey(existingMk);
+  const pinEnvelopeBefore = await api.sealMasterKey('111111', existingMk);
+  const secEnvelopeBefore = await api.sealMasterKey('NV001', existingMk);
+  localStorage.setItem('app_pin', pinEnvelopeBefore);
+  localStorage.setItem('app_sec_qa', secEnvelopeBefore);
+
+  dom.getEl('setup-pin').value = '222222';
+  dom.getEl('setup-answer').value = 'NV001';
+  dom.getEl('setup-lock-modal').classList.remove('hidden');
+
+  const shownErrors = [];
+  ctx.ErrorHandler.showError = (...args) => { shownErrors.push(args); };
+  let unlockedEvents = 0;
+  ctx.document.dispatchEvent = (event) => {
+    if (event && event.type === 'clientpro:unlocked') unlockedEvents++;
+    return true;
+  };
+
+  const realSetItem = localStorage.setItem;
+  let envelopeWrites = 0;
+  localStorage.setItem = (key, value) => {
+    if (key === 'app_pin' || key === 'app_sec_qa') {
+      envelopeWrites++;
+      if (envelopeWrites === 2) {
+        const error = new Error('quota full');
+        error.name = 'QuotaExceededError';
+        throw error;
+      }
+    }
+    realSetItem(key, value);
+  };
+
+  await api.saveSecuritySetup();
+
+  assert.equal(localStorage.getItem('app_pin'), pinEnvelopeBefore,
+    'PIN_KEY phải quay về đúng snapshot cũ');
+  assert.equal(localStorage.getItem('app_sec_qa'), secEnvelopeBefore,
+    'SEC_KEY phải quay về đúng snapshot cũ');
+  assert.ok(shownErrors.some(([category]) => category === 'STORAGE'),
+    'Người dùng phải thấy lỗi STORAGE thay vì rejection im lặng');
+  assert.equal(dom.isHidden('setup-lock-modal'), false,
+    'Ghi thất bại phải giữ modal thiết lập mở');
+  assert.equal(dom.getEl('setup-save-btn').disabled, false,
+    'Khối finally phải bật lại nút Lưu');
+  assert.equal(unlockedEvents, 0,
+    'Không được chạy pipeline/phát clientpro:unlocked khi commit thất bại');
+});
+
 // ---------------------------------------------------------------------------
 // 3. checkRecovery — cửa khôi phục bằng mã nhân viên
 // ---------------------------------------------------------------------------
