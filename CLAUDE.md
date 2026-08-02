@@ -176,6 +176,9 @@ playwright.config.js      Playwright e2e config (mobile profile + static server)
 lighthouserc.json         Lighthouse CI config
 scripts/sync-version.mjs  Sync/verify semver + ASSET_V across manifest/sw/pwa/README
 scripts/check-policy.mjs  Repo policy checks (debug scaffold / cache-buster / self-host) — CI + local
+scripts/check-lighthouse-budget.mjs  Release-locked Lighthouse budget gate (e2e CI)
+scripts/serve-ci.mjs      Compression-aware static server used by lighthouserc.json
+docs/perf/                Cold-start performance baseline + release budget
 .nvmrc                    Node version for CI (node-version-file) and local dev
 assets/00…19_*.js, pwa.js Business modules, in dependency order (see §9)
 assets/head.js            Early head-level setup
@@ -413,6 +416,11 @@ Turn a valid PIN into an in-RAM master key and load data.
   seal it over the only envelopes that open the existing data. Every legitimate
   entry (first-time setup, 4→6 digit upgrade, post-recovery, post-reactivation)
   already has a key installed.
+- `saveSecuritySetup` commits `PIN_KEY`/`SEC_KEY` only through
+  `_commitEnvelopePair`: verify read-back, write `SEC_KEY` before `PIN_KEY`, then
+  verify `SEC_KEY` again. Any write failure restores both keys from their snapshot
+  and reports `ErrorHandler.showError('STORAGE', …)`; a half-written or silent
+  envelope update is forbidden.
 - The same "re-check after every await" rule applies to the employee code: it is
   the recovery secret, so `saveSecuritySetup` and `checkRecovery` seal it first
   and only assign `__employeeIdPlain` once the session is confirmed alive —
@@ -585,6 +593,11 @@ Crypto schema, backup format.
 All business data is owned by the user and stored on the device. Clearing site
 data deletes IndexedDB. There is no server-side authoritative copy; cloud actions
 are user-initiated backups only.
+
+Because IndexedDB is the only authoritative business-data copy,
+`10_bootstrap.js` asks for `navigator.storage.persist()` once after
+`clientpro:unlocked`, and only after `navigator.storage.persisted()` returns
+false. Denial/errors are non-blocking and a new page load may try again.
 
 ## Customer data model (contract level)
 
@@ -1100,6 +1113,12 @@ Installable PWA with offline app shell.
 ### Core invariants
 - `install` does not force activation; `activate` keeps only the current
   allowlisted caches.
+- Precache install is two-tier: critical cold-start assets use `cache.addAll` in
+  chunks of 10 with one retry and fail closed; deferred/lazy assets use individual
+  `cache.add` calls through bounded `Promise.allSettled` batches (concurrency 6),
+  one retry each, and failures are best-effort. After `clients.claim()`, activate
+  top-ups every missing `STATIC_ASSETS` entry with the same deferred helper.
+  Never collapse this back into one all-or-nothing `addAll` over the full list.
 - Cache names: `clientpro-genesis-{static,runtime-so,runtime-cdn,runtime-tile}-<VERSION>`.
 - `ASSET_V` (cache-buster) must equal every `?v=` in `index.html`, `MAPLIBRE_V`,
   and `LAZY_MODULES_V`.
@@ -1309,7 +1328,9 @@ This is an absolute rule. Static, developer-authored HTML fragments are loaded v
 
 Static markup uses `data-action` registered in `00_globals.js`. Dynamically
 created elements attach listeners in JS (e.g. `el(..., { on: { click } })` or
-direct `addEventListener`). No inline `onclick`.
+direct `addEventListener`). No inline `onclick`. `dispatch` must route both
+synchronous throws and asynchronous handler rejections through the same
+`ErrorHandler.logError` + `ErrorHandler.showError` path.
 
 ## localStorage / sessionStorage
 
@@ -1466,9 +1487,14 @@ are tracked by the **vendor inventory** in `assets/vendor/README.md` (name,
 version, license, npm source URL, SHA-256), enforced by
 `scripts/check-policy.mjs`.
 
-Lighthouse CI (`lighthouserc.json`): `accessibility` and `best-practices` are
-`error` gates; `performance` remains `warn` for this release (mobile headless
-variance). Artifacts: upload `.lighthouseci/` separately with
+The `static-checks` CI job runs checkout, Node setup, JSON validation, JavaScript
+syntax checks, version single-source verification, and the durable repository
+policy check. It has no release-plan-specific baseline/scope gate.
+
+Lighthouse CI (`lighthouserc.json`): `accessibility`, `best-practices`, and the
+`performance` hard floor are `error` gates; the release-locked median/floor and
+metric budgets are enforced by `scripts/check-lighthouse-budget.mjs`. Artifacts:
+upload `.lighthouseci/` separately with
 `include-hidden-files: true` (dot-dir) and fail if empty; Playwright report is a
 separate upload.
 
@@ -1489,9 +1515,11 @@ error-log redaction
 (`tests/key-generation-race.test.js`, `tests/session-generation-hardening.test.js`,
 `tests/master-key-install-race.test.js` — the last one drives the real
 `saveSecuritySetup`/`checkRecovery`/`validatePin` through
-`loadSecurity({ dom: true })`), PWA, SW routing, regressions, menu, repository
-hygiene (screenshot policy), PDF Toolkit pure utils, and DVHC Lookup utils +
-data integrity. Add unit tests for pure logic you change.
+`loadSecurity({ dom: true })`), PWA, SW routing, two-tier install/activate top-up
+(`tests/sw-install.test.js`, using the real `sw.js` through
+`tests/helpers/load-sw.js`), regressions, menu, repository hygiene (screenshot
+policy), PDF Toolkit pure utils, and DVHC Lookup utils + data integrity. Add unit
+tests for pure logic you change.
 
 ## E2E test
 
